@@ -1,0 +1,29 @@
+{
+    "python.defaultInterpreterPath": "./venv/bin/python",
+    "python.linting.enabled": true,
+    "python.linting.ruffEnabled": true,
+    "python.linting.mypyEnabled": true,
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    "python.formatting.provider": "none",
+    "ruff.importStrategy": "fromEnvironment",
+    "ruff.showNotifications": "onError",
+    "ruff.organizeImports": true,
+    "ruff.fixAll": true,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.ruff": "explicit",
+        "source.organizeImports.ruff": "explicit"
+    },
+    "editor.rulers": [88],
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        }
+    }
+}
