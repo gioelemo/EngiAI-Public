@@ -1,10 +1,10 @@
 #!/bin/bash
-# Setup script for Python Ruff Conda Template
+# Setup script for Engineeri Assistant
 # Run this script to set up the development environment
 
 set -e  # Exit on any error
 
-echo "🚀 Setting up Python Ruff Conda Template..."
+echo "🚀 Setting up Engineer Assistant..."
 
 # Check if conda is available
 if ! command -v conda &> /dev/null; then
@@ -20,7 +20,7 @@ conda env create -f environment.yml
 
 echo "🔄 Activating environment..."
 eval "$(conda shell.bash hook)"
-conda activate python-ruff-template
+conda engineer-assistant
 
 echo "📦 Installing dev tools..."
 pip install .[dev]
@@ -35,7 +35,7 @@ echo ""
 echo "🎉 Setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Activate the environment: conda activate python-ruff-template"
+echo "1. Activate the environment: conda activate engineer-assistant"
 echo "2. Configure VS Code:"
 echo "   - Open project in VS Code (will prompt for extensions)"
 echo "   - Install Ruff and MyPy extensions: charliermarsh.ruff and ms-python.mypy-type-checker"

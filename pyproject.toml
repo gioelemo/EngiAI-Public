@@ -1,9 +1,9 @@
 [project]
-name = "python-ruff-template"
+name = "engineer-assistant"
 version = "0.1.0"
-description = "Python project template with ruff and pre-commit for IDEAL Lab at ETHZ"
+description = "AI Assistant for Mechanical Engineering Design"
 authors = [
-    {name = "Soheyl Massoudi", email = "smassoudi@ethz.ch"}
+    {name = "Gioele Molinari", email = "gioelemo@ethz.ch"}
 ]
 readme = "README.md"
 requires-python = ">=3.11"

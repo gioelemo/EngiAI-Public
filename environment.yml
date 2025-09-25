@@ -1,4 +1,4 @@
-name: python-ruff-template
+name: engineer-assistant
 channels:
   - conda-forge
 dependencies:

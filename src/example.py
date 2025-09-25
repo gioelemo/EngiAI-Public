@@ -1,5 +1,5 @@
 # Example module demonstrating the project setup
-import sys, os
+import sys
 from pathlib import Path
 
 
