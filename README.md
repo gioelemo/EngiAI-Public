@@ -1,6 +1,6 @@
-# Python Ruff Conda Template
+# AI Assistant for Mechanical Engineering Design
 
-ETHZ Lab Python project template with ruff linting/formatting and pre-commit hooks.
+Jarvis-Style Multimodal AI Assistant for Closed-Loop Design-for-Manufacturing Correction.
 
 ## Quick Setup
 
@@ -12,7 +12,7 @@ ETHZ Lab Python project template with ruff linting/formatting and pre-commit hoo
 
 **First, navigate to the project directory:**
 ```bash
-cd python-ruff-conda-template
+cd engineer-assistant
 ```
 
 **Then run the setup script:**
@@ -31,7 +31,7 @@ setup.bat
 
 **Make sure you're in the project directory first:**
 ```bash
-cd python-ruff-conda-template
+cd engineer-assistant
 ```
 
 1. **Create environment:**
@@ -54,8 +54,8 @@ cd python-ruff-conda-template
 
 **Make sure you're in the project directory and environment is activated:**
 ```bash
-cd python-ruff-conda-template
-conda activate python-ruff-template
+cd engineer-assistant
+conda activate engineer-assistant
 ```
 
 ### Code Quality
@@ -117,74 +117,3 @@ conda env update -f environment.yml
 - **Ruff not found in VS Code:** Restart VS Code after activating the conda environment
 - **Pre-commit not working:** Run `pre-commit install` again
 - **Environment issues:** Delete and recreate: `conda env remove -n python-ruff-template && conda env create -f environment.yml`
-
-## Customizing the Template
-
-### 1. Update Project Information
-
-After cloning this template, update the project information in `pyproject.toml`:
-
-```toml
-[project]
-name = "your-project-name"  # Change this to your project name
-version = "0.1.0"
-description = "Your project description here"
-authors = [
-    {name = "Your Name", email = "your.email@ethz.ch"}  # Update with your details
-]
-```
-
-### 2. Create Your Private Repository
-
-1. Create a new **private** repository on GitHub (e.g., `your-project-name`)
-2. Clone this template: `git clone https://github.com/IDEALLab/python-ruff-conda-template.git your-project-name`
-3. Remove the original git history: `rm -rf .git`
-4. Initialize new git repository: `git init`
-5. Add your new repository as remote: `git remote add origin https://github.com/YOUR_USERNAME/your-project-name.git`
-6. Add all files: `git add .`
-7. Make initial commit: `git commit -m "Initial commit from IDEAL Lab template"`
-8. Push to your repository: `git push -u origin main`
-
-### 3. Update Repository References
-
-Update the following files to point to your new repository:
-
-#### `pyproject.toml` (line 6):
-```toml
-name = "your-project-name"  # Change from "python-ruff-template"
-```
-
-#### `README.md` (line 2):
-```markdown
-# Your Project Name  # Change from "Python Ruff Conda Template"
-```
-
-#### `README.md` (line 4):
-```markdown
-Your project description here.  # Change from "ETHZ Lab Python project template..."
-```
-
-#### `README.md` (line 152):
-```bash
-git clone https://github.com/YOUR_USERNAME/your-project-name.git your-project-name
-```
-
-#### `README.md` (line 155):
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/your-project-name.git
-```
-
-#### `environment.yml` (line 1):
-```yaml
-name: your-project-name  # Change from "python-ruff-template"
-```
-
-#### `setup.sh` and `setup.bat` (line 40):
-Update the environment name in the activation command:
-```bash
-conda activate your-project-name  # Change from "python-ruff-template"
-```
-
-## Support
-
-For issues, check the troubleshooting section above. This template is designed to be self-contained and not require external support.
