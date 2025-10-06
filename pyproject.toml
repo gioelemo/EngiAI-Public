@@ -130,6 +130,6 @@ exclude = [
 ]
 [[tool.mypy.overrides]]
 module = [
-  # Put dependencies without type hints here
+  "stl.*"
 ]
 ignore_missing_imports = true
