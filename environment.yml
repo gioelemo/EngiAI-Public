@@ -3,4 +3,14 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11.8
+  - numpy  # Add conda packages here
   - pip
+  - pip:
+    - ruff>=0.1.0
+    - pre-commit>=3.0.0
+    - mypy>=1.17.1  # Add pip packages after here
+    - langchain[openai]
+    - langgraph
+    - langsmith
+    - numpy-stl
+
