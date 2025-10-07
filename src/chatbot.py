@@ -1,115 +1,121 @@
-import json
 from typing import Annotated
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import ToolMessage
+from langchain_core.tools import InjectedToolCallId, tool
 from langchain_tavily import TavilySearch
-from langgraph.graph import END, START, StateGraph
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.types import Command, interrupt
 from typing_extensions import TypedDict
 
 
 class State(TypedDict):
-    # Messages have the type "list". The `add_messages` function
-    # in the annotation defines how this state key should be updated
-    # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
+    name: str
+    birthday: str
 
 
 graph_builder = StateGraph(State)
 
-tool = TavilySearch(max_results=2)
-tools = [tool]
+
+@tool
+def human_assistance(
+    name: str, birthday: str, tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
+    """Request assistance from a human."""
+    human_response = interrupt(
+        {
+            "question": "Is this correct?",
+            "name": name,
+            "birthday": birthday,
+        },
+    )
+    # If the information is correct, update the state as-is.
+    if human_response.get("correct", "").lower().startswith("y"):
+        verified_name = name
+        verified_birthday = birthday
+        response = "Correct"
+    # Otherwise, receive information from the human reviewer.
+    else:
+        verified_name = human_response.get("name", name)
+        verified_birthday = human_response.get("birthday", birthday)
+        response = f"Made a correction: {human_response}"
+
+    # This time we explicitly update the state with a ToolMessage inside
+    # the tool.
+    state_update = {
+        "name": verified_name,
+        "birthday": verified_birthday,
+        "messages": [ToolMessage(response, tool_call_id=tool_call_id)],
+    }
+    # We return a Command object in the tool to update our state.
+    return Command(update=state_update)
+
+
+search_tool = TavilySearch(max_results=2)
+tools = [search_tool, human_assistance]
 
 llm = init_chat_model("openai:gpt-4.1")
 llm_with_tools = llm.bind_tools(tools)
 
 
 def chatbot(state: State):
-    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+    message = llm_with_tools.invoke(state["messages"])
+    return {"messages": [message]}
 
 
-# The first argument is the unique node name
-# The second argument is the function or object that will be called whenever
-# the node is used.
 graph_builder.add_node("chatbot", chatbot)
 
 
-class BasicToolNode:
-    """A node that runs the tools requested in the last AIMessage."""
-
-    def __init__(self, tools: list) -> None:
-        self.tools_by_name = {tool.name: tool for tool in tools}
-
-    def __call__(self, inputs: dict):
-        if messages := inputs.get("messages", []):
-            message = messages[-1]
-        else:
-            raise ValueError
-        outputs = []
-        for tool_call in message.tool_calls:
-            tool_result = self.tools_by_name[tool_call["name"]].invoke(
-                tool_call["args"]
-            )
-            outputs.append(
-                ToolMessage(
-                    content=json.dumps(tool_result),
-                    name=tool_call["name"],
-                    tool_call_id=tool_call["id"],
-                )
-            )
-        return {"messages": outputs}
-
-
-tool_node = BasicToolNode(tools=[tool])
+tool_node = ToolNode(tools=tools)
 graph_builder.add_node("tools", tool_node)
-
-
-def route_tools(
-    state: State,
-):
-    """
-    Use in the conditional_edge to route to the ToolNode if the last message
-    has tool calls. Otherwise, route to the end.
-    """
-    if isinstance(state, list):
-        ai_message = state[-1]
-    elif messages := state.get("messages", []):
-        ai_message = messages[-1]
-    else:
-        raise ValueError
-    if hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
-        return "tools"
-    return END
-
 
 graph_builder.add_conditional_edges(
     "chatbot",
-    route_tools,
-    {"tools": "tools", END: END},
+    tools_condition,
 )
+
 graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge(START, "chatbot")
-graph = graph_builder.compile()
 
+memory = InMemorySaver()
+graph = graph_builder.compile(checkpointer=memory)
 
-def stream_graph_updates(user_input: str):
-    initial_state = {"messages": [{"role": "user", "content": user_input}]}
-    for event in graph.stream(initial_state):  # type: ignore[arg-type]
-        for value in event.values():
-            print("Assistant:", value["messages"][-1].content)
+config = {"configurable": {"thread_id": "1"}}
 
+print("🤖 LangGraph Chatbot is ready! Type 'exit' to quit.\n")
+
+# Start an empty conversation
+conversation = {
+    "messages": [{"role": "user", "content": "Hello!"}],
+}
 
 while True:
-    try:
-        user_input = input("User: ")
-        if user_input.lower() in ["quit", "exit", "q"]:
-            print("Goodbye!")
-            break
-        stream_graph_updates(user_input)
-    except EOFError:
-        # fallback if input() is not available
-        user_input = "What do you know about LangGraph?"
-        print("User: " + user_input)
-        stream_graph_updates(user_input)
+    user_input = input("🧑 You: ")
+    if user_input.lower() in {"exit", "quit"}:
+        print("👋 Goodbye!")
         break
+
+    # Append user message
+    conversation["messages"].append({"role": "user", "content": user_input})
+
+    # Stream events from LangGraph
+    for event in graph.stream(conversation, config, stream_mode="values"):
+        if "messages" in event:
+            last_msg = event["messages"][-1]
+            # Pretty print or raw content
+            try:
+                last_msg.pretty_print()
+            except Exception:
+                print("🤖 Bot:", last_msg.get("content", ""))
+
+    # Retrieve and persist the new state (checkpointing)
+    latest_state = None
+    for state in graph.get_state_history(config):
+        latest_state = state
+
+    if latest_state:
+        conversation = {"messages": latest_state.values["messages"]}
