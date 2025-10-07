@@ -34,7 +34,7 @@ graph = graph_builder.compile()
 
 def stream_graph_updates(user_input: str):
     initial_state = {"messages": [{"role": "user", "content": user_input}]}
-    for event in graph.stream(initial_state): # type: ignore[arg-type]
+    for event in graph.stream(initial_state):  # type: ignore[arg-type]
         for value in event.values():
             print("Assistant:", value["messages"][-1].content)
 
