@@ -10,6 +10,7 @@ dependencies:
     - pre-commit>=3.0.0
     - mypy>=1.17.1  # Add pip packages after here
     - langchain[openai]
+    - langchain-tavily
     - langgraph
     - langsmith
     - numpy-stl
