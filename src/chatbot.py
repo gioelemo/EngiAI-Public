@@ -1,6 +1,9 @@
+import json
 from typing import Annotated
 
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import ToolMessage
+from langchain_tavily import TavilySearch
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
@@ -15,11 +18,15 @@ class State(TypedDict):
 
 graph_builder = StateGraph(State)
 
+tool = TavilySearch(max_results=2)
+tools = [tool]
+
 llm = init_chat_model("openai:gpt-4.1")
+llm_with_tools = llm.bind_tools(tools)
 
 
 def chatbot(state: State):
-    return {"messages": [llm.invoke(state["messages"])]}
+    return {"messages": [llm_with_tools.invoke(state["messages"])]}
 
 
 # The first argument is the unique node name
@@ -27,8 +34,62 @@ def chatbot(state: State):
 # the node is used.
 graph_builder.add_node("chatbot", chatbot)
 
+
+class BasicToolNode:
+    """A node that runs the tools requested in the last AIMessage."""
+
+    def __init__(self, tools: list) -> None:
+        self.tools_by_name = {tool.name: tool for tool in tools}
+
+    def __call__(self, inputs: dict):
+        if messages := inputs.get("messages", []):
+            message = messages[-1]
+        else:
+            raise ValueError
+        outputs = []
+        for tool_call in message.tool_calls:
+            tool_result = self.tools_by_name[tool_call["name"]].invoke(
+                tool_call["args"]
+            )
+            outputs.append(
+                ToolMessage(
+                    content=json.dumps(tool_result),
+                    name=tool_call["name"],
+                    tool_call_id=tool_call["id"],
+                )
+            )
+        return {"messages": outputs}
+
+
+tool_node = BasicToolNode(tools=[tool])
+graph_builder.add_node("tools", tool_node)
+
+
+def route_tools(
+    state: State,
+):
+    """
+    Use in the conditional_edge to route to the ToolNode if the last message
+    has tool calls. Otherwise, route to the end.
+    """
+    if isinstance(state, list):
+        ai_message = state[-1]
+    elif messages := state.get("messages", []):
+        ai_message = messages[-1]
+    else:
+        raise ValueError
+    if hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
+        return "tools"
+    return END
+
+
+graph_builder.add_conditional_edges(
+    "chatbot",
+    route_tools,
+    {"tools": "tools", END: END},
+)
+graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge(START, "chatbot")
-graph_builder.add_edge("chatbot", END)
 graph = graph_builder.compile()
 
 
