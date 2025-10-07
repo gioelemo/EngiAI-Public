@@ -1,4 +1,4 @@
-from typing import Annotated, cast
+from typing import Annotated
 
 from langchain.chat_models import init_chat_model
 from langgraph.graph import END, START, StateGraph
@@ -33,8 +33,8 @@ graph = graph_builder.compile()
 
 
 def stream_graph_updates(user_input: str):
-    initial_state = cast(State, {"messages": [{"role": "user", "content": user_input}]})
-    for event in graph.stream(initial_state):
+    initial_state = {"messages": [{"role": "user", "content": user_input}]}
+    for event in graph.stream(initial_state): # type: ignore[arg-type]
         for value in event.values():
             print("Assistant:", value["messages"][-1].content)
 
