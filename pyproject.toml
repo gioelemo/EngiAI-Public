@@ -133,6 +133,6 @@ module = [
   "stl.*",
   "langchain.*",
   "langgraph.*",
-  "langchain_*",
+  "langchain_*.*",
 ]
 ignore_missing_imports = true
