@@ -130,6 +130,8 @@ exclude = [
 ]
 [[tool.mypy.overrides]]
 module = [
-  "stl.*"
+  "stl.*",
+  "langchain.*",
+  "langgraph.*",
 ]
 ignore_missing_imports = true
