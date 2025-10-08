@@ -28,6 +28,15 @@ class Config:
         self.openai_api_key: str = os.getenv("OPENAI_API_KEY") or ""
         self.tavily_api_key: str = os.getenv("TAVILY_API_KEY") or ""
 
+        # LangSmith configuration
+        self.langchain_tracing = (
+            os.getenv("LANGCHAIN_TRACING", "false").lower() == "true"
+        )
+        self.langchain_endpoint = os.getenv(
+            "LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com"
+        )
+        self.langchain_project = os.getenv("LANGCHAIN_PROJECT")
+
         # Validate required configuration
         self._validate_config()
 
@@ -49,6 +58,20 @@ class Config:
         """Set environment variables for compatibility with existing code."""
         os.environ["OPENAI_API_KEY"] = self.openai_api_key
         os.environ["TAVILY_API_KEY"] = self.tavily_api_key
+
+    def setup_langsmith_tracing(self, project_name: str) -> None:
+        """
+        Set up LangSmith tracing for a specific project.
+
+        Args:
+            project_name: Name of the project to trace in LangSmith
+        """
+        if not self.langchain_tracing:
+            return
+
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_ENDPOINT"] = self.langchain_endpoint
+        os.environ["LANGCHAIN_PROJECT"] = project_name
 
 
 # Create a global config instance
