@@ -136,5 +136,6 @@ module = [
   "langchain_core.*",
   "langchain_tavily.*",
   "python-dotenv",
+  "dotenv",
 ]
 ignore_missing_imports = true
