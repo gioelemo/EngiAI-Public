@@ -1,3 +1,3 @@
-"""Python Ruff Conda Template - ETHZ Lab Project Template."""
+"""Python Engineer Assistant package."""
 
 __version__ = "0.1.0"

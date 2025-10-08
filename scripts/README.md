@@ -32,7 +32,7 @@ python 2D_heatmap_to_stl.py input.npy output.stl --scale-z 20 --scale-xy 2 --thi
 - `input`: Input .npy file containing a 2D NumPy array
 - `output`: Output .stl file path
 - `-z, --scale-z`: Height scale factor (default: 10)
-- `-xy, --scale-xy`: X/Y scale factor (default: 1)  
+- `-xy, --scale-xy`: X/Y scale factor (default: 1)
 - `-t, --thickness`: Base thickness (default: 1)
 
 ### Examples
