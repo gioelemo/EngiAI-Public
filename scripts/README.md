@@ -12,20 +12,9 @@ A Python script that converts 2D heatmap data (stored as NumPy arrays) into 3D S
 
 ## Requirements
 
-- Python 3.6+
-- NumPy
 - numpy-stl
 
-## Installation
-
-Install the required dependencies:
-
-```bash
-pip install numpy numpy-stl
-```
-
 ## Usage
-
 ### Basic Usage
 
 ```bash
