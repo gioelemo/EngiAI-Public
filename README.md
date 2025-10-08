@@ -66,9 +66,32 @@ ruff format .         # Format code
 mypy .                # Type checking
 ```
 
-### Testing
+### Running the Application
+
+**Before running any applications, configure your environment variables:**
+
+1. **Create your environment file:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit `.env` with your API keys:**
+   ```bash
+   # Open .env in your preferred editor
+   code .env  # VS Code
+   # or
+   nano .env  # Terminal editor
+   ```
+
+   Add your actual API keys to the `.env` file:
+   ```
+   OPENAI_API_KEY=your-actual-openai-api-key-here
+   TAVILY_API_KEY=your-actual-tavily-api-key-here
+   ```
+
+**Run the chatbot:**
 ```bash
-python src/example.py  # Run example
+python -m src.chatbot  # Interactive AI chatbot with web search
 ```
 
 ## What's Included
@@ -77,6 +100,8 @@ python src/example.py  # Run example
 - **Ruff** for fast linting/formatting
 - **Pre-commit hooks** for automated quality checks
 - **VS Code integration** with consistent settings
+- **Interactive AI chatbot** with web search capabilities
+- **Environment variable management** with `.env` support
 - **Example code** (intentionally messy to demonstrate ruff)
 
 ## Project Structure
@@ -86,7 +111,13 @@ python src/example.py  # Run example
 │   ├── extensions.json          # Recommended VS Code extensions
 │   └── settings_template.json   # VS Code settings template
 ├── src/                         # Your source code
+│   ├── chatbot.py               # Interactive AI chatbot
+│   └── example.py               # Example code
+├── scripts/                     # Utility scripts
+│   └── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL files
 ├── tests/                       # Your tests
+├── .env.example                 # Environment variables template
+├── config.py                    # Configuration management
 ├── environment.yml              # Conda environment
 ├── pyproject.toml               # Project config & ruff settings
 ├── setup.sh / setup.bat         # One-command setup
@@ -112,8 +143,20 @@ Then run:
 conda env update -f environment.yml
 ```
 
+## API Keys Setup
+
+To use the chatbot functionality, you'll need:
+
+1. **OpenAI API Key**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
+2. **Tavily API Key**: Get from [Tavily](https://tavily.com/) for web search functionality
+
+Both are required for the chatbot to work properly.
+
 ## Troubleshooting
 
 - **Ruff not found in VS Code:** Restart VS Code after activating the conda environment
 - **Pre-commit not working:** Run `pre-commit install` again
-- **Environment issues:** Delete and recreate: `conda env remove -n python-ruff-template && conda env create -f environment.yml`
+- **Environment issues:** Delete and recreate: `conda env remove -n engineer-assistant && conda env create -f environment.yml`
+- **Missing API keys error:** Make sure you've created `.env` file and added your actual API keys
+- **Chatbot not responding:** Verify your OpenAI API key is valid and has sufficient credits
+- **Web search not working:** Check your Tavily API key in the `.env` file
