@@ -11,6 +11,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.types import Command, interrupt
 from typing_extensions import TypedDict
 
+from config import config
+
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
@@ -55,7 +57,7 @@ def human_assistance(
     return Command(update=state_update)
 
 
-search_tool = TavilySearch(max_results=2)
+search_tool = TavilySearch(api_key=config.tavily_api_key, max_results=2)
 tools = [search_tool, human_assistance]
 
 llm = init_chat_model("openai:gpt-4.1")
@@ -84,7 +86,7 @@ graph_builder.add_edge(START, "chatbot")
 memory = InMemorySaver()
 graph = graph_builder.compile(checkpointer=memory)
 
-config = {"configurable": {"thread_id": "1"}}
+configurable = {"configurable": {"thread_id": "1"}}
 
 print("🤖 LangGraph Chatbot is ready! Type 'exit' to quit.\n")
 
@@ -103,7 +105,7 @@ while True:
     conversation["messages"].append({"role": "user", "content": user_input})
 
     # Stream events from LangGraph
-    for event in graph.stream(conversation, config, stream_mode="values"):
+    for event in graph.stream(conversation, configurable, stream_mode="values"):
         if "messages" in event:
             last_msg = event["messages"][-1]
             # Pretty print or raw content
@@ -114,7 +116,7 @@ while True:
 
     # Retrieve and persist the new state (checkpointing)
     latest_state = None
-    for state in graph.get_state_history(config):
+    for state in graph.get_state_history(configurable):
         latest_state = state
 
     if latest_state:

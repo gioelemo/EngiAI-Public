@@ -14,3 +14,4 @@ dependencies:
     - langgraph
     - langsmith
     - numpy-stl
+    - python-dotenv

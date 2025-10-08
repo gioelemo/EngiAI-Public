@@ -135,5 +135,6 @@ module = [
   "langgraph.*",
   "langchain_core.*",
   "langchain_tavily.*",
+  "python-dotenv",
 ]
 ignore_missing_imports = true
