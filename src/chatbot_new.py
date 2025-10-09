@@ -143,10 +143,60 @@ agent_builder.add_edge("tool_node", "llm_call")
 # Compile the agent
 agent = agent_builder.compile()
 
-# Invoke
+# Interactive conversation loop
 
-initial_messages: list[AnyMessage] = [HumanMessage(content="Add 3 and 4.")]
-initial_state: MessagesState = {"messages": initial_messages}
-result = cast(MessagesState, agent.invoke(initial_state))  # type: ignore[arg-type]
-for m in result["messages"]:
-    m.pretty_print()
+
+def main() -> None:
+    """Run interactive chatbot conversation."""
+    print("🤖 Interactive Math Assistant")
+    print("=" * 50)
+    print("I can help you with arithmetic operations!")
+    print("Commands: 'exit', 'quit', 'clear' to start fresh")
+    print("=" * 50)
+    print()
+
+    # Initialize conversation state
+    state: MessagesState = {"messages": []}
+
+    while True:
+        # Get user input
+        user_input = input("You: ").strip()
+
+        if not user_input:
+            continue
+
+        # Check for exit commands
+        if user_input.lower() in ["exit", "quit", "bye"]:
+            print("\n👋 Goodbye!")
+            break
+
+        # Check for clear command
+        if user_input.lower() == "clear":
+            state = {"messages": []}
+            print("🔄 Conversation cleared!\n")
+            continue
+
+        # Add user message to state
+        state["messages"].append(HumanMessage(content=user_input))
+
+        try:
+            # Invoke the agent
+            result = cast(MessagesState, agent.invoke(state))  # type: ignore[arg-type]
+
+            # Update state with result
+            state = result
+
+            # Print all new messages from this turn using pretty_print
+            print()
+            for message in state["messages"]:
+                message.pretty_print()
+            print()
+
+        except Exception as e:
+            print(f"\n❌ Error: {e}\n")
+            # Remove the last user message on error
+            state["messages"].pop()
+
+
+if __name__ == "__main__":
+    main()
