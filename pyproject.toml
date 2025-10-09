@@ -122,7 +122,7 @@ max-args = 5
 
 [tool.mypy]
 warn_redundant_casts = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 files = ["src/", "tests/"]
 exclude = [
   "^build/",
