@@ -12,12 +12,11 @@ from langchain_core.messages import (
     ToolMessage,
 )
 from langchain_core.tools import tool
+from langchain_tavily import TavilySearch
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
 from config import config
-
-tavily_api_key = config.tavily_api_key
 
 llm = init_chat_model(
     "openai:gpt-4.1",
@@ -58,8 +57,11 @@ def divide(a: int, b: int) -> float:
     return a / b
 
 
+search_tool = TavilySearch(api_key=config.tavily_api_key, max_results=2)
+
+
 # Augment the LLM with tools
-tools = [add, multiply, divide]
+tools = [add, multiply, divide, search_tool]
 tools_by_name = {tool.name: tool for tool in tools}
 llm_with_tools = llm.bind_tools(tools)
 
@@ -79,7 +81,7 @@ def llm_call(state: MessagesState) -> dict:
 
     messages: list[AnyMessage] = [
         SystemMessage(
-            content="You are a helpful assistant tasked with performing arithmetic on a set of inputs."
+            content="You are a helpful assistant tasked with performing arithmetic on a set of inputs or search on the web."
         )
     ] + state["messages"]
 
@@ -150,7 +152,7 @@ def main() -> None:
     """Run interactive chatbot conversation."""
     print("🤖 Interactive Math Assistant")
     print("=" * 50)
-    print("I can help you with arithmetic operations!")
+    print("I can help you with arithmetic operations or search on the web!")
     print("Commands: 'exit', 'quit', 'clear' to start fresh")
     print("=" * 50)
     print()
