@@ -105,7 +105,7 @@ while True:
     conversation["messages"].append({"role": "user", "content": user_input})
 
     # Stream events from LangGraph
-    for event in graph.stream(conversation, configurable, stream_mode="values"): # type: ignore[arg-type]
+    for event in graph.stream(conversation, configurable, stream_mode="values"):  # type: ignore[arg-type]
         if "messages" in event:
             last_msg = event["messages"][-1]
             # Pretty print or raw content
@@ -116,7 +116,7 @@ while True:
 
     # Retrieve and persist the new state (checkpointing)
     latest_state = None
-    for state in graph.get_state_history(configurable): # type: ignore[arg-type]
+    for state in graph.get_state_history(configurable):  # type: ignore[arg-type]
         latest_state = state
 
     if latest_state:
