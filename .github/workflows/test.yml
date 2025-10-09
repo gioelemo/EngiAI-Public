@@ -24,7 +24,7 @@ jobs:
       run: |
         pipx install uv
         uv pip install --system pytest
-        uv pip install --system -e .[all]
+        uv pip install --system --prerelease=allow -e .[all]
     - name: Full Python tests
       run: |
         pytest -s
@@ -46,8 +46,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install uv
         uv pip install --system pytest
-        uv pip install --system -e .[all]
-
+        uv pip install --system --prerelease=allow -e .[all]
     - name: Full Python tests
       run: |
         pytest -s
@@ -69,7 +68,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install uv
         uv pip install --system pytest
-        uv pip install --system -e .[all]
+        uv pip install --system --prerelease=allow -e .[all]
     - name: Full Python tests
       run: |
         pytest -s
