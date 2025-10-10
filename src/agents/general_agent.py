@@ -13,19 +13,7 @@ from config import config
 from src.models.state import MessagesState
 from src.tools.arithmetic import add, divide, multiply
 from src.tools.search import create_search_tool
-
-GENERAL_AGENT_SYSTEM_PROMPT = """You are a helpful assistant with both mathematical and research capabilities.
-
-You can:
-1. Perform arithmetic operations (add, multiply, divide)
-2. Search the web for current information
-
-When helping users:
-- Choose the appropriate tool for the task
-- Show your work for calculations
-- Cite sources when providing information from the web
-- Be clear about which tool you're using and why
-"""
+from src.utils.prompts import GENERAL_AGENT_SYSTEM_PROMPT
 
 
 class GeneralAgent:
