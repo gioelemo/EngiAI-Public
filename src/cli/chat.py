@@ -4,10 +4,12 @@ Interactive chat CLI for different agent types.
 
 from langchain_core.messages import HumanMessage
 
+from src.agents.cad_agent import CADAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.general_agent import GeneralAgent
 from src.agents.math_agent import MathAgent
 from src.agents.search_agent import SearchAgent
+from src.agents.supervisor_agent import SupervisorAgent
 from src.models.state import MessagesState
 
 
@@ -15,12 +17,20 @@ class ChatCLI:
     """Interactive command-line interface for chatting with agents."""
 
     def __init__(
-        self, agent: MathAgent | SearchAgent | GeneralAgent | EngineeringAgent
+        self,
+        agent: (
+            MathAgent
+            | SearchAgent
+            | GeneralAgent
+            | EngineeringAgent
+            | CADAgent
+            | SupervisorAgent
+        ),
     ) -> None:
         """Initialize the chat CLI.
 
         Args:
-            agent: The agent to chat with (MathAgent, SearchAgent, GeneralAgent, or EngineeringAgent)
+            agent: The agent to chat with
         """
         self.agent = agent
         self.state: MessagesState = {"messages": []}
@@ -145,6 +155,18 @@ def main_engineering() -> None:
         agent_type="Engineering Assistant",
         capabilities="I can help you with structural design and optimization using EngiBench!\n"
         "Capabilities: Beam optimization, design simulation, topology optimization.",
+    )
+
+
+def main_supervisor() -> None:
+    """Main entry point for the supervisor multi-agent system."""
+    agent = SupervisorAgent()
+    cli = ChatCLI(agent)
+    cli.run(
+        agent_type="Multi-Agent Engineering System",
+        capabilities="I coordinate specialized agents to solve complex engineering tasks!\n"
+        "Agents: Engineering (optimization), CAD (STL conversion), Search (research)\n"
+        "I can handle complete workflows from design to 3D printing.",
     )
 
 

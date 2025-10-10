@@ -4,7 +4,13 @@ Main entry point for the engineer assistant application.
 
 import sys
 
-from src.cli.chat import main_engineering, main_general, main_math, main_search
+from src.cli.chat import (
+    main_engineering,
+    main_general,
+    main_math,
+    main_search,
+    main_supervisor,
+)
 
 
 def main() -> None:
@@ -24,15 +30,21 @@ def main() -> None:
         elif agent_type in ["engineering", "eng", "e"]:
             print("Starting Engineering Assistant...\n")
             main_engineering()
+        elif agent_type in ["supervisor", "super", "multi", "team"]:
+            print("Starting Multi-Agent Supervisor System...\n")
+            main_supervisor()
         else:
             print(f"Unknown agent type: {agent_type}")
-            print("Available agents: math, search, general, engineering")
+            print("Available agents: math, search, general, engineering, supervisor")
             print("\nUsage: python -m src.main [agent_type]")
-            print("  math (m)        - Math operations only")
-            print("  search (s)      - Web search only")
-            print("  general (g)     - Both math and search (default)")
+            print("  math (m)          - Math operations only")
+            print("  search (s)        - Web search only")
+            print("  general (g)       - Both math and search (default)")
             print(
-                "  engineering (e) - Structural design & optimization with EngiBench\n"
+                "  engineering (e)   - Structural design & optimization with EngiBench"
+            )
+            print(
+                "  supervisor (team) - Multi-agent system coordinating engineering, CAD, and search\n"
             )
             sys.exit(1)
     else:

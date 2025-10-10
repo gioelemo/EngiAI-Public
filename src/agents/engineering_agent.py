@@ -15,6 +15,7 @@ from langgraph.graph import END, START, StateGraph
 from config import config
 from src.models.state import MessagesState
 from src.tools.engibench import (
+    convert_design_to_stl,
     create_beam_problem,
     get_problem_info,
     optimize_beam_design,
@@ -42,6 +43,7 @@ class EngineeringAgent:
             simulate_beam_design,
             optimize_beam_design,
             render_beam_design,
+            convert_design_to_stl,
             get_problem_info,
         ]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
