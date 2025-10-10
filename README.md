@@ -109,8 +109,46 @@ python -m src.main math
 # Search assistant (web search only)
 python -m src.main search
 
+# Engineering assistant (structural optimization with EngiBench)
+python -m src.main engineering
+
 # Legacy version (for reference)
 python -m src.chatbot
+```
+
+### Engineering Agent with EngiBench
+
+The engineering agent uses [EngiBench](https://engibench.ethz.ch), a library for engineering design benchmarking and optimization.
+
+**Install EngiBench:**
+```bash
+pip install engibench
+```
+
+**Example usage:**
+```bash
+python -m src.main engineering
+```
+
+**What you can do:**
+- Optimize 2D beam structures for minimum compliance
+- Simulate structural designs under various load conditions
+- Run topology optimization with volume constraints
+- Explore trade-offs between stiffness and material usage
+
+**Example conversation:**
+```
+You: I need to design a beam that minimizes weight while maximizing stiffness.
+     Can you help me optimize it with a 35% volume fraction?
+
+Engineering Assistant: I'll help you optimize a beam design! Let me set up
+the problem and run topology optimization...
+
+[Uses EngiBench tools to optimize design]
+
+The optimized design achieved a compliance of 0.0234, which is 67% better
+than the initial random design! This means the structure is significantly
+stiffer while using only 35% of the available material.
 ```
 
 ## What's Included
@@ -121,6 +159,7 @@ python -m src.chatbot
 - **VS Code integration** with consistent settings
 - **Modular architecture** with agents, tools, and CLI separation
 - **Interactive AI chatbot** with arithmetic and web search
+- **Engineering optimization** with EngiBench integration
 - **Environment variable management** with `.env` support
 - **Extensible tool system** for easy feature additions
 

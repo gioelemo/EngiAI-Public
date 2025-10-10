@@ -4,6 +4,7 @@ Interactive chat CLI for different agent types.
 
 from langchain_core.messages import HumanMessage
 
+from src.agents.engineering_agent import EngineeringAgent
 from src.agents.general_agent import GeneralAgent
 from src.agents.math_agent import MathAgent
 from src.agents.search_agent import SearchAgent
@@ -13,11 +14,13 @@ from src.models.state import MessagesState
 class ChatCLI:
     """Interactive command-line interface for chatting with agents."""
 
-    def __init__(self, agent: MathAgent | SearchAgent | GeneralAgent) -> None:
+    def __init__(
+        self, agent: MathAgent | SearchAgent | GeneralAgent | EngineeringAgent
+    ) -> None:
         """Initialize the chat CLI.
 
         Args:
-            agent: The agent to chat with (MathAgent, SearchAgent, or GeneralAgent)
+            agent: The agent to chat with (MathAgent, SearchAgent, GeneralAgent, or EngineeringAgent)
         """
         self.agent = agent
         self.state: MessagesState = {"messages": []}
@@ -131,6 +134,17 @@ def main_general() -> None:
     cli.run(
         agent_type="General Assistant",
         capabilities="I can help you with arithmetic operations and web search!",
+    )
+
+
+def main_engineering() -> None:
+    """Main entry point for the engineering agent CLI."""
+    agent = EngineeringAgent()
+    cli = ChatCLI(agent)
+    cli.run(
+        agent_type="Engineering Assistant",
+        capabilities="I can help you with structural design and optimization using EngiBench!\n"
+        "Capabilities: Beam optimization, design simulation, topology optimization.",
     )
 
 
