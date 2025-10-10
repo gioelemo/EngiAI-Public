@@ -1,5 +1,5 @@
 """
-Math-focused agent with arithmetic and search capabilities.
+Search-focused agent with web search capabilities.
 """
 
 from typing import Any, Literal
@@ -11,15 +11,15 @@ from langgraph.graph import END, START, StateGraph
 
 from config import config
 from src.models.state import MessagesState
-from src.tools.arithmetic import add, divide, multiply
-from src.utils.prompts import MATH_AGENT_SYSTEM_PROMPT
+from src.tools.search import create_search_tool
+from src.utils.prompts import SEARCH_AGENT_SYSTEM_PROMPT
 
 
-class MathAgent:
-    """Agent specialized in arithmetic operations."""
+class SearchAgent:
+    """Agent specialized in web search and information retrieval."""
 
     def __init__(self, model_name: str | None = None):
-        """Initialize the math agent.
+        """Initialize the search agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
@@ -28,7 +28,7 @@ class MathAgent:
         self.llm = init_chat_model(self.model_name)
 
         # Set up tools
-        self.tools = [add, multiply, divide]
+        self.tools = [create_search_tool()]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.llm_with_tools = self.llm.bind_tools(self.tools)
 
@@ -45,7 +45,7 @@ class MathAgent:
             Updated state with LLM response
         """
         messages: list[AnyMessage] = [
-            SystemMessage(content=MATH_AGENT_SYSTEM_PROMPT)
+            SystemMessage(content=SEARCH_AGENT_SYSTEM_PROMPT)
         ] + state["messages"]
 
         return {

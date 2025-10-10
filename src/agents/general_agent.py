@@ -1,5 +1,5 @@
 """
-Math-focused agent with arithmetic and search capabilities.
+General-purpose agent with both math and search capabilities.
 """
 
 from typing import Any, Literal
@@ -12,14 +12,27 @@ from langgraph.graph import END, START, StateGraph
 from config import config
 from src.models.state import MessagesState
 from src.tools.arithmetic import add, divide, multiply
-from src.utils.prompts import MATH_AGENT_SYSTEM_PROMPT
+from src.tools.search import create_search_tool
+
+GENERAL_AGENT_SYSTEM_PROMPT = """You are a helpful assistant with both mathematical and research capabilities.
+
+You can:
+1. Perform arithmetic operations (add, multiply, divide)
+2. Search the web for current information
+
+When helping users:
+- Choose the appropriate tool for the task
+- Show your work for calculations
+- Cite sources when providing information from the web
+- Be clear about which tool you're using and why
+"""
 
 
-class MathAgent:
-    """Agent specialized in arithmetic operations."""
+class GeneralAgent:
+    """General-purpose agent with arithmetic and web search capabilities."""
 
     def __init__(self, model_name: str | None = None):
-        """Initialize the math agent.
+        """Initialize the general agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
@@ -27,8 +40,8 @@ class MathAgent:
         self.model_name = model_name or config.llm_model
         self.llm = init_chat_model(self.model_name)
 
-        # Set up tools
-        self.tools = [add, multiply, divide]
+        # Set up tools - both math and search
+        self.tools = [add, multiply, divide, create_search_tool()]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.llm_with_tools = self.llm.bind_tools(self.tools)
 
@@ -45,7 +58,7 @@ class MathAgent:
             Updated state with LLM response
         """
         messages: list[AnyMessage] = [
-            SystemMessage(content=MATH_AGENT_SYSTEM_PROMPT)
+            SystemMessage(content=GENERAL_AGENT_SYSTEM_PROMPT)
         ] + state["messages"]
 
         return {

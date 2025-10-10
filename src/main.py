@@ -2,12 +2,36 @@
 Main entry point for the engineer assistant application.
 """
 
-from src.cli.chat import main as chat_main
+import sys
+
+from src.cli.chat_v2 import main_general, main_math, main_search
 
 
 def main() -> None:
     """Run the engineer assistant application."""
-    chat_main()
+    # Check if user specified an agent type
+    if len(sys.argv) > 1:
+        agent_type = sys.argv[1].lower()
+        if agent_type in ["math", "m"]:
+            print("Starting Math Assistant...\n")
+            main_math()
+        elif agent_type in ["search", "s"]:
+            print("Starting Search Assistant...\n")
+            main_search()
+        elif agent_type in ["general", "g"]:
+            print("Starting General Assistant...\n")
+            main_general()
+        else:
+            print(f"Unknown agent type: {agent_type}")
+            print("Available agents: math, search, general")
+            print("\nUsage: python -m src.main [agent_type]")
+            print("  math (m)    - Math operations only")
+            print("  search (s)  - Web search only")
+            print("  general (g) - Both math and search (default)\n")
+            sys.exit(1)
+    else:
+        # Default to general agent
+        main_general()
 
 
 if __name__ == "__main__":

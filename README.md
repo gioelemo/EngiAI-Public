@@ -100,11 +100,14 @@ mypy .                # Type checking
 
 **Run the chatbot:**
 ```bash
-# New modular version (recommended)
+# General assistant (both math and search) - default
 python -m src.main
 
-# Or use the CLI directly
-python -m src.cli.chat
+# Math assistant (arithmetic only)
+python -m src.main math
+
+# Search assistant (web search only)
+python -m src.main search
 
 # Legacy version (for reference)
 python -m src.chatbot
@@ -129,9 +132,12 @@ python -m src.chatbot
 │   └── settings_template.json   # VS Code settings template
 ├── src/                         # Source code (modular structure)
 │   ├── agents/                  # Agent implementations
-│   │   └── math_agent.py        # Math & search agent
+│   │   ├── math_agent.py        # Math operations only
+│   │   ├── search_agent.py      # Web search only
+│   │   └── general_agent.py     # Both math and search
 │   ├── cli/                     # Command-line interfaces
-│   │   └── chat.py              # Interactive chat
+│   │   ├── chat.py              # Interactive chat (legacy)
+│   │   └── chat_v2.py           # Interactive chat with agent selection
 │   ├── models/                  # State definitions
 │   │   └── state.py             # Conversation state
 │   ├── tools/                   # Custom tools

@@ -8,7 +8,9 @@ This document explains the modular structure of the engineer assistant codebase.
 src/
 ├── agents/              # Agent implementations
 │   ├── __init__.py
-│   └── math_agent.py    # Math and search agent
+│   ├── math_agent.py    # Math operations only
+│   ├── search_agent.py  # Web search only
+│   └── general_agent.py # Both math and search
 │
 ├── cli/                 # Command-line interfaces
 │   ├── __init__.py
@@ -39,7 +41,9 @@ Contains agent implementations. Each agent is a class that:
 - Provides an `invoke()` method to interact with the agent
 
 **Current agents:**
-- `MathAgent`: Handles arithmetic operations and web searches
+- `MathAgent`: Handles arithmetic operations only (add, multiply, divide)
+- `SearchAgent`: Handles web search only (via Tavily)
+- `GeneralAgent`: Combines both math and search capabilities
 
 **Adding a new agent:**
 ```python
@@ -129,17 +133,23 @@ def format_calculation_result(result: float) -> str:
 ### Running the Application
 
 ```bash
-# Interactive chat
+# General assistant (both math and search) - default
 python -m src.main
 
-# Or directly run the chat CLI
-python -m src.cli.chat
+# Math assistant only
+python -m src.main math
+
+# Search assistant only
+python -m src.main search
+
+# Or run specific agents directly
+python -m src.cli.chat_v2  # General agent
 ```
 
 ### Using Components Programmatically
 
 ```python
-# Use the math agent directly
+# Use the math agent (arithmetic only)
 from src.agents import MathAgent
 from src.models import MessagesState
 from langchain_core.messages import HumanMessage
@@ -148,6 +158,24 @@ agent = MathAgent()
 state = MessagesState(messages=[HumanMessage(content="What is 5 + 3?")])
 result = agent.invoke(state)
 print(result["messages"][-1].content)
+```
+
+```python
+# Use the search agent (web search only)
+from src.agents import SearchAgent
+
+agent = SearchAgent()
+state = MessagesState(messages=[HumanMessage(content="What's the weather like?")])
+result = agent.invoke(state)
+```
+
+```python
+# Use the general agent (both capabilities)
+from src.agents import GeneralAgent
+
+agent = GeneralAgent()
+state = MessagesState(messages=[HumanMessage(content="Calculate 10 * 5 and search for Python news")])
+result = agent.invoke(state)
 ```
 
 ```python
