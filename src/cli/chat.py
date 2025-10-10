@@ -4,7 +4,6 @@ Interactive chat CLI for different agent types.
 
 from langchain_core.messages import HumanMessage
 
-from src.agents.cad_agent import CADAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.math_agent import MathAgent
 from src.agents.search_agent import SearchAgent
@@ -17,9 +16,7 @@ class ChatCLI:
 
     def __init__(
         self,
-        agent: (
-            MathAgent | SearchAgent | EngineeringAgent | CADAgent | SupervisorAgent
-        ),
+        agent: MathAgent | SearchAgent | EngineeringAgent | SupervisorAgent,
     ) -> None:
         """Initialize the chat CLI.
 
