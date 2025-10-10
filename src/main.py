@@ -4,7 +4,7 @@ Main entry point for the engineer assistant application.
 
 import sys
 
-from src.cli.chat_v2 import main_general, main_math, main_search
+from src.cli.chat import main_general, main_math, main_search
 
 
 def main() -> None:

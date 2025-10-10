@@ -1,31 +1,38 @@
 """
-Interactive chat CLI for the engineer assistant.
+Interactive chat CLI for different agent types.
 """
 
 from langchain_core.messages import HumanMessage
 
+from src.agents.general_agent import GeneralAgent
 from src.agents.math_agent import MathAgent
+from src.agents.search_agent import SearchAgent
 from src.models.state import MessagesState
 
 
 class ChatCLI:
     """Interactive command-line interface for chatting with agents."""
 
-    def __init__(self, agent: MathAgent):
+    def __init__(self, agent: MathAgent | SearchAgent | GeneralAgent) -> None:
         """Initialize the chat CLI.
 
         Args:
-            agent: The agent to chat with
+            agent: The agent to chat with (MathAgent, SearchAgent, or GeneralAgent)
         """
         self.agent = agent
         self.state: MessagesState = {"messages": []}
-        self.config = {"configurable": {"thread_id": "1"}}
+        self.config: dict[str, dict[str, str]] = {"configurable": {"thread_id": "1"}}
 
-    def print_banner(self) -> None:
-        """Print welcome banner."""
-        print("🤖 Interactive Assistant")
+    def print_banner(self, agent_type: str, capabilities: str) -> None:
+        """Print welcome banner.
+
+        Args:
+            agent_type: Name of the agent type
+            capabilities: Description of agent capabilities
+        """
+        print(f"🤖 {agent_type}")
         print("=" * 50)
-        print("I can help you with arithmetic operations or search on the web!")
+        print(capabilities)
         print("Commands: 'exit', 'quit', 'clear' to start fresh")
         print("=" * 50)
         print()
@@ -52,9 +59,14 @@ class ChatCLI:
 
         return False
 
-    def run(self) -> None:
-        """Run the interactive chat loop."""
-        self.print_banner()
+    def run(self, agent_type: str, capabilities: str) -> None:
+        """Run the interactive chat loop.
+
+        Args:
+            agent_type: Name of the agent type for the banner
+            capabilities: Description of agent capabilities for the banner
+        """
+        self.print_banner(agent_type, capabilities)
 
         while True:
             # Get user input
@@ -92,11 +104,40 @@ class ChatCLI:
                     self.state["messages"].pop()
 
 
-def main() -> None:
-    """Main entry point for the chat CLI."""
+def main_math() -> None:
+    """Main entry point for the math agent CLI."""
     agent = MathAgent()
     cli = ChatCLI(agent)
-    cli.run()
+    cli.run(
+        agent_type="Math Assistant",
+        capabilities="I can help you with arithmetic operations (add, multiply, divide)!",
+    )
+
+
+def main_search() -> None:
+    """Main entry point for the search agent CLI."""
+    agent = SearchAgent()
+    cli = ChatCLI(agent)
+    cli.run(
+        agent_type="Research Assistant",
+        capabilities="I can help you search the web for information!",
+    )
+
+
+def main_general() -> None:
+    """Main entry point for the general agent CLI."""
+    agent = GeneralAgent()
+    cli = ChatCLI(agent)
+    cli.run(
+        agent_type="General Assistant",
+        capabilities="I can help you with arithmetic operations and web search!",
+    )
+
+
+# Default to general agent for backwards compatibility
+def main() -> None:
+    """Main entry point for the CLI (defaults to general agent)."""
+    main_general()
 
 
 if __name__ == "__main__":
