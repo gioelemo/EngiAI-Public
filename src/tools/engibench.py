@@ -18,6 +18,7 @@ matplotlib.use("Agg")  # Use non-interactive backend
 import random
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 @tool
@@ -258,6 +259,8 @@ def render_beam_design(
     showing material distribution. Dark areas represent solid material,
     light areas represent voids/air.
 
+    The design array is also saved as a .npy file for numerical analysis.
+
     Args:
         design_description: Description of the design to render (e.g., "random design",
             "optimized topology"). The tool will generate or retrieve an appropriate design.
@@ -273,7 +276,8 @@ def render_beam_design(
     Returns:
         dict with rendering results:
         - success: bool
-        - save_path: str (where image was saved)
+        - save_path: str (where PNG image was saved)
+        - npy_path: str (where numpy array was saved)
         - design_shape: tuple (dimensions of the design grid)
         - message: str (description of results)
 
@@ -334,9 +338,14 @@ def render_beam_design(
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
 
+        # Save the design array as .npy file
+        npy_path = save_path.rsplit(".", 1)[0] + ".npy"
+        np.save(npy_path, design)
+
         result = {
             "success": True,
             "save_path": save_path,
+            "npy_path": npy_path,
             "design_shape": design.shape,
             "design_type": design_type,
             "seed": seed,
@@ -344,6 +353,7 @@ def render_beam_design(
             "volume_fraction_actual": float(design.mean()),
             "force_distribution": force_distribution,
             "message": f"Successfully rendered {design_type} design and saved to {save_path}. "
+            f"Design array saved to {npy_path}. "
             f"Requested volfrac={volume_fraction:.2f}, actual={design.mean():.3f}, forcedist={force_distribution:.2f}, seed={seed}",
         }
 
