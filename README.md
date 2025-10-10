@@ -100,7 +100,14 @@ mypy .                # Type checking
 
 **Run the chatbot:**
 ```bash
-python -m src.chatbot  # Interactive AI chatbot with web search
+# New modular version (recommended)
+python -m src.main
+
+# Or use the CLI directly
+python -m src.cli.chat
+
+# Legacy version (for reference)
+python -m src.chatbot
 ```
 
 ## What's Included
@@ -109,9 +116,10 @@ python -m src.chatbot  # Interactive AI chatbot with web search
 - **Ruff** for fast linting/formatting
 - **Pre-commit hooks** for automated quality checks
 - **VS Code integration** with consistent settings
-- **Interactive AI chatbot** with web search capabilities
+- **Modular architecture** with agents, tools, and CLI separation
+- **Interactive AI chatbot** with arithmetic and web search
 - **Environment variable management** with `.env` support
-- **Example code** (intentionally messy to demonstrate ruff)
+- **Extensible tool system** for easy feature additions
 
 ## Project Structure
 
@@ -119,9 +127,22 @@ python -m src.chatbot  # Interactive AI chatbot with web search
 ├── .vscode/
 │   ├── extensions.json          # Recommended VS Code extensions
 │   └── settings_template.json   # VS Code settings template
-├── src/                         # Your source code
-│   ├── chatbot.py               # Interactive AI chatbot
-│   └── example.py               # Example code
+├── src/                         # Source code (modular structure)
+│   ├── agents/                  # Agent implementations
+│   │   └── math_agent.py        # Math & search agent
+│   ├── cli/                     # Command-line interfaces
+│   │   └── chat.py              # Interactive chat
+│   ├── models/                  # State definitions
+│   │   └── state.py             # Conversation state
+│   ├── tools/                   # Custom tools
+│   │   ├── arithmetic.py        # Math operations
+│   │   └── search.py            # Web search
+│   ├── utils/                   # Utilities
+│   │   └── prompts.py           # System prompts
+│   ├── main.py                  # Main entry point
+│   ├── chatbot.py               # Legacy chatbot
+│   ├── chatbot_new.py           # Original version (pre-refactor)
+│   └── README.md                # Detailed architecture docs
 ├── scripts/                     # Utility scripts
 │   └── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL files
 ├── tests/                       # Your tests
@@ -132,6 +153,8 @@ python -m src.chatbot  # Interactive AI chatbot with web search
 ├── setup.sh / setup.bat         # One-command setup
 └── README.md                    # This file
 ```
+
+See `src/README.md` for detailed architecture documentation and how to add new features.
 
 ## Adding Dependencies
 
