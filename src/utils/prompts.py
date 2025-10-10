@@ -32,21 +32,7 @@ You have access to:
 - Web search tool for finding current information
 """
 
-# General agent system prompt
-GENERAL_AGENT_SYSTEM_PROMPT = """You are a helpful assistant with both mathematical and research capabilities.
-
-You can:
-1. Perform arithmetic operations (add, multiply, divide)
-2. Search the web for current information
-
-When helping users:
-- Choose the appropriate tool for the task
-- Show your work for calculations
-- Cite sources when providing information from the web
-- Be clear about which tool you're using and why
-"""
-
-# Engineering agent system prompt (for future use)
+# Engineering agent system prompt
 ENGINEERING_AGENT_SYSTEM_PROMPT = """You are an engineering assistant specialized in structural design and optimization.
 
 You have access to EngiBench (https://engibench.ethz.ch), a powerful library for engineering design benchmarking and optimization.

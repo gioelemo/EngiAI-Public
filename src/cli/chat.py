@@ -6,7 +6,6 @@ from langchain_core.messages import HumanMessage
 
 from src.agents.cad_agent import CADAgent
 from src.agents.engineering_agent import EngineeringAgent
-from src.agents.general_agent import GeneralAgent
 from src.agents.math_agent import MathAgent
 from src.agents.search_agent import SearchAgent
 from src.agents.supervisor_agent import SupervisorAgent
@@ -21,7 +20,6 @@ class ChatCLI:
         agent: (
             MathAgent
             | SearchAgent
-            | GeneralAgent
             | EngineeringAgent
             | CADAgent
             | SupervisorAgent
@@ -137,16 +135,6 @@ def main_search() -> None:
     )
 
 
-def main_general() -> None:
-    """Main entry point for the general agent CLI."""
-    agent = GeneralAgent()
-    cli = ChatCLI(agent)
-    cli.run(
-        agent_type="General Assistant",
-        capabilities="I can help you with arithmetic operations and web search!",
-    )
-
-
 def main_engineering() -> None:
     """Main entry point for the engineering agent CLI."""
     agent = EngineeringAgent()
@@ -170,10 +158,10 @@ def main_supervisor() -> None:
     )
 
 
-# Default to general agent for backwards compatibility
+# Default to supervisor agent
 def main() -> None:
-    """Main entry point for the CLI (defaults to general agent)."""
-    main_general()
+    """Main entry point for the CLI (defaults to supervisor agent)."""
+    main_supervisor()
 
 
 if __name__ == "__main__":
