@@ -13,9 +13,7 @@ from src.models.state import MessagesState
 class ChatCLI:
     """Interactive command-line interface for chatting with agents."""
 
-    def __init__(
-        self, agent: MathAgent | SearchAgent | GeneralAgent
-    ) -> None:
+    def __init__(self, agent: MathAgent | SearchAgent | GeneralAgent) -> None:
         """Initialize the chat CLI.
 
         Args:
