@@ -18,11 +18,7 @@ class ChatCLI:
     def __init__(
         self,
         agent: (
-            MathAgent
-            | SearchAgent
-            | EngineeringAgent
-            | CADAgent
-            | SupervisorAgent
+            MathAgent | SearchAgent | EngineeringAgent | CADAgent | SupervisorAgent
         ),
     ) -> None:
         """Initialize the chat CLI.
