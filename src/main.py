@@ -6,7 +6,6 @@ import sys
 
 from src.cli.chat import (
     main_engineering,
-    main_math,
     main_search,
     main_supervisor,
 )
@@ -17,10 +16,7 @@ def main() -> None:
     # Check if user specified an agent type
     if len(sys.argv) > 1:
         agent_type = sys.argv[1].lower()
-        if agent_type in ["math", "m"]:
-            print("Starting Math Assistant...\n")
-            main_math()
-        elif agent_type in ["search", "s"]:
+        if agent_type in ["search", "s"]:
             print("Starting Search Assistant...\n")
             main_search()
         elif agent_type in ["engineering", "eng", "e"]:
@@ -31,9 +27,8 @@ def main() -> None:
             main_supervisor()
         else:
             print(f"Unknown agent type: {agent_type}")
-            print("Available agents: math, search, engineering, supervisor")
+            print("Available agents: search, engineering, supervisor")
             print("\nUsage: python -m src.main [agent_type]")
-            print("  math (m)          - Math operations only")
             print("  search (s)        - Web search only")
             print(
                 "  engineering (e)   - Structural design & optimization with EngiBench"

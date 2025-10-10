@@ -5,7 +5,6 @@ Interactive chat CLI for different agent types.
 from langchain_core.messages import HumanMessage
 
 from src.agents.engineering_agent import EngineeringAgent
-from src.agents.math_agent import MathAgent
 from src.agents.search_agent import SearchAgent
 from src.agents.supervisor_agent import SupervisorAgent
 from src.models.state import MessagesState
@@ -16,7 +15,7 @@ class ChatCLI:
 
     def __init__(
         self,
-        agent: MathAgent | SearchAgent | EngineeringAgent | SupervisorAgent,
+        agent: SearchAgent | EngineeringAgent | SupervisorAgent,
     ) -> None:
         """Initialize the chat CLI.
 
@@ -106,16 +105,6 @@ class ChatCLI:
                 # Remove the last user message on error
                 if self.state["messages"]:
                     self.state["messages"].pop()
-
-
-def main_math() -> None:
-    """Main entry point for the math agent CLI."""
-    agent = MathAgent()
-    cli = ChatCLI(agent)
-    cli.run(
-        agent_type="Math Assistant",
-        capabilities="I can help you with arithmetic operations (add, multiply, divide)!",
-    )
 
 
 def main_search() -> None:

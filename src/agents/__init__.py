@@ -5,7 +5,6 @@ Contains different specialized agents.
 """
 
 from src.agents.engineering_agent import EngineeringAgent
-from src.agents.math_agent import MathAgent
 from src.agents.search_agent import SearchAgent
 
-__all__ = ["EngineeringAgent", "MathAgent", "SearchAgent"]
+__all__ = ["EngineeringAgent", "SearchAgent"]
