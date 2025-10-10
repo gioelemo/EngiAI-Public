@@ -14,6 +14,8 @@ from langchain_core.messages import (
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from langgraph.graph import END, START, StateGraph
+from langgraph.checkpoint.memory import InMemorySaver
+
 from typing_extensions import TypedDict
 
 from config import config
@@ -129,6 +131,7 @@ def should_continue(state: MessagesState) -> Literal["tool_node", "__end__"]:
 
 
 # Step 6: Build agent
+checkpointer = InMemorySaver()
 
 # Build workflow
 agent_builder = StateGraph(MessagesState)
@@ -143,7 +146,7 @@ agent_builder.add_conditional_edges("llm_call", should_continue, ["tool_node", E
 agent_builder.add_edge("tool_node", "llm_call")
 
 # Compile the agent
-agent = agent_builder.compile()
+agent = agent_builder.compile(checkpointer=checkpointer)
 
 # Interactive conversation loop
 
@@ -159,6 +162,7 @@ def main() -> None:
 
     # Initialize conversation state
     state: MessagesState = {"messages": []}
+    configurable = {"configurable": {"thread_id": "1"}}
 
     while True:
         # Get user input
@@ -183,7 +187,7 @@ def main() -> None:
 
         try:
             # Invoke the agent
-            result = cast(MessagesState, agent.invoke(state))  # type: ignore[arg-type]
+            result = cast(MessagesState, agent.invoke(state, configurable))  # type: ignore[arg-type]
 
             # Update state with result
             state = result
