@@ -143,6 +143,7 @@ module = [
   "python-dotenv",
   "dotenv",
   "matplotlib",
+  "matplotlib.*",
   "engibench.*",
 ]
 ignore_missing_imports = true
