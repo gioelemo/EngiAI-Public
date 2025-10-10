@@ -188,3 +188,5 @@ Thumbs.db
 
 # drawings
 *.stl
+*.png
+*.npy
