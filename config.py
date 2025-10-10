@@ -28,6 +28,9 @@ class Config:
         self.openai_api_key: str = os.getenv("OPENAI_API_KEY") or ""
         self.tavily_api_key: str = os.getenv("TAVILY_API_KEY") or ""
 
+        # Model configuration
+        self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4o-mini")
+
         # LangSmith configuration
         self.langchain_tracing = (
             os.getenv("LANGCHAIN_TRACING", "false").lower() == "true"

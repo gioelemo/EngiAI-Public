@@ -19,9 +19,7 @@ from typing_extensions import TypedDict
 
 from config import config
 
-llm = init_chat_model(
-    "openai:gpt-4.1",
-)
+llm = init_chat_model(config.llm_model)
 
 
 # Define tools
