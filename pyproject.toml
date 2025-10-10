@@ -142,5 +142,7 @@ module = [
   "langchain_tavily.*",
   "python-dotenv",
   "dotenv",
+  "matplotlib",
+  "engibench.*",
 ]
 ignore_missing_imports = true
