@@ -4,7 +4,6 @@ Tools module for the engineer assistant.
 This module contains all custom tools that can be used by agents.
 """
 
-from src.tools.arithmetic import add, divide, multiply
 from src.tools.engibench import (
     convert_design_to_stl,
     create_beam_problem,
