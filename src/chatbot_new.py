@@ -150,7 +150,7 @@ agent = agent_builder.compile(checkpointer=checkpointer)
 
 def main() -> None:
     """Run interactive chatbot conversation."""
-    print("🤖 Interactive Math Assistant")
+    print("🤖 Interactive Assistant")
     print("=" * 50)
     print("I can help you with arithmetic operations or search on the web!")
     print("Commands: 'exit', 'quit', 'clear' to start fresh")
