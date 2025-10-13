@@ -2,7 +2,7 @@
 Interactive chat CLI for different agent types.
 """
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.search_agent import SearchAgent
@@ -88,20 +88,37 @@ class ChatCLI:
             self.state["messages"].append(HumanMessage(content=user_input))
 
             try:
-                # Get the number of messages before invoking
+                # Track messages before invocation
                 messages_before = len(self.state["messages"])
 
-                # Invoke the agent
+                # Invoke the agent (simpler than streaming for multi-agent systems)
                 result = self.agent.invoke(self.state, self.config)  # type: ignore[arg-type]
 
                 # Update state with result
                 self.state = result
 
-                # Print only NEW messages from this turn using pretty_print
+                # Print new messages, showing tool calls
                 print()
-                for message in self.state["messages"][messages_before:]:
-                    message.pretty_print()
-                print()
+                new_messages = self.state["messages"][messages_before:]
+
+                for message in new_messages:
+                    # Skip re-printing user messages
+                    if isinstance(message, HumanMessage):
+                        continue
+
+                    # Show tool calls before the message (if any)
+                    if hasattr(message, "tool_calls") and message.tool_calls:
+                        for tool_call in message.tool_calls:
+                            tool_name = tool_call.get("name", "Unknown")
+                            print(f"🔨 Tool: {tool_name}")
+
+                    # Show tool results or AI responses with content
+                    should_print = isinstance(message, ToolMessage) or (
+                        hasattr(message, "content") and message.content
+                    )
+                    if should_print:
+                        message.pretty_print()
+                        print()
 
             except Exception as e:
                 print(f"\n❌ Error: {e}\n")
