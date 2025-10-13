@@ -15,13 +15,10 @@ from src.tools.engibench import (
 from src.tools.search import create_search_tool
 
 __all__ = [
-    "add",
     "convert_design_to_stl",
     "create_beam_problem",
     "create_search_tool",
-    "divide",
     "get_problem_info",
-    "multiply",
     "optimize_beam_design",
     "render_beam_design",
     "simulate_beam_design",
