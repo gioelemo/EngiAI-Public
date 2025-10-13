@@ -516,35 +516,60 @@ def render_beam_design(
 
     The design array is also saved as a .npy file for numerical analysis.
 
+    All images are automatically saved to the 'outputs/' directory.
+
+    To prevent overwriting files when rendering before/after optimization,
+    the tool automatically adds suffixes like "_random", "_optimized", "_initial", etc.
+    based on the design_description.
+
     Args:
         design_description: Description of the design to render (e.g., "random design",
-            "optimized topology"). The tool will generate or retrieve an appropriate design.
+            "optimized topology", "initial design", "final design").
+            The tool will generate or retrieve an appropriate design and use keywords
+            to create descriptive filenames (e.g., "beam_design_random.png").
         volume_fraction: Fraction of volume filled with material (0-1)
             Default: 0.35 (35% material)
         force_distribution: Distribution parameter for applied forces (0-1)
             0.0 = single point load at center (default)
             1.0 = uniformly distributed load across top
-        save_path: Path where the image will be saved (relative to current directory)
+        save_path: Base filename for the image (will be saved in outputs/ directory)
             Default: "beam_design.png"
+            A descriptive suffix will be automatically added to prevent overwrites
         seed: Random seed for reproducibility (None = use random seed for different designs each time)
 
     Returns:
         dict with rendering results:
         - success: bool
-        - save_path: str (where PNG image was saved)
-        - npy_path: str (where numpy array was saved)
+        - save_path: str (full path where PNG image was saved)
+        - npy_path: str (full path where numpy array was saved)
         - design_shape: tuple (dimensions of the design grid)
         - message: str (description of results)
 
     Example:
-        >>> result = render_beam_design(
-        ...     design_description="random design",
-        ...     volume_fraction=0.35,
-        ...     save_path="my_beam.png"
-        ... )
-        >>> print(result['message'])
+        >>> # Render initial design - saves as "beam_design_random.png"
+        >>> result1 = render_beam_design(design_description="random design")
+        >>>
+        >>> # Optimize the design...
+        >>>
+        >>> # Render optimized design - saves as "beam_design_optimized.png"
+        >>> result2 = render_beam_design(design_description="optimized design")
+        >>>
+        >>> # Both files are preserved!
     """
     try:
+        # Create outputs directory if it doesn't exist
+        output_dir = Path("outputs")
+        output_dir.mkdir(exist_ok=True)
+
+        # Ensure save_path is in the outputs directory
+        save_path_obj = Path(save_path)
+        if save_path_obj.parent.name != "outputs":
+            # If user provided just a filename, put it in outputs/
+            full_save_path = output_dir / save_path_obj.name
+        else:
+            # If user already specified outputs/, use as-is
+            full_save_path = save_path_obj
+
         # Use the existing problem instance to maintain consistency
         problem = get_problem_instance()
 
@@ -565,6 +590,32 @@ def render_beam_design(
             problem, design_description, config, get_last_design()
         )
 
+        # Add automatic suffix based on design type to prevent overwriting
+        # Determine suffix from design_description or design_type
+        desc_lower = design_description.lower()
+
+        # Map keywords to suffixes
+        suffix_map = {
+            "initial": "_initial",
+            "before": "_initial",
+            "final": "_final",
+            "after": "_final",
+            "optimized": "_optimized",
+            "optimal": "_optimized",
+            "random": "_random",
+        }
+
+        # Find matching suffix
+        suffix = next(
+            (suf for keyword, suf in suffix_map.items() if keyword in desc_lower),
+            "_" + design_type.replace(" ", "_").replace("(", "").replace(")", ""),
+        )
+
+        # Insert suffix before file extension
+        stem = full_save_path.stem
+        extension = full_save_path.suffix
+        full_save_path = full_save_path.parent / f"{stem}{suffix}{extension}"
+
         # Render the design using EngiBench's built-in render method
         fig, ax = problem.render(design, open_window=False)
 
@@ -575,24 +626,24 @@ def render_beam_design(
         ax.set_title(title, fontsize=10)
 
         # Save the figure
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        fig.savefig(str(full_save_path), dpi=150, bbox_inches="tight")
         plt.close(fig)
 
-        # Save the design array as .npy file
-        npy_path = save_path.rsplit(".", 1)[0] + ".npy"
-        np.save(npy_path, design)
+        # Save the design array as .npy file (also in outputs/)
+        npy_path = full_save_path.with_suffix(".npy")
+        np.save(str(npy_path), design)
 
         result: dict[str, Any] = {
             "success": True,
-            "save_path": save_path,
-            "npy_path": npy_path,
+            "save_path": str(full_save_path),
+            "npy_path": str(npy_path),
             "design_shape": design.shape,
             "design_type": design_type,
             "seed": seed,
             "volume_fraction_requested": volume_fraction,
             "volume_fraction_actual": float(design.mean()),
             "force_distribution": force_distribution,
-            "message": f"Successfully rendered {design_type} design and saved to {save_path}. "
+            "message": f"Successfully rendered {design_type} design and saved to {full_save_path}. "
             f"Design array saved to {npy_path}. "
             f"Requested volfrac={volume_fraction:.2f}, actual={design.mean():.3f}, forcedist={force_distribution:.2f}, seed={seed}",
         }

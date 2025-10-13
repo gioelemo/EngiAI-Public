@@ -127,9 +127,12 @@ def convert_design_to_stl(
     in the mesh is determined by the density value in the design array,
     scaled by scale_z parameter.
 
+    All STL files are automatically saved to the 'outputs/' directory.
+
     Args:
         npy_file_path: Path to the input .npy file containing the design array
-        stl_file_path: Output path for the STL file (default: same name as npy with .stl extension)
+        stl_file_path: Output filename for the STL file (will be saved in outputs/ directory)
+            Default: same name as npy with .stl extension
         scale_xy: Scaling factor for X and Y dimensions (default: 1.0)
         scale_z: Scaling factor for Z dimension (height) (default: 10.0)
         base_thickness: Thickness of the base plate in Z units (default: 1.0)
@@ -165,9 +168,20 @@ def convert_design_to_stl(
 
         data = np.load(input_path)
 
-        # Determine output path
+        # Create outputs directory if it doesn't exist
+        output_dir = Path("outputs")
+        output_dir.mkdir(exist_ok=True)
+
+        # Determine output path (always in outputs/)
         if stl_file_path is None:
-            stl_file_path = str(input_path.with_suffix(".stl"))
+            # Default: same name as input but with .stl extension, in outputs/
+            stl_file_path = str(output_dir / input_path.with_suffix(".stl").name)
+        else:
+            # Ensure output is in outputs/ directory
+            stl_path_obj = Path(stl_file_path)
+            if stl_path_obj.parent.name != "outputs":
+                stl_file_path = str(output_dir / stl_path_obj.name)
+
         output_path = Path(stl_file_path)
 
         # Validate data dimensions
