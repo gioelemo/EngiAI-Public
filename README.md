@@ -123,23 +123,18 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    - `openai:gpt-3.5-turbo` (legacy, cheaper option)
    - `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
 
-**Run the chatbot:**
+**Run the Multi-Agent Assistant:**
 ```bash
-# General assistant (both math and search) - default
+# Starts the supervisor system that coordinates all specialized agents
 python -m src.main
-
-# Math assistant (arithmetic only)
-python -m src.main math
-
-# Search assistant (web search only)
-python -m src.main search
-
-# Engineering assistant (structural optimization with EngiBench)
-python -m src.main engineering
-
-# Legacy version (for reference)
-python -m src.chatbot
 ```
+
+The system includes:
+- **Code Execution Agent**: Python code execution and calculations
+- **Engineering Agent**: Structural optimization with EngiBench
+- **Search Agent**: Web research and information gathering
+
+The supervisor intelligently routes your requests to the appropriate agent!
 
 ### Engineering Agent with EngiBench
 
