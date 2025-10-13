@@ -66,6 +66,31 @@ ruff format .         # Format code
 mypy .                # Type checking
 ```
 
+### Testing
+
+**Run all tests:**
+```bash
+pytest
+```
+
+**Run with coverage:**
+```bash
+pytest --cov=src --cov-report=term-missing
+```
+
+**Run specific test file:**
+```bash
+pytest tests/test_notebook_comparison.py
+pytest tests/test_optimization_workflow.py
+```
+
+**Run only fast tests (skip slow integration tests):**
+```bash
+pytest -m "not slow"
+```
+
+See [TESTING.md](TESTING.md) for detailed testing documentation.
+
 ### Running the Application
 
 **Before running any applications, configure your environment variables:**

@@ -24,6 +24,36 @@ matplotlib.use("Agg")  # Use non-interactive backend
 # Constants
 EXPECTED_ARRAY_DIMENSIONS = 2  # For 2D beam design arrays
 
+# State management using a module-level dictionary
+# This allows tools like optimize_beam_design to reuse the problem
+# created by create_beam_problem without using global statements
+_state: dict[str, Any] = {
+    "problem_instance": None,
+    "last_design": None,
+}
+
+
+def get_problem_instance() -> Beams2D:
+    """Get the current problem instance, creating one if needed."""
+    if _state["problem_instance"] is None:
+        _state["problem_instance"] = Beams2D()
+    return _state["problem_instance"]
+
+
+def set_problem_instance(problem: Beams2D) -> None:
+    """Set the problem instance."""
+    _state["problem_instance"] = problem
+
+
+def get_last_design() -> np.ndarray | None:
+    """Get the last design that was created or used."""
+    return _state["last_design"]
+
+
+def set_last_design(design: np.ndarray) -> None:
+    """Store the last design for potential reuse."""
+    _state["last_design"] = design
+
 
 @tool
 def create_beam_problem(
@@ -53,6 +83,10 @@ def create_beam_problem(
     """
     try:
         problem = Beams2D()
+        problem.reset(seed=seed)
+
+        # Store the problem instance for reuse by other tools
+        set_problem_instance(problem)
 
         return {
             "problem_id": "beams2d",
@@ -114,15 +148,34 @@ def simulate_beam_design(
         >>> print(f"Compliance: {result['compliance']}")
     """
     try:
-        problem = Beams2D()
-        problem.reset(seed=seed)
+        # Use the existing problem instance to maintain consistency
+        problem = get_problem_instance()
 
-        # Generate a design based on description
-        if "random" in design_description.lower():
+        # Check if we have a stored design from previous operations
+        last_design = get_last_design()
+
+        # Only reset with seed if specified
+        if seed != 0:
+            problem.reset(seed=seed)
+
+        # Determine which design to simulate
+        if (
+            "last" in design_description.lower()
+            or "previous" in design_description.lower()
+            or "current" in design_description.lower()
+            or "optimized" in design_description.lower()
+        ) and last_design is not None:
+            # Use the stored design from previous operation
+            design = last_design
+        elif "random" in design_description.lower():
             design, _ = problem.random_design()
+            # Store for future use
+            set_last_design(design)
         else:
             # Use a random design from the dataset
             design, _ = problem.random_design()
+            # Store for future use
+            set_last_design(design)
 
         # Set up configuration
         config = {
@@ -161,12 +214,18 @@ def optimize_beam_design(
     volume_fraction: float = 0.35,
     force_distribution: float = 0.0,
     seed: int = 0,
+    reset_before_optimization: bool = True,
 ) -> dict[str, Any]:
     """
     Optimize a beam design using gradient-based optimization.
 
     This tool starts from an initial design and runs an optimization algorithm
     (typically topology optimization) to find the best material distribution.
+
+    Following the EngiBench notebook workflow:
+    1. A design is created/rendered (from initial problem seed, e.g., seed=9)
+    2. Problem is reset to seed=0 for reproducibility
+    3. The same design is optimized under the new problem configuration
 
     Args:
         starting_point: Initial design approach ("random", "uniform", or "sparse")
@@ -175,7 +234,9 @@ def optimize_beam_design(
             Default: 0.35 (35% material)
         force_distribution: Distribution parameter for applied forces (0-1)
             Default: 0.0 (single point load)
-        seed: Random seed for reproducibility
+        seed: Random seed for optimization (default: 0, matching notebook)
+        reset_before_optimization: Whether to reset problem before optimization
+            Default: True (matches notebook: problem.reset(seed=0))
 
     Returns:
         dict with optimization results:
@@ -189,20 +250,38 @@ def optimize_beam_design(
     Example:
         >>> result = optimize_beam_design(
         ...     starting_point="random",
-        ...     volume_fraction=0.4,
-        ...     seed=42
+        ...     volume_fraction=0.35,
+        ...     seed=0  # Resets problem to seed=0 before optimization
         ... )
         >>> print(f"Improved by {result['improvement']:.1f}%")
     """
     try:
-        problem = Beams2D()
-        problem.reset(seed=seed)
+        # Use the existing problem instance if available (from create_beam_problem)
+        # This maintains consistency across the conversation
+        problem = get_problem_instance()
 
-        # Generate starting design
-        if starting_point.lower() == "random":
+        # Reset problem before optimization (matches notebook workflow)
+        # The notebook creates with seed=9, then resets to seed=0 before optimization
+        if reset_before_optimization:
+            problem.reset(seed=seed)
+
+        # Check if we have a last design from previous operations (e.g., from render)
+        last_design = get_last_design()
+
+        # Determine starting design
+        if last_design is not None and starting_point.lower() != "random":
+            # Reuse the last design if available (e.g., from rendering)
+            # This matches notebook workflow: render → optimize same design
+            design = last_design
+        elif starting_point.lower() == "random":
+            # Generate a new random design
             design, _ = problem.random_design()
         else:
+            # Default: random design
             design, _ = problem.random_design()
+
+        # Store this design for potential future use
+        set_last_design(design)
 
         # Configuration
         config = {
@@ -214,10 +293,12 @@ def optimize_beam_design(
         initial_objectives = problem.simulate(design=design, config=config)
         initial_compliance = float(initial_objectives[0])
 
-        # Run optimization
-        optimized_design, history = problem.optimize(
-            starting_point=design, config=config
-        )
+        # Run optimization (matching notebook: problem.optimize(my_design))
+        # Note: problem.optimize() accepts the design as first positional argument
+        optimized_design, history = problem.optimize(design, config=config)
+
+        # Store the optimized design for potential future use (e.g., rendering)
+        set_last_design(optimized_design)
 
         # Get final performance
         final_objectives = problem.simulate(design=optimized_design, config=config)
@@ -235,8 +316,10 @@ def optimize_beam_design(
             "improvement": improvement,
             "iterations": len(history),
             "volume_fraction": volume_fraction,
+            "design_stored": True,  # Indicate that design is stored for future use
             "message": f"Optimization successful. Improved compliance by {improvement:.1f}% "
-            f"({initial_compliance:.4f} → {final_compliance:.4f})",
+            f"({initial_compliance:.4f} → {final_compliance:.4f}). "
+            f"Optimized design stored and ready for rendering.",
         }
 
     except ImportError:
@@ -246,6 +329,61 @@ def optimize_beam_design(
         }
     except Exception as e:
         return {"success": False, "error": f"Optimization failed: {e!s}"}
+
+
+def _select_design_for_rendering(
+    problem: Beams2D,
+    design_description: str,
+    config: dict[str, float],
+    last_design: np.ndarray | None,
+) -> tuple[np.ndarray, str, float | None]:
+    """
+    Select which design to render based on description and available designs.
+
+    Returns:
+        tuple of (design, design_type, compliance)
+    """
+    design_type = "unknown"
+    compliance = None
+
+    # Priority 1: User asks for stored design AND we have one
+    if last_design is not None and any(
+        keyword in design_description.lower()
+        for keyword in ["last", "optimized", "previous", "current", "stored", "that"]
+    ):
+        design = last_design
+        design_type = "stored (from previous optimization)"
+        try:
+            objectives = problem.simulate(design=design, config=config)
+            compliance = float(objectives[0])
+        except Exception:
+            compliance = None
+    # Priority 2: User wants new optimization (no stored design available)
+    elif "optimize" in design_description.lower() and last_design is None:
+        design, history = problem.optimize(config=config)
+        design_type = "newly optimized"
+        compliance = float(history[-1].obj_values[0]) if history else None
+        set_last_design(design)
+    # Priority 3: Random design requested
+    elif "random" in design_description.lower():
+        design, _ = problem.random_design()
+        design_type = "random"
+        set_last_design(design)
+    # Priority 4: Default - use stored or random
+    elif last_design is not None:
+        design = last_design
+        design_type = "stored design"
+        try:
+            objectives = problem.simulate(design=design, config=config)
+            compliance = float(objectives[0])
+        except Exception:
+            compliance = None
+    else:
+        design, _ = problem.random_design()
+        design_type = "random"
+        set_last_design(design)
+
+    return design, design_type, compliance
 
 
 @tool
@@ -294,12 +432,14 @@ def render_beam_design(
         >>> print(result['message'])
     """
     try:
+        # Use the existing problem instance to maintain consistency
+        problem = get_problem_instance()
+
         # Use a random seed if none provided (so you get different designs each time)
         if seed is None:
             seed = random.randint(0, 999999)
-
-        problem = Beams2D()
-        problem.reset(seed=seed)
+        elif seed != 0:
+            problem.reset(seed=seed)
 
         # Configuration with user-specified parameters
         config = {
@@ -307,27 +447,10 @@ def render_beam_design(
             "forcedist": force_distribution,
         }
 
-        # Generate a design based on description
-        if (
-            "optimized" in design_description.lower()
-            or "optimal" in design_description.lower()
-        ):
-            # Run optimization with the specified parameters
-            design, history = problem.optimize(config=config)
-            design_type = "optimized"
-            compliance = float(history[-1].obj_values[0]) if history else None
-        elif "random" in design_description.lower():
-            # Get a random design from dataset (parameters are informational only)
-            design, _ = problem.random_design()
-            design_type = "random"
-            compliance = None
-        else:
-            # Default: get optimal design from dataset
-            design, _ = problem.random_design(
-                dataset_split="train", design_key="optimal_design"
-            )
-            design_type = "dataset optimal"
-            compliance = None
+        # Select design using helper function
+        design, design_type, compliance = _select_design_for_rendering(
+            problem, design_description, config, get_last_design()
+        )
 
         # Render the design using EngiBench's built-in render method
         fig, ax = problem.render(design, open_window=False)
@@ -346,7 +469,7 @@ def render_beam_design(
         npy_path = save_path.rsplit(".", 1)[0] + ".npy"
         np.save(npy_path, design)
 
-        result = {
+        result: dict[str, Any] = {
             "success": True,
             "save_path": save_path,
             "npy_path": npy_path,
@@ -363,7 +486,8 @@ def render_beam_design(
 
         if compliance is not None:
             result["compliance"] = compliance
-            result["message"] += f", compliance={compliance:.4f}"
+            message = str(result["message"])
+            result["message"] = f"{message}, compliance={compliance:.4f}"
 
     except ImportError as e:
         return {
