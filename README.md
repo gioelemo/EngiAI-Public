@@ -176,6 +176,45 @@ than the initial random design! This means the structure is significantly
 stiffer while using only 35% of the available material.
 ```
 
+### Code Execution Agent
+
+The code execution agent allows you to run Python code and perform calculations interactively.
+
+**Example usage:**
+```bash
+python test_code_execution_agent.py
+```
+
+**What you can do:**
+- Execute arbitrary Python code snippets
+- Perform mathematical calculations
+- Test functions and code logic
+- Run data analysis tasks
+- Use NumPy, Pandas, and other Python libraries
+
+**Example conversation with the agent:**
+```
+You: What is the sum of squares from 1 to 10?
+
+Code Execution Agent: I'll calculate that for you!
+
+[Executes: sum([i**2 for i in range(1, 11)])]
+
+The sum of squares from 1 to 10 is 385.
+
+You: Generate the first 10 Fibonacci numbers
+
+Code Execution Agent: [Runs Fibonacci code]
+
+The first 10 Fibonacci numbers are: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+```
+
+**Available tools:**
+- `execute_python_code`: Run multi-line Python code
+- `execute_python_expression`: Quickly evaluate a single expression
+
+**Note:** Code runs in a persistent REPL environment, so variables persist between executions!
+
 ## What's Included
 
 - **Python 3.11.8** via conda-forge
@@ -196,8 +235,11 @@ stiffer while using only 35% of the available material.
 │   └── settings_template.json   # VS Code settings template
 ├── src/                         # Source code (modular structure)
 │   ├── agents/                  # Agent implementations
+│   │   ├── code_execution_agent.py  # Python code execution
+│   │   ├── engineering_agent.py     # Engineering optimization
 │   │   ├── math_agent.py        # Math operations only
 │   │   ├── search_agent.py      # Web search only
+│   │   ├── supervisor_agent.py  # Coordinates specialized agents
 │   │   └── general_agent.py     # Both math and search
 │   ├── cli/                     # Command-line interfaces
 │   │   ├── chat.py              # Interactive chat (legacy)
@@ -206,7 +248,10 @@ stiffer while using only 35% of the available material.
 │   │   └── state.py             # Conversation state
 │   ├── tools/                   # Custom tools
 │   │   ├── arithmetic.py        # Math operations
-│   │   └── search.py            # Web search
+│   │   ├── code_execution.py    # Python REPL execution
+│   │   ├── engibench.py         # Engineering optimization tools
+│   │   ├── search.py            # Web search
+│   │   └── stl_export.py        # 3D model export
 │   ├── utils/                   # Utilities
 │   │   └── prompts.py           # System prompts
 │   ├── main.py                  # Main entry point

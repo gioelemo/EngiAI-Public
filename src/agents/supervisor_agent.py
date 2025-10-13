@@ -14,6 +14,7 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
 from config import config
+from src.agents.code_execution_agent import CodeExecutionAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.search_agent import SearchAgent
 from src.models.state import MessagesState
@@ -44,6 +45,7 @@ class SupervisorAgent:
         self.llm = init_chat_model(self.model_name)
 
         # Initialize specialized sub-agents
+        self.code_execution_agent = CodeExecutionAgent(model_name=self.model_name)
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
 
@@ -56,10 +58,11 @@ class SupervisorAgent:
         system_prompt = (
             "You are a supervisor that routes tasks to specialized agents.\n\n"
             + "Available agents:\n"
+            + "- code_execution_agent: Python code execution, calculations, data analysis\n"
             + "- engineering_agent: Structural optimization, beam design, topology optimization, STL conversion\n"
             + "- search_agent: Web research and finding information\n\n"
             + "Analyze the user's request and respond with ONLY ONE WORD: "
-            + "either 'engineering_agent' or 'search_agent'.\n"
+            + "'code_execution_agent', 'engineering_agent', or 'search_agent'.\n"
             + "No explanations, no other text, just the agent name."
         )
 
@@ -81,12 +84,25 @@ class SupervisorAgent:
 
             # Determine next agent
             next_agent = "FINISH"
-            if "engineering" in content:
+            if "code_execution" in content or "code" in content:
+                next_agent = "code_execution_agent"
+            elif "engineering" in content:
                 next_agent = "engineering_agent"
             elif "search" in content:
                 next_agent = "search_agent"
 
             return {"next": next_agent}
+
+        def code_execution_node(state: SupervisorState):
+            """Delegate to code execution agent."""
+            # Convert supervisor state to agent state (MessagesState format)
+            agent_state = cast(MessagesState, {"messages": state["messages"]})
+            result = self.code_execution_agent.invoke(
+                agent_state,
+                {"configurable": {"thread_id": "code_execution"}},
+            )
+            # Return the last message from the code execution agent
+            return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
         def engineering_node(state: SupervisorState):
             """Delegate to engineering agent."""
@@ -118,6 +134,7 @@ class SupervisorAgent:
 
         # Add nodes
         workflow.add_node("supervisor", supervisor_node)
+        workflow.add_node("code_execution_agent", code_execution_node)
         workflow.add_node("engineering_agent", engineering_node)
         workflow.add_node("search_agent", search_node)
 
@@ -129,6 +146,7 @@ class SupervisorAgent:
             "supervisor",
             lambda state: state["next"],
             {
+                "code_execution_agent": "code_execution_agent",
                 "engineering_agent": "engineering_agent",
                 "search_agent": "search_agent",
                 "FINISH": END,
@@ -136,6 +154,7 @@ class SupervisorAgent:
         )
 
         # Agents go directly to END (no looping back to supervisor)
+        workflow.add_edge("code_execution_agent", END)
         workflow.add_edge("engineering_agent", END)
         workflow.add_edge("search_agent", END)
 
