@@ -127,27 +127,6 @@ class ChatCLI:
                     self.state["messages"].pop()
 
 
-def main_search() -> None:
-    """Main entry point for the search agent CLI."""
-    agent = SearchAgent()
-    cli = ChatCLI(agent)
-    cli.run(
-        agent_type="Research Assistant",
-        capabilities="I can help you search the web for information!",
-    )
-
-
-def main_engineering() -> None:
-    """Main entry point for the engineering agent CLI."""
-    agent = EngineeringAgent()
-    cli = ChatCLI(agent)
-    cli.run(
-        agent_type="Engineering Assistant",
-        capabilities="I can help you with structural design and optimization using EngiBench!\n"
-        "Capabilities: Beam optimization, design simulation, topology optimization.",
-    )
-
-
 def main_supervisor() -> None:
     """Main entry point for the supervisor multi-agent system."""
     agent = SupervisorAgent()
