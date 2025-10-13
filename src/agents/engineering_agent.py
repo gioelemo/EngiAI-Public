@@ -17,6 +17,8 @@ from src.models.state import MessagesState
 from src.tools.engibench import (
     convert_design_to_stl,
     create_beam_problem,
+    get_dataset_info,
+    get_problem_details,
     get_problem_info,
     optimize_beam_design,
     render_beam_design,
@@ -45,6 +47,8 @@ class EngineeringAgent:
             render_beam_design,
             convert_design_to_stl,
             get_problem_info,
+            get_problem_details,
+            get_dataset_info,
         ]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.llm_with_tools = self.llm.bind_tools(self.tools)

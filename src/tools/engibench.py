@@ -436,6 +436,148 @@ def get_problem_info(problem_type: str = "beams2d") -> dict[str, Any]:
         }
 
 
+@tool
+def get_problem_details(problem_type: str = "beams2d") -> dict[str, Any]:
+    """
+    Get detailed information directly from the problem object's attributes.
+
+    This tool creates a problem instance and extracts information from its
+    design_space, objectives, and conditions attributes - the authoritative
+    source of problem specifications.
+
+    Args:
+        problem_type: Type of problem ("beams2d", etc.)
+            Default: "beams2d"
+
+    Returns:
+        dict with problem details:
+        - success: bool
+        - problem_type: str
+        - design_space: str (from problem.design_space)
+        - objectives: list of tuples (name, direction) from problem.objectives
+        - conditions: dict (from problem.conditions)
+        - conditions_keys: list (from problem.conditions_keys)
+        - dataset_id: str (from problem.dataset_id)
+
+    Example:
+        >>> details = get_problem_details("beams2d")
+        >>> print(details['design_space'])
+        >>> # Box(0.0, 1.0, (50, 100), float32)
+        >>> print(details['objectives'])
+        >>> # [('compliance', 'MINIMIZE')]
+    """
+    try:
+        if problem_type.lower() == "beams2d":
+            problem = Beams2D()
+
+            return {
+                "success": True,
+                "problem_type": problem_type.lower(),
+                "design_space": str(problem.design_space),
+                "design_space_shape": problem.design_space.shape,
+                "design_space_bounds": {
+                    "low": float(problem.design_space.low.min()),
+                    "high": float(problem.design_space.high.max()),
+                },
+                "objectives": [
+                    (name, str(direction)) for name, direction in problem.objectives
+                ],
+                "conditions": problem.conditions,
+                "conditions_keys": problem.conditions_keys,
+                "dataset_id": problem.dataset_id,
+                "description": "This information comes directly from the EngiBench problem object. "
+                "The design_space defines where designs can exist (a 50x100 grid with values 0-1). "
+                "The objectives specify what to optimize (minimize compliance = maximize stiffness). "
+                "The conditions are the parameters that can be varied for different problem instances.",
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Problem type '{problem_type}' not supported yet. Currently only 'beams2d' is available.",
+            }
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get problem details: {e!s}"}
+
+
+@tool
+def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
+    """
+    Get information about the EngiBench dataset for a problem.
+
+    The dataset contains pre-computed optimal designs from the EngiBench benchmark.
+    Each dataset includes training, validation, and test splits with optimal designs
+    and their corresponding parameters.
+
+    Args:
+        problem_type: Type of problem ("beams2d", etc.)
+            Default: "beams2d"
+
+    Returns:
+        dict with dataset information:
+        - success: bool (whether the operation succeeded)
+        - dataset_id: str (HuggingFace dataset identifier)
+        - splits: dict with split names and their sizes
+        - features: list of feature names in the dataset
+        - total_samples: int (total number of samples across all splits)
+        - description: str (description of dataset contents)
+
+    Example:
+        >>> info = get_dataset_info("beams2d")
+        >>> print(f"Dataset has {info['total_samples']} total samples")
+        >>> print(f"Features: {info['features']}")
+    """
+    try:
+        if problem_type.lower() == "beams2d":
+            problem = Beams2D()
+            dataset = problem.dataset
+
+            # Get information about each split
+            splits = {}
+            total_samples = 0
+            features: list[str] = []
+
+            for split_name in dataset:
+                split = dataset[split_name]
+                splits[split_name] = {
+                    "num_rows": len(split),
+                    "num_columns": len(split.column_names),
+                }
+                total_samples += len(split)
+                if not features and split.column_names:
+                    features = split.column_names
+
+            return {
+                "success": True,
+                "problem_type": problem_type.lower(),
+                "dataset_id": problem.dataset_id,
+                "splits": splits,
+                "split_names": list(dataset.keys()),
+                "features": features,
+                "total_samples": total_samples,
+                "description": "HuggingFace dataset containing pre-computed optimal beam designs. "
+                "Each sample includes the optimal design array, optimization parameters "
+                "(volfrac, rmin, forcedist, overhang_constraint), compliance value (c), "
+                "and optimization history.",
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Problem type '{problem_type}' not supported yet. Currently only 'beams2d' is available.",
+            }
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get dataset info: {e!s}"}
+
+
 def _create_surface_vertices(
     data: np.ndarray, scale_xy: float, scale_z: float, base_thickness: float
 ) -> list[list[float]]:
