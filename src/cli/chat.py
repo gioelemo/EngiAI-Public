@@ -88,15 +88,18 @@ class ChatCLI:
             self.state["messages"].append(HumanMessage(content=user_input))
 
             try:
+                # Get the number of messages before invoking
+                messages_before = len(self.state["messages"])
+
                 # Invoke the agent
                 result = self.agent.invoke(self.state, self.config)  # type: ignore[arg-type]
 
                 # Update state with result
                 self.state = result
 
-                # Print all messages from this turn using pretty_print
+                # Print only NEW messages from this turn using pretty_print
                 print()
-                for message in self.state["messages"]:
+                for message in self.state["messages"][messages_before:]:
                     message.pretty_print()
                 print()
 
