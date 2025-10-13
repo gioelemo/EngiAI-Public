@@ -15,7 +15,6 @@ from langgraph.graph import END, START, StateGraph
 from config import config
 from src.models.state import MessagesState
 from src.tools.engibench import (
-    convert_design_to_stl,
     create_beam_problem,
     get_dataset_info,
     get_problem_details,
@@ -24,6 +23,7 @@ from src.tools.engibench import (
     render_beam_design,
     simulate_beam_design,
 )
+from src.tools.stl_export import convert_design_to_stl
 from src.utils.prompts import ENGINEERING_AGENT_SYSTEM_PROMPT
 
 
