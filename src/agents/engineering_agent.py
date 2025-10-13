@@ -15,6 +15,7 @@ from langgraph.graph import END, START, StateGraph
 from config import config
 from src.models.state import MessagesState
 from src.tools.engibench import (
+    check_beam_constraints,
     create_beam_problem,
     get_dataset_info,
     get_problem_details,
@@ -41,6 +42,7 @@ class EngineeringAgent:
 
         # Set up engineering tools
         self.tools = [
+            check_beam_constraints,
             create_beam_problem,
             simulate_beam_design,
             optimize_beam_design,

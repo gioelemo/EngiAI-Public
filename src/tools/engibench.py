@@ -9,6 +9,7 @@ These tools allow LLM agents to interact with EngiBench simulators.
 """
 
 import random
+from pathlib import Path
 from typing import Any
 
 import matplotlib
@@ -204,6 +205,120 @@ def simulate_beam_design(
             "force_distribution": force_distribution,
             "message": f"Simulation successful. Compliance: {compliance:.4f} (constraint checks skipped)",
         }
+
+
+@tool
+def check_beam_constraints(
+    design_source: str = "last",
+    volume_fraction: float | None = None,
+    force_distribution: float | None = None,
+) -> dict[str, Any]:
+    """
+    Check if a beam design satisfies the problem constraints.
+
+    This tool validates whether a design meets the constraints specified
+    in the problem configuration. It checks the volume fraction (material
+    usage) and can detect violations that may affect optimization results.
+
+    Args:
+        design_source: Source of the design to check. Options:
+            - "last": Use the last design from state (default)
+            - "random": Generate and check a random design
+            - file path: Load design from .npy file (e.g., "my_design.npy")
+        volume_fraction: Target volume fraction (material density). If None, uses current problem settings
+        force_distribution: Force distribution parameter. If None, uses current problem settings
+
+    Returns:
+        dict with constraint validation results:
+        - success: bool
+        - has_violations: bool (True if any constraints are violated)
+        - violations: dict (details of constraint violations, if any)
+        - config_used: dict (the configuration used for checking)
+        - design_source_used: str (which design source was actually used)
+        - message: str
+
+    Example:
+        To check the last design (most common usage):
+        >>> result = check_beam_constraints()
+        >>> if result['has_violations']:
+        ...     print("Violations found:", result['violations'])
+
+        To check a random design:
+        >>> result = check_beam_constraints(design_source="random")
+
+        To check with custom constraints:
+        >>> result = check_beam_constraints(
+        ...     volume_fraction=0.3,
+        ...     force_distribution=0.5
+        ... )
+
+        To check a design from file:
+        >>> result = check_beam_constraints(design_source="my_design.npy")
+    """
+    try:
+        problem = get_problem_instance()
+        if problem is None:
+            return {
+                "success": False,
+                "error": "No problem instance found. Create one first with create_beam_problem()",
+            }
+
+        # Get the design based on source
+        if design_source == "last":
+            # Use last design from state
+            design = _state.get("last_design")
+            if design is None:
+                return {
+                    "success": False,
+                    "error": "No design found in state. Create a design first with simulate_beam_design() or optimize_beam_design()",
+                }
+            source_used = "last design from state"
+
+        elif design_source == "random":
+            # Generate a random design
+            design, _ = problem.random_design()
+            source_used = "randomly generated design"
+
+        else:
+            # Treat as file path
+            design_file = Path(design_source)
+            if not design_file.exists():
+                return {
+                    "success": False,
+                    "error": f"Design file not found: {design_source}",
+                }
+            design = np.load(design_file)
+            source_used = f"design from file: {design_source}"
+
+        # Build config dict
+        config = {}
+        if volume_fraction is not None:
+            config["volfrac"] = volume_fraction
+        if force_distribution is not None:
+            config["forcedist"] = force_distribution
+
+        # Check constraints using the problem's method
+        violations = problem.check_constraints(design, config)
+
+        return {
+            "success": True,
+            "has_violations": bool(violations),
+            "violations": violations if violations else {},
+            "config_used": config,
+            "design_source_used": source_used,
+            "message": (
+                f"Checked {source_used}. "
+                f"{'Violations found: ' + str(violations) if violations else 'No violations detected.'}"
+            ),
+        }
+
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Constraint check failed: {e!s}"}
 
 
 @tool
