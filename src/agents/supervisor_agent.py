@@ -96,12 +96,10 @@ class SupervisorAgent:
                 agent_state,
                 {"configurable": {"thread_id": "engineering"}},
             )
-            # Return ALL new messages from the engineering agent (including tool calls/results)
-            # This shows the full conversation flow to the user
-            messages_before = len(state["messages"])
-            new_messages = result["messages"][messages_before:]
-            # Mark that we've completed routing
-            return {"messages": new_messages, "next": "FINISH"}
+            # Return the last message from the engineering agent
+            # Note: We only return the final response to avoid message structure issues
+            # (ToolMessages must follow AIMessages with tool_calls)
+            return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
         def search_node(state: SupervisorState):
             """Delegate to search agent."""
@@ -111,11 +109,9 @@ class SupervisorAgent:
                 agent_state,
                 {"configurable": {"thread_id": "search"}},
             )
-            # Return ALL new messages from the search agent (including tool calls/results)
-            messages_before = len(state["messages"])
-            new_messages = result["messages"][messages_before:]
-            # Mark that we've completed routing
-            return {"messages": new_messages, "next": "FINISH"}
+            # Return the last message from the search agent
+            # Note: We only return the final response to avoid message structure issues
+            return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
         # Build the graph
         workflow = StateGraph(SupervisorState)
