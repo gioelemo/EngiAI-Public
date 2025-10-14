@@ -83,6 +83,7 @@ def create_beam_problem(
     try:
         problem = Beams2D()
         problem.reset(seed=seed)
+        print(f"Created Beams2D problem with seed {seed}")
 
         # Store the problem instance for reuse by other tools
         set_problem_instance(problem)
@@ -175,17 +176,11 @@ def simulate_beam_design(
             # Store for future use
             set_last_design(design)
 
-        # Set up configuration
-        config = {
-            "volfrac": volume_fraction,
-            "forcedist": force_distribution,
-        }
-
         # Skip constraint checks for faster simulation
         # Note: This allows exploring designs that might violate constraints
 
         # Run simulation (problem is already reset above)
-        objectives = problem.simulate(design=design, config=config)
+        objectives = problem.simulate(design=design)
         compliance = float(objectives[0])  # First objective is compliance
 
     except ImportError:
