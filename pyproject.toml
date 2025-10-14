@@ -13,8 +13,9 @@ dependencies = [
     "langchain ==1.0.0a12",
     "langchain-core ==1.0.0a8",
     "langchain-openai ==1.0.0a4",
-    "langgraph        ==1.0.0a4",
+    "langgraph ==1.0.0a4",
     "langchain-experimental ==0.0.42"
+    "matplotlib ==3.10.6
 
 ]
 
