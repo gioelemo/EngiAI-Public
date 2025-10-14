@@ -113,12 +113,12 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    OPENAI_API_KEY=your-actual-openai-api-key-here
    TAVILY_API_KEY=your-actual-tavily-api-key-here
 
-   # Optional: Choose your preferred LLM model (defaults to gpt-4o-mini)
-   LLM_MODEL=openai:gpt-4o-mini
+   # Optional: Choose your preferred LLM model (defaults to gpt-4.1)
+   LLM_MODEL=openai:gpt-4.1
    ```
 
    **Available model options:**
-   - `openai:gpt-4o-mini` (default, fast and cost-effective)
+   - `openai:gpt-4.1` (default, fast and cost-effective)
    - `openai:gpt-4o` (most capable OpenAI model)
    - `openai:gpt-3.5-turbo` (legacy, cheaper option)
    - `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
