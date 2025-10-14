@@ -45,116 +45,136 @@ class SupervisorAgent:
         self.llm = init_chat_model(self.model_name)
 
         # Initialize specialized sub-agents
-        self.code_execution_agent = CodeExecutionAgent(model_name=self.model_name)
+        self.enable_code_execution = config.enable_code_execution_agent
+        if self.enable_code_execution:
+            self.code_execution_agent = CodeExecutionAgent(model_name=self.model_name)
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
 
         # Build the supervisor graph
         self.graph = self._build_graph()
 
-    def _build_graph(self):
-        """Build the supervisor workflow graph with agent routing."""
-        # Create routing system prompt
-        system_prompt = (
+    def _build_routing_prompt(self) -> str:
+        """Build the routing system prompt based on available agents."""
+        available_agents = []
+        agent_names = []
+
+        if self.enable_code_execution:
+            available_agents.append(
+                "- code_execution_agent: Python code execution, calculations, data analysis"
+            )
+            agent_names.append("'code_execution_agent'")
+
+        available_agents.append(
+            "- engineering_agent: Structural optimization, beam design, topology optimization, STL conversion"
+        )
+        available_agents.append("- search_agent: Web research and finding information")
+        agent_names.extend(["'engineering_agent'", "'search_agent'"])
+
+        return (
             "You are a supervisor that routes tasks to specialized agents.\n\n"
             + "Available agents:\n"
-            + "- code_execution_agent: Python code execution, calculations, data analysis\n"
-            + "- engineering_agent: Structural optimization, beam design, topology optimization, STL conversion\n"
-            + "- search_agent: Web research and finding information\n\n"
+            + "\n".join(available_agents)
+            + "\n\n"
             + "Analyze the user's request and respond with ONLY ONE WORD: "
-            + "'code_execution_agent', 'engineering_agent', or 'search_agent'.\n"
+            + ", ".join(agent_names[:-1])
+            + (" or " if len(agent_names) > 1 else "")
+            + agent_names[-1]
+            + ".\n"
             + "No explanations, no other text, just the agent name."
         )
 
-        def supervisor_node(state: SupervisorState):
-            """Supervisor decides which agent should act next."""
-            # Only route if we haven't routed yet (no next value set)
-            if state.get("next") and state["next"] != "":
-                # Already routed, finish
-                return {"next": "FINISH"}
+    def _supervisor_node(self, state: SupervisorState):
+        """Supervisor decides which agent should act next."""
+        # Only route if we haven't routed yet (no next value set)
+        if state.get("next") and state["next"] != "":
+            # Already routed, finish
+            return {"next": "FINISH"}
 
-            messages = [
-                {"role": "system", "content": system_prompt},
-                *state["messages"],
-            ]
-            response = self.llm.invoke(messages)
+        messages = [
+            {"role": "system", "content": self._build_routing_prompt()},
+            *state["messages"],
+        ]
+        response = self.llm.invoke(messages)
 
-            # Extract routing decision from response
-            content = str(response.content).strip().lower()
+        # Extract routing decision from response
+        content = str(response.content).strip().lower()
 
-            # Determine next agent
-            next_agent = "FINISH"
-            if "code_execution" in content or "code" in content:
-                next_agent = "code_execution_agent"
-            elif "engineering" in content:
-                next_agent = "engineering_agent"
-            elif "search" in content:
-                next_agent = "search_agent"
+        # Determine next agent
+        next_agent = "FINISH"
+        if self.enable_code_execution and (
+            "code_execution" in content or "code" in content
+        ):
+            next_agent = "code_execution_agent"
+        elif "engineering" in content:
+            next_agent = "engineering_agent"
+        elif "search" in content:
+            next_agent = "search_agent"
 
-            return {"next": next_agent}
+        return {"next": next_agent}
 
-        def code_execution_node(state: SupervisorState):
-            """Delegate to code execution agent."""
-            # Convert supervisor state to agent state (MessagesState format)
-            agent_state = cast(MessagesState, {"messages": state["messages"]})
-            result = self.code_execution_agent.invoke(
-                agent_state,
-                {"configurable": {"thread_id": "code_execution"}},
-            )
-            # Return the last message from the code execution agent
-            return {"messages": [result["messages"][-1]], "next": "FINISH"}
+    def _code_execution_node(self, state: SupervisorState):
+        """Delegate to code execution agent."""
+        agent_state = cast(MessagesState, {"messages": state["messages"]})
+        result = self.code_execution_agent.invoke(
+            agent_state,
+            {"configurable": {"thread_id": "code_execution"}},
+        )
+        return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
-        def engineering_node(state: SupervisorState):
-            """Delegate to engineering agent."""
-            # Convert supervisor state to agent state (MessagesState format)
-            agent_state = cast(MessagesState, {"messages": state["messages"]})
-            result = self.engineering_agent.invoke(
-                agent_state,
-                {"configurable": {"thread_id": "engineering"}},
-            )
-            # Return the last message from the engineering agent
-            # Note: We only return the final response to avoid message structure issues
-            # (ToolMessages must follow AIMessages with tool_calls)
-            return {"messages": [result["messages"][-1]], "next": "FINISH"}
+    def _engineering_node(self, state: SupervisorState):
+        """Delegate to engineering agent."""
+        agent_state = cast(MessagesState, {"messages": state["messages"]})
+        result = self.engineering_agent.invoke(
+            agent_state,
+            {"configurable": {"thread_id": "engineering"}},
+        )
+        return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
-        def search_node(state: SupervisorState):
-            """Delegate to search agent."""
-            # Convert supervisor state to agent state (MessagesState format)
-            agent_state = cast(MessagesState, {"messages": state["messages"]})
-            result = self.search_agent.invoke(
-                agent_state,
-                {"configurable": {"thread_id": "search"}},
-            )
-            # Return the last message from the search agent
-            # Note: We only return the final response to avoid message structure issues
-            return {"messages": [result["messages"][-1]], "next": "FINISH"}
+    def _search_node(self, state: SupervisorState):
+        """Delegate to search agent."""
+        agent_state = cast(MessagesState, {"messages": state["messages"]})
+        result = self.search_agent.invoke(
+            agent_state,
+            {"configurable": {"thread_id": "search"}},
+        )
+        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+
+    def _build_graph(self):
+        """Build the supervisor workflow graph with agent routing."""
 
         # Build the graph
         workflow = StateGraph(SupervisorState)
 
         # Add nodes
-        workflow.add_node("supervisor", supervisor_node)
-        workflow.add_node("code_execution_agent", code_execution_node)
-        workflow.add_node("engineering_agent", engineering_node)
-        workflow.add_node("search_agent", search_node)
+        workflow.add_node("supervisor", self._supervisor_node)
+        if self.enable_code_execution:
+            workflow.add_node("code_execution_agent", self._code_execution_node)
+        workflow.add_node("engineering_agent", self._engineering_node)
+        workflow.add_node("search_agent", self._search_node)
 
         # Add edges - start with supervisor
         workflow.add_edge(START, "supervisor")
+
+        # Build conditional routing dictionary
+        routing_dict = {
+            "engineering_agent": "engineering_agent",
+            "search_agent": "search_agent",
+            "FINISH": END,
+        }
+        if self.enable_code_execution:
+            routing_dict["code_execution_agent"] = "code_execution_agent"
 
         # Conditional routing based on supervisor decision
         workflow.add_conditional_edges(
             "supervisor",
             lambda state: state["next"],
-            {
-                "code_execution_agent": "code_execution_agent",
-                "engineering_agent": "engineering_agent",
-                "search_agent": "search_agent",
-                "FINISH": END,
-            },
+            routing_dict,
         )
 
         # Agents go directly to END (no looping back to supervisor)
-        workflow.add_edge("code_execution_agent", END)
+        if self.enable_code_execution:
+            workflow.add_edge("code_execution_agent", END)
         workflow.add_edge("engineering_agent", END)
         workflow.add_edge("search_agent", END)
 

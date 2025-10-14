@@ -115,6 +115,9 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
 
    # Optional: Choose your preferred LLM model (defaults to gpt-4.1)
    LLM_MODEL=openai:gpt-4.1
+
+   # Optional: Enable/disable code execution agent (defaults to false)
+   ENABLE_CODE_EXECUTION_AGENT=false
    ```
 
    **Available model options:**
@@ -123,6 +126,9 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    - `openai:gpt-3.5-turbo` (legacy, cheaper option)
    - `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
 
+   **Agent configuration:**
+   - `ENABLE_CODE_EXECUTION_AGENT`: Set to `true` to enable Python code execution agent (default: `false`)
+
 **Run the Multi-Agent Assistant:**
 ```bash
 # Starts the supervisor system that coordinates all specialized agents
@@ -130,7 +136,7 @@ python -m src.main
 ```
 
 The system includes:
-- **Code Execution Agent**: Python code execution and calculations
+- **Code Execution Agent**: Python code execution and calculations (optional, disabled by default)
 - **Engineering Agent**: Structural optimization with EngiBench
 - **Search Agent**: Web research and information gathering
 

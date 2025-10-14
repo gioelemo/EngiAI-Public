@@ -31,6 +31,11 @@ class Config:
         # Model configuration
         self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4.1")
 
+        # Agent configuration
+        self.enable_code_execution_agent: bool = (
+            os.getenv("ENABLE_CODE_EXECUTION_AGENT", "false").lower() == "true"
+        )
+
         # LangSmith configuration
         self.langchain_tracing = (
             os.getenv("LANGCHAIN_TRACING", "false").lower() == "true"
