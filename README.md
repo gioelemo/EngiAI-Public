@@ -232,17 +232,13 @@ The first 10 Fibonacci numbers are: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 │   ├── agents/                  # Agent implementations
 │   │   ├── code_execution_agent.py  # Python code execution
 │   │   ├── engineering_agent.py     # Engineering optimization
-│   │   ├── math_agent.py        # Math operations only
-│   │   ├── search_agent.py      # Web search only
-│   │   ├── supervisor_agent.py  # Coordinates specialized agents
-│   │   └── general_agent.py     # Both math and search
+│   │   ├── search_agent.py      # Web search
+│   │   └── supervisor_agent.py  # Coordinates specialized agents
 │   ├── cli/                     # Command-line interfaces
-│   │   ├── chat.py              # Interactive chat (legacy)
-│   │   └── chat_v2.py           # Interactive chat with agent selection
+│   │   └── chat.py              # Interactive chat with supervisor
 │   ├── models/                  # State definitions
 │   │   └── state.py             # Conversation state
 │   ├── tools/                   # Custom tools
-│   │   ├── arithmetic.py        # Math operations
 │   │   ├── code_execution.py    # Python REPL execution
 │   │   ├── engibench.py         # Engineering optimization tools
 │   │   ├── search.py            # Web search
@@ -250,12 +246,19 @@ The first 10 Fibonacci numbers are: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 │   ├── utils/                   # Utilities
 │   │   └── prompts.py           # System prompts
 │   ├── main.py                  # Main entry point
-│   ├── chatbot.py               # Legacy chatbot
-│   ├── chatbot_new.py           # Original version (pre-refactor)
+│   ├── example.py               # Example usage
 │   └── README.md                # Detailed architecture docs
 ├── scripts/                     # Utility scripts
-│   └── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL files
-├── tests/                       # Your tests
+│   ├── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL files
+│   └── generate_architecture_diagram.py  # Generate system diagrams
+├── outputs/                     # Generated outputs
+│   ├── agent_architecture.png   # System architecture diagram
+│   ├── workflow_example.png     # Example workflow diagram
+│   └── *.npy, *.png, *.stl      # Engineering design outputs
+├── tests/                       # Unit and integration tests
+│   ├── test_example.py
+│   ├── test_optimization_workflow.py
+│   └── test_notebook_comparison.py
 ├── .env.example                 # Environment variables template
 ├── config.py                    # Configuration management
 ├── environment.yml              # Conda environment
