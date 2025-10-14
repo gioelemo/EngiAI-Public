@@ -150,12 +150,11 @@ def simulate_beam_design(
         # Use the existing problem instance to maintain consistency
         problem = get_problem_instance()
 
+        # Always reset the problem before simulation for clean state
+        problem.reset(seed=seed)
+
         # Check if we have a stored design from previous operations
         last_design = get_last_design()
-
-        # Only reset with seed if specified
-        if seed != 0:
-            problem.reset(seed=seed)
 
         # Determine which design to simulate
         if (
@@ -185,7 +184,7 @@ def simulate_beam_design(
         # Skip constraint checks for faster simulation
         # Note: This allows exploring designs that might violate constraints
 
-        # Run simulation
+        # Run simulation (problem is already reset above)
         objectives = problem.simulate(design=design, config=config)
         compliance = float(objectives[0])  # First objective is compliance
 
@@ -327,7 +326,6 @@ def optimize_beam_design(
     volume_fraction: float = 0.35,
     force_distribution: float = 0.0,
     seed: int = 0,
-    reset_before_optimization: bool = True,
 ) -> dict[str, Any]:
     """
     Optimize a beam design using gradient-based optimization.
@@ -335,10 +333,8 @@ def optimize_beam_design(
     This tool starts from an initial design and runs an optimization algorithm
     (typically topology optimization) to find the best material distribution.
 
-    Following the EngiBench notebook workflow:
-    1. A design is created/rendered (from initial problem seed, e.g., seed=9)
-    2. Problem is reset to seed=0 for reproducibility
-    3. The same design is optimized under the new problem configuration
+    Important: The problem is always reset before optimization to ensure
+    reproducibility and clean state. This follows best practices from EngiBench.
 
     Args:
         starting_point: Initial design approach ("random", "uniform", or "sparse")
@@ -347,9 +343,7 @@ def optimize_beam_design(
             Default: 0.35 (35% material)
         force_distribution: Distribution parameter for applied forces (0-1)
             Default: 0.0 (single point load)
-        seed: Random seed for optimization (default: 0, matching notebook)
-        reset_before_optimization: Whether to reset problem before optimization
-            Default: True (matches notebook: problem.reset(seed=0))
+        seed: Random seed for optimization (default: 0 for reproducibility)
 
     Returns:
         dict with optimization results:
@@ -373,10 +367,9 @@ def optimize_beam_design(
         # This maintains consistency across the conversation
         problem = get_problem_instance()
 
-        # Reset problem before optimization (matches notebook workflow)
-        # The notebook creates with seed=9, then resets to seed=0 before optimization
-        if reset_before_optimization:
-            problem.reset(seed=seed)
+        # Always reset problem before optimization for clean state
+        # This matches notebook workflow and ensures reproducibility
+        problem.reset(seed=seed)
 
         # Check if we have a last design from previous operations (e.g., from render)
         last_design = get_last_design()
@@ -402,18 +395,18 @@ def optimize_beam_design(
             "forcedist": force_distribution,
         }
 
-        # Get initial performance
+        # Get initial performance (problem is already reset above)
         initial_objectives = problem.simulate(design=design, config=config)
         initial_compliance = float(initial_objectives[0])
 
-        # Run optimization (matching notebook: problem.optimize(my_design))
+        # Run optimization (problem is already reset above)
         # Note: problem.optimize() accepts the design as first positional argument
         optimized_design, history = problem.optimize(design, config=config)
 
         # Store the optimized design for potential future use (e.g., rendering)
         set_last_design(optimized_design)
 
-        # Get final performance
+        # Get final performance (no need to reset again, we're just evaluating)
         final_objectives = problem.simulate(design=optimized_design, config=config)
         final_compliance = float(final_objectives[0])
 
