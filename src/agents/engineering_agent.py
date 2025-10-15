@@ -29,6 +29,7 @@ from src.tools.wandb_model import (
     download_wandb_model,
     list_available_algorithms,
     load_wandb_model,
+    sample_designs_from_model,
 )
 from src.utils.prompts import ENGINEERING_AGENT_SYSTEM_PROMPT
 
@@ -62,6 +63,7 @@ class EngineeringAgent:
             download_wandb_model,
             list_available_algorithms,
             load_wandb_model,
+            sample_designs_from_model,
         ]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.llm_with_tools = self.llm.bind_tools(self.tools)

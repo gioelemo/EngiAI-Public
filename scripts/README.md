@@ -1,6 +1,56 @@
-# 2D Heatmap to STL Converter
+# Scripts Directory
 
-A Python script that converts 2D heatmap data (stored as NumPy arrays) into 3D STL files suitable for 3D printing or CAD applications.
+This directory contains utility scripts and examples for the Engineering Assistant project.
+
+## Available Scripts
+
+### 1. WandB Model Sampling Test (`test_wandb_sampling.py`)
+
+**Purpose**: Test the complete WandB model workflow (download → generate → visualize)
+
+**Usage**:
+```bash
+python scripts/test_wandb_sampling.py
+```
+
+**What it does**:
+1. Lists all available model algorithms
+2. Downloads a pre-trained `cgan_cnn_2d` model from WandB
+3. Generates 3 beam designs with different volume fractions (0.35, 0.40, 0.45)
+4. Saves designs as `.npy` arrays and `.png` visualizations
+
+**Output**: `outputs/test_designs/`
+
+---
+
+### 2. 2D Heatmap to STL Converter (`2D_heatmap_to_stl.py`)
+
+**Purpose**: Convert 2D heatmap data (NumPy arrays) into 3D STL files suitable for 3D printing or CAD applications.
+
+---
+
+### 3. 2D Heatmap to STL (Extruded) (`2D_heatmap_to_stl_extruded.py`)
+
+Similar to script #2, but with different extrusion method.
+
+---
+
+### 4. Architecture Diagram Generator (`generate_architecture_diagram.py`)
+
+**Purpose**: Generate visual architecture diagrams of the multi-agent system.
+
+---
+
+## Requirements
+
+Install required dependencies:
+```bash
+pip install numpy-stl torch wandb engibench engiopt
+```
+
+---
+
+## 2D Heatmap to STL Converter - Detailed Documentation
 
 ## Features
 

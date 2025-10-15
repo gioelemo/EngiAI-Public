@@ -21,6 +21,7 @@ from src.tools.wandb_model import (
     download_wandb_model,
     list_available_algorithms,
     load_wandb_model,
+    sample_designs_from_model,
 )
 
 __all__ = [
@@ -38,5 +39,6 @@ __all__ = [
     "load_wandb_model",
     "optimize_beam_design",
     "render_beam_design",
+    "sample_designs_from_model",
     "simulate_beam_design",
 ]

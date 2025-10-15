@@ -226,7 +226,7 @@ def _download_from_wandb(
     download_dir: str | None,
 ) -> dict[str, Any]:
     """Download model artifact from WandB."""
-    import wandb  # noqa: PLC0415
+    import wandb
 
     try:
         # Construct the artifact path
@@ -352,7 +352,7 @@ def load_wandb_model(
         - Requires the corresponding model architecture from engiopt
         - Model is set to eval mode after loading
     """
-    import torch as th  # noqa: PLC0415
+    import torch as th
 
     # Check if PyTorch is available
     if not TORCH_AVAILABLE:
@@ -405,4 +405,325 @@ def load_wandb_model(
         return {
             "success": False,
             "error": f"Failed to load model checkpoint: {e!s}",
+        }
+
+
+def _validate_sampling_inputs(
+    checkpoint_path: str,
+    algorithm: str,
+    problem_id: str,
+    conditions: list[dict[str, float]] | None,
+    n_samples: int,
+) -> dict[str, Any] | None:
+    """Validate inputs for design sampling. Returns error dict or None if valid."""
+    # Check dependencies
+    if not TORCH_AVAILABLE:
+        return {
+            "success": False,
+            "error": "PyTorch is not installed. Install with: pip install torch",
+        }
+
+    # Validate checkpoint path
+    checkpoint_file = Path(checkpoint_path)
+    if not checkpoint_file.exists():
+        return {
+            "success": False,
+            "error": f"Checkpoint file not found: {checkpoint_path}",
+        }
+
+    # Validate algorithm
+    if algorithm not in SUPPORTED_ALGORITHMS:
+        return {
+            "success": False,
+            "error": f"Unsupported algorithm '{algorithm}'. Supported algorithms: {', '.join(SUPPORTED_ALGORITHMS.keys())}",
+        }
+
+    # Validate problem_id
+    if problem_id != "beams2d":
+        return {
+            "success": False,
+            "error": f"Unsupported problem_id '{problem_id}'. Currently only 'beams2d' is supported.",
+        }
+
+    # Validate conditions
+    if conditions is not None and len(conditions) != n_samples:
+        return {
+            "success": False,
+            "error": f"Number of conditions ({len(conditions)}) must match n_samples ({n_samples})",
+        }
+
+    return None
+
+
+def _import_generator_class(
+    algorithm: str,
+) -> tuple[type | None, dict[str, Any] | None]:
+    """Import the appropriate Generator class for the algorithm. Returns (class, error_dict)."""
+    # ruff: noqa: I001, PLC0415
+    try:
+        if algorithm in ["cgan_cnn_2d", "gan_cnn_2d"]:
+            from engiopt.cgan_cnn_2d.cgan_cnn_2d import Generator  # type: ignore[import-untyped]
+        elif algorithm in ["cgan_2d", "gan_2d"]:
+            from engiopt.cgan_2d.cgan_2d import Generator  # type: ignore[import-untyped]
+        elif algorithm in ["cgan_1d", "gan_1d"]:
+            from engiopt.cgan_1d.cgan_1d import Generator  # type: ignore[import-untyped]
+        elif algorithm in ["cgan_bezier", "gan_bezier"]:
+            from engiopt.cgan_bezier.cgan_bezier import Generator  # type: ignore[import-untyped]
+        elif algorithm in ["cgan_cnn_3d"]:
+            from engiopt.cgan_cnn_3d.cgan_cnn_3d import Generator  # type: ignore[import-untyped]
+        elif algorithm in ["cgan_vae"]:
+            from engiopt.cgan_vae.cgan_vae import Generator  # type: ignore[import-untyped]
+        elif algorithm in ["diffusion_1d"]:
+            from engiopt.diffusion_1d.diffusion_1d import Generator  # type: ignore[import-untyped]
+        elif algorithm in ["diffusion_2d_cond"]:
+            from engiopt.diffusion_2d_cond.diffusion_2d_cond import Generator  # type: ignore[import-untyped]
+        elif algorithm == "surrogate_model":
+            return None, {
+                "success": False,
+                "error": "Surrogate models don't generate designs - they predict performance.",
+            }
+        else:
+            return None, {
+                "success": False,
+                "error": f"Model class import not implemented for algorithm: {algorithm}",
+            }
+    except ImportError as e:
+        return None, {
+            "success": False,
+            "error": f"Failed to import model class for {algorithm}: {e}. Install engiopt library.",
+        }
+    else:
+        return Generator, None
+
+
+def _generate_designs(
+    model: Any,
+    config: dict[str, Any],
+) -> Any:
+    """Generate designs using the model.
+
+    Args:
+        model: The generator model
+        config: Dict with keys: n_samples, latent_dim, device, is_conditional, conditions_tensor
+    """
+    import torch as th
+
+    # Sample noise as generator input
+    z = th.randn(
+        (config["n_samples"], config["latent_dim"], 1, 1),
+        device=config["device"],
+        dtype=th.float,
+    )
+
+    # Generate designs
+    with th.no_grad():
+        gen_designs = (
+            model(z, config["conditions_tensor"])
+            if config["is_conditional"] and config["conditions_tensor"] is not None
+            else model(z)
+        )
+
+    return gen_designs
+
+
+def _save_designs(
+    gen_designs: Any,
+    n_samples: int,
+    output_path: Path,
+    problem: Any,
+) -> tuple[list[str], list[str]]:
+    """Save generated designs as .npy and .png files. Returns (design_files, render_files)."""
+    import numpy as np
+
+    design_files = []
+    render_files = []
+
+    for i in range(n_samples):
+        # Save as numpy array
+        design_filename = output_path / f"generated_design_{i}.npy"
+        np.save(design_filename, gen_designs[i])
+        design_files.append(str(design_filename))
+
+        # Render and save visualization
+        render_filename = output_path / f"generated_design_{i}.png"
+        fig, _ = problem.render(gen_designs[i])
+        fig.savefig(str(render_filename), dpi=150, bbox_inches="tight")
+        render_files.append(str(render_filename))
+
+    return design_files, render_files
+
+
+@tool
+def sample_designs_from_model(  # noqa: PLR0913
+    checkpoint_path: str,
+    problem_id: Literal["beams2d"] = "beams2d",
+    algorithm: str = "cgan_cnn_2d",
+    conditions: list[dict[str, float]] | None = None,
+    n_samples: int = 3,
+    latent_dim: int = 32,
+    device: str = "cpu",
+    output_dir: str = "outputs",
+) -> dict[str, Any]:
+    """
+    Sample/generate designs from a loaded generative model.
+
+    This tool generates new designs using a pre-trained generative model (GAN, Diffusion, etc.)
+    based on specified conditions. It's useful for inverse design where you want designs
+    that meet specific performance criteria.
+
+    Args:
+        checkpoint_path: Path to the generator.pth checkpoint file
+        problem_id: Engineering problem identifier (default: "beams2d")
+        algorithm: Model architecture type (default: "cgan_cnn_2d")
+        conditions: List of condition dictionaries for conditional models. Each dict should have:
+            - volfrac: Volume fraction (0-1)
+            - rmin: Minimum radius filter
+            - forcedist: Force distribution (0-1)
+            - overhang_constraint: Overhang constraint (0-1)
+            If None, will use default conditions. Length should match n_samples.
+        n_samples: Number of designs to generate (default: 3)
+        latent_dim: Latent dimension of the model (default: 32)
+        device: Device to run on: "cpu", "cuda", or "mps" (default: "cpu")
+        output_dir: Directory to save generated designs (default: "outputs")
+
+    Returns:
+        dict with:
+        - success: bool indicating if sampling succeeded
+        - designs: list of generated design arrays (if successful)
+        - design_files: list of saved .npy file paths
+        - render_files: list of saved .png visualization files
+        - conditions_used: list of conditions used for generation
+        - n_samples: number of designs generated
+        - error: str with error message (only if success=False)
+
+    Example:
+        >>> # Simple generation with default conditions
+        >>> result = sample_designs_from_model.invoke({
+        ...     "checkpoint_path": "/path/to/generator.pth",
+        ...     "n_samples": 3
+        ... })
+
+        >>> # Generate with specific conditions
+        >>> conditions = [
+        ...     {"volfrac": 0.35, "rmin": 2.0, "forcedist": 0.2, "overhang_constraint": 0.0},
+        ...     {"volfrac": 0.45, "rmin": 2.0, "forcedist": 0.2, "overhang_constraint": 0.0},
+        ... ]
+        >>> result = sample_designs_from_model.invoke({
+        ...     "checkpoint_path": "/path/to/generator.pth",
+        ...     "conditions": conditions,
+        ...     "n_samples": 2
+        ... })
+
+    Note:
+        - Requires PyTorch and engiopt to be installed
+        - For conditional models (cgan_*), conditions will be used
+        - For non-conditional models (gan_*), conditions are ignored
+        - Generated designs are automatically clipped to [0, 1] range
+        - Designs are saved as .npy files and visualized as .png images
+    """
+    import torch as th
+
+    # Validate inputs
+    error = _validate_sampling_inputs(
+        checkpoint_path, algorithm, problem_id, conditions, n_samples
+    )
+    if error:
+        return error
+
+    # Set default conditions if not provided
+    if conditions is None:
+        conditions = [
+            {"volfrac": 0.35, "rmin": 2.0, "forcedist": 0.2, "overhang_constraint": 0.0}
+            for _ in range(n_samples)
+        ]
+
+    try:
+        # Import required libraries
+        try:
+            import numpy as np
+            from engibench.problems.beams2d.v0 import Beams2D
+        except ImportError as e:
+            return {
+                "success": False,
+                "error": f"Required library not installed: {e}. Install with: pip install engibench numpy",
+            }
+
+        # Import Generator class
+        generator_class, error = _import_generator_class(algorithm)
+        if error:
+            return error
+
+        # At this point, generator_class cannot be None
+        assert generator_class is not None
+
+        # Load checkpoint and create problem
+        ckpt = th.load(checkpoint_path, map_location=device)
+        problem = Beams2D()
+        problem.reset(seed=0)
+
+        # Initialize the model
+        is_conditional = SUPPORTED_ALGORITHMS[algorithm]["conditional"]
+        n_conds = len(problem.conditions) if is_conditional else 0
+
+        model = generator_class(
+            latent_dim=latent_dim,
+            n_conds=n_conds,
+            design_shape=problem.design_space.shape,
+        )
+        model.load_state_dict(ckpt["generator"])
+        model.eval()
+        model.to(device)
+
+        # Prepare conditions tensor
+        conditions_tensor = None
+        if is_conditional:
+            conditions_tensor = (
+                th.tensor(
+                    [list(c.values()) for c in conditions],
+                    device=device,
+                    dtype=th.float,
+                )
+                .unsqueeze(-1)
+                .unsqueeze(-1)
+            )
+
+        # Generate designs
+        gen_config = {
+            "n_samples": n_samples,
+            "latent_dim": latent_dim,
+            "device": device,
+            "is_conditional": is_conditional,
+            "conditions_tensor": conditions_tensor,
+        }
+        gen_designs = _generate_designs(model, gen_config)
+
+        # Post-process
+        gen_designs = gen_designs.detach().cpu().numpy().squeeze()
+        if n_samples == 1:
+            gen_designs = np.expand_dims(gen_designs, axis=0)
+        np.clip(gen_designs, 0, 1, out=gen_designs)
+
+        # Save designs
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        design_files, render_files = _save_designs(
+            gen_designs, n_samples, output_path, problem
+        )
+
+        return {
+            "success": True,
+            "n_samples": n_samples,
+            "design_files": design_files,
+            "render_files": render_files,
+            "conditions_used": conditions,
+            "algorithm": algorithm,
+            "problem_id": problem_id,
+            "output_dir": str(output_path),
+            "message": f"Successfully generated {n_samples} designs using {algorithm} model",
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to generate designs: {e!s}",
         }
