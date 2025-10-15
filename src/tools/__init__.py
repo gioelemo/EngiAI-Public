@@ -15,14 +15,14 @@ from src.tools.engibench import (
     render_beam_design,
     simulate_beam_design,
 )
-from src.tools.search import create_search_tool
-from src.tools.stl_export import convert_design_to_stl
-from src.tools.wandb_model import (
+from src.tools.engiopt import (
     download_wandb_model,
     list_available_algorithms,
     load_wandb_model,
     sample_designs_from_model,
 )
+from src.tools.search import create_search_tool
+from src.tools.stl_export import convert_design_to_stl
 
 __all__ = [
     "check_beam_constraints",
