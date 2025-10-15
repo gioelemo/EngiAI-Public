@@ -19,3 +19,5 @@ dependencies:
     - langgraph==1.0.0a4,
     - langchain-experimental==0.0.42,
     - matplotlib==3.10.6,
+    - wandb==0.22.2,
+    - torch==2.8.0
