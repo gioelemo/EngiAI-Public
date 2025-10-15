@@ -66,7 +66,7 @@ class SupervisorAgent:
             agent_names.append("'code_execution_agent'")
 
         available_agents.append(
-            "- engineering_agent: Structural optimization, beam design, topology optimization, STL conversion"
+            "- engineering_agent: Structural optimization, beam design, topology optimization, STL conversion, downloading/using pre-trained models from WandB, generative models (GANs, Diffusion)"
         )
         available_agents.append("- search_agent: Web research and finding information")
         agent_names.extend(["'engineering_agent'", "'search_agent'"])
@@ -76,7 +76,17 @@ class SupervisorAgent:
             + "Available agents:\n"
             + "\n".join(available_agents)
             + "\n\n"
-            + "Analyze the user's request and respond with ONLY ONE WORD: "
+            + "IMPORTANT ROUTING RULES:\n"
+            + "- Any mention of 'wandb', 'models', 'pretrained', 'download model', 'GAN', 'diffusion', "
+            + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint' → use engineering_agent\n"
+            + "- Web search, research, finding information → use search_agent\n"
+            + (
+                "- Python code execution, calculations → use code_execution_agent\n"
+                if self.enable_code_execution
+                else ""
+            )
+            + "\n"
+            + "Respond with ONLY ONE WORD: "
             + ", ".join(agent_names[:-1])
             + (" or " if len(agent_names) > 1 else "")
             + agent_names[-1]

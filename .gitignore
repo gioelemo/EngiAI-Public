@@ -194,3 +194,5 @@ outputs/
 
 /tests/test_notebook_comparison.py
 /tests/test_optimization_workflow.py
+
+/artifacts/

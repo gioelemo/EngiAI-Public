@@ -25,6 +25,11 @@ from src.tools.engibench import (
     simulate_beam_design,
 )
 from src.tools.stl_export import convert_design_to_stl
+from src.tools.wandb_model import (
+    download_wandb_model,
+    list_available_algorithms,
+    load_wandb_model,
+)
 from src.utils.prompts import ENGINEERING_AGENT_SYSTEM_PROMPT
 
 
@@ -42,15 +47,21 @@ class EngineeringAgent:
 
         # Set up engineering tools
         self.tools = [
+            # EngiBench tools
             check_beam_constraints,
             create_beam_problem,
             simulate_beam_design,
             optimize_beam_design,
             render_beam_design,
-            convert_design_to_stl,
             get_problem_info,
             get_problem_details,
             get_dataset_info,
+            # Export tools
+            convert_design_to_stl,
+            # WandB model download tools
+            download_wandb_model,
+            list_available_algorithms,
+            load_wandb_model,
         ]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.llm_with_tools = self.llm.bind_tools(self.tools)

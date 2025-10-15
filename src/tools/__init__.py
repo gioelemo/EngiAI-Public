@@ -17,17 +17,25 @@ from src.tools.engibench import (
 )
 from src.tools.search import create_search_tool
 from src.tools.stl_export import convert_design_to_stl
+from src.tools.wandb_model import (
+    download_wandb_model,
+    list_available_algorithms,
+    load_wandb_model,
+)
 
 __all__ = [
     "check_beam_constraints",
     "convert_design_to_stl",
     "create_beam_problem",
     "create_search_tool",
+    "download_wandb_model",
     "execute_python_code",
     "execute_python_expression",
     "get_dataset_info",
     "get_problem_details",
     "get_problem_info",
+    "list_available_algorithms",
+    "load_wandb_model",
     "optimize_beam_design",
     "render_beam_design",
     "simulate_beam_design",
