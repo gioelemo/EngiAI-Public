@@ -148,6 +148,7 @@ module = [
   "matplotlib",
   "matplotlib.*",
   "engibench.*",
+  "engiopt.*",
   "langchain_experimental.*",
   "wandb",
   "torch",

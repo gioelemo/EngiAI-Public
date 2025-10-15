@@ -409,7 +409,6 @@ def load_wandb_model(
 
 
 def _validate_sampling_inputs(
-    checkpoint_path: str,
     algorithm: str,
     problem_id: str,
     conditions: list[dict[str, float]] | None,
@@ -421,14 +420,6 @@ def _validate_sampling_inputs(
         return {
             "success": False,
             "error": "PyTorch is not installed. Install with: pip install torch",
-        }
-
-    # Validate checkpoint path
-    checkpoint_file = Path(checkpoint_path)
-    if not checkpoint_file.exists():
-        return {
-            "success": False,
-            "error": f"Checkpoint file not found: {checkpoint_path}",
         }
 
     # Validate algorithm
@@ -553,9 +544,75 @@ def _save_designs(
     return design_files, render_files
 
 
+def _find_or_download_model(
+    checkpoint_path: str | None,
+    problem_id: str,
+    algorithm: str,
+) -> tuple[str | None, dict[str, Any] | None]:
+    """
+    Find a model checkpoint or download one if needed.
+
+    Args:
+        checkpoint_path: Optional path to checkpoint. If None, will search or download.
+        problem_id: Engineering problem identifier
+        algorithm: Model architecture type
+
+    Returns:
+        Tuple of (checkpoint_path, error_dict). Error dict is None on success.
+    """
+    import random
+
+    # If path provided, just validate it exists
+    if checkpoint_path:
+        checkpoint_file = Path(checkpoint_path)
+        if not checkpoint_file.exists():
+            return None, {
+                "success": False,
+                "error": f"Checkpoint file not found: {checkpoint_path}",
+            }
+        return str(checkpoint_file), None
+
+    # Search for existing models in artifacts folder
+    artifacts_dir = Path("artifacts")
+
+    if artifacts_dir.exists():
+        # Look for generator.pth files matching the problem and algorithm
+        pattern = f"{problem_id}_{algorithm}_generator:v*"
+        matching_dirs = list(artifacts_dir.glob(pattern))
+
+        if matching_dirs:
+            # Randomly select one of the matching models
+            selected_dir = random.choice(matching_dirs)
+            checkpoint = selected_dir / "generator.pth"
+
+            if checkpoint.exists():
+                return str(checkpoint), None
+
+    # No existing model found, download one
+    print(
+        f"No local model found for {problem_id}/{algorithm}. Downloading from WandB..."
+    )
+
+    download_result = download_wandb_model.invoke(
+        {
+            "problem_id": problem_id,
+            "algorithm": algorithm,
+            "seed": 1,  # Default to seed 1
+        }
+    )
+
+    if not download_result.get("success"):
+        return None, {
+            "success": False,
+            "error": f"Failed to download model: {download_result.get('error', 'Unknown error')}",
+        }
+
+    return download_result["checkpoint_path"], None
+
+
 @tool
 def sample_designs_from_model(  # noqa: PLR0913
-    checkpoint_path: str,
+    checkpoint_path: str | None = None,
     problem_id: Literal["beams2d"] = "beams2d",
     algorithm: str = "cgan_cnn_2d",
     conditions: list[dict[str, float]] | None = None,
@@ -571,8 +628,14 @@ def sample_designs_from_model(  # noqa: PLR0913
     based on specified conditions. It's useful for inverse design where you want designs
     that meet specific performance criteria.
 
+    If no checkpoint_path is provided, the tool will automatically:
+    1. Search for existing models in the artifacts folder
+    2. Randomly select one if multiple are found
+    3. Download a model from WandB if none exist locally
+
     Args:
-        checkpoint_path: Path to the generator.pth checkpoint file
+        checkpoint_path: Path to the generator.pth checkpoint file. If None, will auto-select
+            or download a model (default: None)
         problem_id: Engineering problem identifier (default: "beams2d")
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         conditions: List of condition dictionaries for conditional models. Each dict should have:
@@ -594,10 +657,16 @@ def sample_designs_from_model(  # noqa: PLR0913
         - render_files: list of saved .png visualization files
         - conditions_used: list of conditions used for generation
         - n_samples: number of designs generated
+        - checkpoint_path: path to the checkpoint used
         - error: str with error message (only if success=False)
 
     Example:
-        >>> # Simple generation with default conditions
+        >>> # Auto-select/download model with default conditions
+        >>> result = sample_designs_from_model.invoke({
+        ...     "n_samples": 3
+        ... })
+
+        >>> # Use specific checkpoint
         >>> result = sample_designs_from_model.invoke({
         ...     "checkpoint_path": "/path/to/generator.pth",
         ...     "n_samples": 3
@@ -624,11 +693,18 @@ def sample_designs_from_model(  # noqa: PLR0913
     import torch as th
 
     # Validate inputs
-    error = _validate_sampling_inputs(
-        checkpoint_path, algorithm, problem_id, conditions, n_samples
+    error = _validate_sampling_inputs(algorithm, problem_id, conditions, n_samples)
+    if error:
+        return error
+
+    # Find or download a model if no checkpoint path provided
+    resolved_checkpoint_path, error = _find_or_download_model(
+        checkpoint_path, problem_id, algorithm
     )
     if error:
         return error
+
+    assert resolved_checkpoint_path is not None
 
     # Set default conditions if not provided
     if conditions is None:
@@ -657,7 +733,7 @@ def sample_designs_from_model(  # noqa: PLR0913
         assert generator_class is not None
 
         # Load checkpoint and create problem
-        ckpt = th.load(checkpoint_path, map_location=device)
+        ckpt = th.load(resolved_checkpoint_path, map_location=device)
         problem = Beams2D()
         problem.reset(seed=0)
 
@@ -718,8 +794,9 @@ def sample_designs_from_model(  # noqa: PLR0913
             "conditions_used": conditions,
             "algorithm": algorithm,
             "problem_id": problem_id,
+            "checkpoint_path": resolved_checkpoint_path,
             "output_dir": str(output_path),
-            "message": f"Successfully generated {n_samples} designs using {algorithm} model",
+            "message": f"Successfully generated {n_samples} designs using {algorithm} model from {Path(resolved_checkpoint_path).parent.name}",
         }
 
     except Exception as e:
