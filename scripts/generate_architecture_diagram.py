@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 
-class AgentInfo(TypedDict):
+class AgentInfo(TypedDict, total=False):
     """Type definition for agent information."""
 
     name: str
@@ -17,6 +17,7 @@ class AgentInfo(TypedDict):
     y: float
     tools: list[str]
     desc: str
+    planned: bool  # Optional: True if agent is not yet implemented
 
 
 # Set up the figure
@@ -31,6 +32,45 @@ color_supervisor = "#FFE5B4"
 color_agent = "#D4E6F1"
 color_tool = "#E8DAEF"
 color_arrow = "#34495E"
+
+# Tool category colors
+tool_colors = {
+    "engibench": "#FF6B6B",  # Red - EngiBench tools
+    "engiopt": "#51CF66",  # Green - WandB/engiopt tools
+    "stl": "#4DABF7",  # Blue - STL export tools
+    "code": "#F08C00",  # Orange - Code execution tools (changed from yellow for readability)
+    "search": "#9775FA",  # Purple - Search tools
+    "mcp": "#868E96",  # Gray - MCP tools (planned)
+}
+
+# Tool category mapping
+tool_categories = {
+    # EngiBench tools
+    "create_beam_problem": "engibench",
+    "optimize_beam_design": "engibench",
+    "simulate_beam_design": "engibench",
+    "render_beam_design": "engibench",
+    "check_beam_constraints": "engibench",
+    "get_problem_info": "engibench",
+    "get_problem_details": "engibench",
+    "get_dataset_info": "engibench",
+    # WandB/engiopt tools
+    "download_wandb_model": "engiopt",
+    "list_available_algorithms": "engiopt",
+    "load_wandb_model": "engiopt",
+    "sample_designs_from_model": "engiopt",
+    # STL export tools
+    "convert_design_to_stl": "stl",
+    # Code execution tools
+    "execute_python_code": "code",
+    "execute_python_expression": "code",
+    # Search tools
+    "TavilySearch": "search",
+    # MCP tools (planned)
+    "print_document": "mcp",
+    "export_pdf": "mcp",
+    "format_report": "mcp",
+}
 
 # Title
 ax.text(
@@ -101,13 +141,17 @@ arrow2 = FancyArrowPatch(
 ax.add_patch(arrow2)
 ax.text(4.2, 8.15, "Response", fontsize=9)
 
+# Agent position thresholds for arrow routing
+LEFT_AGENT_THRESHOLD = 3.0  # Agent x-position below this is considered "left"
+RIGHT_AGENT_THRESHOLD = 7.0  # Agent x-position above this is considered "right"
+
 # Specialized Agents
 agents: list[AgentInfo] = [
     {
-        "name": "Code Execution Agent",
+        "name": "Code Execution Agent (Currently Disabled)",
         "icon": "",
         "x": 0.5,
-        "y": 3.5,
+        "y": 4.5,
         "tools": ["execute_python_code", "execute_python_expression"],
         "desc": "Python REPL, calculations",
     },
@@ -115,45 +159,65 @@ agents: list[AgentInfo] = [
         "name": "Engineering Agent",
         "icon": "",
         "x": 3.75,
-        "y": 2.8,
+        "y": 2.3,
         "tools": [
+            # EngiBench tools (red)
             "create_beam_problem",
             "optimize_beam_design",
             "simulate_beam_design",
             "render_beam_design",
-            "convert_design_to_stl",
             "check_beam_constraints",
             "get_problem_info",
             "get_problem_details",
             "get_dataset_info",
+            # WandB/engiopt tools (green)
+            "download_wandb_model",
+            "list_available_algorithms",
+            "load_wandb_model",
+            "sample_designs_from_model",
+            # STL export tools (blue)
+            "convert_design_to_stl",
         ],
-        "desc": "Structural optimization, EngiBench",
+        "desc": "Structural optimization, EngiBench, ML models",
     },
     {
         "name": "Search Agent",
         "icon": "",
         "x": 7,
-        "y": 3.5,
+        "y": 4.5,
         "tools": ["TavilySearch"],
         "desc": "Web research, information gathering",
+    },
+    {
+        "name": "Printer Agent (MCP)",
+        "icon": "",
+        "x": 7,
+        "y": 2.5,
+        "tools": ["printer status", "slice stl", "print file"],
+        "desc": "Document generation and printing (planned)",
+        "planned": True,
     },
 ]
 
 # Draw agents and their connections
 for agent in agents:
-    # Calculate box height based on number of tools
-    num_tools = len(agent["tools"])
+    # Calculate box height based on number of tools (excluding comments)
+    num_tools = len(
+        [t for t in agent["tools"] if not (isinstance(t, str) and t.startswith("#"))]
+    )
     box_height = 1.2 + (num_tools * 0.18)  # Dynamic height based on tools
 
-    # Agent box
+    # Agent box (dashed if planned)
+    is_planned = agent.get("planned", False)
     agent_box = FancyBboxPatch(
         (agent["x"], agent["y"]),
         2.5,
         box_height,
         boxstyle="round,pad=0.1",
-        edgecolor="black",
-        facecolor=color_agent,
+        edgecolor="gray" if is_planned else "black",
+        facecolor="#F8F9FA" if is_planned else color_agent,
         linewidth=2,
+        linestyle="--" if is_planned else "-",
     )
     ax.add_patch(agent_box)
 
@@ -194,6 +258,14 @@ for agent in agents:
     # List all tools
     tools_y_start = agent["y"] + box_height - 1.0
     for i, tool in enumerate(agent["tools"]):
+        # Skip comment lines
+        if isinstance(tool, str) and tool.startswith("#"):
+            continue
+
+        # Get tool color based on category
+        tool_category = tool_categories.get(tool, "tool")
+        tool_color = tool_colors.get(tool_category, "black")
+
         ax.text(
             agent["x"] + 0.1,
             tools_y_start - (i * 0.18),
@@ -201,6 +273,8 @@ for agent in agents:
             fontsize=7,
             ha="left",
             family="monospace",
+            color=tool_color,
+            fontweight="bold",
         )
 
     # Arrow from supervisor to agent
@@ -209,6 +283,7 @@ for agent in agents:
     supervisor_x = 3.5
     supervisor_width = 3
     supervisor_y = 6.8
+    supervisor_bottom_y = 6.8
 
     agent_box_x = agent["x"]
     agent_box_width = 2.5
@@ -217,22 +292,91 @@ for agent in agents:
 
     # Determine supervisor exit point based on agent position
     SUPERVISOR_CENTER_X = 5.0  # Center x-position of supervisor
-    if agent_center_x < SUPERVISOR_CENTER_X:  # Left agent (Code Execution)
-        supervisor_exit_x = supervisor_x + supervisor_width * 0.3
-    elif agent_center_x > SUPERVISOR_CENTER_X:  # Right agent (Search)
-        supervisor_exit_x = supervisor_x + supervisor_width * 0.7
+
+    # For side agents (Code Execution and Search), use angled arrows
+    if agent_center_x < LEFT_AGENT_THRESHOLD:  # Left agent (Code Execution)
+        supervisor_exit_x = supervisor_x + 0.2
+        supervisor_exit_y = supervisor_y + 0.4
+    elif agent_center_x > RIGHT_AGENT_THRESHOLD:  # Right agent (Search)
+        supervisor_exit_x = supervisor_x + supervisor_width - 0.2
+        supervisor_exit_y = supervisor_y + 0.4
     else:  # Center agent (Engineering)
         supervisor_exit_x = supervisor_x + supervisor_width * 0.5
+        supervisor_exit_y = supervisor_bottom_y
 
-    arrow = FancyArrowPatch(
-        (supervisor_exit_x, supervisor_y),
-        (agent_center_x, agent_top_y),
-        arrowstyle="<->",
-        mutation_scale=20,
-        linewidth=1.5,
-        color=color_arrow,
-    )
+    # Adjust connection style based on agent position
+    arrow_linestyle = "--" if is_planned else "-"
+    arrow_color = "gray" if is_planned else color_arrow
+
+    if agent_center_x < LEFT_AGENT_THRESHOLD or agent_center_x > RIGHT_AGENT_THRESHOLD:
+        # Angled arrows for side agents
+        arrow = FancyArrowPatch(
+            (supervisor_exit_x, supervisor_exit_y),
+            (agent_center_x, agent_top_y),
+            arrowstyle="<->",
+            mutation_scale=20,
+            linewidth=1.5,
+            color=arrow_color,
+            connectionstyle="arc3,rad=0.2",
+            linestyle=arrow_linestyle,
+        )
+    else:
+        # Straight arrow for center agent
+        arrow = FancyArrowPatch(
+            (supervisor_exit_x, supervisor_exit_y),
+            (agent_center_x, agent_top_y),
+            arrowstyle="<->",
+            mutation_scale=20,
+            linewidth=1.5,
+            color=arrow_color,
+            linestyle=arrow_linestyle,
+        )
     ax.add_patch(arrow)
+
+# Add legend for tool colors in bottom left corner
+legend_x = 0.5
+legend_y = 3.5
+ax.text(
+    legend_x,
+    legend_y + 0.3,
+    "Tool Categories:",
+    fontsize=9,
+    fontweight="bold",
+    ha="left",
+)
+
+legend_items = [
+    ("EngiBench", "engibench"),
+    ("WandB/ML", "engiopt"),
+    ("STL Export", "stl"),
+    ("Code Exec", "code"),
+    ("Search", "search"),
+    ("MCP (planned)", "mcp"),
+]
+
+for i, (label, category) in enumerate(legend_items):
+    color = tool_colors[category]
+    y_pos = legend_y - (i * 0.25)
+    # Draw colored box
+    legend_box = FancyBboxPatch(
+        (legend_x, y_pos - 0.08),
+        0.15,
+        0.15,
+        boxstyle="round,pad=0.02",
+        edgecolor="black",
+        facecolor=color,
+        linewidth=1,
+    )
+    ax.add_patch(legend_box)
+    # Label
+    ax.text(
+        legend_x + 0.25,
+        y_pos,
+        label,
+        fontsize=8,
+        ha="left",
+        va="center",
+    )
 
 plt.tight_layout()
 plt.savefig(
