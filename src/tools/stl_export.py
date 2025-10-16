@@ -16,6 +16,29 @@ from stl import mesh
 CELL_THRESHOLD = 0.5
 
 
+def _mirror_beam_along_y(data: np.ndarray) -> np.ndarray:
+    """
+    Mirror a half-beam design along the Y-axis to create a full symmetric beam.
+
+    The function takes the half beam and mirrors it to create a complete beam.
+    This is useful when optimization is done on half the beam due to symmetry.
+
+    Args:
+        data: 2D numpy array representing half of the beam design
+
+    Returns:
+        2D numpy array with the beam mirrored along Y-axis
+    """
+    # Flip the array along the first axis (rows/Y-axis)
+    mirrored = np.flip(data, axis=1)
+
+    # Concatenate original and mirrored parts
+    # Stack vertically to extend along Y-axis
+    full_beam = np.hstack([mirrored, data])
+
+    return full_beam
+
+
 def _create_stl_from_heatmap_extruded(
     data: np.ndarray, scale_z: float = 10.0, scale_xy: float = 1.0
 ) -> mesh.Mesh:
@@ -107,6 +130,7 @@ def convert_design_to_stl(
     stl_file_path: str | None = None,
     scale_xy: float = 1.0,
     scale_z: float = 10.0,
+    mirror_y: bool = False,
 ) -> dict[str, Any]:
     """
     Convert a 2D beam design array (.npy file) to a 3D STL file for 3D printing or CAD.
@@ -123,6 +147,8 @@ def convert_design_to_stl(
             Default: same name as npy with .stl extension
         scale_xy: Scaling factor for X and Y dimensions (default: 1.0)
         scale_z: Extrusion height for non-zero cells (default: 10.0)
+        mirror_y: If True, mirror the design along Y-axis to create full symmetric beam
+            from half-beam simulation (default: False)
 
     Returns:
         dict with conversion results:
@@ -137,11 +163,18 @@ def convert_design_to_stl(
         >>> result = convert_design_to_stl("beam_design.npy")
         >>> print(result['message'])
 
+        To convert a half-beam and mirror it to create a full beam:
+        >>> result = convert_design_to_stl(
+        ...     npy_file_path="half_beam.npy",
+        ...     mirror_y=True
+        ... )
+
         To specify custom output path and scaling:
         >>> result = convert_design_to_stl(
         ...     npy_file_path="optimized_beam.npy",
         ...     stl_file_path="my_beam.stl",
-        ...     scale_z=15.0
+        ...     scale_z=15.0,
+        ...     mirror_y=True
         ... )
     """
     try:
@@ -183,6 +216,11 @@ def convert_design_to_stl(
         # Round values to binary if needed
         data = np.round(data)
 
+        # Mirror along Y-axis if requested (for half-beam to full-beam conversion)
+        if mirror_y:
+            data = _mirror_beam_along_y(data)
+            height, width = data.shape
+
         # Count non-zero cells
         non_zero_count = np.count_nonzero(data)
 
@@ -203,8 +241,10 @@ def convert_design_to_stl(
             "non_zero_cells": int(non_zero_count),
             "scale_xy": scale_xy,
             "scale_z": scale_z,
-            "message": f"Successfully converted {input_path.name} to {output_path.name}. "
-            f"Created 3D extruded mesh with {num_triangles} triangles from {non_zero_count} cells. "
+            "mirrored": mirror_y,
+            "message": f"Successfully converted {input_path.name} to {output_path.name}"
+            + (" (mirrored along Y-axis)" if mirror_y else "")
+            + f". Created 3D extruded mesh with {num_triangles} triangles from {non_zero_count} cells. "
             f"Dimensions: {width}x{height} grid, scaled by {scale_xy}x{scale_xy}x{scale_z}",
         }
     except ValueError as e:
