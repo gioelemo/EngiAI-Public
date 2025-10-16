@@ -156,10 +156,13 @@ def display_message(message: dict) -> None:
         # Check for and display any STL files mentioned in the message
         stl_files = find_stl_files_in_text(message["content"])
         if stl_files:
-            for stl_path in stl_files:
+            for idx, stl_path in enumerate(stl_files):
+                # Double-check file exists before rendering
                 if stl_path.exists():
                     try:
                         st.markdown(f"**3D Model: {stl_path.name}**")
+                        # Use hash of file path for stable key across reruns
+                        stable_key = f"stl_{abs(hash(str(stl_path)))}_{idx}"
                         stl_from_file(
                             file_path=str(stl_path),
                             color=st.session_state.stl_color,
@@ -168,10 +171,12 @@ def display_message(message: dict) -> None:
                             height=st.session_state.stl_height,
                             opacity=st.session_state.stl_opacity,
                             shininess=st.session_state.stl_shininess,
-                            key=f"stl_{stl_path.name}_{message.get('role', 'msg')}",
+                            key=stable_key,
                         )
-                    except Exception:
-                        st.info(f"3D model available: {stl_path.name} (viewer error)")
+                    except FileNotFoundError:
+                        st.warning(f"3D model file not found: {stl_path.name}")
+                    except Exception as e:
+                        st.warning(f"Could not display 3D model {stl_path.name}: {e}")
                 else:
                     st.info(f"3D model file not found: {stl_path.name}")
 
@@ -248,10 +253,13 @@ def display_response_media(response_text: str) -> None:
 
     # Display STL files
     stl_files = find_stl_files_in_text(response_text)
-    for stl_path in stl_files:
+    for idx, stl_path in enumerate(stl_files):
+        # Double-check file exists before rendering
         if stl_path.exists():
             try:
                 st.markdown(f"**3D Model: {stl_path.name}**")
+                # Use hash of file path for stable key across reruns
+                stable_key = f"stl_resp_{abs(hash(str(stl_path)))}_{idx}"
                 stl_from_file(
                     file_path=str(stl_path),
                     color=st.session_state.stl_color,
@@ -260,10 +268,12 @@ def display_response_media(response_text: str) -> None:
                     height=st.session_state.stl_height,
                     opacity=st.session_state.stl_opacity,
                     shininess=st.session_state.stl_shininess,
-                    key=f"stl_response_{stl_path.name}",
+                    key=stable_key,
                 )
-            except Exception:
-                st.info(f"3D model available: {stl_path.name} (viewer error)")
+            except FileNotFoundError:
+                st.warning(f"3D model file not found: {stl_path.name}")
+            except Exception as e:
+                st.warning(f"Could not display 3D model {stl_path.name}: {e}")
         else:
             st.info(f"3D model file not found: {stl_path.name}")
 
