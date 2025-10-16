@@ -130,8 +130,27 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    - `ENABLE_CODE_EXECUTION_AGENT`: Set to `true` to enable Python code execution agent (default: `false`)
 
 **Run the Multi-Agent Assistant:**
+
+#### Option 1: Web UI (Recommended)
 ```bash
-# Starts the supervisor system that coordinates all specialized agents
+# Launch the Streamlit web interface
+./run_ui.sh
+
+# Or manually:
+streamlit run src/ui/streamlit_app.py
+```
+
+The web UI provides:
+- 💬 Clean chat interface
+- 🔧 Real-time tool usage visualization
+- 📥 Direct file downloads
+- 🗑️ Conversation management
+
+See [src/ui/README.md](src/ui/README.md) for more details.
+
+#### Option 2: Command Line Interface
+```bash
+# Starts the supervisor system in CLI mode
 python -m src.main
 ```
 
