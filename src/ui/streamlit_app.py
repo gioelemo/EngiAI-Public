@@ -42,6 +42,27 @@ def initialize_session_state() -> None:
     if "config" not in st.session_state:
         st.session_state.config = {"configurable": {"thread_id": "streamlit-session"}}
 
+    # STL viewer settings
+    if "stl_color" not in st.session_state:
+        st.session_state.stl_color = "#0069B4"
+
+    if "stl_material" not in st.session_state:
+        st.session_state.stl_material = "material"
+
+    if "stl_height" not in st.session_state:
+        st.session_state.stl_height = 400
+
+    if "stl_auto_rotate" not in st.session_state:
+        st.session_state.stl_auto_rotate = True
+
+    if "stl_opacity" not in st.session_state:
+        st.session_state.stl_opacity = 1.0
+
+    if "stl_shininess" not in st.session_state:
+        st.session_state.stl_shininess = 100
+
+        st.session_state.stl_auto_rotate = True
+
 
 def find_images_in_text(text: str) -> list[Path]:
     """Find image file paths mentioned in text.
@@ -127,7 +148,7 @@ def display_message(message: dict) -> None:
                     st.image(
                         image,
                         caption=img_path.name,
-                        width="stretch",
+                        width=500,
                     )
                 except Exception as e:
                     st.warning(f"Could not display image {img_path.name}: {e}")
@@ -141,10 +162,12 @@ def display_message(message: dict) -> None:
                         st.markdown(f"**3D Model: {stl_path.name}**")
                         stl_from_file(
                             file_path=str(stl_path),
-                            color="#0069B4",
-                            material="material",
-                            auto_rotate=True,
-                            height=400,
+                            color=st.session_state.stl_color,
+                            material=st.session_state.stl_material,
+                            auto_rotate=st.session_state.stl_auto_rotate,
+                            height=st.session_state.stl_height,
+                            opacity=st.session_state.stl_opacity,
+                            shininess=st.session_state.stl_shininess,
                             key=f"stl_{stl_path.name}_{message.get('role', 'msg')}",
                         )
                     except Exception:
@@ -218,7 +241,7 @@ def display_response_media(response_text: str) -> None:
             st.image(
                 image,
                 caption=img_path.name,
-                width="stretch",
+                width=500,
             )
         except Exception as e:
             st.warning(f"Could not display image {img_path.name}: {e}")
@@ -231,10 +254,12 @@ def display_response_media(response_text: str) -> None:
                 st.markdown(f"**3D Model: {stl_path.name}**")
                 stl_from_file(
                     file_path=str(stl_path),
-                    color="#0069B4",
-                    material="material",
-                    auto_rotate=True,
-                    height=400,
+                    color=st.session_state.stl_color,
+                    material=st.session_state.stl_material,
+                    auto_rotate=st.session_state.stl_auto_rotate,
+                    height=st.session_state.stl_height,
+                    opacity=st.session_state.stl_opacity,
+                    shininess=st.session_state.stl_shininess,
                     key=f"stl_response_{stl_path.name}",
                 )
             except Exception:
@@ -340,167 +365,81 @@ def render_sidebar() -> None:
 
     st.markdown("---")
 
+    # STL Viewer Settings
+    with st.expander("🎨 3D Viewer Settings", expanded=True):
+        st.markdown("**Customize 3D Model Display**")
+        st.caption("⚠️ Note: Changing settings will reload all 3D models")
+
+        # Color picker - directly update session state
+        st.session_state.stl_color = st.color_picker(
+            "Model Color",
+            value=st.session_state.stl_color,
+            help="Choose a color for your 3D models",
+            key="color_picker_widget",
+        )
+
+        # Material selector - directly update session state
+        st.session_state.stl_material = st.selectbox(
+            "Material",
+            options=["material", "flat", "wireframe"],
+            index=["material", "flat", "wireframe"].index(
+                st.session_state.stl_material
+            ),
+            help="material: smooth shading, flat: faceted look, wireframe: mesh structure",
+            key="material_selector_widget",
+        )
+
+        # Height slider - directly update session state
+        st.session_state.stl_height = st.slider(
+            "Viewer Height (px)",
+            min_value=200,
+            max_value=800,
+            value=st.session_state.stl_height,
+            step=50,
+            help="Adjust the height of the 3D viewer",
+            key="height_slider_widget",
+        )
+
+        # Opacity slider
+        st.session_state.stl_opacity = st.slider(
+            "Opacity",
+            min_value=0.0,
+            max_value=1.0,
+            value=st.session_state.stl_opacity,
+            step=0.1,
+            help="Adjust the transparency of the model (0 = transparent, 1 = opaque)",
+            key="opacity_slider_widget",
+        )
+
+        # Shininess slider
+        st.session_state.stl_shininess = st.slider(
+            "Shininess",
+            min_value=0,
+            max_value=200,
+            value=st.session_state.stl_shininess,
+            step=10,
+            help="Adjust the shininess/glossiness of the surface",
+            key="shininess_slider_widget",
+        )
+
+        # Auto-rotate toggle
+        if "stl_auto_rotate" not in st.session_state:
+            st.session_state.stl_auto_rotate = True
+
+        st.session_state.stl_auto_rotate = st.checkbox(
+            "Auto-rotate models",
+            value=st.session_state.stl_auto_rotate,
+            help="Automatically rotate 3D models",
+            key="auto_rotate_checkbox_widget",
+        )
+
+    st.markdown("---")
+
     # Clear conversation button
     if st.button("🗑️ Clear Conversation", width="stretch"):
         st.session_state.messages = []
         st.session_state.agent_state = {"messages": []}
         st.rerun()
-
-
-def render_image_gallery() -> None:
-    """Render the image gallery in the sidebar."""
-    output_dir = Path("outputs")
-    if not output_dir.exists():
-        return
-
-    image_files = list(output_dir.glob("*.png")) + list(output_dir.glob("*.jpg"))
-    if not image_files:
-        return
-
-    with st.expander("🖼️ Image Gallery", expanded=False):
-        st.markdown("**Generated Designs & Results**")
-        for img_path in sorted(image_files):
-            try:
-                image = Image.open(img_path)
-                st.image(
-                    image,
-                    caption=img_path.name,
-                    width="stretch",
-                )
-                # Add download button for each image
-                with img_path.open("rb") as f:
-                    st.download_button(
-                        label=f"⬇️ {img_path.name}",
-                        data=f,
-                        file_name=img_path.name,
-                        mime="image/png",
-                        key=f"img_{img_path.name}",
-                        width="stretch",
-                    )
-                st.markdown("---")
-            except Exception as e:
-                st.warning(f"Could not load {img_path.name}: {e}")
-
-
-def render_stl_gallery() -> None:
-    """Render the 3D STL model gallery in the sidebar."""
-    output_dir = Path("outputs")
-    if not output_dir.exists():
-        return
-
-    stl_files = list(output_dir.glob("*.stl"))
-    if not stl_files:
-        return
-
-    with st.expander("🎨 3D Model Gallery", expanded=False):
-        st.markdown("**3D Printable Models**")
-        for stl_path in sorted(stl_files):
-            if stl_path.exists():
-                try:
-                    st.markdown(f"**{stl_path.name}**")
-                    stl_from_file(
-                        file_path=str(stl_path),
-                        color="#0069B4",
-                        material="material",
-                        auto_rotate=True,
-                        height=300,
-                        key=f"gallery_{stl_path.name}",
-                    )
-                    # Add download button for each STL
-                    with stl_path.open("rb") as f:
-                        st.download_button(
-                            label=f"⬇️ Download {stl_path.name}",
-                            data=f,
-                            file_name=stl_path.name,
-                            mime="model/stl",
-                            key=f"dl_stl_{stl_path.name}",
-                            width="stretch",
-                        )
-                    st.markdown("---")
-                except Exception:
-                    st.info(f"Model: {stl_path.name} (viewer unavailable)")
-                    # Still provide download even if viewer fails
-                    with stl_path.open("rb") as f:
-                        st.download_button(
-                            label=f"⬇️ Download {stl_path.name}",
-                            data=f,
-                            file_name=stl_path.name,
-                            mime="model/stl",
-                            key=f"dl_stl_fallback_{stl_path.name}",
-                            width="stretch",
-                        )
-                    st.markdown("---")
-
-
-def render_info_section() -> None:
-    """Render the info/about section."""
-    with st.expander("ℹ About"):  # noqa: RUF001
-        st.markdown(
-            """
-        This is a Jarvis-style multimodal AI assistant for
-        mechanical engineering design and manufacturing.
-
-        **Capabilities:**
-        - Structural optimization
-        - Design generation
-        - 3D model export (STL)
-        - Engineering research
-        - Code execution
-        """
-        )
-
-
-def render_downloads_section() -> None:
-    """Render the downloads section for .npy files."""
-    output_dir = Path("outputs")
-    if not output_dir.exists():
-        return
-
-    with st.expander("📥 Download Outputs"):
-        for file_path in output_dir.glob("*.npy"):
-            with file_path.open("rb") as f:
-                st.download_button(
-                    label=f"⬇️ {file_path.name}",
-                    data=f,
-                    file_name=file_path.name,
-                    mime="application/octet-stream",
-                    width="stretch",
-                )
-
-
-def render_quick_start_examples() -> None:
-    """Render quick start example buttons."""
-    col1, col2 = st.columns(2, gap="medium")
-
-    with col1:
-        if st.button(
-            "🔧 Optimize a 2D beam structure",
-            width="stretch",
-            help="Run topology optimization on a beam design",
-        ):
-            process_user_input("Optimize a 2D beam structure for minimum compliance")
-
-        if st.button(
-            "🔍 Search topology optimization",
-            width="stretch",
-            help="Get the latest research on topology optimization",
-        ):
-            process_user_input("What are the latest advances in topology optimization?")
-
-    with col2:
-        if st.button(
-            "🏗️ Convert design to STL",
-            width="stretch",
-            help="Export an optimized design to 3D STL format",
-        ):
-            process_user_input("Convert the optimized beam design to STL format")
-
-        if st.button(
-            "📊 Multi-step workflow",
-            width="stretch",
-            help="Run optimization and export in one step",
-        ):
-            process_user_input("Optimize a beam structure and then convert it to STL")
 
 
 def main() -> None:
