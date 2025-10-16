@@ -158,5 +158,6 @@ module = [
   "streamlit",
   "pillow",
   "PIL",
+  "streamlit_stl",
 ]
 ignore_missing_imports = true
