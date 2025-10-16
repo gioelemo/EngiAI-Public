@@ -156,5 +156,6 @@ module = [
   "torch",
   "streamlit",
   "pillow",
+  "PIL",
 ]
 ignore_missing_imports = true
