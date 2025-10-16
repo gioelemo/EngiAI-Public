@@ -13,6 +13,7 @@ from typing import Any
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from PIL import Image
+from streamlit_stl import stl_from_file  # type: ignore[import-untyped]
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -75,6 +76,38 @@ def find_images_in_text(text: str) -> list[Path]:
     return list(set(image_paths))  # Remove duplicates
 
 
+def find_stl_files_in_text(text: str) -> list[Path]:
+    """Find STL file paths mentioned in text.
+
+    Args:
+        text: Text that may contain file paths
+
+    Returns:
+        List of valid STL file paths
+    """
+    stl_paths = []
+
+    # Look for STL file patterns
+    patterns = [
+        r"outputs/[\w\-_.]+\.stl",
+        r"[\w\-_.]+\.stl",
+    ]
+
+    for pattern in patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        for match in matches:
+            # Try as absolute path first
+            path = Path(match)
+            if not path.is_absolute():
+                # Try relative to project root
+                path = project_root / match
+
+            if path.exists() and path.suffix.lower() == ".stl":
+                stl_paths.append(path)
+
+    return list(set(stl_paths))  # Remove duplicates
+
+
 def display_message(message: dict) -> None:
     """Display a single message in the chat interface.
 
@@ -98,6 +131,23 @@ def display_message(message: dict) -> None:
                     )
                 except Exception as e:
                     st.warning(f"Could not display image {img_path.name}: {e}")
+
+        # Check for and display any STL files mentioned in the message
+        stl_files = find_stl_files_in_text(message["content"])
+        if stl_files:
+            for stl_path in stl_files:
+                try:
+                    st.markdown(f"**3D Model: {stl_path.name}**")
+                    stl_from_file(
+                        file_path=str(stl_path),
+                        color="#FF6B6B",
+                        material="material",
+                        auto_rotate=True,
+                        height=400,
+                        key=f"stl_{stl_path.name}_{message.get('role', 'msg')}",
+                    )
+                except Exception as e:
+                    st.warning(f"Could not display 3D model {stl_path.name}: {e}")
 
 
 def format_tool_call(tool_call: Any) -> str:
@@ -151,6 +201,42 @@ def format_ai_message(message: AIMessage | ToolMessage) -> str:
     return content
 
 
+def display_response_media(response_text: str) -> None:
+    """Display images and STL files found in response text.
+
+    Args:
+        response_text: The response text to scan for media files
+    """
+    # Display images
+    images = find_images_in_text(response_text)
+    for img_path in images:
+        try:
+            image = Image.open(img_path)
+            st.image(
+                image,
+                caption=img_path.name,
+                width="stretch",
+            )
+        except Exception as e:
+            st.warning(f"Could not display image {img_path.name}: {e}")
+
+    # Display STL files
+    stl_files = find_stl_files_in_text(response_text)
+    for stl_path in stl_files:
+        try:
+            st.markdown(f"**3D Model: {stl_path.name}**")
+            stl_from_file(
+                file_path=str(stl_path),
+                color="#FF6B6B",
+                material="material",
+                auto_rotate=True,
+                height=400,
+                key=f"stl_response_{stl_path.name}",
+            )
+        except Exception as e:
+            st.warning(f"Could not display 3D model {stl_path.name}: {e}")
+
+
 def process_user_input(user_input: str) -> None:
     """Process user input and generate response.
 
@@ -200,20 +286,7 @@ def process_user_input(user_input: str) -> None:
 
             if full_response:
                 st.markdown(full_response)
-
-                # Check for and display any images mentioned in the response
-                images = find_images_in_text(full_response)
-                if images:
-                    for img_path in images:
-                        try:
-                            image = Image.open(img_path)
-                            st.image(
-                                image,
-                                caption=img_path.name,
-                                width="stretch",
-                            )
-                        except Exception as e:
-                            st.warning(f"Could not display image {img_path.name}: {e}")
+                display_response_media(full_response)
 
                 # Save to display history
                 st.session_state.messages.append(
@@ -260,6 +333,9 @@ def render_sidebar() -> None:
     # Image gallery section
     render_image_gallery()
 
+    # 3D STL model gallery section
+    render_stl_gallery()
+
     # Info section
     render_info_section()
 
@@ -300,6 +376,44 @@ def render_image_gallery() -> None:
                 st.markdown("---")
             except Exception as e:
                 st.warning(f"Could not load {img_path.name}: {e}")
+
+
+def render_stl_gallery() -> None:
+    """Render the 3D STL model gallery in the sidebar."""
+    output_dir = Path("outputs")
+    if not output_dir.exists():
+        return
+
+    stl_files = list(output_dir.glob("*.stl"))
+    if not stl_files:
+        return
+
+    with st.expander("🎨 3D Model Gallery", expanded=False):
+        st.markdown("**3D Printable Models**")
+        for stl_path in sorted(stl_files):
+            try:
+                st.markdown(f"**{stl_path.name}**")
+                stl_from_file(
+                    file_path=str(stl_path),
+                    color="#FF6B6B",
+                    material="material",
+                    auto_rotate=True,
+                    height=300,
+                    key=f"gallery_{stl_path.name}",
+                )
+                # Add download button for each STL
+                with stl_path.open("rb") as f:
+                    st.download_button(
+                        label=f"⬇️ Download {stl_path.name}",
+                        data=f,
+                        file_name=stl_path.name,
+                        mime="model/stl",
+                        key=f"dl_stl_{stl_path.name}",
+                        width="stretch",
+                    )
+                st.markdown("---")
+            except Exception as e:
+                st.warning(f"Could not load 3D model {stl_path.name}: {e}")
 
 
 def render_info_section() -> None:

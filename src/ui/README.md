@@ -6,9 +6,11 @@ This directory contains the web-based user interface for the Engineer Assistant 
 
 - 💬 **Chat Interface**: Clean, intuitive chat interface for interacting with the multi-agent system
 - 🔧 **Tool Visualization**: See which tools the agents are using in real-time
-- �️ **Image Gallery**: View all generated designs and visualizations in the sidebar
+- 🖼️ **Image Gallery**: View all generated designs and visualizations in the sidebar
 - 📸 **Inline Images**: Images mentioned in messages are automatically displayed
-- �📥 **File Downloads**: Download generated designs and outputs directly from the UI
+- 🎨 **3D Model Viewer**: Interactive STL file visualization with auto-rotate and zoom controls
+- 🏛️ **3D Model Gallery**: Browse and interact with all 3D printable models in the sidebar
+- � **File Downloads**: Download generated designs and outputs directly from the UI
 - 🗑️ **Conversation Management**: Clear and restart conversations as needed
 - 🎨 **Responsive Design**: Works on desktop and mobile browsers
 

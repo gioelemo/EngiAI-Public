@@ -22,4 +22,5 @@ dependencies:
     - wandb==0.22.2,
     - torch==2.8.0,
     - streamlit==1.50.0,
-    - pillow==11.3.0
+    - pillow==11.3.0,
+    - streamlit-stl==0.0.6
