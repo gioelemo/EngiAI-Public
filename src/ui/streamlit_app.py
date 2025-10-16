@@ -136,18 +136,21 @@ def display_message(message: dict) -> None:
         stl_files = find_stl_files_in_text(message["content"])
         if stl_files:
             for stl_path in stl_files:
-                try:
-                    st.markdown(f"**3D Model: {stl_path.name}**")
-                    stl_from_file(
-                        file_path=str(stl_path),
-                        color="#FF6B6B",
-                        material="material",
-                        auto_rotate=True,
-                        height=400,
-                        key=f"stl_{stl_path.name}_{message.get('role', 'msg')}",
-                    )
-                except Exception as e:
-                    st.warning(f"Could not display 3D model {stl_path.name}: {e}")
+                if stl_path.exists():
+                    try:
+                        st.markdown(f"**3D Model: {stl_path.name}**")
+                        stl_from_file(
+                            file_path=str(stl_path),
+                            color="#0069B4",
+                            material="material",
+                            auto_rotate=True,
+                            height=400,
+                            key=f"stl_{stl_path.name}_{message.get('role', 'msg')}",
+                        )
+                    except Exception:
+                        st.info(f"3D model available: {stl_path.name} (viewer error)")
+                else:
+                    st.info(f"3D model file not found: {stl_path.name}")
 
 
 def format_tool_call(tool_call: Any) -> str:
@@ -223,18 +226,21 @@ def display_response_media(response_text: str) -> None:
     # Display STL files
     stl_files = find_stl_files_in_text(response_text)
     for stl_path in stl_files:
-        try:
-            st.markdown(f"**3D Model: {stl_path.name}**")
-            stl_from_file(
-                file_path=str(stl_path),
-                color="#FF6B6B",
-                material="material",
-                auto_rotate=True,
-                height=400,
-                key=f"stl_response_{stl_path.name}",
-            )
-        except Exception as e:
-            st.warning(f"Could not display 3D model {stl_path.name}: {e}")
+        if stl_path.exists():
+            try:
+                st.markdown(f"**3D Model: {stl_path.name}**")
+                stl_from_file(
+                    file_path=str(stl_path),
+                    color="#0069B4",
+                    material="material",
+                    auto_rotate=True,
+                    height=400,
+                    key=f"stl_response_{stl_path.name}",
+                )
+            except Exception:
+                st.info(f"3D model available: {stl_path.name} (viewer error)")
+        else:
+            st.info(f"3D model file not found: {stl_path.name}")
 
 
 def process_user_input(user_input: str) -> None:
@@ -340,20 +346,6 @@ def render_sidebar() -> None:
         st.session_state.agent_state = {"messages": []}
         st.rerun()
 
-    st.markdown("---")
-
-    # Image gallery section
-    render_image_gallery()
-
-    # 3D STL model gallery section
-    render_stl_gallery()
-
-    # Info section
-    render_info_section()
-
-    # Download section for outputs
-    render_downloads_section()
-
 
 def render_image_gallery() -> None:
     """Render the image gallery in the sidebar."""
@@ -403,29 +395,41 @@ def render_stl_gallery() -> None:
     with st.expander("🎨 3D Model Gallery", expanded=False):
         st.markdown("**3D Printable Models**")
         for stl_path in sorted(stl_files):
-            try:
-                st.markdown(f"**{stl_path.name}**")
-                stl_from_file(
-                    file_path=str(stl_path),
-                    color="#FF6B6B",
-                    material="material",
-                    auto_rotate=True,
-                    height=300,
-                    key=f"gallery_{stl_path.name}",
-                )
-                # Add download button for each STL
-                with stl_path.open("rb") as f:
-                    st.download_button(
-                        label=f"⬇️ Download {stl_path.name}",
-                        data=f,
-                        file_name=stl_path.name,
-                        mime="model/stl",
-                        key=f"dl_stl_{stl_path.name}",
-                        width="stretch",
+            if stl_path.exists():
+                try:
+                    st.markdown(f"**{stl_path.name}**")
+                    stl_from_file(
+                        file_path=str(stl_path),
+                        color="#0069B4",
+                        material="material",
+                        auto_rotate=True,
+                        height=300,
+                        key=f"gallery_{stl_path.name}",
                     )
-                st.markdown("---")
-            except Exception as e:
-                st.warning(f"Could not load 3D model {stl_path.name}: {e}")
+                    # Add download button for each STL
+                    with stl_path.open("rb") as f:
+                        st.download_button(
+                            label=f"⬇️ Download {stl_path.name}",
+                            data=f,
+                            file_name=stl_path.name,
+                            mime="model/stl",
+                            key=f"dl_stl_{stl_path.name}",
+                            width="stretch",
+                        )
+                    st.markdown("---")
+                except Exception:
+                    st.info(f"Model: {stl_path.name} (viewer unavailable)")
+                    # Still provide download even if viewer fails
+                    with stl_path.open("rb") as f:
+                        st.download_button(
+                            label=f"⬇️ Download {stl_path.name}",
+                            data=f,
+                            file_name=stl_path.name,
+                            mime="model/stl",
+                            key=f"dl_stl_fallback_{stl_path.name}",
+                            width="stretch",
+                        )
+                    st.markdown("---")
 
 
 def render_info_section() -> None:
@@ -466,21 +470,20 @@ def render_downloads_section() -> None:
 
 def render_quick_start_examples() -> None:
     """Render quick start example buttons."""
-    st.markdown("### 🎯 Quick Start Examples")
-    st.markdown("Click any example below to get started:")
-
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2, gap="medium")
 
     with col1:
         if st.button(
             "🔧 Optimize a 2D beam structure",
             width="stretch",
+            help="Run topology optimization on a beam design",
         ):
             process_user_input("Optimize a 2D beam structure for minimum compliance")
 
         if st.button(
             "🔍 Search topology optimization",
             width="stretch",
+            help="Get the latest research on topology optimization",
         ):
             process_user_input("What are the latest advances in topology optimization?")
 
@@ -488,16 +491,16 @@ def render_quick_start_examples() -> None:
         if st.button(
             "🏗️ Convert design to STL",
             width="stretch",
+            help="Export an optimized design to 3D STL format",
         ):
             process_user_input("Convert the optimized beam design to STL format")
 
         if st.button(
             "📊 Multi-step workflow",
             width="stretch",
+            help="Run optimization and export in one step",
         ):
             process_user_input("Optimize a beam structure and then convert it to STL")
-
-    st.markdown("---")
 
 
 def main() -> None:
@@ -516,40 +519,59 @@ def main() -> None:
         page_title="EngiAI - Engineering Design Chatbot",
         page_icon=page_icon,
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="collapsed",
     )
 
     # Initialize session state
     initialize_session_state()
 
-    # Sidebar
+    # Sidebar (collapsed by default)
     with st.sidebar:
         render_sidebar()
 
-    # Main chat interface with logo
-    _, col2, _ = st.columns([1, 2, 1])
-    with col2:
+    # Main centered chat interface
+    if not st.session_state.messages:
+        # Welcome screen with logo - centered vertically
+        st.markdown('<div class="welcome-content">', unsafe_allow_html=True)
+        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
         if logo_path.exists():
             try:
                 logo = Image.open(logo_path)
-                st.image(logo, width=200)
+                # Center the logo using columns
+                _, logo_col, _ = st.columns([1, 1, 1])
+                with logo_col:
+                    st.image(logo, width=140)
             except Exception:
-                st.title("💬 EngiAI")
+                st.markdown(
+                    '<h1 class="welcome-title">💬 EngiAI</h1>', unsafe_allow_html=True
+                )
         else:
-            st.title("💬 EngiAI")
-        st.markdown("### Engineering Design Chatbot")
+            st.markdown(
+                '<h1 class="welcome-title">💬 EngiAI</h1>', unsafe_allow_html=True
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("---")
+        st.markdown(
+            '<p class="welcome-subtitle">Your AI-powered engineering design assistant</p>',
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        # Small logo at top when chat is active
+        if logo_path.exists():
+            try:
+                logo = Image.open(logo_path)
+                _, logo_col, _ = st.columns([2, 1, 2])
+                with logo_col:
+                    st.image(logo, width=60)
+            except Exception:
+                pass
 
-    # Show example prompts if no messages yet
-    if not st.session_state.messages:
-        render_quick_start_examples()
+        # Display chat history
+        for message in st.session_state.messages:
+            display_message(message)
 
-    # Display chat history
-    for message in st.session_state.messages:
-        display_message(message)
-
-    # Chat input
+    # Chat input (centered on welcome screen, bottom-fixed during chat)
     if prompt := st.chat_input("Ask me anything about engineering design..."):
         process_user_input(prompt)
 
