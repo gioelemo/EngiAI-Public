@@ -18,6 +18,9 @@ dependencies = [
     "matplotlib ==3.10.6",
     "wandb      ==0.22.2",
     "torch ==2.8.0",
+    "streamlit ==1.50.0",
+    "pillow ==11.3.0",
+    "streamlit-stl ==0.0.6",
 ]
 
 [project.optional-dependencies]
@@ -152,5 +155,9 @@ module = [
   "langchain_experimental.*",
   "wandb",
   "torch",
+  "streamlit",
+  "pillow",
+  "PIL",
+  "streamlit_stl",
 ]
 ignore_missing_imports = true

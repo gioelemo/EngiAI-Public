@@ -3,7 +3,7 @@ name: Python tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, UI ]
   pull_request:
     branches: [ main ]
 
