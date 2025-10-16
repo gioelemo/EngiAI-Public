@@ -305,7 +305,19 @@ def process_user_input(user_input: str) -> None:
 
 def render_sidebar() -> None:
     """Render the sidebar with controls and galleries."""
-    st.title("🤖 Engineer Assistant")
+    # Display logo at the top
+    logo_path = project_root / "assets" / "logo.png"
+    if logo_path.exists():
+        try:
+            logo = Image.open(logo_path)
+            st.image(logo, width="stretch")
+        except Exception:
+            # Fallback to text title if logo fails to load
+            st.title("🤖 EngiAI")
+    else:
+        st.title("🤖 EngiAI")
+
+    st.markdown("**Engineering Design Chatbot**")
     st.markdown("---")
 
     st.markdown(
@@ -490,10 +502,19 @@ def render_quick_start_examples() -> None:
 
 def main() -> None:
     """Main Streamlit application."""
+    # Try to use logo as page icon
+    logo_path = project_root / "assets" / "engiai_logo.jpg"
+    page_icon: str | Image.Image = "🤖"
+    if logo_path.exists():
+        try:
+            page_icon = Image.open(logo_path)
+        except Exception:
+            page_icon = "🤖"
+
     # Page configuration
     st.set_page_config(
-        page_title="Engineer Assistant",
-        page_icon="🤖",
+        page_title="EngiAI - Engineering Design Chatbot",
+        page_icon=page_icon,
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -505,8 +526,20 @@ def main() -> None:
     with st.sidebar:
         render_sidebar()
 
-    # Main chat interface
-    st.title("💬 Chat with Engineer Assistant")
+    # Main chat interface with logo
+    _, col2, _ = st.columns([1, 2, 1])
+    with col2:
+        if logo_path.exists():
+            try:
+                logo = Image.open(logo_path)
+                st.image(logo, width=200)
+            except Exception:
+                st.title("💬 EngiAI")
+        else:
+            st.title("💬 EngiAI")
+        st.markdown("### Engineering Design Chatbot")
+
+    st.markdown("---")
 
     # Show example prompts if no messages yet
     if not st.session_state.messages:
