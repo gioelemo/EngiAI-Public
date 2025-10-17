@@ -781,43 +781,45 @@ def generate_training_command(
     )
 
     # Read SLURM configuration from environment variables
-    slurm_nodes = os.getenv("SLURM_NODES", "1")
-    slurm_ntasks_per_node = os.getenv("SLURM_NTASKS_PER_NODE", "1")
+
+    slurm_time = os.getenv("SLURM_TIME", "00:45:00")
+    slurm_ntasks = os.getenv("SLURM_NTASKS", "1")
     slurm_cpus_per_task = os.getenv("SLURM_CPUS_PER_TASK", "4")
-    slurm_gpus = os.getenv("SLURM_GPUS", "1")
-    slurm_time = os.getenv("SLURM_TIME", "24:00:00")
-    slurm_mem = os.getenv("SLURM_MEM", "32GB")
-    slurm_partition = os.getenv("SLURM_PARTITION", "gpu")
+    slurm_mem_per_cpu = os.getenv("SLURM_MEM_PER_CPU", "7GB")
+    slurm_gpus = os.getenv("SLURM_GPUS", "rtx4090:1")
+    slurm_email_user = os.getenv("SLURM_EMAIL_USER", "alpha@gmail.com")
+
+    slurm_stack_module = os.getenv("SLURM_STACK_MODULE", "stack/2024.06")
+    slurm_gcc_module = os.getenv("SLURM_GCC_MODULE", "gcc/12.2.0")
     slurm_python_module = os.getenv("SLURM_PYTHON_MODULE", "python/3.9")
     slurm_cuda_module = os.getenv("SLURM_CUDA_MODULE", "cuda/11.3")
+
     slurm_venv_path = os.getenv("SLURM_VENV_PATH", "/path/to/venv")
     slurm_project_path = os.getenv("SLURM_PROJECT_PATH", "/path/to/engiopt")
 
     # Create SLURM job script
     slurm_script = f"""#!/bin/bash
 #SBATCH --job-name={algorithm}_{problem_id}
-#SBATCH --nodes={slurm_nodes}
-#SBATCH --ntasks-per-node={slurm_ntasks_per_node}
-#SBATCH --cpus-per-task={slurm_cpus_per_task}
-#SBATCH --gres=gpu:{slurm_gpus}
 #SBATCH --time={slurm_time}
-#SBATCH --mem={slurm_mem}
-#SBATCH --partition={slurm_partition}
-#SBATCH --output=slurm_%j.out
-#SBATCH --error=slurm_%j.err
+#SBATCH --ntasks={slurm_ntasks}
+#SBATCH --cpus-per-task={slurm_cpus_per_task}
+#SBATCH --mem-per-cpu={slurm_mem_per_cpu}
+#SBATCH --gpus={slurm_gpus}
+#SBATCH --output=engiopt_{algorithm}_{problem_id}_%j.out
+#SBATCH --error=engiopt_{algorithm}_{problem_id}_%j.err
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user={slurm_email_user}
 
-# Load required modules (adjust for your HPC cluster)
+# Load required modules
+module purge
+module load {slurm_stack_module}
+module load {slurm_gcc_module}
 module load {slurm_python_module}
 module load {slurm_cuda_module}
+module load eth_proxy
 
 # Activate virtual environment
 source {slurm_venv_path}/bin/activate
-
-# Set environment variable for WandB tracking
-export USE_WANDB={"True" if use_wandb else "False"}
-
-# Optional: Log in to WandB (if not already logged in)
-# wandb login
 
 # Navigate to project directory
 cd {slurm_project_path}
