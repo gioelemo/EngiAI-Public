@@ -129,6 +129,123 @@ def find_stl_files_in_text(text: str) -> list[Path]:
     return list(set(stl_paths))  # Remove duplicates
 
 
+def _save_file_to_server(file_path: Path, save_dir_path: Path) -> bool:
+    """Save a file to the server directory.
+
+    Args:
+        file_path: Source file path
+        save_dir_path: Destination directory path
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        save_dir_path.mkdir(parents=True, exist_ok=True)
+        dest = save_dir_path / file_path.name
+        dest.write_bytes(file_path.read_bytes())
+    except Exception:
+        return False
+    else:
+        return True
+
+
+def _auto_save_if_enabled(file_path: Path) -> None:
+    """Automatically save file if auto-save is enabled in session state.
+
+    Args:
+        file_path: File to save
+    """
+    if st.session_state.get("media_auto_save", False):
+        save_dir = Path(st.session_state.media_save_dir)
+        _save_file_to_server(file_path, save_dir)
+
+
+def _render_download_save_controls(
+    file_path: Path, file_type: str, button_key_prefix: str
+) -> None:
+    """Render download and save buttons for a media file.
+
+    Args:
+        file_path: Path to the file
+        file_type: Type of file ('image' or 'stl')
+        button_key_prefix: Unique prefix for button keys
+    """
+    cols = st.columns([1, 1, 2])
+
+    # Download button
+    with cols[0]:
+        mime = "image/png" if file_type == "image" else "application/sla"
+        label = f"Download {file_type}"
+        st.download_button(
+            label=label,
+            data=file_path.read_bytes(),
+            file_name=file_path.name,
+            mime=mime,
+        )
+
+    # Save to server button
+    with cols[1]:
+        if st.button(
+            f"Save to server: {file_path.name}",
+            key=f"{button_key_prefix}_{file_path}",
+        ):
+            save_dir = Path(st.session_state.media_save_dir)
+            if _save_file_to_server(file_path, save_dir):
+                st.success(f"Saved {file_path.name} to {save_dir}")
+            else:
+                st.warning(f"Could not save {file_type}")
+
+    # Auto-save
+    _auto_save_if_enabled(file_path)
+
+
+def _display_image(img_path: Path, button_key_prefix: str) -> None:
+    """Display an image with download/save controls.
+
+    Args:
+        img_path: Path to image file
+        button_key_prefix: Unique prefix for button keys
+    """
+    try:
+        image = Image.open(img_path)
+        st.image(image, caption=img_path.name, width=500)
+        _render_download_save_controls(img_path, "image", button_key_prefix)
+    except Exception as e:
+        st.warning(f"Could not display image {img_path.name}: {e}")
+
+
+def _display_stl(stl_path: Path, idx: int, button_key_prefix: str) -> None:
+    """Display an STL file with viewer and download/save controls.
+
+    Args:
+        stl_path: Path to STL file
+        idx: Index for unique key generation
+        button_key_prefix: Unique prefix for button keys
+    """
+    if not stl_path.exists():
+        st.info(f"3D model file not found: {stl_path.name}")
+        return
+
+    try:
+        st.markdown(f"**3D Model: {stl_path.name}**")
+        stable_key = f"stl_{abs(hash(str(stl_path)))}_{idx}"
+        stl_from_file(
+            file_path=str(stl_path),
+            color=st.session_state.stl_color,
+            material=st.session_state.stl_material,
+            auto_rotate=st.session_state.stl_auto_rotate,
+            height=st.session_state.stl_height,
+            opacity=st.session_state.stl_opacity,
+            shininess=st.session_state.stl_shininess,
+            key=stable_key,
+        )
+        _render_download_save_controls(stl_path, "stl", button_key_prefix)
+    except FileNotFoundError:
+        st.warning(f"3D model file not found: {stl_path.name}")
+    except Exception as e:
+        st.warning(f"Could not display 3D model {stl_path.name}: {e}")
+
+
 def display_message(message: dict) -> None:
     """Display a single message in the chat interface.
 
@@ -139,46 +256,15 @@ def display_message(message: dict) -> None:
         # Display text content
         st.markdown(message["content"])
 
-        # Check for and display any images mentioned in the message
+        # Display images
         images = find_images_in_text(message["content"])
-        if images:
-            for img_path in images:
-                try:
-                    image = Image.open(img_path)
-                    st.image(
-                        image,
-                        caption=img_path.name,
-                        width=500,
-                    )
-                except Exception as e:
-                    st.warning(f"Could not display image {img_path.name}: {e}")
+        for img_path in images:
+            _display_image(img_path, button_key_prefix="msg_img")
 
-        # Check for and display any STL files mentioned in the message
+        # Display STL files
         stl_files = find_stl_files_in_text(message["content"])
-        if stl_files:
-            for idx, stl_path in enumerate(stl_files):
-                # Double-check file exists before rendering
-                if stl_path.exists():
-                    try:
-                        st.markdown(f"**3D Model: {stl_path.name}**")
-                        # Use hash of file path for stable key across reruns
-                        stable_key = f"stl_{abs(hash(str(stl_path)))}_{idx}"
-                        stl_from_file(
-                            file_path=str(stl_path),
-                            color=st.session_state.stl_color,
-                            material=st.session_state.stl_material,
-                            auto_rotate=st.session_state.stl_auto_rotate,
-                            height=st.session_state.stl_height,
-                            opacity=st.session_state.stl_opacity,
-                            shininess=st.session_state.stl_shininess,
-                            key=stable_key,
-                        )
-                    except FileNotFoundError:
-                        st.warning(f"3D model file not found: {stl_path.name}")
-                    except Exception as e:
-                        st.warning(f"Could not display 3D model {stl_path.name}: {e}")
-                else:
-                    st.info(f"3D model file not found: {stl_path.name}")
+        for idx, stl_path in enumerate(stl_files):
+            _display_stl(stl_path, idx, button_key_prefix="msg_stl")
 
 
 def format_tool_call(tool_call: Any) -> str:
@@ -241,41 +327,12 @@ def display_response_media(response_text: str) -> None:
     # Display images
     images = find_images_in_text(response_text)
     for img_path in images:
-        try:
-            image = Image.open(img_path)
-            st.image(
-                image,
-                caption=img_path.name,
-                width=500,
-            )
-        except Exception as e:
-            st.warning(f"Could not display image {img_path.name}: {e}")
+        _display_image(img_path, button_key_prefix="resp_img")
 
     # Display STL files
     stl_files = find_stl_files_in_text(response_text)
     for idx, stl_path in enumerate(stl_files):
-        # Double-check file exists before rendering
-        if stl_path.exists():
-            try:
-                st.markdown(f"**3D Model: {stl_path.name}**")
-                # Use hash of file path for stable key across reruns
-                stable_key = f"stl_resp_{abs(hash(str(stl_path)))}_{idx}"
-                stl_from_file(
-                    file_path=str(stl_path),
-                    color=st.session_state.stl_color,
-                    material=st.session_state.stl_material,
-                    auto_rotate=st.session_state.stl_auto_rotate,
-                    height=st.session_state.stl_height,
-                    opacity=st.session_state.stl_opacity,
-                    shininess=st.session_state.stl_shininess,
-                    key=stable_key,
-                )
-            except FileNotFoundError:
-                st.warning(f"3D model file not found: {stl_path.name}")
-            except Exception as e:
-                st.warning(f"Could not display 3D model {stl_path.name}: {e}")
-        else:
-            st.info(f"3D model file not found: {stl_path.name}")
+        _display_stl(stl_path, idx, button_key_prefix="resp_stl")
 
 
 def process_user_input(user_input: str) -> None:
@@ -359,6 +416,32 @@ def render_sidebar() -> None:
         st.title("🤖 EngiAI")
 
     st.markdown("**Engineering Design Chatbot**")
+    st.markdown("---")
+
+    # Media save settings
+    with st.expander("\U0001f4be Media saving", expanded=False):
+        st.markdown(
+            "Choose where displayed media (images/STL) will be saved on the server"
+        )
+        # Default save dir inside project outputs
+        default_save = str(project_root / "outputs")
+        if "media_save_dir" not in st.session_state:
+            st.session_state.media_save_dir = default_save
+
+        st.session_state.media_save_dir = st.text_input(
+            "Server save directory",
+            value=st.session_state.media_save_dir,
+            help="Absolute or project-relative path where displayed media will be copied when 'Save' is clicked",
+            key="media_save_dir_widget",
+        )
+
+        st.session_state.media_auto_save = st.checkbox(
+            "Auto-save displayed media",
+            value=st.session_state.get("media_auto_save", False),
+            help="If enabled, images and STL files shown in the chat will be copied to the server save directory automatically",
+            key="media_auto_save_widget",
+        )
+
     st.markdown("---")
 
     st.markdown(
