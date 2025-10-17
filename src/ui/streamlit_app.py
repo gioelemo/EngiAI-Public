@@ -4,6 +4,7 @@ Streamlit UI for the Engineer Assistant chatbot.
 This provides a web-based chat interface for interacting with the multi-agent system.
 """
 
+import contextlib
 import re
 import sys
 import warnings
@@ -74,27 +75,64 @@ def find_images_in_text(text: str) -> list[Path]:
         List of valid image file paths
     """
     image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg"}
-    image_paths = []
+    image_paths: list[Path] = []
 
-    # Look for common path patterns
+    # Regex patterns to catch:
+    # - explicit outputs/ or assets/ or artifacts/ paths
+    # - bare filenames like image.png
+    # - markdown image syntax: ![alt](path.png)
+    # - HTML <img src="path.png">
     patterns = [
         r"outputs/[\w\-_.]+\.(?:png|jpg|jpeg|gif|bmp|svg)",
+        r"assets/[\w\-_.]+\.(?:png|jpg|jpeg|gif|bmp|svg)",
+        r"artifacts/[\w\-_.]+\.(?:png|jpg|jpeg|gif|bmp|svg)",
+        r"/[^\s)\"]+\.(?:png|jpg|jpeg|gif|bmp|svg)",
         r"[\w\-_.]+\.(?:png|jpg|jpeg|gif|bmp|svg)",
+        r"!\[[^\]]*\]\(([^)]+\.(?:png|jpg|jpeg|gif|bmp|svg))\)",
+        r"<img[^>]+src=[\"']([^\"']+\.(?:png|jpg|jpeg|gif|bmp|svg))[\"']",
     ]
+
+    seen: set[str] = set()
 
     for pattern in patterns:
         matches = re.findall(pattern, text, re.IGNORECASE)
-        for match in matches:
-            # Try as absolute path first
-            path = Path(match)
+        for m in matches:
+            # re groups may return tuples for some patterns, normalize
+            candidate_str = m[0] if isinstance(m, tuple) else m
+
+            path = Path(candidate_str)
+            # Expand user home if present
+            with contextlib.suppress(Exception):
+                path = Path(str(path).replace("~", str(Path.home())))
+
+            # If not absolute, try sensible locations: project root, outputs, assets, artifacts
+            candidates = [path]
             if not path.is_absolute():
-                # Try relative to project root
-                path = project_root / match
+                candidates.extend(
+                    [
+                        project_root / candidate_str,
+                        project_root / "outputs" / candidate_str,
+                        project_root / "assets" / candidate_str,
+                        project_root / "artifacts" / candidate_str,
+                    ]
+                )
 
-            if path.exists() and path.suffix.lower() in image_extensions:
-                image_paths.append(path)
+            for candidate in candidates:
+                try:
+                    if (
+                        candidate.exists()
+                        and candidate.suffix.lower() in image_extensions
+                    ):
+                        key = str(candidate.resolve())
+                        if key not in seen:
+                            image_paths.append(candidate)
+                            seen.add(key)
+                        break
+                except Exception:
+                    # ignore resolution errors and continue
+                    continue
 
-    return list(set(image_paths))  # Remove duplicates
+    return image_paths
 
 
 def find_stl_files_in_text(text: str) -> list[Path]:
@@ -172,6 +210,9 @@ def _render_download_save_controls(
     """
     cols = st.columns([1, 1, 2])
 
+    # Create unique key based on file path hash and prefix
+    unique_key_base = f"{button_key_prefix}_{abs(hash(str(file_path)))}"
+
     # Download button
     with cols[0]:
         mime = "image/png" if file_type == "image" else "application/sla"
@@ -181,13 +222,14 @@ def _render_download_save_controls(
             data=file_path.read_bytes(),
             file_name=file_path.name,
             mime=mime,
+            key=f"{unique_key_base}_download",
         )
 
     # Save to server button
     with cols[1]:
         if st.button(
             f"Save to server: {file_path.name}",
-            key=f"{button_key_prefix}_{file_path}",
+            key=f"{unique_key_base}_save",
         ):
             save_dir = Path(st.session_state.media_save_dir)
             if _save_file_to_server(file_path, save_dir):
