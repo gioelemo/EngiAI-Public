@@ -787,7 +787,7 @@ def generate_training_command(
     slurm_ntasks = os.getenv("SLURM_NTASKS", "1")
     slurm_cpus_per_task = os.getenv("SLURM_CPUS_PER_TASK", "4")
     slurm_mem_per_cpu = os.getenv("SLURM_MEM_PER_CPU", "7GB")
-    slurm_gpus = os.getenv("SLURM_GPUS", "rtx4090:1")
+    slurm_gpus = os.getenv("SLURM_GPUS", "rtx_4090:1")
     slurm_email_user = os.getenv("SLURM_EMAIL_USER", "alpha@gmail.com")
 
     slurm_stack_module = os.getenv("SLURM_STACK_MODULE", "stack/2024.06")
