@@ -742,6 +742,7 @@ def generate_training_command(
         - success: bool
         - command: str with the full Python command to execute
         - slurm_script: str with SLURM job submission script
+        - slurm_file: str with path to saved SLURM script file
         - config_summary: dict with training configuration
         - instructions: str with usage instructions
         - message: str
@@ -830,26 +831,35 @@ cd {slurm_project_path}
 echo "Training complete!"
 """
 
+    # Save SLURM script to outputs folder
+    output_dir = Path("outputs")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    slurm_filename = f"train_{algorithm}_{problem_id}_seed{seed}.slurm"
+    slurm_filepath = output_dir / slurm_filename
+    slurm_filepath.write_text(slurm_script)
+
     # Generate instructions
-    instructions = """
+    instructions = f"""
 To train the model on HPC:
 
 1. Configure SLURM parameters in .env file:
-   - SLURM_NODES, SLURM_CPUS_PER_TASK, SLURM_GPUS, SLURM_TIME, etc.
+   - SLURM_TIME, SLURM_CPUS_PER_TASK, SLURM_GPUS, SLURM_MEM_PER_CPU, etc.
    - SLURM_VENV_PATH: Path to your Python virtual environment
    - SLURM_PROJECT_PATH: Path to your engiopt directory
+   - SLURM_EMAIL_USER: Your email for job notifications
 
-2. Save the SLURM script to a file:
-   - Copy the slurm_script content to train_job.sh
+2. SLURM script has been saved to:
+   {slurm_filename}
 
-3. Submit the job:
-   sbatch train_job.sh
+3. Transfer the script to HPC and submit the job:
+   sbatch {slurm_filename}
 
 4. Monitor the job:
    squeue -u $USER
 
 5. Check output:
-   tail -f slurm_*.out
+   tail -f engiopt_{algorithm}_{problem_id}_*.out
 
 6. View results:
    - Model checkpoints saved automatically by EngiOpt
@@ -874,8 +884,10 @@ To train the model on HPC:
         "success": True,
         "command": command,
         "slurm_script": slurm_script,
+        "slurm_file": str(slurm_filepath),
         "config_summary": config_summary,
         "instructions": instructions,
         "message": f"Generated SLURM training script for {algorithm} on {problem_id}. "
-        f"Training will run for {epochs} epochs with seed {seed}.",
+        f"Training will run for {epochs} epochs with seed {seed}. "
+        f"SLURM script saved to {slurm_filepath}",
     }
