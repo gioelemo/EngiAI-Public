@@ -780,24 +780,38 @@ def generate_training_command(
         f"--seed {seed}"
     )
 
+    # Read SLURM configuration from environment variables
+    slurm_nodes = os.getenv("SLURM_NODES", "1")
+    slurm_ntasks_per_node = os.getenv("SLURM_NTASKS_PER_NODE", "1")
+    slurm_cpus_per_task = os.getenv("SLURM_CPUS_PER_TASK", "4")
+    slurm_gpus = os.getenv("SLURM_GPUS", "1")
+    slurm_time = os.getenv("SLURM_TIME", "24:00:00")
+    slurm_mem = os.getenv("SLURM_MEM", "32GB")
+    slurm_partition = os.getenv("SLURM_PARTITION", "gpu")
+    slurm_python_module = os.getenv("SLURM_PYTHON_MODULE", "python/3.9")
+    slurm_cuda_module = os.getenv("SLURM_CUDA_MODULE", "cuda/11.3")
+    slurm_venv_path = os.getenv("SLURM_VENV_PATH", "/path/to/venv")
+    slurm_project_path = os.getenv("SLURM_PROJECT_PATH", "/path/to/engiopt")
+
     # Create SLURM job script
     slurm_script = f"""#!/bin/bash
 #SBATCH --job-name={algorithm}_{problem_id}
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1
-#SBATCH --time=24:00:00
-#SBATCH --mem=32GB
+#SBATCH --nodes={slurm_nodes}
+#SBATCH --ntasks-per-node={slurm_ntasks_per_node}
+#SBATCH --cpus-per-task={slurm_cpus_per_task}
+#SBATCH --gres=gpu:{slurm_gpus}
+#SBATCH --time={slurm_time}
+#SBATCH --mem={slurm_mem}
+#SBATCH --partition={slurm_partition}
 #SBATCH --output=slurm_%j.out
 #SBATCH --error=slurm_%j.err
 
 # Load required modules (adjust for your HPC cluster)
-module load python/3.9
-module load cuda/11.3
+module load {slurm_python_module}
+module load {slurm_cuda_module}
 
-# Activate virtual environment (adjust path)
-source /path/to/venv/bin/activate
+# Activate virtual environment
+source {slurm_venv_path}/bin/activate
 
 # Set environment variable for WandB tracking
 export USE_WANDB={"True" if use_wandb else "False"}
@@ -805,8 +819,8 @@ export USE_WANDB={"True" if use_wandb else "False"}
 # Optional: Log in to WandB (if not already logged in)
 # wandb login
 
-# Navigate to project directory (adjust path)
-cd /path/to/engiopt
+# Navigate to project directory
+cd {slurm_project_path}
 
 # Run training command
 {command}
@@ -818,20 +832,24 @@ echo "Training complete!"
     instructions = """
 To train the model on HPC:
 
-1. Save the SLURM script to a file:
-   - Copy the slurm_script content to train_job.sh
-   - Adjust paths in the script for your cluster (venv, project directory)
+1. Configure SLURM parameters in .env file:
+   - SLURM_NODES, SLURM_CPUS_PER_TASK, SLURM_GPUS, SLURM_TIME, etc.
+   - SLURM_VENV_PATH: Path to your Python virtual environment
+   - SLURM_PROJECT_PATH: Path to your engiopt directory
 
-2. Submit the job:
+2. Save the SLURM script to a file:
+   - Copy the slurm_script content to train_job.sh
+
+3. Submit the job:
    sbatch train_job.sh
 
-3. Monitor the job:
+4. Monitor the job:
    squeue -u $USER
 
-4. Check output:
+5. Check output:
    tail -f slurm_*.out
 
-5. View results:
+6. View results:
    - Model checkpoints saved automatically by EngiOpt
    - View metrics on WandB dashboard (if tracking enabled)
 """
