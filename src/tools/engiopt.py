@@ -19,83 +19,17 @@ WANDB_AVAILABLE = importlib.util.find_spec("wandb") is not None
 
 # Supported algorithms and their properties
 SUPPORTED_ALGORITHMS = {
-    "cgan_1d": {
-        "class": "Inverse Design",
-        "dimensions": "1D",
-        "conditional": True,
-        "model": "GAN MLP",
-    },
-    "cgan_2d": {
-        "class": "Inverse Design",
-        "dimensions": "2D",
-        "conditional": True,
-        "model": "GAN MLP",
-    },
-    "cgan_bezier": {
-        "class": "Inverse Design",
-        "dimensions": "1D",
-        "conditional": True,
-        "model": "GAN + Bezier layer",
-    },
     "cgan_cnn_2d": {
         "class": "Inverse Design",
         "dimensions": "2D",
         "conditional": True,
         "model": "GAN + CNN",
     },
-    "cgan_cnn_3d": {
-        "class": "Inverse Design",
-        "dimensions": "3D",
-        "conditional": True,
-        "model": "GAN + 3D CNN",
-    },
-    "cgan_vae": {
-        "class": "Inverse Design",
-        "dimensions": "3D",
-        "conditional": True,
-        "model": "MultiView GAN + VAE",
-    },
-    "diffusion_1d": {
-        "class": "Inverse Design",
-        "dimensions": "1D",
-        "conditional": False,
-        "model": "Diffusion",
-    },
     "diffusion_2d_cond": {
         "class": "Inverse Design",
         "dimensions": "2D",
         "conditional": True,
         "model": "Diffusion",
-    },
-    "gan_1d": {
-        "class": "Inverse Design",
-        "dimensions": "1D",
-        "conditional": False,
-        "model": "GAN MLP",
-    },
-    "gan_2d": {
-        "class": "Inverse Design",
-        "dimensions": "2D",
-        "conditional": False,
-        "model": "GAN MLP",
-    },
-    "gan_bezier": {
-        "class": "Inverse Design",
-        "dimensions": "1D",
-        "conditional": False,
-        "model": "GAN + Bezier layer",
-    },
-    "gan_cnn_2d": {
-        "class": "Inverse Design",
-        "dimensions": "2D",
-        "conditional": False,
-        "model": "GAN + CNN",
-    },
-    "surrogate_model": {
-        "class": "Surrogate Model",
-        "dimensions": "1D",
-        "conditional": False,
-        "model": "MLP",
     },
 }
 
@@ -117,19 +51,8 @@ def download_wandb_model(
     Args:
         problem_id: Engineering problem identifier. Currently only "beams2d" is supported.
         algorithm: Model architecture to download. Options:
-            - cgan_1d: Conditional GAN MLP (1D)
-            - cgan_2d: Conditional GAN MLP (2D)
-            - cgan_bezier: Conditional GAN + Bezier layer (1D)
             - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
-            - cgan_cnn_3d: Conditional GAN + 3D CNN (3D)
-            - cgan_vae: MultiView GAN + VAE (3D)
-            - diffusion_1d: Diffusion model (1D)
             - diffusion_2d_cond: Conditional Diffusion (2D)
-            - gan_1d: GAN MLP (1D)
-            - gan_2d: GAN MLP (2D)
-            - gan_bezier: GAN + Bezier layer (1D)
-            - gan_cnn_2d: GAN + CNN (2D)
-            - surrogate_model: MLP surrogate model (1D)
         seed: Random seed used during model training (default: 1)
         wandb_project: WandB project path in format "organization/project"
             (default: "engibench/engiopt")
@@ -452,27 +375,10 @@ def _import_generator_class(
     """Import the appropriate Generator class for the algorithm. Returns (class, error_dict)."""
     # ruff: noqa: I001, PLC0415
     try:
-        if algorithm in ["cgan_cnn_2d", "gan_cnn_2d"]:
+        if algorithm in ["cgan_cnn_2d"]:
             from engiopt.cgan_cnn_2d.cgan_cnn_2d import Generator  # type: ignore[import-untyped]
-        elif algorithm in ["cgan_2d", "gan_2d"]:
-            from engiopt.cgan_2d.cgan_2d import Generator  # type: ignore[import-untyped]
-        elif algorithm in ["cgan_1d", "gan_1d"]:
-            from engiopt.cgan_1d.cgan_1d import Generator  # type: ignore[import-untyped]
-        elif algorithm in ["cgan_bezier", "gan_bezier"]:
-            from engiopt.cgan_bezier.cgan_bezier import Generator  # type: ignore[import-untyped]
-        elif algorithm in ["cgan_cnn_3d"]:
-            from engiopt.cgan_cnn_3d.cgan_cnn_3d import Generator  # type: ignore[import-untyped]
-        elif algorithm in ["cgan_vae"]:
-            from engiopt.cgan_vae.cgan_vae import Generator  # type: ignore[import-untyped]
-        elif algorithm in ["diffusion_1d"]:
-            from engiopt.diffusion_1d.diffusion_1d import Generator  # type: ignore[import-untyped]
         elif algorithm in ["diffusion_2d_cond"]:
             from engiopt.diffusion_2d_cond.diffusion_2d_cond import Generator  # type: ignore[import-untyped]
-        elif algorithm == "surrogate_model":
-            return None, {
-                "success": False,
-                "error": "Surrogate models don't generate designs - they predict performance.",
-            }
         else:
             return None, {
                 "success": False,
