@@ -710,3 +710,152 @@ def sample_designs_from_model(  # noqa: PLR0913
             "success": False,
             "error": f"Failed to generate designs: {e!s}",
         }
+
+
+@tool
+def generate_training_command(
+    algorithm: str = "cgan_cnn_2d",
+    epochs: int = 200,
+    seed: int = 1,
+    wandb_entity: str | None = None,
+    problem_id: Literal["beams2d"] = "beams2d",
+) -> dict[str, Any]:
+    """
+    Generate a Python command to train an EngiOpt model on HPC.
+
+    This tool creates the command-line instruction for training a generative model
+    using the EngiOpt library. The command can be copied and executed on an HPC cluster
+    or any machine with the necessary compute resources.
+
+    Args:
+        algorithm: Model architecture to train. Options:
+            - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
+            - diffusion_2d_cond: Conditional Diffusion (2D)
+        epochs: Number of training epochs (default: 200)
+        seed: Random seed for reproducibility (default: 1)
+        wandb_entity: WandB entity/username for tracking. If provided, WandB tracking
+            will be enabled. If None (default), no tracking. Example: "myusername"
+        problem_id: Engineering problem identifier (default: "beams2d")
+
+    Returns:
+        dict with:
+        - success: bool
+        - command: str with the full Python command to execute
+        - slurm_script: str with SLURM job submission script
+        - config_summary: dict with training configuration
+        - instructions: str with usage instructions
+        - message: str
+
+    Example:
+        >>> # Generate training command for cGAN model with WandB tracking
+        >>> result = generate_training_command(
+        ...     algorithm="cgan_cnn_2d",
+        ...     epochs=200,
+        ...     wandb_entity="myusername"
+        ... )
+        >>> print(result['command'])
+    """
+    # Validate algorithm
+    if algorithm not in SUPPORTED_ALGORITHMS:
+        return {
+            "success": False,
+            "error": f"Unsupported algorithm '{algorithm}'. Supported: {', '.join(SUPPORTED_ALGORITHMS.keys())}",
+        }
+
+    # Determine if WandB tracking should be enabled based on wandb_entity
+    use_wandb = wandb_entity is not None
+    track_flag = "--track" if use_wandb else "--no-track"
+
+    # Build wandb entity (None if not specified)
+    wandb_entity_str = wandb_entity if wandb_entity else "None"
+
+    # Build the training command - direct path to algorithm script
+    command = (
+        f"python engiopt/{algorithm}/{algorithm}.py "
+        f'--problem-id "{problem_id}" '
+        f"{track_flag} "
+        f"--wandb-entity {wandb_entity_str} "
+        f"--save-model "
+        f"--n-epochs {epochs} "
+        f"--seed {seed}"
+    )
+
+    # Create SLURM job script
+    slurm_script = f"""#!/bin/bash
+#SBATCH --job-name={algorithm}_{problem_id}
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:1
+#SBATCH --time=24:00:00
+#SBATCH --mem=32GB
+#SBATCH --output=slurm_%j.out
+#SBATCH --error=slurm_%j.err
+
+# Load required modules (adjust for your HPC cluster)
+module load python/3.9
+module load cuda/11.3
+
+# Activate virtual environment (adjust path)
+source /path/to/venv/bin/activate
+
+# Set environment variable for WandB tracking
+export USE_WANDB={"True" if use_wandb else "False"}
+
+# Optional: Log in to WandB (if not already logged in)
+# wandb login
+
+# Navigate to project directory (adjust path)
+cd /path/to/engiopt
+
+# Run training command
+{command}
+
+echo "Training complete!"
+"""
+
+    # Generate instructions
+    instructions = """
+To train the model on HPC:
+
+1. Save the SLURM script to a file:
+   - Copy the slurm_script content to train_job.sh
+   - Adjust paths in the script for your cluster (venv, project directory)
+
+2. Submit the job:
+   sbatch train_job.sh
+
+3. Monitor the job:
+   squeue -u $USER
+
+4. Check output:
+   tail -f slurm_*.out
+
+5. View results:
+   - Model checkpoints saved automatically by EngiOpt
+   - View metrics on WandB dashboard (if tracking enabled)
+"""
+
+    config_summary = {
+        "problem": problem_id,
+        "algorithm": algorithm,
+        "algorithm_info": SUPPORTED_ALGORITHMS[algorithm],
+        "training_params": {
+            "epochs": epochs,
+            "seed": seed,
+        },
+        "tracking": {
+            "use_wandb": use_wandb,
+            "wandb_entity": wandb_entity_str,
+        },
+    }
+
+    return {
+        "success": True,
+        "command": command,
+        "slurm_script": slurm_script,
+        "config_summary": config_summary,
+        "instructions": instructions,
+        "message": f"Generated SLURM training script for {algorithm} on {problem_id}. "
+        f"Training will run for {epochs} epochs with seed {seed}.",
+    }

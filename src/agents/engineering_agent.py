@@ -26,6 +26,7 @@ from src.tools.engibench import (
 )
 from src.tools.engiopt import (
     download_wandb_model,
+    generate_training_command,
     list_available_algorithms,
     load_wandb_model,
     sample_designs_from_model,
@@ -64,6 +65,8 @@ class EngineeringAgent:
             list_available_algorithms,
             load_wandb_model,
             sample_designs_from_model,
+            # Model training command generator
+            generate_training_command,
         ]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.llm_with_tools = self.llm.bind_tools(self.tools)
