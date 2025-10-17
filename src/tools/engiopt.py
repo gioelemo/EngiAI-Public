@@ -790,10 +790,10 @@ def generate_training_command(
     slurm_gpus = os.getenv("SLURM_GPUS", "rtx_4090:1")
     slurm_email_user = os.getenv("SLURM_EMAIL_USER", "alpha@gmail.com")
 
-    slurm_stack_module = os.getenv("SLURM_STACK_MODULE", "stack/2024.06")
+    slurm_stack_module = os.getenv("SLURM_STACK_MODULE", "stack/2024-06")
     slurm_gcc_module = os.getenv("SLURM_GCC_MODULE", "gcc/12.2.0")
-    slurm_python_module = os.getenv("SLURM_PYTHON_MODULE", "python/3.9")
-    slurm_cuda_module = os.getenv("SLURM_CUDA_MODULE", "cuda/11.3")
+    slurm_python_module = os.getenv("SLURM_PYTHON_MODULE", "python_cuda/3.11.6")
+    slurm_cuda_module = os.getenv("SLURM_CUDA_MODULE", "cuda/12.4.1")
 
     slurm_venv_path = os.getenv("SLURM_VENV_PATH", "/path/to/venv")
     slurm_project_path = os.getenv("SLURM_PROJECT_PATH", "/path/to/engiopt")
