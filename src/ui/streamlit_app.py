@@ -630,8 +630,22 @@ def render_sidebar() -> None:
 
     st.markdown("---")
 
+    # Multi-Agent System info
+    st.markdown(
+        """
+    ### Multi-Agent System
+
+    This assistant coordinates specialized agents:
+
+    - 🔧 **Engineering Agent**: Optimization & design
+    - 🏗️ **CAD Agent**: STL conversion & 3D printing
+    - 🔍 **Search Agent**: Research & information
+    """
+    )
+
+    st.markdown("---")
+
     # Page navigation
-    st.markdown("### 📄 Navigation")
     col1, col2 = st.columns(2)
     with col1:
         if st.button(
@@ -746,23 +760,6 @@ def render_sidebar() -> None:
             help="Automatically rotate 3D models",
             key="auto_rotate_checkbox_widget",
         )
-
-    st.markdown("---")
-
-    # Multi-Agent System info
-    st.markdown(
-        """
-    ### Multi-Agent System
-
-    This assistant coordinates specialized agents:
-
-    - 🔧 **Engineering Agent**: Optimization & design
-    - 🏗️ **CAD Agent**: STL conversion & 3D printing
-    - 🔍 **Search Agent**: Research & information
-    """
-    )
-
-    st.markdown("---")
 
     # Clear conversation button
     if st.button("🗑️ Clear Conversation", width="stretch"):
