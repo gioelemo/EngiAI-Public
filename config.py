@@ -38,6 +38,9 @@ class Config:
 
         # HPC/SLURM configuration
         self.hpc_host_alias: str = os.getenv("HPC_HOST_ALIAS", "euler")
+        self.euler_hostname: str = os.getenv("EULER_HOSTNAME", "euler.ethz.ch")
+        self.euler_username: str = os.getenv("EULER_USERNAME", "")
+        self.slurm_email_user: str = os.getenv("SLURM_EMAIL_USER", "")
 
         # LangSmith configuration
         self.langchain_tracing = (

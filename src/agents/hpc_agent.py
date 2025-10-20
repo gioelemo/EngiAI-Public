@@ -21,6 +21,11 @@ from src.tools.hpc import (
     submit_slurm_job,
     test_hpc_connection,
 )
+from src.tools.job_monitor import (
+    check_job_status_change,
+    get_active_jobs_summary,
+    monitor_job_until_complete,
+)
 from src.utils.prompts import HPC_AGENT_SYSTEM_PROMPT
 
 
@@ -43,6 +48,9 @@ class HPCAgent:
             get_slurm_job_status,
             cancel_slurm_job,
             download_job_outputs,
+            monitor_job_until_complete,
+            check_job_status_change,
+            get_active_jobs_summary,
         ]
 
         # Create a mapping of tool names to tools
