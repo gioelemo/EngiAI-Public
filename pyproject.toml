@@ -161,5 +161,6 @@ module = [
   "PIL",
   "streamlit_stl",
   "fabric",
+  "streamlit.components.*",
 ]
 ignore_missing_imports = true
