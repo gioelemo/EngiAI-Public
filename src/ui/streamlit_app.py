@@ -628,7 +628,6 @@ def render_sidebar() -> None:
     else:
         st.title("🤖 EngiAI")
 
-    st.markdown("**Engineering Design Chatbot**")
     st.markdown("---")
 
     # Page navigation
@@ -694,7 +693,7 @@ def render_sidebar() -> None:
     st.markdown("---")
 
     # STL Viewer Settings
-    with st.expander("🎨 3D Viewer Settings", expanded=True):
+    with st.expander("🎨 3D Viewer Settings", expanded=False):
         st.markdown("**Customize 3D Model Display**")
         st.caption("⚠️ Note: Changing settings will reload all 3D models")
 
@@ -773,7 +772,7 @@ def render_sidebar() -> None:
 def main() -> None:
     """Main Streamlit application."""
     # Try to use logo as page icon
-    logo_path = project_root / "assets" / "engiai_logo.jpg"
+    logo_path = project_root / "assets" / "logo_notext.png"
     page_icon: str | Image.Image = "🤖"
     if logo_path.exists():
         try:
@@ -803,31 +802,32 @@ def main() -> None:
 
     # Main centered chat interface (chat page)
     if not st.session_state.messages:
-        # Welcome screen with logo - centered vertically
-        st.markdown('<div class="welcome-content">', unsafe_allow_html=True)
-        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-        if logo_path.exists():
-            try:
-                logo = Image.open(logo_path)
-                # Center the logo using columns
-                _, logo_col, _ = st.columns([1, 1, 1])
-                with logo_col:
-                    st.image(logo, width=140)
-            except Exception:
-                st.markdown(
-                    '<h1 class="welcome-title">💬 EngiAI</h1>', unsafe_allow_html=True
-                )
-        else:
-            st.markdown(
-                '<h1 class="welcome-title">💬 EngiAI</h1>', unsafe_allow_html=True
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
+        # Welcome screen with logo - centered
+        # Add vertical spacing
+        st.markdown("<br>" * 3, unsafe_allow_html=True)
 
-        st.markdown(
-            '<p class="welcome-subtitle">Your AI-powered engineering design assistant</p>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+        # Center the logo and text
+        _, center_col, _ = st.columns([1, 2, 1])
+        with center_col:
+            if logo_path.exists():
+                try:
+                    logo = Image.open(logo_path)
+                    st.image(logo, width="stretch")
+                except Exception:
+                    st.markdown(
+                        '<h1 style="text-align: center;">💬 EngiAI</h1>',
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.markdown(
+                    '<h1 style="text-align: center;">💬 EngiAI</h1>',
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                '<p style="text-align: center; font-size: 1.2em; color: #666;">Your AI-powered engineering design assistant</p>',
+                unsafe_allow_html=True,
+            )
     else:
         # Small logo at top when chat is active
         if logo_path.exists():

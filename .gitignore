@@ -192,9 +192,6 @@ Thumbs.db
 
 # Generated outputs (images, designs, STL files)
 outputs/
-*.stl
-*.png
-*.npy
 
 /tests/test_notebook_comparison.py
 /tests/test_optimization_workflow.py
