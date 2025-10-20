@@ -652,8 +652,10 @@ def render_sidebar() -> None:
 
     st.markdown("---")
 
-    # Media save settings
-    with st.expander("\U0001f4be Media saving", expanded=False):
+    # Consolidated Settings
+    with st.expander("⚙️ Settings", expanded=False):
+        # Media save settings
+        st.markdown("### 💾 Media Saving")
         st.markdown(
             "Choose where displayed media (images/STL) will be saved on the server"
         )
@@ -676,25 +678,10 @@ def render_sidebar() -> None:
             key="media_auto_save_widget",
         )
 
-    st.markdown("---")
+        st.markdown("---")
 
-    st.markdown(
-        """
-    ### Multi-Agent System
-
-    This assistant coordinates specialized agents:
-
-    - 🔧 **Engineering Agent**: Optimization & design
-    - 🏗️ **CAD Agent**: STL conversion & 3D printing
-    - 🔍 **Search Agent**: Research & information
-    """
-    )
-
-    st.markdown("---")
-
-    # STL Viewer Settings
-    with st.expander("🎨 3D Viewer Settings", expanded=False):
-        st.markdown("**Customize 3D Model Display**")
+        # STL Viewer Settings
+        st.markdown("### 🎨 3D Viewer")
         st.caption("⚠️ Note: Changing settings will reload all 3D models")
 
         # Color picker - directly update session state
@@ -759,6 +746,21 @@ def render_sidebar() -> None:
             help="Automatically rotate 3D models",
             key="auto_rotate_checkbox_widget",
         )
+
+    st.markdown("---")
+
+    # Multi-Agent System info
+    st.markdown(
+        """
+    ### Multi-Agent System
+
+    This assistant coordinates specialized agents:
+
+    - 🔧 **Engineering Agent**: Optimization & design
+    - 🏗️ **CAD Agent**: STL conversion & 3D printing
+    - 🔍 **Search Agent**: Research & information
+    """
+    )
 
     st.markdown("---")
 
