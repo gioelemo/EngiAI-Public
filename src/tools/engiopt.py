@@ -763,24 +763,6 @@ def generate_training_command(
             "error": f"Unsupported algorithm '{algorithm}'. Supported: {', '.join(SUPPORTED_ALGORITHMS.keys())}",
         }
 
-    # Determine if WandB tracking should be enabled based on wandb_entity
-    use_wandb = wandb_entity is not None
-    track_flag = "--track" if use_wandb else "--no-track"
-
-    # Build wandb entity (None if not specified)
-    wandb_entity_str = wandb_entity if wandb_entity else "None"
-
-    # Build the training command - direct path to algorithm script
-    command = (
-        f"python engiopt/{algorithm}/{algorithm}.py "
-        f'--problem-id "{problem_id}" '
-        f"{track_flag} "
-        f"--wandb-entity {wandb_entity_str} "
-        f"--save-model "
-        f"--n-epochs {epochs} "
-        f"--seed {seed}"
-    )
-
     # Read SLURM configuration from environment variables
 
     slurm_time = os.getenv("SLURM_TIME", "00:45:00")
@@ -805,6 +787,25 @@ def generate_training_command(
     hf_home = os.getenv("HF_HOME", "$SCRATCH/models")
     hf_datasets_cache = os.getenv("HF_DATASETS_CACHE", "$SCRATCH/datasets")
     hf_token = os.getenv("HF_TOKEN", "")
+
+    # Determine if WandB tracking should be enabled based on wandb_entity
+    use_wandb = wandb_entity is not None
+    track_flag = "--track" if use_wandb else "--no-track"
+
+    # Build wandb entity (None if not specified)
+    wandb_entity_str = wandb_entity if wandb_entity else "None"
+
+    # Build the training command - direct path to algorithm script
+
+    command = (
+        f"python engiopt/{algorithm}/{algorithm}.py "
+        f'--problem-id "{problem_id}" '
+        f"{track_flag} "
+        f"--wandb-entity {wandb_entity_str} "
+        f"--save-model "
+        f"--n-epochs {epochs} "
+        f"--seed {seed}"
+    )
 
     # Create SLURM job script
     slurm_script = f"""#!/bin/bash
