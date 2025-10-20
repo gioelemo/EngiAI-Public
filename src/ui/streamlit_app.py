@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
+import streamlit.components.v1 as components
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from PIL import Image
 from streamlit_stl import stl_from_file  # type: ignore[import-untyped]
@@ -21,6 +22,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 
 # Suppress Pydantic warnings from LangChain
@@ -42,6 +44,10 @@ def initialize_session_state() -> None:
 
     if "config" not in st.session_state:
         st.session_state.config = {"configurable": {"thread_id": "streamlit-session"}}
+
+    # Page navigation
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "chat"
 
     # STL viewer settings
     if "stl_color" not in st.session_state:
@@ -570,6 +576,44 @@ def process_user_input(user_input: str) -> None:
                 st.session_state.agent_state["messages"].pop()
 
 
+def render_wandb_report_page() -> None:
+    """Render the Weights & Biases report page."""
+    st.markdown("# 📊 Weights & Biases Training Report")
+
+    # Check if W&B report URL is configured
+    if not config.wandb_report_url:
+        st.warning(
+            "⚠️ **W&B Report URL not configured**\n\n"
+            "To view your training reports here, add your W&B report URL to the `.env` file:\n\n"
+            "```bash\n"
+            'WANDB_REPORT_URL="https://wandb.ai/your-entity/your-project/reports/Your-Report--VmlldzoxMjM0NTY"\n'
+            "```\n\n"
+            "You can create reports in your W&B workspace and copy the URL."
+        )
+        return
+
+    st.markdown(
+        f"View your training metrics and experiment tracking: "
+        f"[Open in W&B ↗]({config.wandb_report_url})"
+    )
+
+    # Embed the W&B report using iframe
+    iframe_html = f"""
+    <iframe
+        src="{config.wandb_report_url}"
+        style="border:none; width:100%; height:1024px; border-radius: 8px;"
+        title="Weights & Biases Training Report">
+    </iframe>
+    """
+
+    components.html(iframe_html, height=1050, scrolling=True)
+
+    st.markdown("---")
+    st.markdown(
+        "💡 **Tip:** You can update the report URL in your `.env` file to display different reports."
+    )
+
+
 def render_sidebar() -> None:
     """Render the sidebar with controls and galleries."""
     # Display logo at the top
@@ -585,6 +629,28 @@ def render_sidebar() -> None:
         st.title("🤖 EngiAI")
 
     st.markdown("**Engineering Design Chatbot**")
+    st.markdown("---")
+
+    # Page navigation
+    st.markdown("### 📄 Navigation")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button(
+            "💬 Chat",
+            use_container_width=True,
+            type="primary" if st.session_state.current_page == "chat" else "secondary",
+        ):
+            st.session_state.current_page = "chat"
+            st.rerun()
+    with col2:
+        if st.button(
+            "📊 W&B Report",
+            use_container_width=True,
+            type="primary" if st.session_state.current_page == "wandb" else "secondary",
+        ):
+            st.session_state.current_page = "wandb"
+            st.rerun()
+
     st.markdown("---")
 
     # Media save settings
@@ -730,7 +796,12 @@ def main() -> None:
     with st.sidebar:
         render_sidebar()
 
-    # Main centered chat interface
+    # Render the appropriate page based on navigation
+    if st.session_state.current_page == "wandb":
+        render_wandb_report_page()
+        return
+
+    # Main centered chat interface (chat page)
     if not st.session_state.messages:
         # Welcome screen with logo - centered vertically
         st.markdown('<div class="welcome-content">', unsafe_allow_html=True)

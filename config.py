@@ -42,6 +42,9 @@ class Config:
         self.euler_username: str = os.getenv("EULER_USERNAME", "")
         self.slurm_email_user: str = os.getenv("SLURM_EMAIL_USER", "")
 
+        # Weights & Biases configuration
+        self.wandb_report_url: str = os.getenv("WANDB_REPORT_URL", "")
+
         # LangSmith configuration
         self.langchain_tracing = (
             os.getenv("LANGCHAIN_TRACING", "false").lower() == "true"
