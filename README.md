@@ -303,7 +303,7 @@ ssh euler  # Should connect without password
 #### Python API
 
 ```python
-from connection import HPCConnection
+from src.tools.connection import HPCConnection
 
 # Initialize connection (reads ~/.ssh/config)
 hpc = HPCConnection(host_alias="euler")

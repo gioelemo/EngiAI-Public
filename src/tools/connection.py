@@ -9,7 +9,7 @@ This module reads your SSH config file and provides utilities to:
 4. Download results
 
 Usage:
-    from connection import HPCConnection
+    from src.tools.connection import HPCConnection
 
     # Initialize connection (reads ~/.ssh/config)
     hpc = HPCConnection(host_alias="euler")
