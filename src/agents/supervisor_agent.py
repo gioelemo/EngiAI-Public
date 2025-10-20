@@ -16,6 +16,7 @@ from typing_extensions import TypedDict
 from config import config
 from src.agents.code_execution_agent import CodeExecutionAgent
 from src.agents.engineering_agent import EngineeringAgent
+from src.agents.hpc_agent import HPCAgent
 from src.agents.search_agent import SearchAgent
 from src.models.state import MessagesState
 
@@ -49,6 +50,7 @@ class SupervisorAgent:
         if self.enable_code_execution:
             self.code_execution_agent = CodeExecutionAgent(model_name=self.model_name)
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
+        self.hpc_agent = HPCAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
 
         # Build the supervisor graph
@@ -68,8 +70,11 @@ class SupervisorAgent:
         available_agents.append(
             "- engineering_agent: Structural optimization, beam design, topology optimization, STL conversion, downloading/using pre-trained models from WandB, generative models (GANs, Diffusion)"
         )
+        available_agents.append(
+            "- hpc_agent: HPC cluster job management, SLURM job submission, job monitoring, output retrieval"
+        )
         available_agents.append("- search_agent: Web research and finding information")
-        agent_names.extend(["'engineering_agent'", "'search_agent'"])
+        agent_names.extend(["'engineering_agent'", "'hpc_agent'", "'search_agent'"])
 
         return (
             "You are a supervisor that routes tasks to specialized agents.\n\n"
@@ -78,7 +83,8 @@ class SupervisorAgent:
             + "\n\n"
             + "IMPORTANT ROUTING RULES:\n"
             + "- Any mention of 'wandb', 'models', 'pretrained', 'download model', 'GAN', 'diffusion', "
-            + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint' → use engineering_agent\n"
+            + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint', 'training', 'train', 'generate script', 'generate SLURM' → use engineering_agent\n"
+            + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information → use search_agent\n"
             + (
                 "- Python code execution, calculations → use code_execution_agent\n"
@@ -110,14 +116,30 @@ class SupervisorAgent:
         # Extract routing decision from response
         content = str(response.content).strip().lower()
 
-        # Determine next agent
+        # Determine next agent - check engineering first (more specific keywords)
         next_agent = "FINISH"
         if self.enable_code_execution and (
             "code_execution" in content or "code" in content
         ):
             next_agent = "code_execution_agent"
-        elif "engineering" in content:
+        elif (
+            "engineering" in content
+            or "training" in content
+            or "generate" in content
+            or "wandb" in content
+        ):
+            # Engineering handles: training scripts, model generation, design tasks, WandB operations
             next_agent = "engineering_agent"
+        elif (
+            "hpc" in content
+            or "submit" in content
+            or "status" in content
+            or "cancel" in content
+            or "monitor" in content
+            or "download output" in content
+        ):
+            # HPC handles: job submission, monitoring, cancellation, output retrieval
+            next_agent = "hpc_agent"
         elif "search" in content:
             next_agent = "search_agent"
 
@@ -141,6 +163,15 @@ class SupervisorAgent:
         )
         return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
+    def _hpc_node(self, state: SupervisorState):
+        """Delegate to HPC agent."""
+        agent_state = cast(MessagesState, {"messages": state["messages"]})
+        result = self.hpc_agent.invoke(
+            agent_state,
+            {"configurable": {"thread_id": "hpc"}},
+        )
+        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+
     def _search_node(self, state: SupervisorState):
         """Delegate to search agent."""
         agent_state = cast(MessagesState, {"messages": state["messages"]})
@@ -161,6 +192,7 @@ class SupervisorAgent:
         if self.enable_code_execution:
             workflow.add_node("code_execution_agent", self._code_execution_node)
         workflow.add_node("engineering_agent", self._engineering_node)
+        workflow.add_node("hpc_agent", self._hpc_node)
         workflow.add_node("search_agent", self._search_node)
 
         # Add edges - start with supervisor
@@ -169,6 +201,7 @@ class SupervisorAgent:
         # Build conditional routing dictionary
         routing_dict = {
             "engineering_agent": "engineering_agent",
+            "hpc_agent": "hpc_agent",
             "search_agent": "search_agent",
             "FINISH": END,
         }
@@ -186,6 +219,7 @@ class SupervisorAgent:
         if self.enable_code_execution:
             workflow.add_edge("code_execution_agent", END)
         workflow.add_edge("engineering_agent", END)
+        workflow.add_edge("hpc_agent", END)
         workflow.add_edge("search_agent", END)
 
         # Compile with memory
