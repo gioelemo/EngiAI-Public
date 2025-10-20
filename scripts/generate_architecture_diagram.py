@@ -21,9 +21,9 @@ class AgentInfo(TypedDict, total=False):
 
 
 # Set up the figure
-fig, ax = plt.subplots(1, 1, figsize=(14, 8))
-ax.set_xlim(0, 10)
-ax.set_ylim(2, 10)
+fig, ax = plt.subplots(1, 1, figsize=(18, 10))
+ax.set_xlim(0, 14)
+ax.set_ylim(0, 12)
 ax.axis("off")
 
 # Color scheme
@@ -40,6 +40,7 @@ tool_colors = {
     "stl": "#4DABF7",  # Blue - STL export tools
     "code": "#F08C00",  # Orange - Code execution tools (changed from yellow for readability)
     "search": "#9775FA",  # Purple - Search tools
+    "hpc": "#FF9F1C",  # Gold/Orange - HPC tools
     "mcp": "#868E96",  # Gray - MCP tools (planned)
 }
 
@@ -66,6 +67,12 @@ tool_categories = {
     "execute_python_expression": "code",
     # Search tools
     "TavilySearch": "search",
+    # HPC tools
+    "test_hpc_connection": "hpc",
+    "submit_slurm_job": "hpc",
+    "get_slurm_job_status": "hpc",
+    "cancel_slurm_job": "hpc",
+    "download_job_outputs": "hpc",
     # MCP tools (planned)
     "print_document": "mcp",
     "export_pdf": "mcp",
@@ -74,8 +81,8 @@ tool_categories = {
 
 # Title
 ax.text(
-    5,
-    9.5,
+    7,
+    11.5,
     "Multi-Agent Engineer Assistant System",
     fontsize=20,
     fontweight="bold",
@@ -84,32 +91,32 @@ ax.text(
 
 # User
 user_box = FancyBboxPatch(
-    (4, 8.5),
-    2,
-    0.6,
+    (5.5, 9.8),
+    3,
+    0.8,
     boxstyle="round,pad=0.1",
     edgecolor="black",
     facecolor=color_user,
     linewidth=2,
 )
 ax.add_patch(user_box)
-ax.text(5, 8.8, "User", fontsize=12, ha="center", fontweight="bold")
+ax.text(7, 10.2, "User", fontsize=14, ha="center", fontweight="bold")
 
 # Supervisor Agent
 supervisor_box = FancyBboxPatch(
-    (3.5, 6.8),
-    3,
-    1,
+    (4.5, 7.8),
+    5,
+    1.2,
     boxstyle="round,pad=0.1",
     edgecolor="black",
     facecolor=color_supervisor,
     linewidth=3,
 )
 ax.add_patch(supervisor_box)
-ax.text(5, 7.5, "Supervisor Agent", fontsize=14, ha="center", fontweight="bold")
+ax.text(7, 8.65, "Supervisor Agent", fontsize=14, ha="center", fontweight="bold")
 ax.text(
-    5,
-    7.15,
+    7,
+    8.25,
     "Routes requests to specialized agents",
     fontsize=9,
     ha="center",
@@ -118,20 +125,20 @@ ax.text(
 
 # Arrow from user to supervisor
 arrow1 = FancyArrowPatch(
-    (5, 8.5),
-    (5, 7.8),
+    (7, 9.8),
+    (7, 9.0),
     arrowstyle="->",
     mutation_scale=30,
     linewidth=2,
     color=color_arrow,
 )
 ax.add_patch(arrow1)
-ax.text(5.3, 8.15, "Query", fontsize=9)
+ax.text(7.3, 9.4, "Query", fontsize=9)
 
 # Arrow from supervisor back to user
 arrow2 = FancyArrowPatch(
-    (4.8, 7.8),
-    (4.8, 8.5),
+    (6.7, 9.0),
+    (6.7, 9.8),
     arrowstyle="->",
     mutation_scale=30,
     linewidth=2,
@@ -139,27 +146,27 @@ arrow2 = FancyArrowPatch(
     linestyle="--",
 )
 ax.add_patch(arrow2)
-ax.text(4.2, 8.15, "Response", fontsize=9)
+ax.text(6.0, 9.4, "Response", fontsize=9)
 
 # Agent position thresholds for arrow routing
-LEFT_AGENT_THRESHOLD = 3.0  # Agent x-position below this is considered "left"
-RIGHT_AGENT_THRESHOLD = 7.0  # Agent x-position above this is considered "right"
+LEFT_AGENT_THRESHOLD = 5.0  # Agent x-position below this is considered "left"
+RIGHT_AGENT_THRESHOLD = 9.0  # Agent x-position above this is considered "right"
 
 # Specialized Agents
 agents: list[AgentInfo] = [
     {
         "name": "Code Execution Agent (Currently Disabled)",
         "icon": "",
-        "x": 0.5,
-        "y": 4.5,
+        "x": 0.2,
+        "y": 5.0,
         "tools": ["execute_python_code", "execute_python_expression"],
         "desc": "Python REPL, calculations",
     },
     {
         "name": "Engineering Agent",
         "icon": "",
-        "x": 3.75,
-        "y": 2.3,
+        "x": 3.0,
+        "y": 2.0,
         "tools": [
             # EngiBench tools (red)
             "create_beam_problem",
@@ -181,21 +188,35 @@ agents: list[AgentInfo] = [
         "desc": "Structural optimization, EngiBench, ML models",
     },
     {
-        "name": "Search Agent",
+        "name": "HPC Agent",
         "icon": "",
-        "x": 7,
-        "y": 4.5,
-        "tools": ["TavilySearch"],
-        "desc": "Web research, information gathering",
+        "x": 5.8,
+        "y": 2.0,
+        "tools": [
+            "test_hpc_connection",
+            "submit_slurm_job",
+            "get_slurm_job_status",
+            "cancel_slurm_job",
+            "download_job_outputs",
+        ],
+        "desc": "SLURM job management, euler.ethz.ch cluster",
     },
     {
         "name": "Printer Agent (MCP)",
         "icon": "",
-        "x": 7,
-        "y": 2.5,
+        "x": 8.8,
+        "y": 2.0,
         "tools": ["printer status", "slice stl", "print file"],
         "desc": "Document generation and printing (planned)",
         "planned": True,
+    },
+    {
+        "name": "Search Agent",
+        "icon": "",
+        "x": 11.3,
+        "y": 5.0,
+        "tools": ["TavilySearch"],
+        "desc": "Web research, information gathering",
     },
 ]
 
@@ -225,19 +246,43 @@ for agent in agents:
     agent_name = agent["name"]
     if agent["icon"]:
         agent_name = f"{agent['icon']} {agent_name}"
-    ax.text(
-        agent["x"] + 1.25,
-        agent["y"] + box_height - 0.2,
-        agent_name,
-        fontsize=11,
-        ha="center",
-        fontweight="bold",
-    )
+
+    # Check if name has "(Currently Disabled)" suffix
+    if "(Currently Disabled)" in agent_name:
+        # Split the name and the status
+        base_name = agent_name.replace(" (Currently Disabled)", "")
+        ax.text(
+            agent["x"] + 1.25,
+            agent["y"] + box_height - 0.15,
+            base_name,
+            fontsize=11,
+            ha="center",
+            fontweight="bold",
+        )
+        ax.text(
+            agent["x"] + 1.25,
+            agent["y"] + box_height - 0.35,
+            "(Currently Disabled)",
+            fontsize=7,
+            ha="center",
+            style="italic",
+            color="gray",
+        )
+    else:
+        ax.text(
+            agent["x"] + 1.25,
+            agent["y"] + box_height - 0.2,
+            agent_name,
+            fontsize=11,
+            ha="center",
+            fontweight="bold",
+        )
 
     # Agent description
+    desc_y_offset = 0.55 if "(Currently Disabled)" in agent["name"] else 0.5
     ax.text(
         agent["x"] + 1.25,
-        agent["y"] + box_height - 0.5,
+        agent["y"] + box_height - desc_y_offset,
         agent["desc"],
         fontsize=8,
         ha="center",
@@ -278,12 +323,12 @@ for agent in agents:
         )
 
     # Arrow from supervisor to agent
-    # Supervisor box: x=3.5-6.5, y=6.8-7.8
+    # Supervisor box: x=4.5-9.5, y=7.8-9.0
     # Calculate proper edge connection points
-    supervisor_x = 3.5
-    supervisor_width = 3
-    supervisor_y = 6.8
-    supervisor_bottom_y = 6.8
+    supervisor_x = 4.5
+    supervisor_width = 5
+    supervisor_y = 7.8
+    supervisor_bottom_y = 7.8
 
     agent_box_x = agent["x"]
     agent_box_width = 2.5
@@ -291,17 +336,26 @@ for agent in agents:
     agent_top_y = agent["y"] + box_height
 
     # Determine supervisor exit point based on agent position
-    SUPERVISOR_CENTER_X = 5.0  # Center x-position of supervisor
+    SUPERVISOR_CENTER_X = 7.0  # Center x-position of supervisor
+    ENGINEERING_AGENT_THRESHOLD = 5.5  # X position threshold for Engineering agent
+    HPC_AGENT_THRESHOLD = 8.5  # X position threshold for HPC agent
 
     # For side agents (Code Execution and Search), use angled arrows
-    if agent_center_x < LEFT_AGENT_THRESHOLD:  # Left agent (Code Execution)
-        supervisor_exit_x = supervisor_x + 0.2
-        supervisor_exit_y = supervisor_y + 0.4
-    elif agent_center_x > RIGHT_AGENT_THRESHOLD:  # Right agent (Search)
-        supervisor_exit_x = supervisor_x + supervisor_width - 0.2
-        supervisor_exit_y = supervisor_y + 0.4
-    else:  # Center agent (Engineering)
-        supervisor_exit_x = supervisor_x + supervisor_width * 0.5
+    if agent_center_x < LEFT_AGENT_THRESHOLD:  # Left agents (Code Execution)
+        supervisor_exit_x = supervisor_x + 0.3
+        supervisor_exit_y = supervisor_y + 0.5
+    elif agent_center_x > RIGHT_AGENT_THRESHOLD:  # Right agents (Search)
+        supervisor_exit_x = supervisor_x + supervisor_width - 0.3
+        supervisor_exit_y = supervisor_y + 0.5
+    else:  # Center agents (Engineering, HPC, Printer)
+        # Distribute connection points across bottom of supervisor based on agent position
+        # Engineering: ~4.25, HPC: ~7.05, Printer: ~10.05
+        if agent_center_x < ENGINEERING_AGENT_THRESHOLD:  # Engineering Agent
+            supervisor_exit_x = supervisor_x + supervisor_width * 0.2
+        elif agent_center_x < HPC_AGENT_THRESHOLD:  # HPC Agent
+            supervisor_exit_x = supervisor_x + supervisor_width * 0.5
+        else:  # Printer Agent
+            supervisor_exit_x = supervisor_x + supervisor_width * 0.8
         supervisor_exit_y = supervisor_bottom_y
 
     # Adjust connection style based on agent position
