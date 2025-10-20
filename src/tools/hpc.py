@@ -192,9 +192,23 @@ def download_job_outputs(
             "error": str(e),
         }
     else:
+        # Build list of downloaded files
+        output_dir = Path(local_dir)
+        err_files = list(output_dir.glob(f"*{job_id}.err"))
+        out_files = list(output_dir.glob(f"*{job_id}.out"))
+
+        file_list = [str(f) for f in err_files + out_files]
+
+        message = f"Job outputs downloaded successfully to {local_dir}/"
+        if file_list:
+            message += "\n\nDownloaded files:\n" + "\n".join(
+                f"- {Path(f).name}" for f in file_list
+            )
+
         return {
             "status": "success",
-            "message": "Job outputs downloaded successfully",
+            "message": message,
             "job_id": job_id,
             "local_directory": local_dir,
+            "downloaded_files": file_list,
         }

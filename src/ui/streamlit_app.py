@@ -167,6 +167,61 @@ def find_stl_files_in_text(text: str) -> list[Path]:
     return list(set(stl_paths))  # Remove duplicates
 
 
+def find_log_files_in_text(text: str) -> list[Path]:
+    """Find .err and .out log files mentioned in text or associated with downloaded jobs.
+
+    Args:
+        text: Text that may contain file paths or job IDs
+
+    Returns:
+        List of valid log file paths (.err and .out files)
+    """
+    log_paths = []
+    seen: set[str] = set()
+
+    # Look for explicit .err and .out file patterns
+    patterns = [
+        r"outputs/[\w\-_.]+\.(?:err|out)",
+        r"[\w\-_.]+\.(?:err|out)",
+    ]
+
+    for pattern in patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        for match in matches:
+            path = Path(match)
+            if not path.is_absolute():
+                path = project_root / match
+
+            if path.exists() and path.suffix.lower() in [".err", ".out"]:
+                key = str(path.resolve())
+                if key not in seen:
+                    log_paths.append(path)
+                    seen.add(key)
+
+    # Also look for job IDs and find their corresponding log files
+    job_id_pattern = (
+        r"job[_ ](?:id|ID)[:\s]*(\d+)|Job ID: (\d+)|job_id[\"']?\s*:\s*[\"']?(\d+)"
+    )
+    job_matches = re.findall(job_id_pattern, text)
+
+    for match_groups in job_matches:
+        # Extract the actual job ID from the groups
+        job_id = next((m for m in match_groups if m), None)
+        if job_id:
+            # Look for log files matching this job ID in outputs directory
+            outputs_dir = project_root / "outputs"
+            if outputs_dir.exists():
+                err_files = list(outputs_dir.glob(f"*{job_id}.err"))
+                out_files = list(outputs_dir.glob(f"*{job_id}.out"))
+                for log_file in err_files + out_files:
+                    key = str(log_file.resolve())
+                    if key not in seen:
+                        log_paths.append(log_file)
+                        seen.add(key)
+
+    return log_paths
+
+
 def _save_file_to_server(file_path: Path, save_dir_path: Path) -> bool:
     """Save a file to the server directory.
 
@@ -288,6 +343,68 @@ def _display_stl(stl_path: Path, idx: int, button_key_prefix: str) -> None:
         st.warning(f"Could not display 3D model {stl_path.name}: {e}")
 
 
+def _display_log_file(log_path: Path, button_key_prefix: str) -> None:
+    """Display a log file (.err or .out) with expandable content and download controls.
+
+    Args:
+        log_path: Path to log file
+        button_key_prefix: Unique prefix for button keys
+    """
+    if not log_path.exists():
+        st.info(f"Log file not found: {log_path.name}")
+        return
+
+    try:
+        # Read log file content
+        content = log_path.read_text(encoding="utf-8", errors="replace")
+
+        # Determine file type for styling
+        file_type = log_path.suffix.lower()
+        icon = "❌" if file_type == ".err" else "📄"
+        label = "Error Log" if file_type == ".err" else "Output Log"
+
+        # Display log file in an expander
+        with st.expander(f"{icon} **{label}: {log_path.name}**", expanded=False):
+            if content.strip():
+                # Show first 100 lines by default, full content in code block
+                lines = content.split("\n")
+                preview_lines = 100
+
+                if len(lines) > preview_lines:
+                    st.caption(
+                        f"Showing first {preview_lines} lines of {len(lines)} total lines"
+                    )
+                    st.code("\n".join(lines[:preview_lines]), language="text")
+
+                    # Option to show full content
+                    if st.button(
+                        "Show full content",
+                        key=f"{button_key_prefix}_{abs(hash(str(log_path)))}_full",
+                    ):
+                        st.code(content, language="text")
+                else:
+                    st.code(content, language="text")
+            else:
+                st.info("Log file is empty")
+
+            # Download button for log file
+            cols = st.columns([1, 3])
+            with cols[0]:
+                st.download_button(
+                    label=f"Download {file_type} file",
+                    data=content,
+                    file_name=log_path.name,
+                    mime="text/plain",
+                    key=f"{button_key_prefix}_{abs(hash(str(log_path)))}_download",
+                )
+
+        # Auto-save if enabled
+        _auto_save_if_enabled(log_path)
+
+    except Exception as e:
+        st.warning(f"Could not display log file {log_path.name}: {e}")
+
+
 def display_message(message: dict) -> None:
     """Display a single message in the chat interface.
 
@@ -307,6 +424,11 @@ def display_message(message: dict) -> None:
         stl_files = find_stl_files_in_text(message["content"])
         for idx, stl_path in enumerate(stl_files):
             _display_stl(stl_path, idx, button_key_prefix="msg_stl")
+
+        # Display log files (.err and .out)
+        log_files = find_log_files_in_text(message["content"])
+        for log_path in log_files:
+            _display_log_file(log_path, button_key_prefix="msg_log")
 
 
 def format_tool_call(tool_call: Any) -> str:
@@ -361,7 +483,7 @@ def format_ai_message(message: AIMessage | ToolMessage) -> str:
 
 
 def display_response_media(response_text: str) -> None:
-    """Display images and STL files found in response text.
+    """Display images, STL files, and log files found in response text.
 
     Args:
         response_text: The response text to scan for media files
@@ -375,6 +497,11 @@ def display_response_media(response_text: str) -> None:
     stl_files = find_stl_files_in_text(response_text)
     for idx, stl_path in enumerate(stl_files):
         _display_stl(stl_path, idx, button_key_prefix="resp_stl")
+
+    # Display log files (.err and .out)
+    log_files = find_log_files_in_text(response_text)
+    for log_path in log_files:
+        _display_log_file(log_path, button_key_prefix="resp_log")
 
 
 def process_user_input(user_input: str) -> None:
