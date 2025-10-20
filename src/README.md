@@ -6,81 +6,112 @@ This document explains the modular structure of the engineer assistant codebase.
 
 ```
 src/
-├── agents/              # Agent implementations
+├── agents/                      # Multi-agent system implementations
 │   ├── __init__.py
-│   ├── math_agent.py    # Math operations only
-│   ├── search_agent.py  # Web search only
-│   └── general_agent.py # Both math and search
+│   ├── supervisor_agent.py      # Main supervisor coordinating all agents
+│   ├── engineering_agent.py     # Engineering design & optimization
+│   ├── search_agent.py          # Web search capabilities
+│   ├── hpc_agent.py            # HPC/SLURM job management
+│   └── code_execution_agent.py  # Python code execution (optional)
 │
-├── cli/                 # Command-line interfaces
+├── cli/                        # Command-line interfaces
 │   ├── __init__.py
-│   └── chat.py          # Interactive chat interface
+│   └── chat.py                 # Interactive chat interface
 │
-├── models/              # Data models and state definitions
+├── models/                     # Data models and state definitions
 │   ├── __init__.py
-│   └── state.py         # State schemas for agents
+│   └── state.py                # State schemas for agents
 │
-├── tools/               # Custom tools for agents
+├── tools/                      # Custom tools for agents
 │   ├── __init__.py
-│   ├── arithmetic.py    # Math operations (add, multiply, divide)
-│   └── search.py        # Web search capabilities
+│   ├── search.py               # Web search via Tavily
+│   ├── engibench.py            # Engineering benchmarks (beams, etc.)
+│   ├── engiopt.py              # ML model training & optimization
+│   ├── stl_export.py           # CAD file conversion to STL
+│   ├── code_execution.py       # Python code execution
+│   ├── hpc.py                  # HPC cluster operations
+│   ├── connection.py           # SSH/HPC connection management
+│   └── job_monitor.py          # SLURM job monitoring & notifications
 │
-├── utils/               # Utility functions
+├── ui/                         # Web-based user interfaces
 │   ├── __init__.py
-│   └── prompts.py       # System prompts for agents
+│   ├── README.md               # UI documentation
+│   └── streamlit_app.py        # Streamlit chat interface
 │
-└── main.py              # Main entry point
+├── utils/                      # Utility functions
+│   ├── __init__.py
+│   └── prompts.py              # System prompts for all agents
+│
+├── __init__.py
+├── example.py                  # Template example code
+└── main.py                     # CLI entry point
 ```
 
 ## Module Descriptions
 
 ### `agents/`
-Contains agent implementations. Each agent is a class that:
-- Initializes an LLM with specific tools
-- Defines the agent workflow (nodes, edges, logic)
-- Provides an `invoke()` method to interact with the agent
+Contains agent implementations using LangGraph for workflow orchestration.
 
 **Current agents:**
-- `MathAgent`: Handles arithmetic operations only (add, multiply, divide)
-- `SearchAgent`: Handles web search only (via Tavily)
-- `GeneralAgent`: Combines both math and search capabilities
+- **`SupervisorAgent`**: Main coordinator that routes conversations to specialized agents based on context
+- **`EngineeringAgent`**: Handles engineering design, optimization, and benchmarking workflows
+- **`SearchAgent`**: Performs web searches and retrieves technical information
+- **`HPCAgent`**: Manages HPC cluster operations, SLURM job submission, and monitoring
+- **`CodeExecutionAgent`**: Executes Python code snippets (optional)
+
+**Architecture Pattern:**
+The system uses a **supervisor-based multi-agent architecture**:
+1. User sends message to `SupervisorAgent`
+2. Supervisor analyzes the request and routes to appropriate specialized agent
+3. Specialized agent uses its tools to complete the task
+4. Results flow back through supervisor to user
 
 **Adding a new agent:**
 ```python
-# src/agents/engineering_agent.py
-from src.agents.math_agent import MathAgent
+# src/agents/new_agent.py
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import create_react_agent
+from src.tools.new_tool import new_tool
 
-class EngineeringAgent(MathAgent):
+class NewAgent:
     def __init__(self):
-        super().__init__()
-        # Add engineering-specific tools
-        self.tools.extend([cad_tool, simulation_tool])
+        llm = ChatOpenAI(model="gpt-4")
+        self.agent = create_react_agent(llm, tools=[new_tool])
+
+    def invoke(self, state):
+        return self.agent.invoke(state)
 ```
 
 ### `tools/`
 Contains LangChain tools that agents can use. Each tool is decorated with `@tool`.
 
 **Current tools:**
-- `arithmetic.py`: add, multiply, divide
-- `search.py`: web search via Tavily
+- **`search.py`**: Web search using Tavily API for retrieving technical information
+- **`engibench.py`**: Engineering benchmark datasets (beams2d, cantilever, etc.)
+- **`engiopt.py`**: ML model training and optimization (GANs, CNNs) with W&B tracking
+- **`stl_export.py`**: Convert 2D heatmaps to 3D STL files for CAD/printing
+- **`code_execution.py`**: Execute Python code snippets in isolated environment
+- **`hpc.py`**: HPC cluster operations (submit jobs, transfer files, run commands)
+- **`connection.py`**: SSH connection management for remote HPC systems
+- **`job_monitor.py`**: SLURM job monitoring with status updates and notifications
 
 **Adding a new tool:**
 ```python
-# src/tools/cad.py
+# src/tools/new_tool.py
 from langchain_core.tools import tool
 
 @tool
-def convert_to_stl(data: list[list[float]]) -> str:
-    \"\"\"Convert 2D array to STL file.
+def new_tool_function(param: str) -> str:
+    """Brief description of what this tool does.
 
     Args:
-        data: 2D array of height values
+        param: Description of parameter
 
     Returns:
-        Path to generated STL file
-    \"\"\"
+        Description of return value
+    """
     # Implementation here
-    return "output.stl"
+    return "result"
 ```
 
 ### `models/`
@@ -97,21 +128,36 @@ class EngineeringState(MessagesState):
     simulation_results: NotRequired[dict]
 ```
 
+### `ui/`
+Web-based user interfaces for interacting with the agent system.
+
+**Current UIs:**
+- `streamlit_app.py`: Full-featured Streamlit chat interface with:
+  - Multi-page navigation (Chat / W&B Report viewing)
+  - Interactive model selection (OpenAI GPT-4, Claude 3, etc.)
+  - Session info display (current model, message count)
+  - 3D STL file viewer for generated CAD models
+  - Consolidated settings (media saving, viewer options)
+  - W&B training report embedding
+
+**Running the UI:**
+```bash
+# Option 1: Direct streamlit command
+streamlit run src/ui/streamlit_app.py
+
+# Option 2: Using the provided script
+./run_ui.sh
+```
+
 ### `cli/`
-Command-line interfaces for interacting with agents.
+Command-line interfaces for interacting with agents (alternative to web UI).
 
 **Current CLIs:**
-- `chat.py`: Interactive conversation interface
+- `chat.py`: Interactive terminal-based conversation interface
 
-**Adding a new CLI:**
-```python
-# src/cli/batch.py
-from src.agents.math_agent import MathAgent
-
-def batch_process(input_file: str, output_file: str):
-    \"\"\"Process a batch of queries from a file.\"\"\"
-    agent = MathAgent()
-    # Implementation here
+**Running CLI:**
+```bash
+python -m src.cli.chat
 ```
 
 ### `utils/`
@@ -132,91 +178,146 @@ def format_calculation_result(result: float) -> str:
 
 ### Running the Application
 
+**Primary Interface (Recommended):**
 ```bash
-# General assistant (both math and search) - default
-python -m src.main
+# Run Streamlit web UI
+streamlit run src/ui/streamlit_app.py
 
-# Math assistant only
-python -m src.main math
-
-# Search assistant only
-python -m src.main search
-
-# Or run specific agents directly
-python -m src.cli.chat_v2  # General agent
+# Or use the convenience script
+./run_ui.sh
 ```
+
+**Alternative CLI Interface:**
+```bash
+# Run terminal-based chat
+python -m src.cli.chat
+```
+
+### Web UI Features
+The Streamlit interface (`src/ui/streamlit_app.py`) provides:
+- **Chat Interface**: Conversational interaction with the multi-agent system
+- **Model Selection**: Choose from 7 AI models (GPT-4, Claude 3, etc.) via dropdown
+- **W&B Reports**: View training reports and experiment tracking
+- **3D Viewer**: Visualize generated STL files directly in browser
+- **Session Management**: Track current model and conversation history
 
 ### Using Components Programmatically
 
 ```python
-# Use the math agent (arithmetic only)
-from src.agents import MathAgent
-from src.models import MessagesState
+# Use the supervisor agent (recommended)
+from src.agents.supervisor_agent import SupervisorAgent
 from langchain_core.messages import HumanMessage
 
-agent = MathAgent()
-state = MessagesState(messages=[HumanMessage(content="What is 5 + 3?")])
-result = agent.invoke(state)
+agent = SupervisorAgent()
+result = agent.graph.invoke({
+    "messages": [HumanMessage(content="Train a beam optimization model")]
+})
 print(result["messages"][-1].content)
 ```
 
 ```python
-# Use the search agent (web search only)
-from src.agents import SearchAgent
+# Use a specific specialized agent directly
+from src.agents.engineering_agent import EngineeringAgent
 
-agent = SearchAgent()
-state = MessagesState(messages=[HumanMessage(content="What's the weather like?")])
-result = agent.invoke(state)
+agent = EngineeringAgent()
+result = agent.invoke({
+    "messages": [HumanMessage(content="Load the beams2d dataset")]
+})
 ```
 
 ```python
-# Use the general agent (both capabilities)
-from src.agents import GeneralAgent
+# Use HPC agent for cluster operations
+from src.agents.hpc_agent import HPCAgent
 
-agent = GeneralAgent()
-state = MessagesState(messages=[HumanMessage(content="Calculate 10 * 5 and search for Python news")])
-result = agent.invoke(state)
+agent = HPCAgent()
+result = agent.invoke({
+    "messages": [HumanMessage(content="Submit training job to HPC cluster")]
+})
 ```
 
 ```python
-# Use individual tools
-from src.tools.arithmetic import add, multiply
+# Use individual tools directly
+from src.tools.search import tavily_search
+from src.tools.engibench import load_dataset
 
-result = add.invoke({"a": 5, "b": 3})
-print(result)  # 8
+# Search for information
+search_result = tavily_search.invoke({"query": "SLURM job optimization"})
+
+# Load engineering dataset
+dataset = load_dataset.invoke({"dataset_name": "beams2d"})
 ```
 
 ## Adding New Features
 
 ### 1. Add a New Tool
 
-1. Create file in `src/tools/` (e.g., `visualization.py`)
-2. Define tools with `@tool` decorator
+1. Create file in `src/tools/` (e.g., `fem_analysis.py`)
+2. Define tools with `@tool` decorator:
+   ```python
+   from langchain_core.tools import tool
+
+   @tool
+   def run_fem_analysis(mesh_file: str) -> dict:
+       """Run FEM analysis on a mesh file.
+
+       Args:
+           mesh_file: Path to mesh file
+
+       Returns:
+           Analysis results with stress/strain data
+       """
+       # Implementation
+       return {"max_stress": 1234.5}
+   ```
 3. Export from `src/tools/__init__.py`
-4. Add to an agent's tool list
+4. Add to appropriate agent's tool list in `src/agents/`
 
 ### 2. Add a New Agent
 
-1. Create file in `src/agents/` (e.g., `engineering_agent.py`)
-2. Inherit from existing agent or create new class
-3. Define custom tools and workflow
+1. Create file in `src/agents/` (e.g., `mechanical_agent.py`)
+2. Use LangGraph's `create_react_agent`:
+   ```python
+   from langchain_openai import ChatOpenAI
+   from langgraph.prebuilt import create_react_agent
+   from src.tools.fem_analysis import run_fem_analysis
+
+   class MechanicalAgent:
+       def __init__(self):
+           llm = ChatOpenAI(model="gpt-4")
+           self.agent = create_react_agent(
+               llm,
+               tools=[run_fem_analysis],
+               name="mechanical_agent"
+           )
+
+       def invoke(self, state):
+           return self.agent.invoke(state)
+   ```
+3. Add to supervisor routing in `src/agents/supervisor_agent.py`
 4. Export from `src/agents/__init__.py`
 
-### 3. Add a New CLI
+### 3. Add a New UI Feature
 
-1. Create file in `src/cli/` (e.g., `api.py`)
-2. Implement interface (REST API, batch processor, etc.)
-3. Export from `src/cli/__init__.py`
-4. Optionally add entry point in `src/main.py`
+1. Edit `src/ui/streamlit_app.py`
+2. Add new sidebar section or page:
+   ```python
+   with st.expander("🔧 New Feature"):
+       setting = st.checkbox("Enable feature")
+       if setting:
+           # Feature implementation
+   ```
+3. Update session state management if needed
+4. Document in `src/ui/README.md`
 
 ## Best Practices
 
-1. **One tool per file** (unless closely related)
-2. **Keep agents focused** (single responsibility)
-3. **Use type hints** everywhere
-4. **Document with docstrings** (Args, Returns, Raises)
-5. **Add tests** in `tests/` mirroring the `src/` structure
-6. **Update this README** when adding new modules
+1. **Modular tools** - One focused tool per file
+2. **Specialized agents** - Each agent handles a specific domain
+3. **Type hints** - Use everywhere for better IDE support
+4. **Comprehensive docstrings** - Include Args, Returns, Examples
+5. **Configuration via .env** - Never hardcode credentials
+6. **Test your changes** - Add tests in `tests/` mirroring structure
+7. **Update documentation** - Keep this README current
 
 ## Testing
 
@@ -224,8 +325,10 @@ print(result)  # 8
 # Run all tests
 pytest tests/
 
-# Run specific test module
-pytest tests/test_tools/test_arithmetic.py
+# Run specific test modules
+pytest tests/test_example.py
+pytest tests/test_optimization_workflow.py
+pytest tests/test_notebook_comparison.py
 
 # Type checking
 mypy src/
@@ -234,13 +337,47 @@ mypy src/
 ruff check src/
 ```
 
-## Migration from Old Code
+## Configuration
 
-The original `chatbot_new.py` has been refactored into:
-- Tools → `src/tools/`
-- State → `src/models/state.py`
-- Agent logic → `src/agents/math_agent.py`
-- Interactive CLI → `src/cli/chat.py`
-- Entry point → `src/main.py`
+The system uses environment variables for configuration. Copy `.env.example` to `.env` and configure:
 
-The old file can be kept for reference or removed once the new structure is validated.
+```bash
+# API Keys
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+TAVILY_API_KEY=tvly-...
+WANDB_API_KEY=...
+
+# Model Selection
+LLM_MODEL=gpt-4o  # or gpt-4-turbo, claude-3-opus-20240229, etc.
+
+# HPC Configuration
+HPC_HOST=cluster.university.edu
+HPC_USERNAME=your_username
+HPC_PRIVATE_KEY_PATH=/path/to/ssh/key
+
+# W&B Integration
+WANDB_REPORT_URL=https://wandb.ai/your-project/...
+WANDB_PROJECT=engineer-assistant
+WANDB_ENTITY=your-username
+```
+
+## Architecture Overview
+
+```
+User Request
+    ↓
+SupervisorAgent (Coordinator)
+    ├→ EngineeringAgent (Design/Optimization)
+    │   └→ Tools: engibench, engiopt, stl_export
+    ├→ SearchAgent (Information Retrieval)
+    │   └→ Tools: tavily_search
+    ├→ HPCAgent (Cluster Management)
+    │   └→ Tools: hpc, connection, job_monitor
+    └→ CodeExecutionAgent (Code Execution)
+        └→ Tools: python_repl
+    ↓
+Response to User
+```
+
+The supervisor analyzes each request and routes it to the appropriate specialized agent, which uses its tools to complete the task.
