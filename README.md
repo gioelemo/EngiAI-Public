@@ -235,6 +235,236 @@ The first 10 Fibonacci numbers are: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 
 **Note:** Code runs in a persistent REPL environment, so variables persist between executions!
 
+## HPC Cluster Integration with Fabric
+
+This project includes integration with HPC clusters (like ETH Zurich's Euler cluster) for submitting and monitoring large-scale training jobs.
+
+### SSH Key Setup
+
+Before using HPC integration, set up SSH key authentication:
+
+#### 1. Generate SSH Key (if you don't have one)
+
+**macOS/Linux:**
+```bash
+# Generate Ed25519 key (recommended)
+ssh-keygen -t ed25519 -C "your_email@example.com"
+
+# When prompted:
+# - Save to: ~/.ssh/id_ed25519 (press Enter for default)
+# - Enter passphrase (optional but recommended)
+# - Confirm passphrase
+
+# Add key to SSH agent
+ssh-add ~/.ssh/id_ed25519
+
+# (macOS only) Add key to keychain
+ssh-add --apple-load-keychain ~/.ssh/id_ed25519
+```
+
+#### 2. Copy Public Key to HPC Cluster
+
+```bash
+# Copy your public key to HPC
+ssh-copy-id -i ~/.ssh/id_ed25519.pub username@hpc.example.com
+
+# Or manually:
+ssh username@hpc.example.com << 'EOF'
+mkdir -p ~/.ssh
+cat >> ~/.ssh/authorized_keys << 'PUBKEY'
+$(cat ~/.ssh/id_ed25519.pub)
+PUBKEY
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+EOF
+```
+
+#### 3. Configure SSH Config
+
+Edit `~/.ssh/config` to add your HPC host (or append to existing config):
+
+```bash
+Host euler
+    HostName euler.ethz.ch
+    User your_username
+    IdentityFile ~/.ssh/id_ed25519
+    ForwardAgent yes
+    UseKeychain yes
+    AddKeysToAgent yes
+```
+
+Then test the connection:
+```bash
+ssh euler  # Should connect without password
+```
+
+### Using the HPC Connection Tool
+
+#### Python API
+
+```python
+from connection import HPCConnection
+
+# Initialize connection (reads ~/.ssh/config)
+hpc = HPCConnection(host_alias="euler")
+
+# Generate a SLURM script (from generate_training_command tool)
+from src.tools.engiopt import generate_training_command
+
+result = generate_training_command(
+    algorithm="cgan_cnn_2d",
+    epochs=100,
+    seed=42,
+    wandb_entity="your_wandb_entity",
+    problem_id="beams2d"
+)
+# This saves a SLURM script to outputs/
+
+# Submit the job
+job_id = hpc.submit_job(slurm_file=result["slurm_file"])
+print(f"Job {job_id} submitted!")
+
+# Check job status
+status = hpc.get_job_status(job_id)
+print(status)
+
+# Download results (after job completes)
+hpc.get_job_output(job_id, remote_dir="~/slurm_jobs", local_dir="outputs")
+
+# Cancel job if needed
+hpc.cancel_job(job_id)
+```
+
+#### Command Line Interface
+
+```bash
+# Test SSH connection
+python connection.py test
+
+# Output:
+# ✅ SSH connection successful!
+#    Remote directory: /home/username
+
+# Submit a SLURM job
+python connection.py submit outputs/train_cgan_cnn_2d_beams2d_seed1.slurm
+
+# Check job status
+python connection.py status 12345
+
+# Cancel a job
+python connection.py cancel 12345
+
+# Download job outputs
+python connection.py download 12345
+```
+
+#### Complete Workflow Example
+
+```bash
+# 0. Test connection (verify SSH is working)
+python connection.py test
+
+# Output:
+# ✅ SSH connection successful!
+#    Remote directory: /home/username
+
+# 1. Generate SLURM training script
+streamlit run src/ui/streamlit_app.py
+# → Use "Generate Training Command" in the UI with parameters
+# → Script saved to outputs/train_*.slurm
+
+# 2. Submit to HPC
+python connection.py submit outputs/train_cgan_cnn_2d_beams2d_seed1.slurm
+
+# Output: ✅ Job submitted with ID: 45678
+
+# 3. Monitor progress
+python connection.py status 45678
+
+# Output:
+#    JOBID PARTITION     NAME     USER    STATE       TIME TIME_LIMI  NODES NODELIST(REASON)
+#    45678      gpu.4d  train_ca  username  RUNNING   0:15:32    6:00:00      1 node-name
+
+# 4. Once complete, download outputs
+python connection.py download 45678
+
+# Output:
+# ✅ Downloaded engiopt_cgan_cnn_2d_45678.out to outputs/
+# ✅ Downloaded engiopt_cgan_cnn_2d_45678.err to outputs/
+```
+
+### Configuration
+
+The HPC connection uses environment variables for SLURM configuration. Edit `.env`:
+
+```env
+# SLURM Job Configuration
+SLURM_TIME=6:00:00              # Max job duration (HH:MM:SS)
+SLURM_NTASKS=1                 # Number of tasks
+SLURM_CPUS_PER_TASK=8          # CPUs per task
+SLURM_MEM_PER_CPU=4G           # Memory per CPU
+SLURM_GPUS=rtx4090:1           # GPU specification
+SLURM_PARTITION=gpu.4d         # Cluster partition
+SLURM_EMAIL_USER=your@email.com # Email for job notifications
+
+# Module/Environment Configuration
+SLURM_PYTHON_MODULE=gcc/12.2.0
+SLURM_CUDA_MODULE=cuda/12.2.2
+SLURM_VENV_PATH=/cluster/scratch/$USER/venv
+SLURM_PROJECT_PATH=/cluster/scratch/$USER/engineer-assistant
+```
+
+### Features
+
+- **Automatic SSH config parsing**: Reads from `~/.ssh/config`
+- **Key-based authentication**: Secure, no passwords
+- **SSH agent integration**: Works with macOS keychain
+- **SFTP file transfer**: Reliable file uploads/downloads
+- **Job monitoring**: Track SLURM job status
+- **Output collection**: Automatically download logs and results
+- **Pattern matching**: Download files matching job ID patterns
+
+### Troubleshooting
+
+**Connection refused:**
+```bash
+# Test SSH connection
+ssh -v euler
+
+# Verify SSH config
+cat ~/.ssh/config
+
+# Check key permissions
+ls -la ~/.ssh/id_ed25519
+# Should be: -rw------- (600)
+```
+
+**Key permission denied:**
+```bash
+# Fix SSH key permissions
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/id_ed25519
+chmod 600 ~/.ssh/authorized_keys
+```
+
+**Job not found:**
+```bash
+# List all your jobs
+ssh euler squeue -u your_username
+
+# Check specific job
+ssh euler squeue -j 12345
+```
+
+**Transfer issues:**
+```bash
+# Verify remote directory exists
+ssh euler ls -la ~/slurm_jobs
+
+# Manual file transfer test
+python connection.py submit outputs/test.slurm
+```
+
 ## What's Included
 
 - **Python 3.11.8** via conda-forge
@@ -279,6 +509,7 @@ The first 10 Fibonacci numbers are: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 ├── outputs/                     # Generated outputs
 │   ├── agent_architecture.png   # System architecture diagram
 │   ├── workflow_example.png     # Example workflow diagram
+│   ├── *.slurm                  # Generated SLURM job scripts
 │   └── *.npy, *.png, *.stl      # Engineering design outputs
 ├── tests/                       # Unit and integration tests
 │   ├── test_example.py
@@ -286,6 +517,7 @@ The first 10 Fibonacci numbers are: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 │   └── test_notebook_comparison.py
 ├── .env.example                 # Environment variables template
 ├── config.py                    # Configuration management
+├── connection.py                # HPC cluster SSH connection (Fabric-based)
 ├── environment.yml              # Conda environment
 ├── pyproject.toml               # Project config & ruff settings
 ├── setup.sh / setup.bat         # One-command setup
