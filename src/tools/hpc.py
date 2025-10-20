@@ -10,11 +10,12 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from config import config
 from src.tools.connection import HPCConnection
 
 
 @tool
-def test_hpc_connection(host_alias: str = "euler") -> dict[str, Any]:
+def test_hpc_connection(host_alias: str | None = None) -> dict[str, Any]:
     """
     Test SSH connection to HPC cluster.
 
@@ -22,11 +23,14 @@ def test_hpc_connection(host_alias: str = "euler") -> dict[str, Any]:
     by running a simple 'pwd' command on the remote server.
 
     Args:
-        host_alias: Host alias from ~/.ssh/config (e.g., "euler")
+        host_alias: Host alias from ~/.ssh/config. If not provided, uses HPC_HOST_ALIAS from .env
 
     Returns:
         Dictionary with connection status and remote directory
     """
+    if host_alias is None:
+        host_alias = config.hpc_host_alias
+
     try:
         hpc = HPCConnection(host_alias=host_alias)
         output = hpc.run_command("pwd")
@@ -47,7 +51,7 @@ def test_hpc_connection(host_alias: str = "euler") -> dict[str, Any]:
 @tool
 def submit_slurm_job(
     slurm_file: str,
-    host_alias: str = "euler",
+    host_alias: str | None = None,
     remote_dir: str = "~/slurm_jobs",
 ) -> dict[str, Any]:
     """
@@ -58,12 +62,15 @@ def submit_slurm_job(
 
     Args:
         slurm_file: Path to local SLURM script file
-        host_alias: Host alias from ~/.ssh/config (e.g., "euler")
+        host_alias: Host alias from ~/.ssh/config. If not provided, uses HPC_HOST_ALIAS from .env
         remote_dir: Remote directory to store scripts (default: ~/slurm_jobs)
 
     Returns:
         Dictionary with submission status and job ID
     """
+    if host_alias is None:
+        host_alias = config.hpc_host_alias
+
     slurm_path = Path(slurm_file)
     if not slurm_path.exists():
         return {
@@ -92,7 +99,7 @@ def submit_slurm_job(
 @tool
 def get_slurm_job_status(
     job_id: str,
-    host_alias: str = "euler",
+    host_alias: str | None = None,
 ) -> dict[str, Any]:
     """
     Get the status of a SLURM job.
@@ -101,11 +108,14 @@ def get_slurm_job_status(
 
     Args:
         job_id: SLURM job ID
-        host_alias: Host alias from ~/.ssh/config (e.g., "euler")
+        host_alias: Host alias from ~/.ssh/config. If not provided, uses HPC_HOST_ALIAS from .env
 
     Returns:
         Dictionary with job status information
     """
+    if host_alias is None:
+        host_alias = config.hpc_host_alias
+
     try:
         hpc = HPCConnection(host_alias=host_alias)
         status = hpc.get_job_status(job_id)
@@ -127,7 +137,7 @@ def get_slurm_job_status(
 @tool
 def cancel_slurm_job(
     job_id: str,
-    host_alias: str = "euler",
+    host_alias: str | None = None,
 ) -> dict[str, Any]:
     """
     Cancel a running SLURM job.
@@ -136,11 +146,14 @@ def cancel_slurm_job(
 
     Args:
         job_id: SLURM job ID
-        host_alias: Host alias from ~/.ssh/config (e.g., "euler")
+        host_alias: Host alias from ~/.ssh/config. If not provided, uses HPC_HOST_ALIAS from .env
 
     Returns:
         Dictionary with cancellation status
     """
+    if host_alias is None:
+        host_alias = config.hpc_host_alias
+
     try:
         hpc = HPCConnection(host_alias=host_alias)
         hpc.cancel_job(job_id)
@@ -162,7 +175,7 @@ def cancel_slurm_job(
 @tool
 def download_job_outputs(
     job_id: str,
-    host_alias: str = "euler",
+    host_alias: str | None = None,
     remote_dir: str = "~/slurm_jobs",
     local_dir: str = "outputs",
 ) -> dict[str, Any]:
@@ -174,13 +187,16 @@ def download_job_outputs(
 
     Args:
         job_id: SLURM job ID
-        host_alias: Host alias from ~/.ssh/config (e.g., "euler")
+        host_alias: Host alias from ~/.ssh/config. If not provided, uses HPC_HOST_ALIAS from .env
         remote_dir: Remote directory where outputs are stored (default: ~/slurm_jobs)
         local_dir: Local directory to download to (default: outputs)
 
     Returns:
         Dictionary with download status and file locations
     """
+    if host_alias is None:
+        host_alias = config.hpc_host_alias
+
     try:
         hpc = HPCConnection(host_alias=host_alias)
         hpc.get_job_output(job_id, remote_dir=remote_dir, local_dir=local_dir)

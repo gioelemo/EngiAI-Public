@@ -36,6 +36,9 @@ class Config:
             os.getenv("ENABLE_CODE_EXECUTION_AGENT", "false").lower() == "true"
         )
 
+        # HPC/SLURM configuration
+        self.hpc_host_alias: str = os.getenv("HPC_HOST_ALIAS", "euler")
+
         # LangSmith configuration
         self.langchain_tracing = (
             os.getenv("LANGCHAIN_TRACING", "false").lower() == "true"
