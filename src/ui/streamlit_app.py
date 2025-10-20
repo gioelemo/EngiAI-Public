@@ -787,6 +787,24 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
 
+    # Custom CSS to set minimum sidebar width
+    st.markdown(
+        """
+        <style>
+        /* Set minimum width for sidebar */
+        [data-testid="stSidebar"] {
+            min-width: 400px;
+            max-width: 400px;
+        }
+        [data-testid="stSidebar"][aria-expanded="true"] {
+            min-width: 400px;
+            max-width: 400px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # Initialize session state
     initialize_session_state()
 
