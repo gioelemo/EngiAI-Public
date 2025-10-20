@@ -798,6 +798,14 @@ def generate_training_command(
     slurm_venv_path = os.getenv("SLURM_VENV_PATH", "/path/to/venv")
     slurm_project_path = os.getenv("SLURM_PROJECT_PATH", "/path/to/engiopt")
 
+    # Read API keys and configuration from .env
+    wandb_api_key = os.getenv("WANDB_API_KEY", "")
+    wandb_entity = os.getenv("WANDB_ENTITY", "")
+    wandb_project = os.getenv("WANDB_PROJECT", "")
+    hf_home = os.getenv("HF_HOME", "$SCRATCH/models")
+    hf_datasets_cache = os.getenv("HF_DATASETS_CACHE", "$SCRATCH/datasets")
+    hf_token = os.getenv("HF_TOKEN", "")
+
     # Create SLURM job script
     slurm_script = f"""#!/bin/bash
 #SBATCH --job-name={algorithm}_{problem_id}
@@ -818,6 +826,14 @@ module load {slurm_gcc_module}
 module load {slurm_python_module}
 module load {slurm_cuda_module}
 module load eth_proxy
+
+# Set environment variables from .env configuration
+export WANDB_API_KEY="{wandb_api_key}"
+export WANDB_ENTITY="{wandb_entity}"
+export WANDB_PROJECT="{wandb_project}"
+export HF_HOME="{hf_home}"
+export HF_DATASETS_CACHE="{hf_datasets_cache}"
+export HF_TOKEN="{hf_token}"
 
 # Activate virtual environment
 source {slurm_venv_path}/bin/activate
