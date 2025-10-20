@@ -819,6 +819,10 @@ def generate_training_command(
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user={slurm_email_user}
 
+mkdir -p "$SCRATCH/logs"
+mkdir -p "$SCRATCH/datasets"
+mkdir -p "$SCRATCH/models"
+
 # Load required modules
 module purge
 module load {slurm_stack_module}
@@ -827,6 +831,9 @@ module load {slurm_python_module}
 module load {slurm_cuda_module}
 module load eth_proxy
 
+# Activate virtual environment
+source {slurm_venv_path}/bin/activate
+
 # Set environment variables from .env configuration
 export WANDB_API_KEY="{wandb_api_key}"
 export WANDB_ENTITY="{wandb_entity}"
@@ -834,9 +841,6 @@ export WANDB_PROJECT="{wandb_project}"
 export HF_HOME="{hf_home}"
 export HF_DATASETS_CACHE="{hf_datasets_cache}"
 export HF_TOKEN="{hf_token}"
-
-# Activate virtual environment
-source {slurm_venv_path}/bin/activate
 
 # Navigate to project directory
 cd {slurm_project_path}
