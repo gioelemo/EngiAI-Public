@@ -44,6 +44,12 @@ class Config:
 
         # Weights & Biases configuration
         self.wandb_report_url: str = os.getenv("WANDB_REPORT_URL", "")
+        self.wandb_personal_project: str = os.getenv(
+            "WANDB_PERSONAL_PROJECT", "gioelemo-ethz/engiopt"
+        )
+        self.wandb_official_project: str = os.getenv(
+            "WANDB_OFFICIAL_PROJECT", "engibench/engiopt"
+        )
 
         # LangSmith configuration
         self.langchain_tracing = (

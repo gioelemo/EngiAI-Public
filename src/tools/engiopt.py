@@ -71,14 +71,15 @@ def download_wandb_model(  # noqa: PLR0913
     algorithm: str = "cgan_cnn_2d",
     seed: int = 1,
     model_type: Literal["discriminator", "generator"] = "discriminator",
-    wandb_project: str = "engibench/engiopt",
+    wandb_project: str | None = None,
     download_dir: str | None = None,
 ) -> dict[str, Any]:
     """
     Download a pre-trained generative model from WandB for engineering design.
 
     This tool downloads models trained with the engiopt library that can be used
-    for inverse design tasks. The models are hosted on the engibench WandB project.
+    for inverse design tasks. By default, it searches the user's personal models first,
+    then falls back to official benchmark models. No project specification needed!
 
     Args:
         problem_id: Engineering problem identifier. Currently only "beams2d" is supported.
@@ -90,8 +91,11 @@ def download_wandb_model(  # noqa: PLR0913
             - discriminator: Download discriminator model [default] (for GANs)
             - generator: Download generator model (for GANs)
             Note: For diffusion models, this parameter is ignored as they use a single "model" artifact
-        wandb_project: WandB project path in format "organization/project"
-            (default: "engibench/engiopt")
+        wandb_project: WandB project path in format "organization/project" [OPTIONAL]
+            DEFAULT BEHAVIOR (None): Automatically searches multiple projects:
+            1. Personal models: WANDB_PERSONAL_PROJECT env var (default: gioelemo-ethz/engiopt)
+            2. Official models: WANDB_OFFICIAL_PROJECT env var (default: engibench/engiopt)
+            ADVANCED: Specify explicit project to search only that one (e.g., "username/project")
         download_dir: Directory to download the model to. If None, uses WandB's default cache.
 
     Returns:
@@ -107,6 +111,7 @@ def download_wandb_model(  # noqa: PLR0913
 
     Example:
         >>> # Download a discriminator model (default for GANs)
+        >>> # Tries personal project first, then official
         >>> result = download_wandb_model(
         ...     problem_id="beams2d",
         ...     algorithm="cgan_cnn_2d",
@@ -116,15 +121,16 @@ def download_wandb_model(  # noqa: PLR0913
         ...     print(f"Model downloaded to: {result['checkpoint_path']}")
         ...     print(f"Model type: {result['model_type']}")
 
-        >>> # Download a generator model (for GANs)
+        >>> # Download a generator model from specific project
         >>> result = download_wandb_model(
         ...     problem_id="beams2d",
         ...     algorithm="cgan_cnn_2d",
         ...     seed=1,
-        ...     model_type="generator"
+        ...     model_type="generator",
+        ...     wandb_project="engibench/engiopt"
         ... )
 
-        >>> # Download a diffusion model
+        >>> # Download a diffusion model (tries personal, then official)
         >>> result = download_wandb_model(
         ...     problem_id="beams2d",
         ...     algorithm="diffusion_2d_cond",
@@ -137,6 +143,7 @@ def download_wandb_model(  # noqa: PLR0913
         - Requires USE_WANDB environment variable to be set to "True"
         - You may need to authenticate with WandB using: wandb login
         - For diffusion models, the model_type parameter is ignored
+        - Customize project search order with WANDB_PERSONAL_PROJECT and WANDB_OFFICIAL_PROJECT env vars
     """
     # Validation checks
     error_response = _validate_download_inputs(problem_id, algorithm)
@@ -148,7 +155,41 @@ def download_wandb_model(  # noqa: PLR0913
     if error_response:
         return error_response
 
-    # Download the model
+    # If no project specified, try multiple projects in order
+    if wandb_project is None:
+        # Get project names from environment variables with fallback defaults
+        personal_project = os.getenv("WANDB_PERSONAL_PROJECT", "gioelemo-ethz/engiopt")
+        official_project = os.getenv("WANDB_OFFICIAL_PROJECT", "engibench/engiopt")
+
+        projects_to_try = [
+            personal_project,  # Personal models first
+            official_project,  # Official models as fallback
+        ]
+
+        last_error = None
+        for project in projects_to_try:
+            result = _download_from_wandb(
+                problem_id=problem_id,
+                algorithm=algorithm,
+                seed=seed,
+                model_type=model_type,
+                wandb_project=project,
+                download_dir=download_dir,
+            )
+
+            if result.get("success"):
+                return result
+
+            last_error = result.get("error", "Unknown error")
+            print(f"  ⚠ Not found in {project}, trying next project...")
+
+        # If all projects failed, return the last error
+        return {
+            "success": False,
+            "error": f"Model not found in any W&B project. Last error: {last_error}",
+        }
+
+    # Download from specified project
     return _download_from_wandb(
         problem_id=problem_id,
         algorithm=algorithm,
