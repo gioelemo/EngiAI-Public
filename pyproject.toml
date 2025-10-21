@@ -162,6 +162,6 @@ module = [
   "streamlit_stl",
   "fabric",
   "streamlit.components.*",
-  "diffuser",
+  "diffusers",
 ]
 ignore_missing_imports = true
