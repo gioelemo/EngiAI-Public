@@ -1129,7 +1129,8 @@ def generate_training_command(
         - slurm_file: str with path to saved SLURM script file
         - config_summary: dict with training configuration
         - instructions: str with usage instructions
-        - message: str
+        - api_keys_status: str with API key loading status (last 4 chars shown)
+        - message: str with summary and API key status
 
     Example:
         >>> # Generate training command for cGAN model with WandB tracking
@@ -1283,7 +1284,30 @@ To train the model on HPC:
             "use_wandb": use_wandb,
             "wandb_entity": wandb_entity_str,
         },
+        "api_keys_status": {
+            "wandb_api_key_loaded": bool(wandb_api_key),
+            "hf_token_loaded": bool(hf_token),
+            "wandb_entity_set": bool(wandb_entity),
+        },
     }
+
+    # Create status message about API keys
+    api_status_parts = []
+    if wandb_api_key:
+        api_status_parts.append(
+            f"✓ WandB API key loaded (ending in ...{wandb_api_key[-4:]})"
+        )
+    else:
+        api_status_parts.append("✗ WandB API key not found in .env")
+
+    if hf_token:
+        api_status_parts.append(
+            f"✓ HuggingFace token loaded (ending in ...{hf_token[-4:]})"
+        )
+    else:
+        api_status_parts.append("✗ HuggingFace token not found in .env")
+
+    api_status_message = "\n".join(api_status_parts)
 
     return {
         "success": True,
@@ -1292,7 +1316,11 @@ To train the model on HPC:
         "slurm_file": str(slurm_filepath),
         "config_summary": config_summary,
         "instructions": instructions,
+        "api_keys_status": api_status_message,
         "message": f"Generated SLURM training script for {algorithm} on {problem_id}. "
         f"Training will run for {epochs} epochs with seed {seed}. "
-        f"SLURM script saved to {slurm_filepath}",
+        f"SLURM script saved to {slurm_filepath}\n\n"
+        f"API Keys Status:\n{api_status_message}\n\n"
+        f"Note: Full API keys have been written to the SLURM script file for security. "
+        f"Check the file at {slurm_filepath} to verify.",
     }
