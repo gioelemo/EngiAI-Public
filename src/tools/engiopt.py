@@ -35,10 +35,11 @@ SUPPORTED_ALGORITHMS = {
 
 
 @tool
-def download_wandb_model(
+def download_wandb_model(  # noqa: PLR0913
     problem_id: Literal["beams2d"] = "beams2d",
     algorithm: str = "cgan_cnn_2d",
     seed: int = 1,
+    model_type: Literal["discriminator", "generator"] = "discriminator",
     wandb_project: str = "engibench/engiopt",
     download_dir: str | None = None,
 ) -> dict[str, Any]:
@@ -54,6 +55,9 @@ def download_wandb_model(
             - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
             - diffusion_2d_cond: Conditional Diffusion (2D)
         seed: Random seed used during model training (default: 1)
+        model_type: Type of model to download. Options:
+            - discriminator: Download discriminator model [default]
+            - generator: Download generator model
         wandb_project: WandB project path in format "organization/project"
             (default: "engibench/engiopt")
         download_dir: Directory to download the model to. If None, uses WandB's default cache.
@@ -64,12 +68,13 @@ def download_wandb_model(
         - artifact_path: str with full WandB artifact path
         - download_path: str with local path to downloaded model
         - checkpoint_path: str with path to model checkpoint file
+        - model_type: str indicating whether it's 'generator' or 'discriminator'
         - algorithm_info: dict with algorithm properties (dimensions, conditional, etc.)
         - run_config: dict with training configuration (if available)
         - error: str with error message (only if success=False)
 
     Example:
-        >>> # Download a conditional GAN with CNN for 2D beam design
+        >>> # Download a discriminator model (default)
         >>> result = download_wandb_model(
         ...     problem_id="beams2d",
         ...     algorithm="cgan_cnn_2d",
@@ -77,7 +82,15 @@ def download_wandb_model(
         ... )
         >>> if result['success']:
         ...     print(f"Model downloaded to: {result['checkpoint_path']}")
-        ...     print(f"Architecture: {result['algorithm_info']['model']}")
+        ...     print(f"Model type: {result['model_type']}")
+
+        >>> # Download a generator model
+        >>> result = download_wandb_model(
+        ...     problem_id="beams2d",
+        ...     algorithm="cgan_cnn_2d",
+        ...     seed=1,
+        ...     model_type="generator"
+        ... )
 
     Note:
         - Requires wandb to be installed: pip install wandb
@@ -99,6 +112,7 @@ def download_wandb_model(
         problem_id=problem_id,
         algorithm=algorithm,
         seed=seed,
+        model_type=model_type,
         wandb_project=wandb_project,
         download_dir=download_dir,
     )
@@ -141,10 +155,11 @@ def _check_wandb_available() -> dict[str, Any] | None:
     return None
 
 
-def _download_from_wandb(
+def _download_from_wandb(  # noqa: PLR0913
     problem_id: str,
     algorithm: str,
     seed: int,
+    model_type: str,
     wandb_project: str,
     download_dir: str | None,
 ) -> dict[str, Any]:
@@ -152,8 +167,8 @@ def _download_from_wandb(
     import wandb
 
     try:
-        # Construct the artifact path
-        artifact_name = f"{problem_id}_{algorithm}_generator"
+        # Construct the artifact path based on model type
+        artifact_name = f"{problem_id}_{algorithm}_{model_type}"
         artifact_version = f"seed_{seed}"
         artifact_path = f"{wandb_project}/{artifact_name}:{artifact_version}"
 
@@ -161,7 +176,7 @@ def _download_from_wandb(
         api = wandb.Api()
 
         # Download the artifact
-        print(f"Downloading model from WandB: {artifact_path}")
+        print(f"Downloading {model_type} model from WandB: {artifact_path}")
         artifact = api.artifact(artifact_path, type="model")
 
         # Download to specified directory or default cache
@@ -170,8 +185,9 @@ def _download_from_wandb(
         else:
             artifact_dir = artifact.download()
 
-        # Construct checkpoint path
-        checkpoint_path = Path(artifact_dir) / "generator.pth"
+        # Construct checkpoint path based on model type
+        checkpoint_filename = f"{model_type}.pth"
+        checkpoint_path = Path(artifact_dir) / checkpoint_filename
 
         # Verify checkpoint exists
         if not checkpoint_path.exists():
@@ -195,9 +211,10 @@ def _download_from_wandb(
             "artifact_path": artifact_path,
             "download_path": artifact_dir,
             "checkpoint_path": str(checkpoint_path),
+            "model_type": model_type,
             "algorithm_info": SUPPORTED_ALGORITHMS[algorithm],
             "run_config": run_config,
-            "message": f"Successfully downloaded {algorithm} model for {problem_id} (seed={seed})",
+            "message": f"Successfully downloaded {model_type} ({algorithm}) model for {problem_id} (seed={seed})",
         }
 
     except Exception as e:
@@ -231,10 +248,11 @@ def list_available_algorithms() -> dict[str, Any]:
 
 
 @tool
-def load_wandb_model(
+def load_wandb_model(  # noqa: PLR0913
     checkpoint_path: str,
     problem_id: Literal["beams2d"] = "beams2d",
     algorithm: str = "cgan_cnn_2d",
+    model_type: Literal["discriminator", "generator"] = "discriminator",
     run_config: dict[str, Any] | None = None,
     device: str = "cpu",
 ) -> dict[str, Any]:
@@ -245,9 +263,12 @@ def load_wandb_model(
     It requires the model architecture to match the algorithm type.
 
     Args:
-        checkpoint_path: Path to the generator.pth checkpoint file
+        checkpoint_path: Path to the model checkpoint file (e.g., discriminator.pth or generator.pth)
         problem_id: Engineering problem identifier (default: "beams2d")
         algorithm: Model architecture type (default: "cgan_cnn_2d")
+        model_type: Type of model to load:
+            - discriminator: Load discriminator model [default]
+            - generator: Load generator model
         run_config: Training configuration dict with model hyperparameters.
             If None, will use default values.
         device: Device to load model on: "cpu", "cuda", or "mps" (default: "cpu")
@@ -256,16 +277,31 @@ def load_wandb_model(
         dict with:
         - success: bool indicating if load succeeded
         - model_ready: bool indicating if model is ready for inference
+        - model_type: str indicating whether it's 'generator' or 'discriminator'
         - device: str with device model is loaded on
         - model_info: dict with model details
         - error: str with error message (only if success=False)
 
     Example:
-        >>> # First download the model
+        >>> # First download the discriminator model (default)
         >>> download_result = download_wandb_model(algorithm="cgan_cnn_2d", seed=1)
         >>> # Then load it
         >>> load_result = load_wandb_model(
         ...     checkpoint_path=download_result['checkpoint_path'],
+        ...     model_type="discriminator",
+        ...     run_config=download_result['run_config'],
+        ...     device="cpu"
+        ... )
+
+        >>> # Or download and load the generator model
+        >>> download_result = download_wandb_model(
+        ...     algorithm="cgan_cnn_2d",
+        ...     seed=1,
+        ...     model_type="generator"
+        ... )
+        >>> load_result = load_wandb_model(
+        ...     checkpoint_path=download_result['checkpoint_path'],
+        ...     model_type="generator",
         ...     run_config=download_result['run_config'],
         ...     device="cpu"
         ... )
@@ -313,15 +349,17 @@ def load_wandb_model(
         return {
             "success": True,
             "model_ready": True,
+            "model_type": model_type,
             "device": device,
             "model_info": {
                 "algorithm": algorithm,
                 "problem_id": problem_id,
+                "model_type": model_type,
                 "latent_dim": latent_dim,
                 "checkpoint_keys": list(ckpt.keys()),
             },
-            "message": "Model structure loaded. Note: Full model initialization requires engiopt library and problem instance.",
-            "note": "To fully initialize the model, you need to import the appropriate Generator class from engiopt and create it with the problem's design space shape.",
+            "message": f"{model_type.capitalize()} model structure loaded. Note: Full model initialization requires engiopt library and problem instance.",
+            "note": f"To fully initialize the {model_type} model, you need to import the appropriate {model_type.capitalize()} class from engiopt and create it with the problem's design space shape.",
         }
 
     except Exception as e:
