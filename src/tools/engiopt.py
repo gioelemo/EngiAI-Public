@@ -24,14 +24,45 @@ SUPPORTED_ALGORITHMS = {
         "dimensions": "2D",
         "conditional": True,
         "model": "GAN + CNN",
+        "model_types": ["generator", "discriminator"],
     },
     "diffusion_2d_cond": {
         "class": "Inverse Design",
         "dimensions": "2D",
         "conditional": True,
         "model": "Diffusion",
+        "model_types": ["model"],
     },
 }
+
+
+def _get_artifact_info(
+    problem_id: str, algorithm: str, model_type: str
+) -> dict[str, str]:
+    """
+    Get the correct artifact name and checkpoint filename based on algorithm type.
+
+    Args:
+        problem_id: Problem identifier (e.g., "beams2d")
+        algorithm: Algorithm name (e.g., "cgan_cnn_2d", "diffusion_2d_cond")
+        model_type: Model type requested (e.g., "generator", "discriminator")
+
+    Returns:
+        dict with "artifact_name" and "checkpoint_filename"
+    """
+    # For diffusion models, use "model" nomenclature
+    if algorithm == "diffusion_2d_cond":
+        artifact_name = f"{problem_id}_{algorithm}_model"
+        checkpoint_filename = "model.pth"
+    # For GAN models, use generator/discriminator nomenclature
+    else:
+        artifact_name = f"{problem_id}_{algorithm}_{model_type}"
+        checkpoint_filename = f"{model_type}.pth"
+
+    return {
+        "artifact_name": artifact_name,
+        "checkpoint_filename": checkpoint_filename,
+    }
 
 
 @tool
@@ -56,8 +87,9 @@ def download_wandb_model(  # noqa: PLR0913
             - diffusion_2d_cond: Conditional Diffusion (2D)
         seed: Random seed used during model training (default: 1)
         model_type: Type of model to download. Options:
-            - discriminator: Download discriminator model [default]
-            - generator: Download generator model
+            - discriminator: Download discriminator model [default] (for GANs)
+            - generator: Download generator model (for GANs)
+            Note: For diffusion models, this parameter is ignored as they use a single "model" artifact
         wandb_project: WandB project path in format "organization/project"
             (default: "engibench/engiopt")
         download_dir: Directory to download the model to. If None, uses WandB's default cache.
@@ -68,13 +100,13 @@ def download_wandb_model(  # noqa: PLR0913
         - artifact_path: str with full WandB artifact path
         - download_path: str with local path to downloaded model
         - checkpoint_path: str with path to model checkpoint file
-        - model_type: str indicating whether it's 'generator' or 'discriminator'
+        - model_type: str indicating model type ('generator', 'discriminator', or 'model')
         - algorithm_info: dict with algorithm properties (dimensions, conditional, etc.)
         - run_config: dict with training configuration (if available)
         - error: str with error message (only if success=False)
 
     Example:
-        >>> # Download a discriminator model (default)
+        >>> # Download a discriminator model (default for GANs)
         >>> result = download_wandb_model(
         ...     problem_id="beams2d",
         ...     algorithm="cgan_cnn_2d",
@@ -84,7 +116,7 @@ def download_wandb_model(  # noqa: PLR0913
         ...     print(f"Model downloaded to: {result['checkpoint_path']}")
         ...     print(f"Model type: {result['model_type']}")
 
-        >>> # Download a generator model
+        >>> # Download a generator model (for GANs)
         >>> result = download_wandb_model(
         ...     problem_id="beams2d",
         ...     algorithm="cgan_cnn_2d",
@@ -92,10 +124,19 @@ def download_wandb_model(  # noqa: PLR0913
         ...     model_type="generator"
         ... )
 
+        >>> # Download a diffusion model
+        >>> result = download_wandb_model(
+        ...     problem_id="beams2d",
+        ...     algorithm="diffusion_2d_cond",
+        ...     seed=1
+        ... )
+        >>> # Diffusion models use a single "model" artifact, model_type is ignored
+
     Note:
         - Requires wandb to be installed: pip install wandb
         - Requires USE_WANDB environment variable to be set to "True"
         - You may need to authenticate with WandB using: wandb login
+        - For diffusion models, the model_type parameter is ignored
     """
     # Validation checks
     error_response = _validate_download_inputs(problem_id, algorithm)
@@ -167,16 +208,23 @@ def _download_from_wandb(  # noqa: PLR0913
     import wandb
 
     try:
-        # Construct the artifact path based on model type
-        artifact_name = f"{problem_id}_{algorithm}_{model_type}"
+        # Get correct artifact naming based on algorithm
+        artifact_info = _get_artifact_info(problem_id, algorithm, model_type)
+        artifact_name = artifact_info["artifact_name"]
+        checkpoint_filename = artifact_info["checkpoint_filename"]
+
+        # Construct the artifact path
         artifact_version = f"seed_{seed}"
         artifact_path = f"{wandb_project}/{artifact_name}:{artifact_version}"
 
         # Initialize WandB API
         api = wandb.Api()
 
+        # Determine display name for logging
+        display_name = "model" if algorithm == "diffusion_2d_cond" else model_type
+
         # Download the artifact
-        print(f"Downloading {model_type} model from WandB: {artifact_path}")
+        print(f"Downloading {display_name} ({algorithm}) from WandB: {artifact_path}")
         artifact = api.artifact(artifact_path, type="model")
 
         # Download to specified directory or default cache
@@ -185,8 +233,7 @@ def _download_from_wandb(  # noqa: PLR0913
         else:
             artifact_dir = artifact.download()
 
-        # Construct checkpoint path based on model type
-        checkpoint_filename = f"{model_type}.pth"
+        # Construct checkpoint path
         checkpoint_path = Path(artifact_dir) / checkpoint_filename
 
         # Verify checkpoint exists
@@ -206,15 +253,18 @@ def _download_from_wandb(  # noqa: PLR0913
             # Silently skip if run config is not available - will use defaults
             pass
 
+        # Determine actual model type for response
+        actual_model_type = "model" if algorithm == "diffusion_2d_cond" else model_type
+
         return {
             "success": True,
             "artifact_path": artifact_path,
             "download_path": artifact_dir,
             "checkpoint_path": str(checkpoint_path),
-            "model_type": model_type,
+            "model_type": actual_model_type,
             "algorithm_info": SUPPORTED_ALGORITHMS[algorithm],
             "run_config": run_config,
-            "message": f"Successfully downloaded {model_type} ({algorithm}) model for {problem_id} (seed={seed})",
+            "message": f"Successfully downloaded {display_name} ({algorithm}) model for {problem_id} (seed={seed})",
         }
 
     except Exception as e:
@@ -263,12 +313,14 @@ def load_wandb_model(  # noqa: PLR0913
     It requires the model architecture to match the algorithm type.
 
     Args:
-        checkpoint_path: Path to the model checkpoint file (e.g., discriminator.pth or generator.pth)
+        checkpoint_path: Path to the model checkpoint file
+            (e.g., discriminator.pth, generator.pth, or model.pth for diffusion)
         problem_id: Engineering problem identifier (default: "beams2d")
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         model_type: Type of model to load:
-            - discriminator: Load discriminator model [default]
-            - generator: Load generator model
+            - discriminator: Load discriminator model [default] (for GANs)
+            - generator: Load generator model (for GANs)
+            Note: For diffusion models, this parameter is informational only
         run_config: Training configuration dict with model hyperparameters.
             If None, will use default values.
         device: Device to load model on: "cpu", "cuda", or "mps" (default: "cpu")
@@ -277,13 +329,13 @@ def load_wandb_model(  # noqa: PLR0913
         dict with:
         - success: bool indicating if load succeeded
         - model_ready: bool indicating if model is ready for inference
-        - model_type: str indicating whether it's 'generator' or 'discriminator'
+        - model_type: str indicating model type ('generator', 'discriminator', or 'model')
         - device: str with device model is loaded on
         - model_info: dict with model details
         - error: str with error message (only if success=False)
 
     Example:
-        >>> # First download the discriminator model (default)
+        >>> # First download the discriminator model (default for GANs)
         >>> download_result = download_wandb_model(algorithm="cgan_cnn_2d", seed=1)
         >>> # Then load it
         >>> load_result = load_wandb_model(
@@ -293,7 +345,7 @@ def load_wandb_model(  # noqa: PLR0913
         ...     device="cpu"
         ... )
 
-        >>> # Or download and load the generator model
+        >>> # Or download and load the generator model (for GANs)
         >>> download_result = download_wandb_model(
         ...     algorithm="cgan_cnn_2d",
         ...     seed=1,
@@ -306,10 +358,23 @@ def load_wandb_model(  # noqa: PLR0913
         ...     device="cpu"
         ... )
 
+        >>> # Download and load a diffusion model
+        >>> download_result = download_wandb_model(
+        ...     algorithm="diffusion_2d_cond",
+        ...     seed=1
+        ... )
+        >>> load_result = load_wandb_model(
+        ...     checkpoint_path=download_result['checkpoint_path'],
+        ...     algorithm="diffusion_2d_cond",
+        ...     run_config=download_result['run_config'],
+        ...     device="cpu"
+        ... )
+
     Note:
         - Requires PyTorch: pip install torch
         - Requires the corresponding model architecture from engiopt
         - Model is set to eval mode after loading
+        - For diffusion models, the model_type parameter is informational only
     """
     import torch as th
 
@@ -410,32 +475,130 @@ def _validate_sampling_inputs(
 def _import_generator_class(
     algorithm: str,
 ) -> tuple[type | None, dict[str, Any] | None]:
-    """Import the appropriate Generator class for the algorithm. Returns (class, error_dict)."""
+    """Import the appropriate Generator class for GAN algorithms. Returns (class, error_dict)."""
     # ruff: noqa: I001, PLC0415
     try:
         if algorithm in ["cgan_cnn_2d"]:
             from engiopt.cgan_cnn_2d.cgan_cnn_2d import Generator  # type: ignore[import-untyped]
-        elif algorithm in ["diffusion_2d_cond"]:
-            from engiopt.diffusion_2d_cond.diffusion_2d_cond import Generator  # type: ignore[import-untyped]
+
+            return Generator, None
         else:
             return None, {
                 "success": False,
-                "error": f"Model class import not implemented for algorithm: {algorithm}",
+                "error": f"Generator class not applicable for algorithm: {algorithm}. Use diffusion-specific loading.",
             }
     except ImportError as e:
         return None, {
             "success": False,
-            "error": f"Failed to import model class for {algorithm}: {e}. Install engiopt library.",
+            "error": f"Failed to import Generator class for {algorithm}: {e}. Install engiopt library.",
         }
+
+
+def _load_diffusion_model(
+    ckpt_path: str,
+    device: str,
+    problem: Any,
+) -> tuple[Any, Any, int, dict[str, Any] | None]:
+    """
+    Load a diffusion model from checkpoint.
+
+    Returns: (model, sampler, num_timesteps, error_dict)
+    """
+    try:
+        import torch as th
+        from diffusers import UNet2DConditionModel  # type: ignore[import-untyped]
+        from engiopt.diffusion_2d_cond.diffusion_2d_cond import (  # type: ignore[import-untyped]
+            beta_schedule,
+            DiffusionSampler,
+        )
+    except ImportError as e:
+        return (
+            None,
+            None,
+            0,
+            {
+                "success": False,
+                "error": f"Required library not installed: {e}. Install with: pip install diffusers engiopt",
+            },
+        )
+
+    try:
+        # Load checkpoint
+        ckpt = th.load(ckpt_path, map_location=device)
+
+        # Get run config from checkpoint if available
+        run_config = ckpt.get("config", {})
+
+        # Set defaults if not in checkpoint
+        layers_per_block = run_config.get("layers_per_block", 2)
+        num_timesteps = run_config.get("num_timesteps", 1000)
+        noise_schedule = run_config.get("noise_schedule", "linear")
+
+        # Initialize the UNet2D model
+        model = UNet2DConditionModel(
+            sample_size=problem.design_space.shape,
+            in_channels=1,
+            out_channels=1,
+            cross_attention_dim=64,
+            block_out_channels=(32, 64, 128, 256),
+            down_block_types=(
+                "CrossAttnDownBlock2D",
+                "CrossAttnDownBlock2D",
+                "CrossAttnDownBlock2D",
+                "DownBlock2D",
+            ),
+            up_block_types=(
+                "UpBlock2D",
+                "CrossAttnUpBlock2D",
+                "CrossAttnUpBlock2D",
+                "CrossAttnUpBlock2D",
+            ),
+            layers_per_block=layers_per_block,
+            transformer_layers_per_block=1,
+            encoder_hid_dim=len(problem.conditions),
+            only_cross_attention=True,
+        ).to(device)  # type: ignore[attr-defined]
+
+        # Load model weights
+        model.load_state_dict(ckpt["model"])
+        model.eval()
+
+        # Set up noise schedule
+        options = {
+            "cosine": noise_schedule == "cosine",
+            "exp_biasing": noise_schedule == "exp",
+            "exp_bias_factor": 1,
+        }
+        betas = beta_schedule(
+            t=num_timesteps,
+            start=1e-4,
+            end=0.02,
+            scale=1.0,
+            options=options,
+        )
+
+        # Create diffusion sampler
+        sampler = DiffusionSampler(num_timesteps, betas)
+
+    except Exception as e:
+        return (
+            None,
+            None,
+            0,
+            {
+                "success": False,
+                "error": f"Failed to load diffusion model: {e}",
+            },
+        )
     else:
-        return Generator, None
+        return model, sampler, num_timesteps, None
 
 
 def _generate_designs(
     model: Any,
     config: dict[str, Any],
 ) -> Any:
-    """Generate designs using the model.
+    """Generate designs using a GAN model.
 
     Args:
         model: The generator model
@@ -457,6 +620,40 @@ def _generate_designs(
             if config["is_conditional"] and config["conditions_tensor"] is not None
             else model(z)
         )
+
+    return gen_designs
+
+
+def _generate_designs_diffusion(
+    model: Any,
+    sampler: Any,
+    config: dict[str, Any],
+) -> Any:
+    """Generate designs using a diffusion model.
+
+    Args:
+        model: The UNet2D diffusion model
+        sampler: The DiffusionSampler instance
+        config: Dict with keys: n_samples, device, conditions_tensor, design_shape, num_timesteps
+    """
+    import torch as th
+
+    n_samples = config["n_samples"]
+    device = config["device"]
+    conditions_tensor = config["conditions_tensor"]
+    design_shape = config["design_shape"]
+    num_timesteps = config["num_timesteps"]
+
+    # Start with random noise
+    gen_designs = th.randn((n_samples, 1, *design_shape), device=device)
+
+    # Iteratively denoise using the diffusion sampler
+    with th.no_grad():
+        for i in reversed(range(num_timesteps)):
+            t = th.full((n_samples,), i, device=device, dtype=th.long)
+            gen_designs = sampler.sample_timestep(
+                model, gen_designs, t, conditions_tensor
+            )
 
     return gen_designs
 
@@ -520,14 +717,21 @@ def _find_or_download_model(
     artifacts_dir = Path("artifacts")
 
     if artifacts_dir.exists():
-        # Look for generator.pth files matching the problem and algorithm
-        pattern = f"{problem_id}_{algorithm}_generator:v*"
+        # Determine the expected checkpoint filename based on algorithm
+        if algorithm == "diffusion_2d_cond":
+            checkpoint_filename = "model.pth"
+            pattern = f"{problem_id}_{algorithm}_model:v*"
+        else:
+            checkpoint_filename = "generator.pth"
+            pattern = f"{problem_id}_{algorithm}_generator:v*"
+
+        # Look for checkpoint files matching the problem and algorithm
         matching_dirs = list(artifacts_dir.glob(pattern))
 
         if matching_dirs:
             # Randomly select one of the matching models
             selected_dir = random.choice(matching_dirs)
-            checkpoint = selected_dir / "generator.pth"
+            checkpoint = selected_dir / checkpoint_filename
 
             if checkpoint.exists():
                 return str(checkpoint), None
@@ -555,7 +759,7 @@ def _find_or_download_model(
 
 
 @tool
-def sample_designs_from_model(  # noqa: PLR0913
+def sample_designs_from_model(  # noqa: PLR0913, PLR0911
     checkpoint_path: str | None = None,
     problem_id: Literal["beams2d"] = "beams2d",
     algorithm: str = "cgan_cnn_2d",
@@ -628,11 +832,14 @@ def sample_designs_from_model(  # noqa: PLR0913
         ... })
 
     Note:
-        - Requires PyTorch and engiopt to be installed
-        - For conditional models (cgan_*), conditions will be used
-        - For non-conditional models (gan_*), conditions are ignored
+        - Requires PyTorch, engiopt, and engibench to be installed
+        - For diffusion models (diffusion_2d_cond), requires diffusers library
+        - For conditional models, conditions will be used during generation
+        - For non-conditional models, conditions are ignored
         - Generated designs are automatically clipped to [0, 1] range
         - Designs are saved as .npy files and visualized as .png images
+        - Diffusion models use iterative denoising (slower but higher quality)
+        - GAN models use single-shot generation (faster)
     """
     import torch as th
 
@@ -668,54 +875,83 @@ def sample_designs_from_model(  # noqa: PLR0913
                 "error": f"Required library not installed: {e}. Install with: pip install engibench numpy",
             }
 
-        # Import Generator class
-        generator_class, error = _import_generator_class(algorithm)
-        if error:
-            return error
-
-        # At this point, generator_class cannot be None
-        assert generator_class is not None
-
-        # Load checkpoint and create problem
-        ckpt = th.load(resolved_checkpoint_path, map_location=device)
+        # Create problem instance
         problem = Beams2D()
         problem.reset(seed=0)
 
-        # Initialize the model
-        is_conditional = SUPPORTED_ALGORITHMS[algorithm]["conditional"]
-        n_conds = len(problem.conditions) if is_conditional else 0
-
-        model = generator_class(
-            latent_dim=latent_dim,
-            n_conds=n_conds,
-            design_shape=problem.design_space.shape,
-        )
-        model.load_state_dict(ckpt["generator"])
-        model.eval()
-        model.to(device)
-
-        # Prepare conditions tensor
-        conditions_tensor = None
-        if is_conditional:
-            conditions_tensor = (
-                th.tensor(
-                    [list(c.values()) for c in conditions],
-                    device=device,
-                    dtype=th.float,
-                )
-                .unsqueeze(-1)
-                .unsqueeze(-1)
+        # Branch based on algorithm type
+        if algorithm == "diffusion_2d_cond":
+            # Handle diffusion models
+            model, sampler, num_timesteps, error = _load_diffusion_model(
+                resolved_checkpoint_path, device, problem
             )
+            if error:
+                return error
 
-        # Generate designs
-        gen_config = {
-            "n_samples": n_samples,
-            "latent_dim": latent_dim,
-            "device": device,
-            "is_conditional": is_conditional,
-            "conditions_tensor": conditions_tensor,
-        }
-        gen_designs = _generate_designs(model, gen_config)
+            # Prepare conditions tensor for diffusion (different format than GAN)
+            conditions_tensor = th.tensor(
+                [list(c.values()) for c in conditions],
+                device=device,
+                dtype=th.float,
+            ).unsqueeze(1)  # Add channel dim
+
+            # Generate designs using diffusion
+            gen_config = {
+                "n_samples": n_samples,
+                "device": device,
+                "conditions_tensor": conditions_tensor,
+                "design_shape": problem.design_space.shape,
+                "num_timesteps": num_timesteps,
+            }
+            gen_designs = _generate_designs_diffusion(model, sampler, gen_config)
+
+        else:
+            # Handle GAN models
+            generator_class, error = _import_generator_class(algorithm)
+            if error:
+                return error
+
+            # At this point, generator_class cannot be None
+            assert generator_class is not None
+
+            # Load checkpoint
+            ckpt = th.load(resolved_checkpoint_path, map_location=device)
+
+            # Initialize the model
+            is_conditional = SUPPORTED_ALGORITHMS[algorithm]["conditional"]
+            n_conds = len(problem.conditions) if is_conditional else 0
+
+            model = generator_class(
+                latent_dim=latent_dim,
+                n_conds=n_conds,
+                design_shape=problem.design_space.shape,
+            )
+            model.load_state_dict(ckpt["generator"])
+            model.eval()
+            model.to(device)
+
+            # Prepare conditions tensor for GAN
+            conditions_tensor = None
+            if is_conditional:
+                conditions_tensor = (
+                    th.tensor(
+                        [list(c.values()) for c in conditions],
+                        device=device,
+                        dtype=th.float,
+                    )
+                    .unsqueeze(-1)
+                    .unsqueeze(-1)
+                )
+
+            # Generate designs using GAN
+            gen_config = {
+                "n_samples": n_samples,
+                "latent_dim": latent_dim,
+                "device": device,
+                "is_conditional": is_conditional,
+                "conditions_tensor": conditions_tensor,
+            }
+            gen_designs = _generate_designs(model, gen_config)
 
         # Post-process
         gen_designs = gen_designs.detach().cpu().numpy().squeeze()
