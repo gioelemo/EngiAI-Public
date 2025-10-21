@@ -331,7 +331,8 @@ def _display_stl(stl_path: Path, idx: int, button_key_prefix: str) -> None:
 
     try:
         st.markdown(f"**3D Model: {stl_path.name}**")
-        stable_key = f"stl_{abs(hash(str(stl_path)))}_{idx}"
+        # Include button_key_prefix to make key unique across messages
+        stable_key = f"{button_key_prefix}_stl_{abs(hash(str(stl_path)))}_{idx}"
         stl_from_file(
             file_path=str(stl_path),
             color=st.session_state.stl_color,
@@ -411,11 +412,12 @@ def _display_log_file(log_path: Path, button_key_prefix: str) -> None:
         st.warning(f"Could not display log file {log_path.name}: {e}")
 
 
-def display_message(message: dict) -> None:
+def display_message(message: dict, message_idx: int = 0) -> None:
     """Display a single message in the chat interface.
 
     Args:
         message: Dictionary with 'role' and 'content' keys
+        message_idx: Index of the message in the chat history for unique keys
     """
     with st.chat_message(message["role"]):
         # Display text content
@@ -424,17 +426,17 @@ def display_message(message: dict) -> None:
         # Display images
         images = find_images_in_text(message["content"])
         for img_path in images:
-            _display_image(img_path, button_key_prefix="msg_img")
+            _display_image(img_path, button_key_prefix=f"msg_{message_idx}_img")
 
         # Display STL files
         stl_files = find_stl_files_in_text(message["content"])
         for idx, stl_path in enumerate(stl_files):
-            _display_stl(stl_path, idx, button_key_prefix="msg_stl")
+            _display_stl(stl_path, idx, button_key_prefix=f"msg_{message_idx}_stl")
 
         # Display log files (.err and .out)
         log_files = find_log_files_in_text(message["content"])
         for log_path in log_files:
-            _display_log_file(log_path, button_key_prefix="msg_log")
+            _display_log_file(log_path, button_key_prefix=f"msg_{message_idx}_log")
 
 
 def format_tool_call(tool_call: Any) -> str:
@@ -857,8 +859,8 @@ def main() -> None:
                 pass
 
         # Display chat history
-        for message in st.session_state.messages:
-            display_message(message)
+        for message_idx, message in enumerate(st.session_state.messages):
+            display_message(message, message_idx)
 
     # Chat input (centered on welcome screen, bottom-fixed during chat)
     if prompt := st.chat_input("Ask me anything about engineering design..."):

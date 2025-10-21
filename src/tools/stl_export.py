@@ -16,6 +16,40 @@ from stl import mesh
 CELL_THRESHOLD = 0.5
 
 
+def _get_versioned_filename(base_path: Path) -> Path:
+    """
+    Generate a unique filename by adding version number if file exists.
+
+    Args:
+        base_path: The desired file path
+
+    Returns:
+        A unique file path with version number if needed (e.g., file_v1.stl, file_v2.stl)
+    """
+    if not base_path.exists():
+        return base_path
+
+    # File exists, create versioned name
+    stem = base_path.stem
+    suffix = base_path.suffix
+    parent = base_path.parent
+
+    # Check if the stem already has a version
+    version = 1
+    if "_v" in stem:
+        parts = stem.rsplit("_v", 1)
+        if len(parts) == 2 and parts[1].isdigit():  # noqa: PLR2004
+            stem = parts[0]
+            version = int(parts[1])
+
+    # Find next available version
+    while True:
+        versioned_path = parent / f"{stem}_v{version}{suffix}"
+        if not versioned_path.exists():
+            return versioned_path
+        version += 1
+
+
 def _mirror_beam_along_y(data: np.ndarray) -> np.ndarray:
     """
     Mirror a half-beam design along the Y-axis to create a full symmetric beam.
@@ -140,11 +174,14 @@ def convert_design_to_stl(
     a non-zero value becomes a solid block (cube) with height determined by scale_z.
 
     All STL files are automatically saved to the 'outputs/' directory.
+    If the output file already exists, a version number is automatically added
+    (e.g., design_v1.stl, design_v2.stl) to preserve the history.
 
     Args:
         npy_file_path: Path to the input .npy file containing the design array
         stl_file_path: Output filename for the STL file (will be saved in outputs/ directory)
             Default: same name as npy with .stl extension
+            Note: If file exists, version number will be auto-added to preserve history
         scale_xy: Scaling factor for X and Y dimensions (default: 1.0)
         scale_z: Extrusion height for non-zero cells (default: 10.0)
         mirror_y: If True, mirror the design along Y-axis to create full symmetric beam
@@ -203,6 +240,9 @@ def convert_design_to_stl(
                 stl_file_path = str(output_dir / stl_path_obj.name)
 
         output_path = Path(stl_file_path)
+
+        # Create versioned filename to preserve history (avoid overwriting)
+        output_path = _get_versioned_filename(output_path)
 
         # Validate data dimensions
         if data.ndim != 2:  # noqa: PLR2004
