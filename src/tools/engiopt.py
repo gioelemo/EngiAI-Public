@@ -237,7 +237,7 @@ def _check_wandb_available() -> dict[str, Any] | None:
     return None
 
 
-def _download_from_wandb(  # noqa: PLR0913
+def _download_from_wandb(  # noqa: PLR0913, PLR0912
     problem_id: str,
     algorithm: str,
     seed: int,
@@ -289,10 +289,43 @@ def _download_from_wandb(  # noqa: PLR0913
         try:
             run = artifact.logged_by()
             if run:
-                run_config = dict(run.config)
-        except Exception:
+                # Handle different run.config types
+                if isinstance(run.config, str):
+                    # Parse JSON string
+                    import json
+
+                    config_data = json.loads(run.config)
+                    # Extract values from WandB's nested structure
+                    run_config = {
+                        k: v.get("value") if isinstance(v, dict) else v
+                        for k, v in config_data.items()
+                        if k != "_wandb"
+                    }
+                elif hasattr(run.config, "items"):
+                    run_config = dict(run.config)
+                elif isinstance(run.config, dict):
+                    run_config = run.config
+                else:
+                    # Try to convert to dict
+                    try:
+                        run_config = dict(run.config)
+                    except (TypeError, ValueError):
+                        print(
+                            f"Warning: Could not convert run.config (type: {type(run.config)})"
+                        )
+                        run_config = {}
+
+                # Display hyperparameters if we have them
+                if run_config:
+                    print("\n" + "=" * 60)
+                    print("Model Hyperparameters from WandB:")
+                    print("=" * 60)
+                    for key, value in run_config.items():
+                        print(f"  {key}: {value}")
+                    print("=" * 60 + "\n")
+        except Exception as e:
             # Silently skip if run config is not available - will use defaults
-            pass
+            print(f"Note: Could not retrieve run configuration: {e}")
 
         # Determine actual model type for response
         actual_model_type = "model" if algorithm == "diffusion_2d_cond" else model_type
@@ -445,6 +478,15 @@ def load_wandb_model(  # noqa: PLR0913
         # Load checkpoint
         ckpt = th.load(checkpoint_path, map_location=device)
 
+        # Display hyperparameters if provided
+        if run_config:
+            print("\n" + "=" * 60)
+            print("Model Hyperparameters:")
+            print("=" * 60)
+            for key, value in run_config.items():
+                print(f"  {key}: {value}")
+            print("=" * 60 + "\n")
+
         # Get model configuration
         if run_config and "latent_dim" in run_config:
             latent_dim = run_config["latent_dim"]
@@ -569,6 +611,15 @@ def _load_diffusion_model(
 
         # Get run config from checkpoint if available
         run_config = ckpt.get("config", {})
+
+        # Display hyperparameters if available
+        if run_config:
+            print("\n" + "=" * 60)
+            print("Diffusion Model Hyperparameters:")
+            print("=" * 60)
+            for key, value in run_config.items():
+                print(f"  {key}: {value}")
+            print("=" * 60 + "\n")
 
         # Set defaults if not in checkpoint
         layers_per_block = run_config.get("layers_per_block", 2)
@@ -800,7 +851,7 @@ def _find_or_download_model(
 
 
 @tool
-def sample_designs_from_model(  # noqa: PLR0913, PLR0911
+def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     checkpoint_path: str | None = None,
     problem_id: Literal["beams2d"] = "beams2d",
     algorithm: str = "cgan_cnn_2d",
@@ -957,6 +1008,24 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911
 
             # Load checkpoint
             ckpt = th.load(resolved_checkpoint_path, map_location=device)
+
+            # Display hyperparameters if available in checkpoint
+            if "config" in ckpt:
+                print("\n" + "=" * 60)
+                print("GAN Model Hyperparameters:")
+                print("=" * 60)
+                for key, value in ckpt["config"].items():
+                    print(f"  {key}: {value}")
+                print("=" * 60 + "\n")
+            else:
+                # Display the parameters we're using
+                print("\n" + "=" * 60)
+                print("GAN Model Parameters (using defaults):")
+                print("=" * 60)
+                print(f"  latent_dim: {latent_dim}")
+                print(f"  n_conds: {len(problem.conditions)}")
+                print(f"  design_shape: {problem.design_space.shape}")
+                print("=" * 60 + "\n")
 
             # Initialize the model
             is_conditional = SUPPORTED_ALGORITHMS[algorithm]["conditional"]
