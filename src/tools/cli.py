@@ -25,7 +25,7 @@ def execute_cli_command(
     mesh processing tools, converters, and other CLI utilities.
 
     Args:
-        command: The complete command to execute (e.g., "prusa-slicer --slice input.stl --output output.gcode")
+        command: The complete command to execute (e.g., "PrusaSlicer --slice input.stl --output output.gcode")
         working_dir: Optional working directory for the command. If None, uses current directory.
         timeout: Maximum time in seconds to wait for command completion (default: 300)
         check_exists: Whether to check if the command executable exists before running (default: True)
@@ -34,8 +34,8 @@ def execute_cli_command(
         A string containing the command output (stdout and stderr combined) and execution status.
 
     Example:
-        >>> execute_cli_command("prusa-slicer --version")
-        >>> execute_cli_command("prusa-slicer --slice model.stl --output model.gcode", working_dir="/path/to/files")
+        >>> execute_cli_command("PrusaSlicer --version")
+        >>> execute_cli_command("PrusaSlicer --slice model.stl --output model.gcode", working_dir="/path/to/files")
         >>> execute_cli_command("meshlab.meshlabserver -i input.obj -o output.stl", timeout=600)
 
     Note:
@@ -109,13 +109,13 @@ def check_cli_tool_available(tool_name: str) -> str:
     """Check if a CLI tool is available on the system.
 
     Args:
-        tool_name: Name of the command/tool to check (e.g., "prusa-slicer", "meshlab.meshlabserver")
+        tool_name: Name of the command/tool to check (e.g., "PrusaSlicer", "meshlab.meshlabserver")
 
     Returns:
         String indicating whether the tool is available and its path if found.
 
     Example:
-        >>> check_cli_tool_available("prusa-slicer")
+        >>> check_cli_tool_available("PrusaSlicer")
         >>> check_cli_tool_available("git")
     """
     try:

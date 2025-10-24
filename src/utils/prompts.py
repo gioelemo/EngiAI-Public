@@ -381,7 +381,7 @@ When you receive this message:
 **Example response when confirmation is needed:**
 "⚠️ I need your permission to run the following command:
 
-**Command:** `prusa-slicer --slice model.stl --output model.gcode`
+**Command:** `PrusaSlicer --slice model.stl --output model.gcode`
 **Working Directory:** /Users/you/project/models
 
 This will slice your STL file into G-code for 3D printing. Do you want me to proceed? (Reply with 'yes' or 'no')"
