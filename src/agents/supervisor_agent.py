@@ -14,6 +14,7 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
 from config import config
+from src.agents.cli_agent import CLIAgent
 from src.agents.code_execution_agent import CodeExecutionAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.hpc_agent import HPCAgent
@@ -52,6 +53,7 @@ class SupervisorAgent:
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
         self.hpc_agent = HPCAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
+        self.cli_agent = CLIAgent(model_name=self.model_name)
 
         # Build the supervisor graph
         self.graph = self._build_graph()
@@ -74,7 +76,12 @@ class SupervisorAgent:
             "- hpc_agent: HPC cluster job management, SLURM job submission, job monitoring, output retrieval"
         )
         available_agents.append("- search_agent: Web research and finding information")
-        agent_names.extend(["'engineering_agent'", "'hpc_agent'", "'search_agent'"])
+        available_agents.append(
+            "- cli_agent: Execute local CLI commands (PrusaSlicer, mesh processing, file conversion, any command-line tool)"
+        )
+        agent_names.extend(
+            ["'engineering_agent'", "'hpc_agent'", "'search_agent'", "'cli_agent'"]
+        )
 
         return (
             "You are a supervisor that routes tasks to specialized agents.\n\n"
@@ -86,6 +93,7 @@ class SupervisorAgent:
             + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint', 'training', 'train', 'generate script', 'generate SLURM' → use engineering_agent\n"
             + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information → use search_agent\n"
+            + "- CLI commands, slicing STL files, PrusaSlicer, mesh processing, file conversion, running local command-line tools → use cli_agent\n"
             + (
                 "- Python code execution, calculations → use code_execution_agent\n"
                 if self.enable_code_execution
@@ -142,6 +150,9 @@ class SupervisorAgent:
             next_agent = "hpc_agent"
         elif "search" in content:
             next_agent = "search_agent"
+        elif "cli" in content or "command" in content:
+            # CLI handles: local command-line tool execution
+            next_agent = "cli_agent"
 
         return {"next": next_agent}
 
@@ -181,6 +192,15 @@ class SupervisorAgent:
         )
         return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
+    def _cli_node(self, state: SupervisorState):
+        """Delegate to CLI agent."""
+        agent_state = cast(MessagesState, {"messages": state["messages"]})
+        result = self.cli_agent.invoke(
+            agent_state,
+            {"configurable": {"thread_id": "cli"}},
+        )
+        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+
     def _build_graph(self):
         """Build the supervisor workflow graph with agent routing."""
 
@@ -194,6 +214,7 @@ class SupervisorAgent:
         workflow.add_node("engineering_agent", self._engineering_node)
         workflow.add_node("hpc_agent", self._hpc_node)
         workflow.add_node("search_agent", self._search_node)
+        workflow.add_node("cli_agent", self._cli_node)
 
         # Add edges - start with supervisor
         workflow.add_edge(START, "supervisor")
@@ -203,6 +224,7 @@ class SupervisorAgent:
             "engineering_agent": "engineering_agent",
             "hpc_agent": "hpc_agent",
             "search_agent": "search_agent",
+            "cli_agent": "cli_agent",
             "FINISH": END,
         }
         if self.enable_code_execution:
@@ -221,6 +243,7 @@ class SupervisorAgent:
         workflow.add_edge("engineering_agent", END)
         workflow.add_edge("hpc_agent", END)
         workflow.add_edge("search_agent", END)
+        workflow.add_edge("cli_agent", END)
 
         # Compile with memory
         memory = InMemorySaver()
