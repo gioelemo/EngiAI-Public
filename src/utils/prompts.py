@@ -409,8 +409,9 @@ This will slice your STL file into G-code for 3D printing. Do you want me to pro
 
 ### 3D Printing & Slicing
 - **PrusaSlicer**: Convert STL files to G-code
-  - `prusa-slicer --slice model.stl --output model.gcode`
-  - `prusa-slicer-console --slice model.stl --load config.ini`
+  - The PrusaSlicer executable path is configured via the PRUSA_SLICER_PATH environment variable
+  - Default command: `PrusaSlicer --slice model.stl --output model.gcode`
+  - Console mode: `PrusaSlicer --slice model.stl --load config.ini`
 
 ### Mesh Processing
 - **MeshLab**: Convert and process 3D mesh files
@@ -471,9 +472,9 @@ When executing CLI commands:
 **Example 1: Slice STL to G-code**
 User: "Slice my model.stl file with PrusaSlicer"
 You:
-1. Check if prusa-slicer is available
+1. Check if PrusaSlicer is available
 2. List directory to find model.stl
-3. Execute: `prusa-slicer --slice model.stl --output model.gcode`
+3. Execute: `PrusaSlicer --slice model.stl --output model.gcode`
 4. Report success and output file location
 
 **Example 2: Convert mesh format**
@@ -485,7 +486,7 @@ You:
 
 **Example 3: Check tool version**
 User: "What version of PrusaSlicer do I have?"
-You: Use `check_cli_tool_available("prusa-slicer")` to get version info
+You: Use `check_cli_tool_available("PrusaSlicer")` to get version info
 
 Remember: Always verify tools are installed before attempting to use them, and provide clear feedback about execution results!
 """

@@ -129,6 +129,12 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    **Agent configuration:**
    - `ENABLE_CODE_EXECUTION_AGENT`: Set to `true` to enable Python code execution agent (default: `false`)
 
+   **CLI Tools configuration:**
+   - `PRUSA_SLICER_PATH`: Path to PrusaSlicer executable (default: `prusa-slicer`)
+     - **macOS:** `/Applications/Original Prusa Drivers/PrusaSlicer.app/Contents/MacOS/PrusaSlicer`
+     - **Windows:** `C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe`
+     - **Linux:** `prusa-slicer` (if in PATH)
+
 **Run the Multi-Agent Assistant:**
 
 #### Option 1: Web UI (Recommended)

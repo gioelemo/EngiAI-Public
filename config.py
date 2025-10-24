@@ -51,6 +51,9 @@ class Config:
             "WANDB_OFFICIAL_PROJECT", "engibench/engiopt"
         )
 
+        # CLI Tools configuration
+        self.prusa_slicer_path: str = os.getenv("PRUSA_SLICER_PATH", "PrusaSlicer")
+
         # LangSmith configuration
         self.langchain_tracing = (
             os.getenv("LANGCHAIN_TRACING", "false").lower() == "true"
