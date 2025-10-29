@@ -53,7 +53,7 @@ class SupervisorAgent:
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
         self.hpc_agent = HPCAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
-        # Disable CLI agent's internal confirmation - supervisor handles it
+        # Disable CLI agent's internal confirmation - supervisor handles interrupts at its level
         self.cli_agent = CLIAgent(
             model_name=self.model_name, require_confirmation=False
         )
@@ -250,8 +250,7 @@ class SupervisorAgent:
 
         # Compile with memory
         memory = InMemorySaver()
-        # Interrupt at supervisor level before CLI agent execution
-        # This allows for confirmation before CLI commands
+        # Interrupt before CLI agent so we can check its planned commands
         return workflow.compile(checkpointer=memory, interrupt_before=["cli_agent"])
 
     def invoke(self, state, config):

@@ -2,6 +2,8 @@
 Interactive chat CLI for different agent types.
 """
 
+from typing import cast
+
 from langchain_core.messages import HumanMessage, ToolMessage
 
 from src.agents.engineering_agent import EngineeringAgent
@@ -71,10 +73,24 @@ class ChatCLI:
         try:
             snapshot = self.agent.graph.get_state(self.config)  # type: ignore[union-attr]
 
+            # Check for interrupts in subgraphs (like cli_agent)
+            if hasattr(snapshot, "tasks") and snapshot.tasks:
+                for task in snapshot.tasks:
+                    # Check if any task has interrupts
+                    if hasattr(task, "interrupts") and task.interrupts:
+                        user_request = ""
+                        for msg in reversed(self.state["messages"]):
+                            if hasattr(msg, "type") and msg.type == "human":
+                                if isinstance(msg.content, str):
+                                    user_request = msg.content
+                                break
+                        return True, user_request
+
+            # Check for top-level interrupts
             if hasattr(snapshot, "next") and snapshot.next:
                 next_nodes = str(snapshot.next)
 
-                if "cli_agent" in next_nodes:
+                if "cli_agent" in next_nodes or "tool_node" in next_nodes:
                     # Extract user's original request for context
                     user_request = ""
                     for msg in reversed(self.state["messages"]):
@@ -84,10 +100,116 @@ class ChatCLI:
                             break
                     return True, user_request
 
-        except Exception as e:
-            print(f"[DEBUG] Error checking snapshot: {type(e).__name__}: {e}")
+        except Exception:
+            # Silently handle errors in interrupt detection
+            pass
 
         return False, ""
+
+    def _extract_command_info(self) -> str:
+        """Extract command information from pending tool calls.
+
+        Returns:
+            Formatted string with command details, or empty string if none found
+        """
+        try:
+            # Get the snapshot to access state
+            snapshot = self.agent.graph.get_state(self.config)  # type: ignore[union-attr]
+
+            # Check if CLI agent is about to run
+            if (
+                hasattr(snapshot, "next")
+                and snapshot.next
+                and "cli_agent" in str(snapshot.next)
+                and hasattr(snapshot, "values")
+                and "messages" in snapshot.values
+            ):
+                messages = snapshot.values["messages"]
+
+                # Temporarily invoke the CLI agent to get its plan
+                # Use a separate thread ID so we don't affect the main conversation
+                try:
+                    # Check if agent has cli_agent attribute (SupervisorAgent)
+                    if hasattr(self.agent, "cli_agent"):
+                        cli_agent = self.agent.cli_agent  # type: ignore[attr-defined]
+                        # Invoke CLI agent to get the plan (will be interrupted at tool_node)
+                        cli_agent_state = cast(MessagesState, {"messages": messages})
+                        cli_config = {"configurable": {"thread_id": "cli_preview"}}
+
+                        # Invoke once - it will be interrupted before tool execution
+                        _ = cli_agent.invoke(cli_agent_state, cli_config)
+
+                        # Check the CLI agent's state for tool calls
+                        cli_snapshot = cli_agent.agent.get_state(cli_config)  # type: ignore[union-attr]
+
+                        if (
+                            hasattr(cli_snapshot, "values")
+                            and "messages" in cli_snapshot.values
+                        ):
+                            cli_messages = cli_snapshot.values["messages"]
+
+                            # Look for tool calls in the most recent AI message
+                            for msg in reversed(cli_messages):
+                                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                                    return self._format_tool_calls(msg.tool_calls)
+
+                except Exception:
+                    # Silently fail and fall back to checking main state
+                    pass
+
+            # Fallback: Look for tool calls in main state messages
+            for msg in reversed(self.state["messages"]):
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    return self._format_tool_calls(msg.tool_calls)
+
+        except Exception:
+            # Silently fail - just return empty string
+            pass
+
+        return ""
+
+    def _format_tool_calls(self, tool_calls: list) -> str:
+        """Format tool calls into a readable string.
+
+        Args:
+            tool_calls: List of tool call dictionaries
+
+        Returns:
+            Formatted string with command details
+        """
+        info_lines = []
+        for tool_call in tool_calls:
+            tool_name = tool_call.get("name", "Unknown")
+            args = tool_call.get("args", {})
+
+            if tool_name == "execute_cli_command":
+                command = args.get("command", "N/A")
+                working_dir = args.get("working_dir")
+                timeout = args.get("timeout", 300)
+
+                info_lines.append("Command to execute:")
+                info_lines.append(f"  $ {command}")
+                if working_dir:
+                    info_lines.append(f"  Working directory: {working_dir}")
+                info_lines.append(f"  Timeout: {timeout}s")
+
+            elif tool_name == "check_cli_tool_available":
+                tool = args.get("tool_name", "N/A")
+                info_lines.append(f"Checking availability of tool: {tool}")
+
+            elif tool_name == "list_directory_contents":
+                directory = args.get("directory_path", "N/A")
+                pattern = args.get("pattern")
+                info_lines.append(f"Listing directory: {directory}")
+                if pattern:
+                    info_lines.append(f"  Pattern: {pattern}")
+
+            else:
+                info_lines.append(f"Tool: {tool_name}")
+                if args:
+                    info_lines.append(f"  Arguments: {args}")
+
+        return "\n".join(info_lines)
 
     def _handle_confirmation(self, user_request: str) -> bool:
         """Show confirmation prompt and get user response.
@@ -100,9 +222,18 @@ class ChatCLI:
         """
         print("\n⚠️  CLI Command Execution Pending")
         if user_request:
-            print(f'Based on your request: "{user_request}"')
-        print("The agent will execute a command-line tool.")
-        confirmation = input("\nProceed? (yes/no): ").strip().lower()
+            print(f"\nBased on your request: {user_request}")
+
+        # Extract and display the command that will be executed
+        command_info = self._extract_command_info()
+        if command_info:
+            print(f"\n{command_info}")
+        else:
+            print("\nThe agent will execute a command-line tool.")
+
+        confirmation = (
+            input("\nType 'yes' to proceed or 'no' to cancel: ").strip().lower()
+        )
 
         if confirmation in [
             "yes",
@@ -189,16 +320,21 @@ class ChatCLI:
 
                     # Show confirmation and get user response
                     if self._handle_confirmation(user_request):
-                        # User confirmed - track messages before resume
-                        messages_before = len(self.state["messages"])
-                        # Resume execution
+                        # User confirmed - resume execution
+                        # Resume the graph - CLI agent will now execute
                         result = self.agent.invoke(None, self.config)  # type: ignore[arg-type]
+
+                        # Update state with final result
+                        self.state = result
+
+                        # Display all new messages (everything after the user's message)
+                        messages_before = 1  # Skip the user's message
                     else:
                         # User cancelled - skip to next iteration
                         continue
-
-                # Update state with result
-                self.state = result
+                else:
+                    # No interrupt - update state with result
+                    self.state = result
 
                 # Display new messages
                 self._display_new_messages(messages_before)
@@ -212,6 +348,7 @@ class ChatCLI:
 
 def main_supervisor() -> None:
     """Main entry point for the supervisor multi-agent system."""
+
     agent = SupervisorAgent()
     cli = ChatCLI(agent)
     cli.run(
