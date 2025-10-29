@@ -1,5 +1,12 @@
 # AI Assistant for Mechanical Engineering Design
 
+[![Python tests](https://github.com/gioelemo/engineer-assistant/actions/workflows/test.yml/badge.svg)](https://github.com/gioelemo/engineer-assistant/actions/workflows/test.yml)
+[![pre-commit](https://github.com/gioelemo/engineer-assistant/actions/workflows/pre-commit.yaml/badge.svg)](https://github.com/gioelemo/engineer-assistant/actions/workflows/pre-commit.yaml)
+[![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Jarvis-Style Multimodal AI Assistant for Closed-Loop Design-for-Manufacturing Correction.
 
 ## Quick Setup
