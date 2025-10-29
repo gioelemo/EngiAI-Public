@@ -27,6 +27,7 @@ dependencies = [
     "watchdog ==6.0.0",
     "python-dotenv",
     "engibench",
+    "cvxopt",
 ]
 
 [project.optional-dependencies]
