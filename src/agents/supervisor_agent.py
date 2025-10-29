@@ -8,6 +8,7 @@ sub-agents (Engineering, Search, etc.) rather than having all tools directly.
 from typing import Annotated, cast
 
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
@@ -91,12 +92,15 @@ class SupervisorAgent:
             + "Available agents:\n"
             + "\n".join(available_agents)
             + "\n\n"
+            + "CRITICAL: Distinguish between QUESTIONS about capabilities vs REQUESTS to execute actions.\n"
+            + "- Questions like 'can you...?', 'do you support...?', 'what can you do...?' → Answer directly with FINISH (don't route)\n"
+            + "- Actual execution requests like 'slice this file', 'run this command', 'optimize this' → Route to appropriate agent\n\n"
             + "IMPORTANT ROUTING RULES:\n"
             + "- Any mention of 'wandb', 'models', 'pretrained', 'download model', 'GAN', 'diffusion', "
             + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint', 'training', 'train', 'generate script', 'generate SLURM' → use engineering_agent\n"
             + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information → use search_agent\n"
-            + "- CLI commands, slicing STL files, PrusaSlicer, mesh processing, file conversion, running local command-line tools → use cli_agent\n"
+            + "- EXECUTE CLI commands: 'slice file.stl', 'run PrusaSlicer', 'convert file', 'execute pwd' → use cli_agent\n"
             + (
                 "- Python code execution, calculations → use code_execution_agent\n"
                 if self.enable_code_execution
@@ -107,8 +111,8 @@ class SupervisorAgent:
             + ", ".join(agent_names[:-1])
             + (" or " if len(agent_names) > 1 else "")
             + agent_names[-1]
-            + ".\n"
-            + "No explanations, no other text, just the agent name."
+            + " or 'FINISH' if you can answer directly.\n"
+            + "No explanations, no other text, just the agent name or FINISH."
         )
 
     def _supervisor_node(self, state: SupervisorState):
@@ -156,8 +160,56 @@ class SupervisorAgent:
         elif "cli" in content or "command" in content:
             # CLI handles: local command-line tool execution
             next_agent = "cli_agent"
+        elif "finish" in content:
+            # Supervisor will answer directly
+            next_agent = "supervisor_response"
 
         return {"next": next_agent}
+
+    def _supervisor_response_node(self, state: SupervisorState):
+        """Supervisor responds directly to informational questions."""
+
+        # Build a helpful system prompt for answering capability questions
+        capabilities_prompt = """You are a helpful assistant that can answer questions about the system's capabilities.
+
+The system has the following capabilities:
+
+**Engineering & Optimization:**
+- Structural optimization and topology design
+- Beam design problems and simulation
+- STL file generation for 3D printing
+- Access to pre-trained models from WandB
+- Generative models (GANs, Diffusion)
+
+**Code Execution:**
+- Python code execution and calculations
+- Data analysis and quick evaluations
+
+**CLI Command Execution:**
+- Execute any local command-line tool
+- PrusaSlicer for STL slicing to G-code
+- Mesh processing and file conversion tools
+- Basic shell commands (pwd, ls, cat, etc.)
+
+**HPC Cluster Management:**
+- SLURM job submission and monitoring
+- Job status checking and output retrieval
+- Remote cluster operations
+
+**Web Research:**
+- Search for engineering information
+- Find best practices and papers
+- Current state-of-the-art research
+
+Answer the user's question clearly and concisely about what the system can do."""
+
+        messages = [
+            {"role": "system", "content": capabilities_prompt},
+            *state["messages"],
+        ]
+        response = self.llm.invoke(messages)
+
+        return {"messages": [AIMessage(content=response.content)], "next": "FINISH"}
 
     def _code_execution_node(self, state: SupervisorState):
         """Delegate to code execution agent."""
@@ -212,6 +264,7 @@ class SupervisorAgent:
 
         # Add nodes
         workflow.add_node("supervisor", self._supervisor_node)
+        workflow.add_node("supervisor_response", self._supervisor_response_node)
         if self.enable_code_execution:
             workflow.add_node("code_execution_agent", self._code_execution_node)
         workflow.add_node("engineering_agent", self._engineering_node)
@@ -224,6 +277,7 @@ class SupervisorAgent:
 
         # Build conditional routing dictionary
         routing_dict = {
+            "supervisor_response": "supervisor_response",
             "engineering_agent": "engineering_agent",
             "hpc_agent": "hpc_agent",
             "search_agent": "search_agent",
@@ -241,6 +295,7 @@ class SupervisorAgent:
         )
 
         # Agents go directly to END (no looping back to supervisor)
+        workflow.add_edge("supervisor_response", END)
         if self.enable_code_execution:
             workflow.add_edge("code_execution_agent", END)
         workflow.add_edge("engineering_agent", END)
