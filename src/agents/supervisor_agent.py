@@ -16,7 +16,6 @@ from typing_extensions import TypedDict
 
 from config import config
 from src.agents.cli_agent import CLIAgent
-from src.agents.code_execution_agent import CodeExecutionAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.hpc_agent import HPCAgent
 from src.agents.search_agent import SearchAgent
@@ -48,9 +47,6 @@ class SupervisorAgent:
         self.llm = init_chat_model(self.model_name)
 
         # Initialize specialized sub-agents
-        self.enable_code_execution = config.enable_code_execution_agent
-        if self.enable_code_execution:
-            self.code_execution_agent = CodeExecutionAgent(model_name=self.model_name)
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
         self.hpc_agent = HPCAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
@@ -66,12 +62,6 @@ class SupervisorAgent:
         """Build the routing system prompt based on available agents."""
         available_agents = []
         agent_names = []
-
-        if self.enable_code_execution:
-            available_agents.append(
-                "- code_execution_agent: Python code execution, calculations, data analysis"
-            )
-            agent_names.append("'code_execution_agent'")
 
         available_agents.append(
             "- engineering_agent: Structural optimization, beam design, topology optimization, STL conversion, downloading/using pre-trained models from WandB, generative models (GANs, Diffusion)"
@@ -101,11 +91,6 @@ class SupervisorAgent:
             + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information → use search_agent\n"
             + "- EXECUTE CLI commands: 'slice file.stl', 'run PrusaSlicer', 'convert file', 'execute pwd' → use cli_agent\n"
-            + (
-                "- Python code execution, calculations → use code_execution_agent\n"
-                if self.enable_code_execution
-                else ""
-            )
             + "\n"
             + "Respond with ONLY ONE WORD: "
             + ", ".join(agent_names[:-1])
@@ -133,11 +118,7 @@ class SupervisorAgent:
 
         # Determine next agent - check engineering first (more specific keywords)
         next_agent = "FINISH"
-        if self.enable_code_execution and (
-            "code_execution" in content or "code" in content
-        ):
-            next_agent = "code_execution_agent"
-        elif (
+        if (
             "engineering" in content
             or "training" in content
             or "generate" in content
@@ -211,15 +192,6 @@ Answer the user's question clearly and concisely about what the system can do.""
 
         return {"messages": [AIMessage(content=response.content)], "next": "FINISH"}
 
-    def _code_execution_node(self, state: SupervisorState):
-        """Delegate to code execution agent."""
-        agent_state = cast(MessagesState, {"messages": state["messages"]})
-        result = self.code_execution_agent.invoke(
-            agent_state,
-            {"configurable": {"thread_id": "code_execution"}},
-        )
-        return {"messages": [result["messages"][-1]], "next": "FINISH"}
-
     def _engineering_node(self, state: SupervisorState):
         """Delegate to engineering agent."""
         agent_state = cast(MessagesState, {"messages": state["messages"]})
@@ -265,8 +237,6 @@ Answer the user's question clearly and concisely about what the system can do.""
         # Add nodes
         workflow.add_node("supervisor", self._supervisor_node)
         workflow.add_node("supervisor_response", self._supervisor_response_node)
-        if self.enable_code_execution:
-            workflow.add_node("code_execution_agent", self._code_execution_node)
         workflow.add_node("engineering_agent", self._engineering_node)
         workflow.add_node("hpc_agent", self._hpc_node)
         workflow.add_node("search_agent", self._search_node)
@@ -284,8 +254,6 @@ Answer the user's question clearly and concisely about what the system can do.""
             "cli_agent": "cli_agent",
             "FINISH": END,
         }
-        if self.enable_code_execution:
-            routing_dict["code_execution_agent"] = "code_execution_agent"
 
         # Conditional routing based on supervisor decision
         workflow.add_conditional_edges(
@@ -296,8 +264,6 @@ Answer the user's question clearly and concisely about what the system can do.""
 
         # Agents go directly to END (no looping back to supervisor)
         workflow.add_edge("supervisor_response", END)
-        if self.enable_code_execution:
-            workflow.add_edge("code_execution_agent", END)
         workflow.add_edge("engineering_agent", END)
         workflow.add_edge("hpc_agent", END)
         workflow.add_edge("search_agent", END)

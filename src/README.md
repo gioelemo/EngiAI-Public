@@ -12,7 +12,6 @@ src/
 │   ├── engineering_agent.py     # Engineering design & optimization
 │   ├── search_agent.py          # Web search capabilities
 │   ├── hpc_agent.py            # HPC/SLURM job management
-│   └── code_execution_agent.py  # Python code execution (optional)
 │
 ├── cli/                        # Command-line interfaces
 │   ├── __init__.py
@@ -28,7 +27,6 @@ src/
 │   ├── engibench.py            # Engineering benchmarks (beams, etc.)
 │   ├── engiopt.py              # ML model training & optimization
 │   ├── stl_export.py           # CAD file conversion to STL
-│   ├── code_execution.py       # Python code execution
 │   ├── hpc.py                  # HPC cluster operations
 │   ├── connection.py           # SSH/HPC connection management
 │   └── job_monitor.py          # SLURM job monitoring & notifications
@@ -90,7 +88,6 @@ Contains LangChain tools that agents can use. Each tool is decorated with `@tool
 - **`engibench.py`**: Engineering benchmark datasets (beams2d, cantilever, etc.)
 - **`engiopt.py`**: ML model training and optimization (GANs, CNNs) with W&B tracking
 - **`stl_export.py`**: Convert 2D heatmaps to 3D STL files for CAD/printing
-- **`code_execution.py`**: Execute Python code snippets in isolated environment
 - **`hpc.py`**: HPC cluster operations (submit jobs, transfer files, run commands)
 - **`connection.py`**: SSH connection management for remote HPC systems
 - **`job_monitor.py`**: SLURM job monitoring with status updates and notifications

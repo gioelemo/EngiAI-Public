@@ -116,8 +116,6 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    # Optional: Choose your preferred LLM model (defaults to gpt-4.1)
    LLM_MODEL=openai:gpt-4.1
 
-   # Optional: Enable/disable code execution agent (defaults to false)
-   ENABLE_CODE_EXECUTION_AGENT=false
    ```
 
    **Available model options:**
@@ -126,8 +124,7 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    - `openai:gpt-3.5-turbo` (legacy, cheaper option)
    - `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
 
-   **Agent configuration:**
-   - `ENABLE_CODE_EXECUTION_AGENT`: Set to `true` to enable Python code execution agent (default: `false`)
+
 
    **CLI Tools configuration:**
    - `PRUSA_SLICER_PATH`: Path to PrusaSlicer executable (default: `prusa-slicer`)
@@ -202,14 +199,7 @@ than the initial random design! This means the structure is significantly
 stiffer while using only 35% of the available material.
 ```
 
-### Code Execution Agent
 
-The code execution agent allows you to run Python code and perform calculations interactively.
-
-**Example usage:**
-```bash
-python test_code_execution_agent.py
-```
 
 **What you can do:**
 - Execute arbitrary Python code snippets
@@ -491,7 +481,6 @@ python connection.py submit outputs/test.slurm
 │   └── settings_template.json   # VS Code settings template
 ├── src/                         # Source code (modular structure)
 │   ├── agents/                  # Agent implementations
-│   │   ├── code_execution_agent.py  # Python code execution
 │   │   ├── engineering_agent.py     # Engineering optimization
 │   │   ├── search_agent.py      # Web search
 │   │   └── supervisor_agent.py  # Coordinates specialized agents
@@ -500,7 +489,6 @@ python connection.py submit outputs/test.slurm
 │   ├── models/                  # State definitions
 │   │   └── state.py             # Conversation state
 │   ├── tools/                   # Custom tools
-│   │   ├── code_execution.py    # Python REPL execution
 │   │   ├── engibench.py         # Engineering optimization tools
 │   │   ├── search.py            # Web search
 │   │   └── stl_export.py        # 3D model export

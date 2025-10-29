@@ -31,11 +31,6 @@ class Config:
         # Model configuration
         self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4.1")
 
-        # Agent configuration
-        self.enable_code_execution_agent: bool = (
-            os.getenv("ENABLE_CODE_EXECUTION_AGENT", "false").lower() == "true"
-        )
-
         # HPC/SLURM configuration
         self.hpc_host_alias: str = os.getenv("HPC_HOST_ALIAS", "euler")
         self.euler_hostname: str = os.getenv("EULER_HOSTNAME", "euler.ethz.ch")
