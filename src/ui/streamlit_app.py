@@ -9,7 +9,7 @@ import re
 import sys
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -24,6 +24,7 @@ if str(project_root) not in sys.path:
 
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
+from src.models.state import MessagesState  # noqa: E402
 
 # Suppress Pydantic warnings from LangChain
 warnings.filterwarnings(
@@ -542,6 +543,115 @@ def _check_streamlit_interrupt() -> tuple[bool, str]:
     return False, ""
 
 
+def _extract_command_info() -> str:
+    """Extract command information from pending CLI tool calls.
+
+    Returns:
+        Formatted string with command details, or empty string if none found
+    """
+    try:
+        # Get the snapshot to access state
+        snapshot = st.session_state.agent.graph.get_state(st.session_state.config)  # type: ignore[attr-defined]
+
+        # Check if CLI agent is about to run
+        if (
+            hasattr(snapshot, "next")
+            and snapshot.next
+            and "cli_agent" in str(snapshot.next)
+            and hasattr(snapshot, "values")
+            and "messages" in snapshot.values
+        ):
+            messages = snapshot.values["messages"]
+
+            # Temporarily invoke the CLI agent to get its plan
+            # Use a separate thread ID so we don't affect the main conversation
+            try:
+                # Check if agent has cli_agent attribute (SupervisorAgent)
+                if hasattr(st.session_state.agent, "cli_agent"):
+                    cli_agent = st.session_state.agent.cli_agent  # type: ignore[attr-defined]
+                    # Invoke CLI agent to get the plan (will be interrupted at tool_node)
+                    cli_agent_state = cast(MessagesState, {"messages": messages})
+                    cli_config = {
+                        "configurable": {"thread_id": "cli_preview_streamlit"}
+                    }
+
+                    # Invoke once - it will be interrupted before tool execution
+                    _ = cli_agent.invoke(cli_agent_state, cli_config)
+
+                    # Check the CLI agent's state for tool calls
+                    cli_snapshot = cli_agent.agent.get_state(cli_config)  # type: ignore[union-attr]
+
+                    if (
+                        hasattr(cli_snapshot, "values")
+                        and "messages" in cli_snapshot.values
+                    ):
+                        cli_messages = cli_snapshot.values["messages"]
+
+                        # Look for tool calls in the most recent AI message
+                        for msg in reversed(cli_messages):
+                            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                                return _format_tool_calls_for_display(msg.tool_calls)
+
+            except Exception:
+                # Silently fail and fall back to checking main state
+                pass
+
+        # Fallback: Look for tool calls in main state messages
+        for msg in reversed(st.session_state.agent_state.get("messages", [])):
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                return _format_tool_calls_for_display(msg.tool_calls)
+
+    except Exception:
+        # Silently fail - just return empty string
+        pass
+
+    return ""
+
+
+def _format_tool_calls_for_display(tool_calls: list) -> str:
+    """Format tool calls into a readable string for display.
+
+    Args:
+        tool_calls: List of tool call dictionaries
+
+    Returns:
+        Formatted string with command details
+    """
+    info_lines = []
+    for tool_call in tool_calls:
+        tool_name = tool_call.get("name", "Unknown")
+        args = tool_call.get("args", {})
+
+        if tool_name == "execute_cli_command":
+            command = args.get("command", "N/A")
+            working_dir = args.get("working_dir")
+            timeout = args.get("timeout", 300)
+
+            info_lines.append("**Command to execute:**")
+            info_lines.append(f"```bash\n$ {command}\n```")
+            if working_dir:
+                info_lines.append(f"**Working directory:** `{working_dir}`")
+            info_lines.append(f"**Timeout:** {timeout}s")
+
+        elif tool_name == "check_cli_tool_available":
+            tool = args.get("tool_name", "N/A")
+            info_lines.append(f"**Checking availability of tool:** `{tool}`")
+
+        elif tool_name == "list_directory_contents":
+            directory = args.get("directory_path", "N/A")
+            pattern = args.get("pattern")
+            info_lines.append(f"**Listing directory:** `{directory}`")
+            if pattern:
+                info_lines.append(f"**Pattern:** `{pattern}`")
+
+        else:
+            info_lines.append(f"**Tool:** `{tool_name}`")
+            if args:
+                info_lines.append(f"**Arguments:** `{args}`")
+
+    return "\n".join(info_lines)
+
+
 def _show_confirmation_prompt(user_request: str) -> None:
     """Show confirmation prompt in Streamlit UI.
 
@@ -549,10 +659,23 @@ def _show_confirmation_prompt(user_request: str) -> None:
         user_request: The user's original request
     """
     st.session_state.waiting_for_confirmation = True
+
+    # Build confirmation message
+    msg_parts = ["⚠️ **CLI Command Execution Pending**\n"]
+
     if user_request:
-        confirm_msg = f"⚠️ **CLI Command Execution Pending**\n\nBased on your request:\n> *{user_request}*\n\nThe agent will execute a command-line tool. Type **'yes'** to proceed or **'no'** to cancel."
+        msg_parts.append(f"Based on your request:\n> *{user_request}*\n")
+
+    # Extract and display the command information
+    command_info = _extract_command_info()
+    if command_info:
+        msg_parts.append(f"\n{command_info}\n")
     else:
-        confirm_msg = "⚠️ **CLI Command Execution Pending**\n\nThe agent wants to execute a command-line tool. Type **'yes'** to proceed or **'no'** to cancel."
+        msg_parts.append("\nThe agent will execute a command-line tool.\n")
+
+    msg_parts.append("\nType **'yes'** to proceed or **'no'** to cancel.")
+
+    confirm_msg = "\n".join(msg_parts)
     st.warning(confirm_msg)
     st.session_state.messages.append({"role": "assistant", "content": confirm_msg})
 
