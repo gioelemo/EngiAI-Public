@@ -53,7 +53,10 @@ class SupervisorAgent:
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
         self.hpc_agent = HPCAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
-        self.cli_agent = CLIAgent(model_name=self.model_name)
+        # Disable CLI agent's internal confirmation - supervisor handles it
+        self.cli_agent = CLIAgent(
+            model_name=self.model_name, require_confirmation=False
+        )
 
         # Build the supervisor graph
         self.graph = self._build_graph()
@@ -247,18 +250,25 @@ class SupervisorAgent:
 
         # Compile with memory
         memory = InMemorySaver()
-        return workflow.compile(checkpointer=memory)
+        # Interrupt at supervisor level before CLI agent execution
+        # This allows for confirmation before CLI commands
+        return workflow.compile(checkpointer=memory, interrupt_before=["cli_agent"])
 
     def invoke(self, state, config):
         """Invoke the supervisor agent.
 
         Args:
-            state: Current conversation state with messages
+            state: Current conversation state with messages, or None to resume from interrupt
             config: Configuration including thread_id
 
         Returns:
             Updated state with agent responses
         """
+        # If state is None, we're resuming from an interrupt - pass None to graph
+        if state is None:
+            result = self.graph.invoke(None, config)
+            return {"messages": result["messages"]}
+
         # Convert MessagesState to SupervisorState if needed
         if "next" not in state:
             supervisor_state = {"messages": state["messages"], "next": ""}

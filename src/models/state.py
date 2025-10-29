@@ -15,9 +15,7 @@ class MessagesState(TypedDict):
     Attributes:
         messages: List of conversation messages (accumulated with operator.add)
         llm_calls: Optional counter for number of LLM calls made
-        pending_command: Optional dict containing command awaiting confirmation
     """
 
     messages: Annotated[list[AnyMessage], operator.add]
     llm_calls: NotRequired[int]
-    pending_command: NotRequired[dict]

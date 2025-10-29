@@ -45,6 +45,9 @@ def initialize_session_state() -> None:
     if "config" not in st.session_state:
         st.session_state.config = {"configurable": {"thread_id": "streamlit-session"}}
 
+    if "waiting_for_confirmation" not in st.session_state:
+        st.session_state.waiting_for_confirmation = False
+
     # Page navigation
     if "current_page" not in st.session_state:
         st.session_state.current_page = "chat"
@@ -512,13 +515,131 @@ def display_response_media(response_text: str) -> None:
         _display_log_file(log_path, button_key_prefix="resp_log")
 
 
+def _check_streamlit_interrupt() -> tuple[bool, str]:
+    """Check if graph execution was interrupted for confirmation.
+
+    Returns:
+        Tuple of (is_interrupted, user_request)
+    """
+    try:
+        snapshot = st.session_state.agent.graph.get_state(st.session_state.config)  # type: ignore[attr-defined]
+        if hasattr(snapshot, "next") and snapshot.next:
+            next_nodes = str(snapshot.next)
+
+            if "cli_agent" in next_nodes:
+                # Extract user's original request for context
+                user_request = ""
+                if st.session_state.agent_state.get("messages"):
+                    for msg in reversed(st.session_state.agent_state["messages"]):
+                        if hasattr(msg, "type") and msg.type == "human":
+                            if isinstance(msg.content, str):
+                                user_request = msg.content
+                            break
+                return True, user_request
+    except Exception as e:
+        st.error(f"[DEBUG] Exception: {e}")
+
+    return False, ""
+
+
+def _show_confirmation_prompt(user_request: str) -> None:
+    """Show confirmation prompt in Streamlit UI.
+
+    Args:
+        user_request: The user's original request
+    """
+    st.session_state.waiting_for_confirmation = True
+    if user_request:
+        confirm_msg = f"⚠️ **CLI Command Execution Pending**\n\nBased on your request:\n> *{user_request}*\n\nThe agent will execute a command-line tool. Type **'yes'** to proceed or **'no'** to cancel."
+    else:
+        confirm_msg = "⚠️ **CLI Command Execution Pending**\n\nThe agent wants to execute a command-line tool. Type **'yes'** to proceed or **'no'** to cancel."
+    st.warning(confirm_msg)
+    st.session_state.messages.append({"role": "assistant", "content": confirm_msg})
+
+
+def _format_and_display_messages(new_messages: list) -> str:
+    """Format and display new messages from the agent.
+
+    Args:
+        new_messages: List of new messages to display
+
+    Returns:
+        Formatted response string
+    """
+    response_parts = []
+    for message in new_messages:
+        if isinstance(message, HumanMessage):
+            continue
+        formatted = format_ai_message(message)
+        if formatted:
+            response_parts.append(formatted)
+
+    full_response = "\n\n".join(response_parts)
+    if full_response:
+        st.markdown(full_response)
+        display_response_media(full_response)
+    return full_response
+
+
+def _handle_confirmation_response(user_input: str) -> None:
+    """Handle user's confirmation response (yes/no).
+
+    Args:
+        user_input: User's confirmation response
+    """
+    user_response = user_input.lower().strip()
+
+    # Display the confirmation response
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    if user_response in ["yes", "y", "si", "sì", "ok", "proceed", "confermo", "certo"]:
+        # User confirmed - resume execution
+        with st.chat_message("assistant"), st.spinner("Executing command..."):
+            try:
+                result = st.session_state.agent.invoke(None, st.session_state.config)  # type: ignore[arg-type]
+                st.session_state.waiting_for_confirmation = False
+                st.session_state.agent_state = result
+
+                # Calculate new messages (similar fix as CLI chat)
+                messages_before = len(st.session_state.agent_state["messages"]) - len(
+                    result.get("messages", [])
+                )
+                new_messages = st.session_state.agent_state["messages"][
+                    messages_before:
+                ]
+
+                full_response = _format_and_display_messages(new_messages)
+                if full_response:
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": full_response}
+                    )
+            except Exception as e:
+                st.error(f"Error executing command: {e}")
+                st.session_state.waiting_for_confirmation = False
+    else:
+        # User cancelled
+        st.session_state.waiting_for_confirmation = False
+        with st.chat_message("assistant"):
+            cancel_msg = "❌ Command execution cancelled."
+            st.markdown(cancel_msg)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": cancel_msg}
+            )
+
+
 def process_user_input(user_input: str) -> None:
     """Process user input and generate response.
 
     Args:
         user_input: The user's message
     """
-    # Add user message to display
+    # Check if we're waiting for confirmation from a previous interrupt
+    if st.session_state.waiting_for_confirmation:
+        _handle_confirmation_response(user_input)
+        return
+
+    # Normal flow - add user message to display
     st.session_state.messages.append({"role": "user", "content": user_input})
 
     # Add user message to agent state
@@ -539,30 +660,23 @@ def process_user_input(user_input: str) -> None:
                 st.session_state.agent_state, st.session_state.config
             )
 
+            # Check if graph was interrupted for confirmation
+            is_interrupted, user_request = _check_streamlit_interrupt()
+
+            if is_interrupted:
+                # Update state and show confirmation prompt
+                st.session_state.agent_state = result
+                _show_confirmation_prompt(user_request)
+                return  # Wait for user's confirmation response
+
             # Update agent state
             st.session_state.agent_state = result
 
-            # Get new messages
+            # Get and display new messages
             new_messages = st.session_state.agent_state["messages"][messages_before:]
-
-            # Format and display response
-            response_parts = []
-            for message in new_messages:
-                # Skip re-displaying user messages
-                if isinstance(message, HumanMessage):
-                    continue
-
-                formatted = format_ai_message(message)
-                if formatted:
-                    response_parts.append(formatted)
-
-            # Combine all response parts
-            full_response = "\n\n".join(response_parts)
+            full_response = _format_and_display_messages(new_messages)
 
             if full_response:
-                st.markdown(full_response)
-                display_response_media(full_response)
-
                 # Save to display history
                 st.session_state.messages.append(
                     {"role": "assistant", "content": full_response}
