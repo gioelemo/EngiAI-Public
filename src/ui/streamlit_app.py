@@ -528,6 +528,15 @@ def _check_streamlit_interrupt() -> tuple[bool, str]:
             next_nodes = str(snapshot.next)
 
             if "cli_agent" in next_nodes:
+                # Before showing confirmation, check if CLI agent will actually call tools
+                # If it's just an informational question, auto-resume without confirmation
+                command_info = _extract_command_info()
+                if not command_info:
+                    # No tool calls detected - this is just a question, not a command
+                    # Auto-resume execution without confirmation
+                    # The special marker "AUTO_RESUME" signals the caller to continue
+                    return True, "__AUTO_RESUME__"
+
                 # Extract user's original request for context
                 user_request = ""
                 if st.session_state.agent_state.get("messages"):
@@ -724,9 +733,9 @@ def _handle_confirmation_response(user_input: str) -> None:
                 st.session_state.waiting_for_confirmation = False
                 st.session_state.agent_state = result
 
-                # Calculate new messages (similar fix as CLI chat)
-                messages_before = len(st.session_state.agent_state["messages"]) - len(
-                    result.get("messages", [])
+                # Use the stored messages_before count to display only new messages
+                messages_before = st.session_state.get(
+                    "messages_before_confirmation", 0
                 )
                 new_messages = st.session_state.agent_state["messages"][
                     messages_before:
@@ -787,10 +796,23 @@ def process_user_input(user_input: str) -> None:
             is_interrupted, user_request = _check_streamlit_interrupt()
 
             if is_interrupted:
-                # Update state and show confirmation prompt
+                # Update state
                 st.session_state.agent_state = result
-                _show_confirmation_prompt(user_request)
-                return  # Wait for user's confirmation response
+
+                # Check if this is an auto-resume (question, not command)
+                if user_request == "__AUTO_RESUME__":
+                    # No tool calls detected - auto-resume without confirmation
+                    result = st.session_state.agent.invoke(
+                        None, st.session_state.config
+                    )  # type: ignore[arg-type]
+                    st.session_state.agent_state = result
+                    # Continue to display messages normally (don't return early)
+                else:
+                    # Store messages_before for use after confirmation
+                    st.session_state.messages_before_confirmation = messages_before
+                    # Show confirmation prompt and wait for user response
+                    _show_confirmation_prompt(user_request)
+                    return  # Wait for user's confirmation response
 
             # Update agent state
             st.session_state.agent_state = result

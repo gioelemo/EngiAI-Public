@@ -64,6 +64,21 @@ class ChatCLI:
 
         return False
 
+    def _get_user_request(self) -> str:
+        """Extract the user's original request from message history.
+
+        Returns:
+            User's request string, or empty string if not found
+        """
+        for msg in reversed(self.state["messages"]):
+            if (
+                hasattr(msg, "type")
+                and msg.type == "human"
+                and isinstance(msg.content, str)
+            ):
+                return msg.content
+        return ""
+
     def _check_for_interrupt(self) -> tuple[bool, str]:
         """Check if the graph execution was interrupted.
 
@@ -78,27 +93,24 @@ class ChatCLI:
                 for task in snapshot.tasks:
                     # Check if any task has interrupts
                     if hasattr(task, "interrupts") and task.interrupts:
-                        user_request = ""
-                        for msg in reversed(self.state["messages"]):
-                            if hasattr(msg, "type") and msg.type == "human":
-                                if isinstance(msg.content, str):
-                                    user_request = msg.content
-                                break
-                        return True, user_request
+                        return True, self._get_user_request()
 
             # Check for top-level interrupts
             if hasattr(snapshot, "next") and snapshot.next:
                 next_nodes = str(snapshot.next)
 
                 if "cli_agent" in next_nodes or "tool_node" in next_nodes:
+                    # Before showing confirmation, check if CLI agent will actually call tools
+                    # If it's just an informational question, auto-resume without confirmation
+                    command_info = self._extract_command_info()
+                    if not command_info:
+                        # No tool calls detected - this is just a question, not a command
+                        # Auto-resume execution without confirmation
+                        # The special marker "AUTO_RESUME" signals the caller to continue
+                        return True, "__AUTO_RESUME__"
+
                     # Extract user's original request for context
-                    user_request = ""
-                    for msg in reversed(self.state["messages"]):
-                        if hasattr(msg, "type") and msg.type == "human":
-                            if isinstance(msg.content, str):
-                                user_request = msg.content
-                            break
-                    return True, user_request
+                    return True, self._get_user_request()
 
         except Exception:
             # Silently handle errors in interrupt detection
@@ -318,17 +330,20 @@ class ChatCLI:
                     # Update state before confirmation (partial result)
                     self.state = result
 
-                    # Show confirmation and get user response
-                    if self._handle_confirmation(user_request):
+                    # Check if this is an auto-resume (question, not command)
+                    if user_request == "__AUTO_RESUME__":
+                        # No tool calls detected - auto-resume without confirmation
+                        result = self.agent.invoke(None, self.config)  # type: ignore[arg-type]
+                        self.state = result
+                        # Continue to display messages normally (keep original messages_before)
+                    elif self._handle_confirmation(user_request):
                         # User confirmed - resume execution
                         # Resume the graph - CLI agent will now execute
                         result = self.agent.invoke(None, self.config)  # type: ignore[arg-type]
 
                         # Update state with final result
                         self.state = result
-
-                        # Display all new messages (everything after the user's message)
-                        messages_before = 1  # Skip the user's message
+                        # Keep original messages_before to display only NEW messages
                     else:
                         # User cancelled - skip to next iteration
                         continue
