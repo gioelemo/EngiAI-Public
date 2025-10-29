@@ -37,7 +37,7 @@ cd engineer-assistant
 1. **Create environment:**
    ```bash
    conda env create -f environment.yml
-   conda activate python-ruff-template
+   conda activate engineer-assistant
    ```
 
 2. **Install pre-commit:**
@@ -78,12 +78,6 @@ pytest
 pytest --cov=src --cov-report=term-missing
 ```
 
-**Run specific test file:**
-```bash
-pytest tests/test_notebook_comparison.py
-pytest tests/test_optimization_workflow.py
-```
-
 **Run only fast tests (skip slow integration tests):**
 ```bash
 pytest -m "not slow"
@@ -115,7 +109,6 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
 
    # Optional: Choose your preferred LLM model (defaults to gpt-4.1)
    LLM_MODEL=openai:gpt-4.1
-
    ```
 
    **Available model options:**
@@ -123,8 +116,6 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    - `openai:gpt-4o` (most capable OpenAI model)
    - `openai:gpt-3.5-turbo` (legacy, cheaper option)
    - `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
-
-
 
    **CLI Tools configuration:**
    - `PRUSA_SLICER_PATH`: Path to PrusaSlicer executable (default: `prusa-slicer`)
@@ -158,7 +149,6 @@ python -m src.main
 ```
 
 The system includes:
-- **Code Execution Agent**: Python code execution and calculations (optional, disabled by default)
 - **Engineering Agent**: Structural optimization with EngiBench
 - **Search Agent**: Web research and information gathering
 
@@ -173,10 +163,7 @@ The engineering agent uses [EngiBench](https://engibench.ethz.ch), a library for
 pip install engibench
 ```
 
-**Example usage:**
-```bash
-python -m src.main engineering
-```
+
 
 **What you can do:**
 - Optimize 2D beam structures for minimum compliance
@@ -199,37 +186,6 @@ than the initial random design! This means the structure is significantly
 stiffer while using only 35% of the available material.
 ```
 
-
-
-**What you can do:**
-- Execute arbitrary Python code snippets
-- Perform mathematical calculations
-- Test functions and code logic
-- Run data analysis tasks
-- Use NumPy, Pandas, and other Python libraries
-
-**Example conversation with the agent:**
-```
-You: What is the sum of squares from 1 to 10?
-
-Code Execution Agent: I'll calculate that for you!
-
-[Executes: sum([i**2 for i in range(1, 11)])]
-
-The sum of squares from 1 to 10 is 385.
-
-You: Generate the first 10 Fibonacci numbers
-
-Code Execution Agent: [Runs Fibonacci code]
-
-The first 10 Fibonacci numbers are: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
-```
-
-**Available tools:**
-- `execute_python_code`: Run multi-line Python code
-- `execute_python_expression`: Quickly evaluate a single expression
-
-**Note:** Code runs in a persistent REPL environment, so variables persist between executions!
 
 ## HPC Cluster Integration with Fabric
 
@@ -481,7 +437,9 @@ python connection.py submit outputs/test.slurm
 │   └── settings_template.json   # VS Code settings template
 ├── src/                         # Source code (modular structure)
 │   ├── agents/                  # Agent implementations
-│   │   ├── engineering_agent.py     # Engineering optimization
+│   │   ├── cli_agent.py         # CLI agent
+│   │   ├── engineering_agent.py # Engineering optimization
+│   │   ├── hpc_agent.py         # Agent to connect to SSH machine
 │   │   ├── search_agent.py      # Web search
 │   │   └── supervisor_agent.py  # Coordinates specialized agents
 │   ├── cli/                     # Command-line interfaces
@@ -489,15 +447,23 @@ python connection.py submit outputs/test.slurm
 │   ├── models/                  # State definitions
 │   │   └── state.py             # Conversation state
 │   ├── tools/                   # Custom tools
+│   │   ├── cli.py               # CLI tools
+│   │   ├── connection.py        # Functions to connect to HPC cluster via ssh
 │   │   ├── engibench.py         # Engineering optimization tools
+│   │   ├── engiopt.py           # Engineering optimization tools
+│   │   ├── hpc.py               # Functions to monitor the HPC cluster
+│   │   ├── job_monitor.py       # Functions to monitor the HPC cluster
 │   │   ├── search.py            # Web search
 │   │   └── stl_export.py        # 3D model export
+│   ├── ui/                      # User Interface
+│   │   └── streamlit_app.py     # Streamlit App
 │   ├── utils/                   # Utilities
 │   │   └── prompts.py           # System prompts
 │   ├── main.py                  # Main entry point
 │   ├── example.py               # Example usage
 │   └── README.md                # Detailed architecture docs
 ├── scripts/                     # Utility scripts
+│   ├── 2D_heatmap_to_stl_extruded.py     # Convert heatmaps to 3D STL files
 │   ├── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL files
 │   └── generate_architecture_diagram.py  # Generate system diagrams
 ├── outputs/                     # Generated outputs
