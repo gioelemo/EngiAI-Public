@@ -105,7 +105,10 @@ class SupervisorAgent:
         # Only route if we haven't routed yet (no next value set)
         if state.get("next") and state["next"] != "":
             # Already routed, finish
-            return {"next": "FINISH"}
+            return {
+                "next": "FINISH",
+                "messages": state["messages"],
+            }
 
         messages = [
             {"role": "system", "content": self._build_routing_prompt()},
@@ -117,7 +120,7 @@ class SupervisorAgent:
         content = str(response.content).strip().lower()
 
         # Determine next agent - check engineering first (more specific keywords)
-        next_agent = "FINISH"
+        next_agent = "supervisor_response"  # Default to supervisor response for safety
         if (
             "engineering" in content
             or "training" in content
@@ -141,11 +144,15 @@ class SupervisorAgent:
         elif "cli" in content or "command" in content:
             # CLI handles: local command-line tool execution
             next_agent = "cli_agent"
-        elif "finish" in content:
+        elif "finish" in content or "supervisor" in content:
             # Supervisor will answer directly
             next_agent = "supervisor_response"
 
-        return {"next": next_agent}
+        # Preserve the original messages and add the routing decision
+        return {
+            "next": next_agent,
+            "messages": state["messages"],
+        }
 
     def _supervisor_response_node(self, state: SupervisorState):
         """Supervisor responds directly to informational questions."""
