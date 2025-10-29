@@ -134,6 +134,48 @@ max-args = 5
 # Allow print statements in scripts
 "scripts/**/*" = ["T20"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--showlocals",
+]
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (multiple components)",
+    "slow: Slow tests (skip with -m 'not slow')",
+    "requires_api: Tests requiring real API keys",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic.*:",
+    "ignore::UserWarning:pydantic.*:",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
 [tool.mypy]
 warn_redundant_casts = true
 warn_unused_ignores = false
