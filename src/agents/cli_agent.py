@@ -19,7 +19,9 @@ from src.models.state import MessagesState
 from src.tools.cli import (
     check_cli_tool_available,
     execute_cli_command,
+    get_prusa_slicer_path,
     list_directory_contents,
+    open_gui_application,
 )
 from src.utils.prompts import CLI_AGENT_SYSTEM_PROMPT
 
@@ -45,6 +47,8 @@ class CLIAgent:
             execute_cli_command,
             check_cli_tool_available,
             list_directory_contents,
+            open_gui_application,
+            get_prusa_slicer_path,
         ]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.llm_with_tools = self.llm.bind_tools(self.tools)

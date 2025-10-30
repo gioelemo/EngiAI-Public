@@ -1,5 +1,7 @@
 """CLI command execution tools for running local command-line applications."""
 
+import os
+import platform
 import shlex
 import subprocess
 from pathlib import Path
@@ -211,3 +213,171 @@ def list_directory_contents(directory_path: str, pattern: str | None = None) -> 
 
     except Exception as e:
         return f"Error listing directory: {e!s}"
+
+
+def _validate_file_path(file_path: str | None) -> str | None:
+    """Validate file path exists. Returns error message if invalid, None if valid."""
+    if file_path and not Path(file_path).exists():
+        return f"Error: File '{file_path}' does not exist"
+    return None
+
+
+def _build_launch_command(
+    system: str, app_name: str, file_path: str | None
+) -> list[str]:
+    """Build the launch command based on OS and parameters."""
+    if system == "Darwin":  # macOS
+        cmd = ["open", "-a", app_name]
+        if file_path:
+            cmd.append(str(Path(file_path).absolute()))
+    elif system == "Windows":
+        cmd = (
+            ["start", "", str(Path(file_path).absolute())] if file_path else [app_name]
+        )
+    else:  # Linux and others
+        cmd = ["xdg-open", str(Path(file_path).absolute())] if file_path else [app_name]
+    return cmd
+
+
+@tool
+def open_gui_application(
+    app_name: str,
+    file_path: str | None = None,
+    wait_for_exit: bool = False,
+) -> str:
+    """Open a GUI application, optionally with a file.
+
+    This tool launches GUI applications like PrusaSlicer, Blender, MeshLab, etc.
+    so you can interact with them directly instead of using CLI commands.
+
+    Args:
+        app_name: Name or path to the application (e.g., "PrusaSlicer", "/Applications/PrusaSlicer.app")
+        file_path: Optional file to open with the application
+        wait_for_exit: If True, waits for the application to close before returning (default: False)
+
+    Returns:
+        Success message or error description.
+
+    Example:
+        >>> open_gui_application("PrusaSlicer")
+        >>> open_gui_application("PrusaSlicer", file_path="model.stl")
+        >>> open_gui_application("/Applications/Original Prusa Drivers/PrusaSlicer.app")
+
+    Note:
+        - On macOS, can open .app bundles directly
+        - On Windows, looks for .exe files
+        - On Linux, uses standard application launcher
+        - By default, launches in background so you can continue working
+    """
+    try:
+        # Validate file path
+        error = _validate_file_path(file_path)
+        if error:
+            return error
+
+        # Build command
+        system = platform.system()
+        cmd = _build_launch_command(system, app_name, file_path)
+
+        # Launch the application
+        if wait_for_exit:
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+            return (
+                f"✓ Application '{app_name}' opened and closed successfully"
+                if result.returncode == 0
+                else f"Application exited with code {result.returncode}\nError: {result.stderr}"
+            )
+        else:
+            # Launch in background
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+
+            success_msg = f"✓ Opened '{app_name}' in background"
+            if file_path:
+                success_msg += f" with file: {file_path}"
+            success_msg += "\nYou can now interact with the application GUI directly."
+            return success_msg
+
+    except FileNotFoundError:
+        return f"Error: Application '{app_name}' not found. Please provide the full path or ensure it's installed."
+    except Exception as e:
+        return f"Error opening application: {e!s}"
+
+
+def _check_macos_prusa_paths() -> list[str]:
+    """Check common PrusaSlicer paths on macOS."""
+    suggestions = ["macOS common locations:"]
+    common_paths = [
+        "/Applications/Original Prusa Drivers/PrusaSlicer.app",
+        "/Applications/PrusaSlicer.app",
+        "~/Applications/PrusaSlicer.app",
+    ]
+    for path in common_paths:
+        expanded = Path(path).expanduser()
+        status = "✓ FOUND" if expanded.exists() else "✗ Not found"
+        suggestions.append(f"  {status}: {path}")
+    return suggestions
+
+
+def _check_windows_prusa_paths() -> list[str]:
+    """Check common PrusaSlicer paths on Windows."""
+    suggestions = ["Windows common locations:"]
+    common_paths = [
+        r"C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer.exe",
+        r"C:\Program Files (x86)\Prusa3D\PrusaSlicer\prusa-slicer.exe",
+    ]
+    for path in common_paths:
+        status = "✓ FOUND" if Path(path).exists() else "✗ Not found"
+        suggestions.append(f"  {status}: {path}")
+    return suggestions
+
+
+def _check_linux_prusa_paths() -> list[str]:
+    """Check common PrusaSlicer paths on Linux."""
+    prusa_in_path = which("prusa-slicer")
+    if prusa_in_path:
+        return [f"✓ PrusaSlicer found in PATH: {prusa_in_path}"]
+    return [
+        "PrusaSlicer not found in PATH",
+        "Try: sudo apt install prusa-slicer  (Ubuntu/Debian)",
+        "Or download from: https://www.prusa3d.com/page/prusaslicer_424/",
+    ]
+
+
+@tool
+def get_prusa_slicer_path() -> str:
+    """Get the configured PrusaSlicer path from environment or suggest common locations.
+
+    This tool helps locate PrusaSlicer on your system for GUI operations.
+
+    Returns:
+        The PrusaSlicer path or suggestions for common installation locations.
+
+    Example:
+        >>> get_prusa_slicer_path()
+    """
+    # Check environment variable
+    prusa_path = os.getenv("PRUSA_SLICER_PATH")
+    if prusa_path and Path(prusa_path).exists():
+        return f"✓ PrusaSlicer configured at: {prusa_path}\n\nUse open_gui_application('{prusa_path}') to launch it."
+
+    # Check common locations based on OS
+    system = platform.system()
+    path_checkers = {
+        "Darwin": _check_macos_prusa_paths,
+        "Windows": _check_windows_prusa_paths,
+        "Linux": _check_linux_prusa_paths,
+    }
+
+    suggestions = (
+        path_checkers[system]()
+        if system in path_checkers
+        else [f"Unknown operating system: {system}"]
+    )
+
+    suggestions.append("\nTo configure, set PRUSA_SLICER_PATH in your .env file")
+    return "\n".join(suggestions)
