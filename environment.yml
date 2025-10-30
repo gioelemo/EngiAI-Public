@@ -3,12 +3,12 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11.8
-  - numpy  # Add conda packages here
+  - numpy
   - pip
   - pip:
     - ruff>=0.1.0
     - pre-commit>=3.0.0
-    - mypy>=1.17.1  # Add pip packages after here
+    - mypy>=1.17.1
     - langchain-tavily
     - langsmith
     - numpy-stl==3.2.0

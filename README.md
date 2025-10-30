@@ -170,8 +170,6 @@ The engineering agent uses [EngiBench](https://engibench.ethz.ch), a library for
 pip install engibench
 ```
 
-
-
 **What you can do:**
 - Optimize 2D beam structures for minimum compliance
 - Simulate structural designs under various load conditions

@@ -4,23 +4,8 @@ This directory contains utility scripts and examples for the Engineering Assista
 
 ## Available Scripts
 
-### 1. WandB Model Sampling Test (`test_wandb_sampling.py`)
-
-**Purpose**: Test the complete WandB model workflow (download → generate → visualize)
-
-**Usage**:
-```bash
-python scripts/test_wandb_sampling.py
-```
-
-**What it does**:
-1. Lists all available model algorithms
-2. Downloads a pre-trained `cgan_cnn_2d` model from WandB
-3. Generates 3 beam designs with different volume fractions (0.35, 0.40, 0.45)
-4. Saves designs as `.npy` arrays and `.png` visualizations
-
-**Output**: `outputs/test_designs/`
-
+### 1. 3D Heatmap to STL
+TODO: Write description
 ---
 
 ### 2. 2D Heatmap to STL Converter (`2D_heatmap_to_stl.py`)
@@ -175,7 +160,3 @@ Feel free to contribute improvements such as:
 - Color mapping support
 - GUI interface
 - Performance optimizations
-
-## License
-
-This project is part of the engineer-assistant toolkit.
