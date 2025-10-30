@@ -494,6 +494,123 @@ def format_ai_message(message: AIMessage | ToolMessage) -> str:
     return content
 
 
+def _extract_and_display_validation_warnings(response_text: str) -> str:
+    """Extract validation warnings from response and display them as Streamlit warnings.
+
+    Args:
+        response_text: The response text that may contain validation warnings
+
+    Returns:
+        Response text with validation warnings removed (they'll be shown separately)
+    """
+
+    # --- Pattern 1: Check for the highly structured "CRITICAL" block ---
+    pattern_structured = (
+        r"={60,}\n🚨 \*\*CRITICAL: Resource Allocation Review\*\*\n={60,}.*?={60,}"
+    )
+    match_structured = re.search(pattern_structured, response_text, re.DOTALL)
+
+    if match_structured:
+        validation_block = match_structured.group(0)
+
+        # Extract the issues
+        issues_match = re.search(
+            r"\*\*Issues Found:\*\*\n(.*?)(?=\n\*\*💡|={60})",
+            validation_block,
+            re.DOTALL,
+        )
+        recommendations_match = re.search(
+            r"\*\*💡 Recommendations:\*\*\n(.*?)(?=\n={60})",
+            validation_block,
+            re.DOTALL,
+        )
+
+        # Display as Streamlit error
+        error_message = "### 🚨 Resource Allocation Warning\n\n"
+
+        if issues_match:
+            issues_text = issues_match.group(1).strip()
+            error_message += "**Issues Found:**\n" + issues_text + "\n\n"
+
+        if recommendations_match:
+            rec_text = recommendations_match.group(1).strip()
+            error_message += "**💡 Recommendations:**\n" + rec_text + "\n\n"
+
+        error_message += (
+            "⚠️ **The script was generated despite exceeding recommended limits.**\n"
+        )
+        error_message += "⚠️ **Please review and adjust resources before submitting.**"
+
+        st.error(error_message)
+
+        # Remove the validation block from response text
+        response_text = response_text.replace(validation_block, "").strip()
+        return re.sub(r"\n{3,}", "\n\n", response_text)  # Return cleaned text
+
+    # --- UPDATED: Pattern 2: Check for various unstructured warning blocks ---
+
+    # Define start markers (case-insensitive)
+    start_markers = [
+        r"Important Validation Notes:",  # <-- ADDED THIS
+        r"Important Warnings:",
+        r"However, there are important notes and validation warnings:",
+        r"Resource Validation/Warnings:",
+        r"Resource Allocation Warning",
+    ]
+
+    # Define end markers (lookahead, case-insensitive)
+    end_markers = [
+        r"Generated SLURM Script \(shortened for clarity",  # <-- ADDED THIS
+        r"File Location:",  # <-- ADDED THIS
+        r"SLURM Script File:",
+        r"SLURM Script \(saved to",
+        r"The script below is valid",
+        r"Example SLURM Script \(view below\):",
+        r"##",  # Next markdown heading
+        r"\n\nLet me know if",
+        r"\n\nIf you want to correct",
+        r"\n\nPlease reduce the GPU count",  # Add another common follow-up
+    ]
+
+    pattern_unstructured = (
+        r"((?:{}).*?)"  # Start: Match any of the start markers
+        r"(?={})"  # End: Lookahead for any of the end markers
+    ).format("|".join(start_markers), "|".join(end_markers))
+
+    match_unstructured = re.search(
+        pattern_unstructured, response_text, re.DOTALL | re.IGNORECASE
+    )
+
+    if match_unstructured:
+        validation_block = match_unstructured.group(1).strip()
+
+        # Clean up the extracted block for display
+        # Remove the introductory line itself to avoid redundancy
+        warning_content = re.sub(
+            "|".join(start_markers),
+            "",
+            validation_block,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        # Format it nicely for the warning box
+        warning_msg = f"⚠️ **Resource Allocation Warning**\n\n{warning_content}"
+
+        # Display it as a Streamlit warning
+        st.warning(warning_msg)
+
+        # Remove the validation block from the original response text
+        response_text = response_text.replace(validation_block, "").strip()
+
+        # Clean up potential double newlines
+        response_text = re.sub(r"\n{3,}", "\n\n", response_text)
+
+        return response_text
+
+    # If no patterns matched, return the original text
+    return response_text
+
+
 def display_response_media(response_text: str) -> None:
     """Display images, STL files, and log files found in response text.
 
@@ -708,8 +825,12 @@ def _format_and_display_messages(new_messages: list) -> str:
 
     full_response = "\n\n".join(response_parts)
     if full_response:
-        st.markdown(full_response)
-        display_response_media(full_response)
+        # Extract and display validation warnings as separate Streamlit components
+        cleaned_response = _extract_and_display_validation_warnings(full_response)
+        # Display the cleaned response (without validation block)
+        st.markdown(cleaned_response)
+        # Display media files
+        display_response_media(cleaned_response)
     return full_response
 
 

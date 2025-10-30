@@ -10,6 +10,7 @@ import importlib.util
 import os
 from pathlib import Path
 from typing import Any, Literal
+from dataclasses import dataclass
 
 from langchain_core.tools import tool
 
@@ -34,6 +35,44 @@ SUPPORTED_ALGORITHMS = {
         "model_types": ["model"],
     },
 }
+
+
+# ======================================================================
+# Dataclasses
+# ======================================================================
+
+
+@dataclass
+class HPCInputs:
+    algorithm: str
+    problem_id: str
+    epochs: int
+    slurm_gpus: str
+    slurm_time: str
+    slurm_cpus_per_task: str
+    slurm_mem_per_cpu: str
+
+
+@dataclass
+class HPCContext:
+    algorithm: str
+    problem_id: str
+    epochs: int
+    gpu_count: int
+    total_hours: float
+    cpu_count: int
+    mem_value: float
+
+
+@dataclass
+class TrainingConfig:
+    algorithm: str = "cgan_cnn_2d"
+    epochs: int = 200
+    seed: int = 1
+    wandb_entity: str | None = None
+    problem_id: Literal["beams2d"] = "beams2d"
+    gpus: int | None = None
+    time_hours: float | None = None
 
 
 def _get_artifact_info(
@@ -777,6 +816,211 @@ def _save_designs(
     return design_files, render_files
 
 
+# ======================================================================
+# Parsing helpers
+# ======================================================================
+
+
+def _parse_hpc_inputs(cfg: HPCInputs):
+    """Parse and normalize raw SLURM resource strings into numeric values."""
+    errors = []
+
+    # GPU count
+    try:
+        gpu_count = (
+            int(cfg.slurm_gpus.split(":")[-1])
+            if ":" in cfg.slurm_gpus
+            else int(cfg.slurm_gpus)
+        )
+    except (ValueError, IndexError):
+        gpu_count = 1
+        errors.append(f"Invalid GPU specification: {cfg.slurm_gpus}")
+
+    # Time (HH:MM:SS)
+    try:
+        parts = cfg.slurm_time.split(":")
+        hours = int(parts[0])
+        minutes = int(parts[1]) if len(parts) > 1 else 0
+        total_hours = hours + minutes / 60.0
+    except (ValueError, IndexError):
+        hours = 0
+        total_hours = 0.0
+        errors.append(f"Invalid time format: {cfg.slurm_time}. Expected HH:MM:SS")
+
+    # CPU count
+    try:
+        cpu_count = int(cfg.slurm_cpus_per_task)
+    except ValueError:
+        cpu_count = 4
+        errors.append(f"Invalid CPU count: {cfg.slurm_cpus_per_task}")
+
+    # Memory per CPU
+    try:
+        mem_str = cfg.slurm_mem_per_cpu.upper()
+        mem_value_raw = int("".join(filter(str.isdigit, mem_str)))
+        mem_value = mem_value_raw / 1024 if "M" in mem_str else float(mem_value_raw)
+    except (ValueError, IndexError):
+        mem_value = 7.0
+        errors.append(f"Invalid memory format: {cfg.slurm_mem_per_cpu}")
+
+    return gpu_count, total_hours, hours, cpu_count, mem_value, errors
+
+
+# ======================================================================
+# Hard limit validation
+# ======================================================================
+
+
+def _check_hard_limits(gpu_count, hours, cpu_count, mem_value):
+    """Check against absolute cluster resource limits."""
+    errors = []
+    max_gpus = int(os.getenv("SLURM_MAX_GPUS", "4"))
+    max_time_hours = int(os.getenv("SLURM_MAX_TIME_HOURS", "24"))
+    max_cpus = int(os.getenv("SLURM_MAX_CPUS", "16"))
+    max_mem_per_cpu_gb = int(os.getenv("SLURM_MAX_MEM_PER_CPU_GB", "16"))
+
+    if gpu_count > max_gpus:
+        errors.append(f"GPU count ({gpu_count}) exceeds maximum allowed ({max_gpus}).")
+
+    if hours > max_time_hours:
+        errors.append(
+            f"Time limit ({hours}h) exceeds maximum allowed ({max_time_hours}h)."
+        )
+
+    if cpu_count > max_cpus:
+        errors.append(f"CPU count ({cpu_count}) exceeds maximum allowed ({max_cpus}).")
+
+    if mem_value > max_mem_per_cpu_gb:
+        errors.append(
+            f"Memory per CPU ({mem_value}GB) exceeds maximum allowed ({max_mem_per_cpu_gb}GB)."
+        )
+
+    return errors
+
+
+# ======================================================================
+# Contextual validation helpers
+# ======================================================================
+
+
+def _check_algorithm_recommendations(ctx: HPCContext):
+    """Model- and problem-specific validation."""
+    warnings, recommendations = [], []
+
+    if ctx.problem_id == "beams2d":
+        if ctx.algorithm == "cgan_cnn_2d":
+            if ctx.gpu_count > 1:
+                warnings.append("cGAN CNN 2D typically needs only 1 GPU.")
+                recommendations.append("Set SLURM_GPUS=rtx_4090:1 in .env")
+
+            if ctx.total_hours > 4:  # noqa: PLR2004
+                warnings.append("cGAN CNN 2D usually trains in 1-4 hours.")
+                recommendations.append("Set SLURM_TIME=04:00:00 in .env")
+
+            elif ctx.total_hours < 0.5:  # noqa: PLR2004
+                warnings.append("Very short time limit (<0.5h). Use ≥1h.")
+
+        elif ctx.algorithm == "diffusion_2d_cond":
+            if ctx.gpu_count > 2:  # noqa: PLR2004
+                warnings.append("Diffusion 2D typically needs 1-2 GPUs.")
+                recommendations.append("Set SLURM_GPUS=rtx_4090:1 or :2 in .env")
+
+            if ctx.total_hours < 2:  # noqa: PLR2004
+                warnings.append("Diffusion models need more 2-4 hours.")
+                recommendations.append("Set SLURM_TIME=04:00:00 in .env")
+
+            elif ctx.total_hours > 8:  # noqa: PLR2004
+                warnings.append("Training time >8h may be excessive.")
+
+    return warnings, recommendations
+
+
+def _check_general_recommendations(ctx: HPCContext):
+    """General rules independent of model/problem."""
+    warnings, recommendations = [], []
+
+    # Epochs
+    if ctx.epochs > 500:  # noqa: PLR2004
+        warnings.append("Too many epochs (>500). Reduce to 200-300.")
+        recommendations.append("Set epochs=200-300.")
+    elif ctx.epochs < 50:  # noqa: PLR2004
+        warnings.append("Too few epochs (<50). Increase to 100-200.")
+        recommendations.append("Set epochs=100-200.")
+
+    # CPU count
+    if ctx.cpu_count < 4:  # noqa: PLR2004
+        warnings.append("Few CPUs (<4). Data loading may be slow.")
+        recommendations.append("Set SLURM_CPUS_PER_TASK=4 or 8.")
+    elif ctx.cpu_count > 8:  # noqa: PLR2004
+        warnings.append("Many CPUs (>8) may be unnecessary.")
+        recommendations.append("Set SLURM_CPUS_PER_TASK=4-8.")
+
+    # Memory
+    if ctx.mem_value < 4:  # noqa: PLR2004
+        warnings.append("Low memory (<4GB per CPU).")
+        recommendations.append("Set SLURM_MEM_PER_CPU=7GB.")
+
+    return warnings, recommendations
+
+
+def _check_contextual_recommendations(ctx: HPCContext):
+    """Aggregate contextual warnings and recommendations."""
+    algo_warnings, algo_recs = _check_algorithm_recommendations(ctx)
+    gen_warnings, gen_recs = _check_general_recommendations(ctx)
+    return (
+        algo_warnings + gen_warnings,
+        algo_recs + gen_recs,
+    )
+
+
+# ======================================================================
+# Main entrypoint
+# ======================================================================
+
+
+def _validate_hpc_resources(cfg: HPCInputs) -> dict[str, Any]:
+    """
+    Validate HPC resource requests for training jobs.
+
+    Returns:
+        dict with:
+        - has_errors: bool
+        - has_warnings: bool
+        - errors: list[str]
+        - warnings: list[str]
+        - recommendations: list[str]
+    """
+    warnings, errors, recommendations = [], [], []
+
+    gpu_count, total_hours, hours, cpu_count, mem_value, parse_errors = (
+        _parse_hpc_inputs(cfg)
+    )
+    errors.extend(parse_errors)
+    errors.extend(_check_hard_limits(gpu_count, hours, cpu_count, mem_value))
+
+    ctx = HPCContext(
+        algorithm=cfg.algorithm,
+        problem_id=cfg.problem_id,
+        epochs=cfg.epochs,
+        gpu_count=gpu_count,
+        total_hours=total_hours,
+        cpu_count=cpu_count,
+        mem_value=mem_value,
+    )
+
+    ctx_warnings, ctx_recommendations = _check_contextual_recommendations(ctx)
+    warnings.extend(ctx_warnings)
+    recommendations.extend(ctx_recommendations)
+
+    return {
+        "has_errors": bool(errors),
+        "has_warnings": bool(warnings),
+        "errors": errors,
+        "warnings": warnings,
+        "recommendations": recommendations,
+    }
+
+
 def _find_or_download_model(
     checkpoint_path: str | None,
     problem_id: str,
@@ -1096,235 +1340,186 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         }
 
 
-@tool
-def generate_training_command(
-    algorithm: str = "cgan_cnn_2d",
-    epochs: int = 200,
-    seed: int = 1,
-    wandb_entity: str | None = None,
-    problem_id: Literal["beams2d"] = "beams2d",
-) -> dict[str, Any]:
-    """
-    Generate a Python command to train an EngiOpt model on HPC.
+# ============================================================
+# Helper: load environment variables and resolve overrides
+# ============================================================
 
-    This tool creates the command-line instruction for training a generative model
-    using the EngiOpt library. The command can be copied and executed on an HPC cluster
-    or any machine with the necessary compute resources.
 
-    Args:
-        algorithm: Model architecture to train. Options:
-            - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
-            - diffusion_2d_cond: Conditional Diffusion (2D)
-        epochs: Number of training epochs (default: 200)
-        seed: Random seed for reproducibility (default: 1)
-        wandb_entity: WandB entity/username for tracking. If provided, WandB tracking
-            will be enabled. If None (default), no tracking. Example: "myusername"
-        problem_id: Engineering problem identifier (default: "beams2d")
+def _resolve_slurm_config(cfg: TrainingConfig) -> dict[str, str]:
+    """Load and normalize SLURM settings, applying overrides."""
+    slurm = {
+        "ntasks": os.getenv("SLURM_NTASKS", "1"),
+        "cpus_per_task": os.getenv("SLURM_CPUS_PER_TASK", "4"),
+        "mem_per_cpu": os.getenv("SLURM_MEM_PER_CPU", "7GB"),
+        "email_user": os.getenv("SLURM_EMAIL_USER", "alpha@gmail.com"),
+    }
 
-    Returns:
-        dict with:
-        - success: bool
-        - command: str with the full Python command to execute
-        - slurm_script: str with SLURM job submission script
-        - slurm_file: str with path to saved SLURM script file
-        - config_summary: dict with training configuration
-        - instructions: str with usage instructions
-        - api_keys_status: str with API key loading status (last 4 chars shown)
-        - message: str with summary and API key status
+    # GPUs
+    if cfg.gpus is not None:
+        gpu_type = os.getenv("SLURM_GPUS", "rtx_4090:1").split(":")[0]
+        slurm["gpus"] = f"{gpu_type}:{cfg.gpus}"
+    else:
+        slurm["gpus"] = os.getenv("SLURM_GPUS", "rtx_4090:1")
 
-    Example:
-        >>> # Generate training command for cGAN model with WandB tracking
-        >>> result = generate_training_command(
-        ...     algorithm="cgan_cnn_2d",
-        ...     epochs=200,
-        ...     wandb_entity="myusername"
-        ... )
-        >>> print(result['command'])
-    """
-    # Validate algorithm
-    if algorithm not in SUPPORTED_ALGORITHMS:
-        return {
-            "success": False,
-            "error": f"Unsupported algorithm '{algorithm}'. Supported: {', '.join(SUPPORTED_ALGORITHMS.keys())}",
-        }
+    # Time (convert hours to HH:MM:SS)
+    if cfg.time_hours is not None:
+        hours = int(cfg.time_hours)
+        minutes = int((cfg.time_hours - hours) * 60)
+        slurm["time"] = f"{hours:02d}:{minutes:02d}:00"
+    else:
+        slurm["time"] = os.getenv("SLURM_TIME", "00:45:00")
 
-    # Read SLURM configuration from environment variables
+    return slurm
 
-    slurm_time = os.getenv("SLURM_TIME", "00:45:00")
-    slurm_ntasks = os.getenv("SLURM_NTASKS", "1")
-    slurm_cpus_per_task = os.getenv("SLURM_CPUS_PER_TASK", "4")
-    slurm_mem_per_cpu = os.getenv("SLURM_MEM_PER_CPU", "7GB")
-    slurm_gpus = os.getenv("SLURM_GPUS", "rtx_4090:1")
-    slurm_email_user = os.getenv("SLURM_EMAIL_USER", "alpha@gmail.com")
 
-    slurm_stack_module = os.getenv("SLURM_STACK_MODULE", "stack/2024-06")
-    slurm_gcc_module = os.getenv("SLURM_GCC_MODULE", "gcc/12.2.0")
-    slurm_python_module = os.getenv("SLURM_PYTHON_MODULE", "python_cuda/3.11.6")
-    slurm_cuda_module = os.getenv("SLURM_CUDA_MODULE", "cuda/12.4.1")
+# ============================================================
+# Helper: generate SLURM script (fixes PLR0915)
+# ============================================================
 
-    slurm_venv_path = os.getenv("SLURM_VENV_PATH", "/path/to/venv")
-    slurm_project_path = os.getenv("SLURM_PROJECT_PATH", "/path/to/engiopt")
 
-    # Read API keys and configuration from .env
-    wandb_api_key = os.getenv("WANDB_API_KEY", "")
-    wandb_entity = os.getenv("WANDB_ENTITY", "")
-    wandb_project = os.getenv("WANDB_PROJECT", "")
-    # Use separate remote paths for HPC cluster SLURM jobs
-    # These will be expanded by the shell on the cluster (e.g., $SCRATCH)
-    hf_home_remote = os.getenv("HF_HOME_REMOTE", "$SCRATCH/models")
-    hf_datasets_cache_remote = os.getenv(
-        "HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"
-    )
-    hf_token = os.getenv("HF_TOKEN", "")
+def _build_slurm_script(
+    cfg: TrainingConfig, slurm: dict[str, str], command: str
+) -> str:
+    """Return formatted SLURM script for the given command."""
+    modules = {
+        "stack": os.getenv("SLURM_STACK_MODULE", "stack/2024-06"),
+        "gcc": os.getenv("SLURM_GCC_MODULE", "gcc/12.2.0"),
+        "python": os.getenv("SLURM_PYTHON_MODULE", "python_cuda/3.11.6"),
+        "cuda": os.getenv("SLURM_CUDA_MODULE", "cuda/12.4.1"),
+    }
 
-    # Determine if WandB tracking should be enabled based on wandb_entity
-    use_wandb = wandb_entity is not None
-    track_flag = "--track" if use_wandb else "--no-track"
+    paths = {
+        "venv": os.getenv("SLURM_VENV_PATH", "/path/to/venv"),
+        "project": os.getenv("SLURM_PROJECT_PATH", "/path/to/engiopt"),
+    }
 
-    # Build wandb entity (None if not specified)
-    wandb_entity_str = wandb_entity if wandb_entity else "None"
+    keys = {
+        "wandb_api_key": os.getenv("WANDB_API_KEY", ""),
+        "wandb_entity": os.getenv("WANDB_ENTITY", ""),
+        "wandb_project": os.getenv("WANDB_PROJECT", ""),
+        "hf_home": os.getenv("HF_HOME_REMOTE", "$SCRATCH/models"),
+        "hf_datasets": os.getenv("HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"),
+        "hf_token": os.getenv("HF_TOKEN", ""),
+    }
 
-    # Build the training command - direct path to algorithm script
-
-    command = (
-        f"python engiopt/{algorithm}/{algorithm}.py "
-        f'--problem-id "{problem_id}" '
-        f"{track_flag} "
-        f"--wandb-entity {wandb_entity_str} "
-        f"--save-model "
-        f"--n-epochs {epochs} "
-        f"--seed {seed}"
-    )
-
-    # Create SLURM job script
-    slurm_script = f"""#!/bin/bash
-#SBATCH --job-name={algorithm}_{problem_id}
-#SBATCH --time={slurm_time}
-#SBATCH --ntasks={slurm_ntasks}
-#SBATCH --cpus-per-task={slurm_cpus_per_task}
-#SBATCH --mem-per-cpu={slurm_mem_per_cpu}
-#SBATCH --gpus={slurm_gpus}
-#SBATCH --output=engiopt_{algorithm}_{problem_id}_%j.out
-#SBATCH --error=engiopt_{algorithm}_{problem_id}_%j.err
+    return f"""#!/bin/bash
+#SBATCH --job-name={cfg.algorithm}_{cfg.problem_id}
+#SBATCH --time={slurm["time"]}
+#SBATCH --ntasks={slurm["ntasks"]}
+#SBATCH --cpus-per-task={slurm["cpus_per_task"]}
+#SBATCH --mem-per-cpu={slurm["mem_per_cpu"]}
+#SBATCH --gpus={slurm["gpus"]}
+#SBATCH --output=engiopt_{cfg.algorithm}_{cfg.problem_id}_%j.out
+#SBATCH --error=engiopt_{cfg.algorithm}_{cfg.problem_id}_%j.err
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user={slurm_email_user}
+#SBATCH --mail-user={slurm["email_user"]}
 
-mkdir -p "$SCRATCH/logs"
-mkdir -p "$SCRATCH/datasets"
-mkdir -p "$SCRATCH/models"
+mkdir -p "$SCRATCH/logs" "$SCRATCH/datasets" "$SCRATCH/models"
 
-# Load required modules
 module purge
-module load {slurm_stack_module}
-module load {slurm_gcc_module}
-module load {slurm_python_module}
-module load {slurm_cuda_module}
-module load eth_proxy
+module load {modules["stack"]} {modules["gcc"]} {modules["python"]} {modules["cuda"]} eth_proxy
+source {paths["venv"]}/bin/activate
 
-# Activate virtual environment
-source {slurm_venv_path}/bin/activate
+export WANDB_API_KEY="{keys["wandb_api_key"]}"
+export WANDB_ENTITY="{keys["wandb_entity"]}"
+export WANDB_PROJECT="{keys["wandb_project"]}"
+export HF_HOME="{keys["hf_home"]}"
+export HF_DATASETS_CACHE="{keys["hf_datasets"]}"
+export HF_TOKEN="{keys["hf_token"]}"
 
-# Set environment variables from .env configuration
-export WANDB_API_KEY="{wandb_api_key}"
-export WANDB_ENTITY="{wandb_entity}"
-export WANDB_PROJECT="{wandb_project}"
-export HF_HOME="{hf_home_remote}"
-export HF_DATASETS_CACHE="{hf_datasets_cache_remote}"
-export HF_TOKEN="{hf_token}"
-
-# Navigate to project directory
-cd {slurm_project_path}
-
-# Run training command
+cd {paths["project"]}
 {command}
 
 echo "Training complete!"
 """
 
-    # Save SLURM script to outputs folder
-    output_dir = Path("outputs")
-    output_dir.mkdir(parents=True, exist_ok=True)
 
-    slurm_filename = f"train_{algorithm}_{problem_id}_seed{seed}.slurm"
-    slurm_filepath = output_dir / slurm_filename
-    slurm_filepath.write_text(slurm_script)
+# ============================================================
+# Helper: build API status message
+# ============================================================
 
-    # Generate instructions
-    instructions = f"""
-To train the model on HPC:
 
-1. Configure SLURM parameters in .env file:
-   - SLURM_TIME, SLURM_CPUS_PER_TASK, SLURM_GPUS, SLURM_MEM_PER_CPU, etc.
-   - SLURM_VENV_PATH: Path to your Python virtual environment
-   - SLURM_PROJECT_PATH: Path to your engiopt directory
-   - SLURM_EMAIL_USER: Your email for job notifications
-
-2. SLURM script has been saved to:
-   {slurm_filename}
-
-3. Transfer the script to HPC and submit the job:
-   sbatch {slurm_filename}
-
-4. Monitor the job:
-   squeue -u $USER
-
-5. Check output:
-   tail -f engiopt_{algorithm}_{problem_id}_*.out
-
-6. View results:
-   - Model checkpoints saved automatically by EngiOpt
-   - View metrics on WandB dashboard (if tracking enabled)
-"""
-
-    config_summary = {
-        "problem": problem_id,
-        "algorithm": algorithm,
-        "algorithm_info": SUPPORTED_ALGORITHMS[algorithm],
-        "training_params": {
-            "epochs": epochs,
-            "seed": seed,
-        },
-        "tracking": {
-            "use_wandb": use_wandb,
-            "wandb_entity": wandb_entity_str,
-        },
-        "api_keys_status": {
-            "wandb_api_key_loaded": bool(wandb_api_key),
-            "hf_token_loaded": bool(hf_token),
-            "wandb_entity_set": bool(wandb_entity),
-        },
-    }
-
-    # Create status message about API keys
-    api_status_parts = []
-    if wandb_api_key:
-        api_status_parts.append(
-            f"✓ WandB API key loaded (ending in ...{wandb_api_key[-4:]})"
-        )
+def _api_status_message(wandb_key: str, hf_token: str) -> str:
+    parts = []
+    if wandb_key:
+        parts.append(f"✓ WandB API key loaded (ending in ...{wandb_key[-4:]})")
     else:
-        api_status_parts.append("✗ WandB API key not found in .env")
+        parts.append("✗ WandB API key not found in .env")
 
     if hf_token:
-        api_status_parts.append(
-            f"✓ HuggingFace token loaded (ending in ...{hf_token[-4:]})"
-        )
+        parts.append(f"✓ HuggingFace token loaded (ending in ...{hf_token[-4:]})")
     else:
-        api_status_parts.append("✗ HuggingFace token not found in .env")
+        parts.append("✗ HuggingFace token not found in .env")
 
-    api_status_message = "\n".join(api_status_parts)
+    return "\n".join(parts)
 
+
+# ============================================================
+# Main function (now short, compliant, and clean)
+# ============================================================
+
+
+@tool
+def generate_training_command(cfg: TrainingConfig) -> dict[str, Any]:
+    """Generate a Python + SLURM command for training a model on HPC."""
+
+    # Validate algorithm
+    if cfg.algorithm not in SUPPORTED_ALGORITHMS:
+        return {
+            "success": False,
+            "error": f"Unsupported algorithm '{cfg.algorithm}'. "
+            f"Supported: {', '.join(SUPPORTED_ALGORITHMS.keys())}",
+        }
+
+    # Resolve SLURM configuration
+    slurm = _resolve_slurm_config(cfg)
+
+    hpc_cfg = HPCInputs(
+        algorithm=cfg.algorithm,
+        problem_id=cfg.problem_id,
+        epochs=cfg.epochs,
+        slurm_gpus=str(slurm["gpus"]),
+        slurm_time=str(slurm["time"]),
+        slurm_cpus_per_task=str(slurm["cpus_per_task"]),
+        slurm_mem_per_cpu=str(slurm["mem_per_cpu"]),
+    )
+
+    validation = _validate_hpc_resources(hpc_cfg)
+
+    # Build command
+    use_wandb = cfg.wandb_entity is not None
+    wandb_str = cfg.wandb_entity if cfg.wandb_entity else "None"
+    track_flag = "--track" if use_wandb else "--no-track"
+
+    command = (
+        f"python engiopt/{cfg.algorithm}/{cfg.algorithm}.py "
+        f'--problem-id "{cfg.problem_id}" {track_flag} '
+        f"--wandb-entity {wandb_str} --save-model "
+        f"--n-epochs {cfg.epochs} --seed {cfg.seed}"
+    )
+
+    # Build SLURM script and save
+    slurm_script = _build_slurm_script(cfg, slurm, command)
+    output_dir = Path("outputs")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    slurm_file = (
+        output_dir / f"train_{cfg.algorithm}_{cfg.problem_id}_seed{cfg.seed}.slurm"
+    )
+    slurm_file.write_text(slurm_script)
+
+    # API key status
+    api_status = _api_status_message(
+        os.getenv("WANDB_API_KEY", ""), os.getenv("HF_TOKEN", "")
+    )
+
+    # Return metadata
     return {
         "success": True,
         "command": command,
         "slurm_script": slurm_script,
-        "slurm_file": str(slurm_filepath),
-        "config_summary": config_summary,
-        "instructions": instructions,
-        "api_keys_status": api_status_message,
-        "message": f"Generated SLURM training script for {algorithm} on {problem_id}. "
-        f"Training will run for {epochs} epochs with seed {seed}. "
-        f"SLURM script saved to {slurm_filepath}\n\n"
-        f"API Keys Status:\n{api_status_message}\n\n"
-        f"Note: Full API keys have been written to the SLURM script file for security. "
-        f"Check the file at {slurm_filepath} to verify.",
+        "slurm_file": str(slurm_file),
+        "validation": validation,
+        "api_keys_status": api_status,
+        "message": f"✅ Generated SLURM script for {cfg.algorithm} ({cfg.problem_id}).\n"
+        f"Saved to {slurm_file}\n\nAPI Keys:\n{api_status}",
     }
