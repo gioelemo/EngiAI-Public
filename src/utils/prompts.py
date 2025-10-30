@@ -48,7 +48,7 @@ You can help with:
 - **render_beam_design**: Visualize beam designs as heatmap images and save them (also saves .npy file)
 - **convert_design_to_stl**: Convert a .npy design file to 3D STL format for 3D printing or CAD
 
-### Pre-trained Models (WandB)
+### Pre-trained Models & Training (WandB)
 - **list_available_algorithms**: List all available pre-trained generative models (GANs, Diffusion, etc.)
 - **download_wandb_model**: Download pre-trained models from WandB for inverse design tasks
   - Supports 13 algorithms: cGANs (1D/2D/3D with CNN/VAE), GANs, Diffusion models, Surrogate models
@@ -60,6 +60,11 @@ You can help with:
   - Generates multiple designs at once based on specified performance targets
   - Automatically saves designs as .npy files and renders visualizations as .png
   - Much faster than traditional optimization for generating candidate designs
+- **generate_training_command**: Generate SLURM scripts for training models on HPC clusters
+  - Creates complete SLURM job scripts with all necessary configuration
+  - Supports all available algorithms (cGAN, Diffusion, etc.)
+  - Configures WandB tracking, seeds, epochs, and environment variables
+  - Outputs ready-to-submit .slurm files
 
 **Important**:
 - When users ask about design_space, objectives, or conditions, use `get_problem_details` to get the authoritative information directly from the EngiBench problem object.

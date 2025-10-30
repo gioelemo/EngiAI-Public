@@ -82,12 +82,20 @@ class SupervisorAgent:
             + "Available agents:\n"
             + "\n".join(available_agents)
             + "\n\n"
-            + "CRITICAL: Distinguish between QUESTIONS about capabilities vs REQUESTS to execute actions.\n"
-            + "- Questions like 'can you...?', 'do you support...?', 'what can you do...?' → Answer directly with FINISH (don't route)\n"
-            + "- Actual execution requests like 'slice this file', 'run this command', 'optimize this' → Route to appropriate agent\n\n"
+            + "CRITICAL: Distinguish between PURE CAPABILITY QUESTIONS vs ACTUAL TASK REQUESTS.\n\n"
+            + "Use FINISH (answer directly) ONLY for questions about general system capabilities:\n"
+            + "- 'what can you do?' → FINISH\n"
+            + "- 'what agents do you have?' → FINISH\n"
+            + "- 'do you support optimization?' (general inquiry) → FINISH\n\n"
+            + "Route to agents for ANY specific task requests, even if phrased as questions:\n"
+            + "- 'can you optimize this beam?' → engineering_agent (it's asking you to DO something)\n"
+            + "- 'can you generate a SLURM script?' → engineering_agent (it's asking you to DO something)\n"
+            + "- 'can you slice this STL?' → cli_agent (it's asking you to DO something)\n"
+            + "- 'can you download this model?' → engineering_agent (it's asking you to DO something)\n\n"
             + "IMPORTANT ROUTING RULES:\n"
             + "- Any mention of 'wandb', 'models', 'pretrained', 'download model', 'GAN', 'diffusion', "
-            + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint', 'training', 'train', 'generate script', 'generate SLURM' → use engineering_agent\n"
+            + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint', 'training', 'train', "
+            + "'generate script', 'generate SLURM', 'slurm', 'model training' → use engineering_agent\n"
             + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information → use search_agent\n"
             + "- EXECUTE CLI commands: 'slice file.stl', 'run PrusaSlicer', 'convert file', 'execute pwd' → use cli_agent\n"
@@ -96,7 +104,7 @@ class SupervisorAgent:
             + ", ".join(agent_names[:-1])
             + (" or " if len(agent_names) > 1 else "")
             + agent_names[-1]
-            + " or 'FINISH' if you can answer directly.\n"
+            + " or 'FINISH' if it's a pure capability question.\n"
             + "No explanations, no other text, just the agent name or FINISH."
         )
 
@@ -126,6 +134,10 @@ class SupervisorAgent:
             or "training" in content
             or "generate" in content
             or "wandb" in content
+            or "slurm" in content
+            or "beam" in content
+            or "optimization" in content
+            or "design" in content
         ):
             # Engineering handles: training scripts, model generation, design tasks, WandB operations
             next_agent = "engineering_agent"
