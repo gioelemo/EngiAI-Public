@@ -1169,8 +1169,12 @@ def generate_training_command(
     wandb_api_key = os.getenv("WANDB_API_KEY", "")
     wandb_entity = os.getenv("WANDB_ENTITY", "")
     wandb_project = os.getenv("WANDB_PROJECT", "")
-    hf_home = os.getenv("HF_HOME", "$SCRATCH/models")
-    hf_datasets_cache = os.getenv("HF_DATASETS_CACHE", "$SCRATCH/datasets")
+    # Use separate remote paths for HPC cluster SLURM jobs
+    # These will be expanded by the shell on the cluster (e.g., $SCRATCH)
+    hf_home_remote = os.getenv("HF_HOME_REMOTE", "$SCRATCH/models")
+    hf_datasets_cache_remote = os.getenv(
+        "HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"
+    )
     hf_token = os.getenv("HF_TOKEN", "")
 
     # Determine if WandB tracking should be enabled based on wandb_entity
@@ -1224,8 +1228,8 @@ source {slurm_venv_path}/bin/activate
 export WANDB_API_KEY="{wandb_api_key}"
 export WANDB_ENTITY="{wandb_entity}"
 export WANDB_PROJECT="{wandb_project}"
-export HF_HOME="{hf_home}"
-export HF_DATASETS_CACHE="{hf_datasets_cache}"
+export HF_HOME="{hf_home_remote}"
+export HF_DATASETS_CACHE="{hf_datasets_cache_remote}"
 export HF_TOKEN="{hf_token}"
 
 # Navigate to project directory

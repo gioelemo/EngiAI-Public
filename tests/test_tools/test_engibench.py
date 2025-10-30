@@ -42,8 +42,17 @@ from src.tools.engibench import (
 
 
 @pytest.fixture(autouse=True)
-def reset_state():
-    """Reset the module state before each test."""
+def reset_state(tmp_path, monkeypatch):
+    """Reset the module state before each test and configure temp cache dirs."""
+    # Set HuggingFace cache to temp directory to avoid downloading to $SCRATCH
+    hf_cache = tmp_path / ".cache" / "huggingface"
+    hf_cache.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("HF_HOME", str(hf_cache / "hub"))
+    monkeypatch.setenv("HF_DATASETS_CACHE", str(hf_cache / "datasets"))
+    monkeypatch.setenv("TRANSFORMERS_CACHE", str(hf_cache / "transformers"))
+
+    # Reset engibench state
     _state["problem_instance"] = None
     _state["last_design"] = None
     yield
