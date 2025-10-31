@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any, cast
 
 import streamlit as st
-import streamlit.components.v1 as components
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from PIL import Image
 from streamlit_stl import stl_from_file  # type: ignore[import-untyped]
@@ -22,9 +21,9 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.models.state import MessagesState  # noqa: E402
+from src.ui import chat, home, settings, wandb  # noqa: E402
 
 # Suppress Pydantic warnings from LangChain
 warnings.filterwarnings(
@@ -71,8 +70,6 @@ def initialize_session_state() -> None:
 
     if "stl_shininess" not in st.session_state:
         st.session_state.stl_shininess = 100
-
-        st.session_state.stl_auto_rotate = True
 
 
 def find_images_in_text(text: str) -> list[Path]:
@@ -152,7 +149,7 @@ def find_stl_files_in_text(text: str) -> list[Path]:
         text: Text that may contain file paths
 
     Returns:
-        List of valid STL file paths
+        List of valid STL file paths (only files that currently exist)
     """
     stl_paths = []
 
@@ -171,6 +168,7 @@ def find_stl_files_in_text(text: str) -> list[Path]:
                 # Try relative to project root
                 path = project_root / match
 
+            # Only add if file exists and is valid STL
             if path.exists() and path.suffix.lower() == ".stl":
                 stl_paths.append(path)
 
@@ -313,12 +311,21 @@ def _display_image(img_path: Path, button_key_prefix: str) -> None:
         img_path: Path to image file
         button_key_prefix: Unique prefix for button keys
     """
+    # Skip if file doesn't exist (e.g., from previous sessions)
+    if not img_path.exists():
+        return
+
     try:
         image = Image.open(img_path)
         st.image(image, caption=img_path.name, width=500)
         _render_download_save_controls(img_path, "image", button_key_prefix)
+    except FileNotFoundError:
+        # Silently skip - file was deleted
+        pass
     except Exception as e:
-        st.warning(f"Could not display image {img_path.name}: {e}")
+        # Only show warning for unexpected errors
+        if "MediaFileStorageError" not in str(type(e).__name__):
+            st.warning(f"Could not display image {img_path.name}: {e}")
 
 
 def _display_stl(stl_path: Path, idx: int, button_key_prefix: str) -> None:
@@ -330,7 +337,7 @@ def _display_stl(stl_path: Path, idx: int, button_key_prefix: str) -> None:
         button_key_prefix: Unique prefix for button keys
     """
     if not stl_path.exists():
-        st.info(f"3D model file not found: {stl_path.name}")
+        # Silently skip missing STL files (e.g., from previous sessions)
         return
 
     try:
@@ -349,7 +356,8 @@ def _display_stl(stl_path: Path, idx: int, button_key_prefix: str) -> None:
         )
         _render_download_save_controls(stl_path, "stl", button_key_prefix)
     except FileNotFoundError:
-        st.warning(f"3D model file not found: {stl_path.name}")
+        # Silently skip - file was deleted
+        pass
     except Exception as e:
         st.warning(f"Could not display 3D model {stl_path.name}: {e}")
 
@@ -958,196 +966,11 @@ def process_user_input(user_input: str) -> None:
                 st.session_state.agent_state["messages"].pop()
 
 
-def render_wandb_report_page() -> None:
-    """Render the Weights & Biases report page."""
-    st.markdown("# 📊 Weights & Biases Training Report")
-
-    # Check if W&B report URL is configured
-    if not config.wandb_report_url:
-        st.warning(
-            "⚠️ **W&B Report URL not configured**\n\n"
-            "To view your training reports here, add your W&B report URL to the `.env` file:\n\n"
-            "```bash\n"
-            'WANDB_REPORT_URL="https://wandb.ai/your-entity/your-project/reports/Your-Report--VmlldzoxMjM0NTY"\n'
-            "```\n\n"
-            "You can create reports in your W&B workspace and copy the URL."
-        )
-        return
-
-    st.markdown(
-        f"View your training metrics and experiment tracking: "
-        f"[Open in W&B ↗]({config.wandb_report_url})"
-    )
-
-    # Embed the W&B report using iframe
-    iframe_html = f"""
-    <iframe
-        src="{config.wandb_report_url}"
-        style="border:none; width:100%; height:1024px; border-radius: 8px;"
-        title="Weights & Biases Training Report">
-    </iframe>
-    """
-
-    components.html(iframe_html, height=1050, scrolling=True)
-
-    st.markdown("---")
-    st.markdown(
-        "💡 **Tip:** You can update the report URL in your `.env` file to display different reports."
-    )
 
 
 def render_sidebar() -> None:
     """Render the sidebar with controls and galleries."""
-    # Display logo at the top
-    logo_path = project_root / "assets" / "logo.png"
-    if logo_path.exists():
-        try:
-            logo = Image.open(logo_path)
-            st.image(logo, width="stretch")
-        except Exception:
-            # Fallback to text title if logo fails to load
-            st.title("🤖 EngiAI")
-    else:
-        st.title("🤖 EngiAI")
-
-    st.markdown("---")
-
-    # Multi-Agent System info
-    st.markdown(
-        """
-    ### Multi-Agent System
-
-    This assistant coordinates specialized agents:
-
-    - 🔧 **Engineering Agent**: Optimization & design
-    - 🏗️ **CAD Agent**: STL conversion & 3D printing
-    - 🔍 **Search Agent**: Research & information
-    """
-    )
-
-    st.markdown("---")
-
-    # Page navigation
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button(
-            "💬 Chat",
-            use_container_width=True,
-            type="primary" if st.session_state.current_page == "chat" else "secondary",
-        ):
-            st.session_state.current_page = "chat"
-            st.rerun()
-    with col2:
-        if st.button(
-            "📊 W&B Report",
-            use_container_width=True,
-            type="primary" if st.session_state.current_page == "wandb" else "secondary",
-        ):
-            st.session_state.current_page = "wandb"
-            st.rerun()
-
-    st.markdown("---")
-
-    # Consolidated Settings
-    with st.expander("⚙️ Settings", expanded=False):
-        # Media save settings
-        st.markdown("### 💾 Media Saving")
-        st.markdown(
-            "Choose where displayed media (images/STL) will be saved on the server"
-        )
-        # Default save dir inside project outputs
-        default_save = str(project_root / "outputs")
-        if "media_save_dir" not in st.session_state:
-            st.session_state.media_save_dir = default_save
-
-        st.session_state.media_save_dir = st.text_input(
-            "Server save directory",
-            value=st.session_state.media_save_dir,
-            help="Absolute or project-relative path where displayed media will be copied when 'Save' is clicked",
-            key="media_save_dir_widget",
-        )
-
-        st.session_state.media_auto_save = st.checkbox(
-            "Auto-save displayed media",
-            value=st.session_state.get("media_auto_save", False),
-            help="If enabled, images and STL files shown in the chat will be copied to the server save directory automatically",
-            key="media_auto_save_widget",
-        )
-
-        st.markdown("---")
-
-        # STL Viewer Settings
-        st.markdown("### 🎨 3D Viewer")
-        st.caption("⚠️ Note: Changing settings will reload all 3D models")
-
-        # Color picker - directly update session state
-        st.session_state.stl_color = st.color_picker(
-            "Model Color",
-            value=st.session_state.stl_color,
-            help="Choose a color for your 3D models",
-            key="color_picker_widget",
-        )
-
-        # Material selector - directly update session state
-        st.session_state.stl_material = st.selectbox(
-            "Material",
-            options=["material", "flat", "wireframe"],
-            index=["material", "flat", "wireframe"].index(
-                st.session_state.stl_material
-            ),
-            help="material: smooth shading, flat: faceted look, wireframe: mesh structure",
-            key="material_selector_widget",
-        )
-
-        # Height slider - directly update session state
-        st.session_state.stl_height = st.slider(
-            "Viewer Height (px)",
-            min_value=200,
-            max_value=800,
-            value=st.session_state.stl_height,
-            step=50,
-            help="Adjust the height of the 3D viewer",
-            key="height_slider_widget",
-        )
-
-        # Opacity slider
-        st.session_state.stl_opacity = st.slider(
-            "Opacity",
-            min_value=0.0,
-            max_value=1.0,
-            value=st.session_state.stl_opacity,
-            step=0.1,
-            help="Adjust the transparency of the model (0 = transparent, 1 = opaque)",
-            key="opacity_slider_widget",
-        )
-
-        # Shininess slider
-        st.session_state.stl_shininess = st.slider(
-            "Shininess",
-            min_value=0,
-            max_value=200,
-            value=st.session_state.stl_shininess,
-            step=10,
-            help="Adjust the shininess/glossiness of the surface",
-            key="shininess_slider_widget",
-        )
-
-        # Auto-rotate toggle
-        if "stl_auto_rotate" not in st.session_state:
-            st.session_state.stl_auto_rotate = True
-
-        st.session_state.stl_auto_rotate = st.checkbox(
-            "Auto-rotate models",
-            value=st.session_state.stl_auto_rotate,
-            help="Automatically rotate 3D models",
-            key="auto_rotate_checkbox_widget",
-        )
-
-    # Clear conversation button
-    if st.button("🗑️ Clear Conversation", width="stretch"):
-        st.session_state.messages = []
-        st.session_state.agent_state = {"messages": []}
-        st.rerun()
+    # Empty sidebar - only navigation icons will be visible
 
 
 def main() -> None:
@@ -1169,18 +992,29 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
 
-    # Custom CSS to set minimum sidebar width
+    # Custom CSS to set minimum sidebar width and increase icon size
     st.markdown(
         """
         <style>
         /* Set minimum width for sidebar */
         [data-testid="stSidebar"] {
-            min-width: 400px;
-            max-width: 400px;
+            min-width: 200px;
+            max-width: 200px;
         }
         [data-testid="stSidebar"][aria-expanded="true"] {
-            min-width: 400px;
-            max-width: 400px;
+            min-width: 200px;
+            max-width: 200px;
+        }
+        /* Make navigation icons much bigger */
+        [data-testid="stSidebar"] .stPageLink svg {
+            width: 3rem !important;
+            height: 3rem !important;
+        }
+        [data-testid="stSidebar"] .stPageLink {
+            padding: 1.5rem 0.5rem !important;
+        }
+        [data-testid="stSidebar"] .stPageLink span {
+            font-size: 1.2rem !important;
         }
         </style>
         """,
@@ -1190,61 +1024,44 @@ def main() -> None:
     # Initialize session state
     initialize_session_state()
 
-    # Sidebar (collapsed by default)
+    # Define navigation pages
+    pages = [
+        st.Page(
+            home.render,
+            title="Home",
+            icon=":material/home:",
+            url_path="home",
+            default=True,
+        ),
+        st.Page(
+            chat.render,
+            title="Chat",
+            icon=":material/chat:",
+            url_path="chat",
+        ),
+        st.Page(
+            wandb.render,
+            title="W&B Report",
+            icon=":material/analytics:",
+            url_path="wandb-report",
+        ),
+        st.Page(
+            settings.render,
+            title="Settings",
+            icon=":material/settings:",
+            url_path="settings",
+        ),
+    ]
+
+    # Create navigation
+    page = st.navigation(pages)
+
+    # Sidebar
     with st.sidebar:
         render_sidebar()
 
-    # Render the appropriate page based on navigation
-    if st.session_state.current_page == "wandb":
-        render_wandb_report_page()
-        return
-
-    # Main centered chat interface (chat page)
-    if not st.session_state.messages:
-        # Welcome screen with logo - centered
-        # Add vertical spacing
-        st.markdown("<br>" * 3, unsafe_allow_html=True)
-
-        # Center the logo and text
-        _, center_col, _ = st.columns([1, 2, 1])
-        with center_col:
-            if logo_path.exists():
-                try:
-                    logo = Image.open(logo_path)
-                    st.image(logo, width="stretch")
-                except Exception:
-                    st.markdown(
-                        '<h1 style="text-align: center;">💬 EngiAI</h1>',
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.markdown(
-                    '<h1 style="text-align: center;">💬 EngiAI</h1>',
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown(
-                '<p style="text-align: center; font-size: 1.2em; color: #666;">Your AI-powered engineering design assistant</p>',
-                unsafe_allow_html=True,
-            )
-    else:
-        # Small logo at top when chat is active
-        if logo_path.exists():
-            try:
-                logo = Image.open(logo_path)
-                _, logo_col, _ = st.columns([2, 1, 2])
-                with logo_col:
-                    st.image(logo, width=60)
-            except Exception:
-                pass
-
-        # Display chat history
-        for message_idx, message in enumerate(st.session_state.messages):
-            display_message(message, message_idx)
-
-    # Chat input (centered on welcome screen, bottom-fixed during chat)
-    if prompt := st.chat_input("Ask me anything about engineering design..."):
-        process_user_input(prompt)
+    # Run the selected page
+    page.run()
 
 
 if __name__ == "__main__":
