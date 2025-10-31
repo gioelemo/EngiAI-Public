@@ -158,6 +158,9 @@ python -m src.main
 The system includes:
 - **Engineering Agent**: Structural optimization with EngiBench
 - **Search Agent**: Web research and information gathering
+- **Prusa Agent**: 3D printer management via Prusa Connect
+- **HPC Agent**: HPC cluster job management via SSH
+- **CLI Agent**: Local command-line tool execution
 
 The supervisor intelligently routes your requests to the appropriate agent!
 

@@ -14,6 +14,7 @@ dependencies = [
     "langchain-core ==1.0.1",
     "langchain-openai ==1.0.1",
     "langchain-tavily",
+    "langchain-mcp-adapters==0.1.12",
     "langgraph ==1.0.1",
     "matplotlib ==3.10.6",
     "wandb      ==0.22.2",
@@ -226,5 +227,6 @@ module = [
   "streamlit.components.*",
   "diffusers",
   "watchdog",
+  "langchain-mcp-adapters",
 ]
 ignore_missing_imports = true

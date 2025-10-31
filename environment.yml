@@ -27,3 +27,4 @@ dependencies:
     - streamlit-stl==0.0.6
     - fabric==3.2.2
     - watchdog==6.0.0
+    - langchain-mcp-adapters==0.1.12

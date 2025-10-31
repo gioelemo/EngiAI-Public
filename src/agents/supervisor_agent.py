@@ -18,6 +18,7 @@ from config import config
 from src.agents.cli_agent import CLIAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.hpc_agent import HPCAgent
+from src.agents.prusa_agent import PrusaAgent
 from src.agents.search_agent import SearchAgent
 from src.models.state import MessagesState
 
@@ -50,6 +51,7 @@ class SupervisorAgent:
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
         self.hpc_agent = HPCAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
+        self.prusa_agent = PrusaAgent(model_name=self.model_name)
         # Disable CLI agent's internal confirmation - supervisor handles interrupts at its level
         self.cli_agent = CLIAgent(
             model_name=self.model_name, require_confirmation=False
@@ -71,10 +73,19 @@ class SupervisorAgent:
         )
         available_agents.append("- search_agent: Web research and finding information")
         available_agents.append(
+            "- prusa_agent: Prusa 3D printer management via Prusa Connect (printer status, job monitoring, printer control, file management)"
+        )
+        available_agents.append(
             "- cli_agent: Execute local CLI commands (PrusaSlicer, mesh processing, file conversion, any command-line tool)"
         )
         agent_names.extend(
-            ["'engineering_agent'", "'hpc_agent'", "'search_agent'", "'cli_agent'"]
+            [
+                "'engineering_agent'",
+                "'hpc_agent'",
+                "'search_agent'",
+                "'prusa_agent'",
+                "'cli_agent'",
+            ]
         )
 
         return (
@@ -98,6 +109,7 @@ class SupervisorAgent:
             + "'generate script', 'generate SLURM', 'slurm', 'model training' → use engineering_agent\n"
             + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information → use search_agent\n"
+            + "- Prusa printer management: 'printer status', 'print jobs', 'pause print', 'resume print', 'stop print', 'start print', 'Prusa Connect', 'printer', '3D printer' → use prusa_agent\n"
             + "- EXECUTE CLI commands: 'slice file.stl', 'run PrusaSlicer', 'convert file', 'execute pwd' → use cli_agent\n"
             + "\n"
             + "Respond with ONLY ONE WORD: "
@@ -153,6 +165,14 @@ class SupervisorAgent:
             next_agent = "hpc_agent"
         elif "search" in content:
             next_agent = "search_agent"
+        elif (
+            "prusa" in content
+            or "printer" in content
+            or "print" in content
+            or "3d printer" in content
+        ):
+            # Prusa handles: printer management, job monitoring, printer control
+            next_agent = "prusa_agent"
         elif "cli" in content or "command" in content:
             # CLI handles: local command-line tool execution
             next_agent = "cli_agent"
@@ -238,6 +258,15 @@ Answer the user's question clearly and concisely about what the system can do.""
         )
         return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
+    def _prusa_node(self, state: SupervisorState):
+        """Delegate to Prusa agent."""
+        agent_state = cast(MessagesState, {"messages": state["messages"]})
+        result = self.prusa_agent.invoke(
+            agent_state,
+            {"configurable": {"thread_id": "prusa"}},
+        )
+        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+
     def _cli_node(self, state: SupervisorState):
         """Delegate to CLI agent."""
         agent_state = cast(MessagesState, {"messages": state["messages"]})
@@ -259,6 +288,7 @@ Answer the user's question clearly and concisely about what the system can do.""
         workflow.add_node("engineering_agent", self._engineering_node)
         workflow.add_node("hpc_agent", self._hpc_node)
         workflow.add_node("search_agent", self._search_node)
+        workflow.add_node("prusa_agent", self._prusa_node)
         workflow.add_node("cli_agent", self._cli_node)
 
         # Add edges - start with supervisor
@@ -270,6 +300,7 @@ Answer the user's question clearly and concisely about what the system can do.""
             "engineering_agent": "engineering_agent",
             "hpc_agent": "hpc_agent",
             "search_agent": "search_agent",
+            "prusa_agent": "prusa_agent",
             "cli_agent": "cli_agent",
             "FINISH": END,
         }
@@ -286,6 +317,7 @@ Answer the user's question clearly and concisely about what the system can do.""
         workflow.add_edge("engineering_agent", END)
         workflow.add_edge("hpc_agent", END)
         workflow.add_edge("search_agent", END)
+        workflow.add_edge("prusa_agent", END)
         workflow.add_edge("cli_agent", END)
 
         # Compile with memory
