@@ -1340,6 +1340,8 @@ def render_sidebar() -> None:
         _save_active_chat_to_storage()
         # Create new chat without auto-generated name (will be generated from first message)
         _create_new_chat()
+        # Navigate to chat page
+        st.session_state._switch_to_chat_page = True
         # The new chat is now active and will show empty message list
         st.rerun()
 
