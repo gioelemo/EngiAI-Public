@@ -38,6 +38,7 @@ class Config:
         self.slurm_email_user: str = os.getenv("SLURM_EMAIL_USER", "")
 
         # Weights & Biases configuration
+        self.wandb_entity: str = os.getenv("WANDB_ENTITY", "")
         self.wandb_report_url: str = os.getenv("WANDB_REPORT_URL", "")
         self.wandb_personal_project: str = os.getenv(
             "WANDB_PERSONAL_PROJECT", "gioelemo-ethz/engiopt"
