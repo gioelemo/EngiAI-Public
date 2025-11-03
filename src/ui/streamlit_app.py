@@ -722,6 +722,40 @@ def _display_log_file(log_path: Path, button_key_prefix: str) -> None:
         st.warning(f"Could not display log file {log_path.name}: {e}")
 
 
+def _fix_latex_delimiters(text: str) -> str:
+    """Fix LaTeX delimiters to be Streamlit-compatible.
+
+    Converts \\( \\) to $ $ and \\[ \\] to $$ $$ for proper rendering.
+
+    Args:
+        text: Text that may contain LaTeX with incorrect delimiters
+
+    Returns:
+        Text with fixed LaTeX delimiters
+    """
+    # Replace display math: \[ ... \] with $$ ... $$
+    text = re.sub(r"\\\[(.*?)\\\]", r"$$\1$$", text, flags=re.DOTALL)
+
+    # Replace inline math: \( ... \) with $ ... $
+    text = re.sub(r"\\\((.*?)\\\)", r"$\1$", text, flags=re.DOTALL)
+
+    # Also handle single bracket/paren versions that might appear
+    text = re.sub(
+        r"\[\s*([^]]*?)\s*\](?=\s|$|[.,;!?])",
+        lambda m: (
+            f"${m.group(1)}$"
+            if any(
+                c in m.group(1)
+                for c in ["\\frac", "\\sum", "\\int", "=", "+", "-", "*", "/", "^", "_"]
+            )
+            else m.group(0)
+        ),
+        text,
+    )
+
+    return text
+
+
 def display_message(message: dict, message_idx: int = 0) -> None:
     """Display a single message in the chat interface.
 
@@ -730,8 +764,11 @@ def display_message(message: dict, message_idx: int = 0) -> None:
         message_idx: Index of the message in the chat history for unique keys
     """
     with st.chat_message(message["role"]):
+        # Fix LaTeX delimiters before displaying
+        content = _fix_latex_delimiters(message["content"])
+
         # Display text content
-        st.markdown(message["content"])
+        st.markdown(content)
 
         # Display images
         images = find_images_in_text(message["content"])
