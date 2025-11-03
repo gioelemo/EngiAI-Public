@@ -30,6 +30,8 @@ dependencies = [
     "engibench",
     "scipy",
     "cvxopt",
+    "psycopg2-binary ==2.9.10",
+    "sqlalchemy ==2.0.36",
 ]
 
 [project.optional-dependencies]

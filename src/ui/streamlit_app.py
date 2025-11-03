@@ -5,8 +5,10 @@ This provides a web-based chat interface for interacting with the multi-agent sy
 """
 
 import contextlib
+import datetime
 import re
 import sys
+import uuid
 import warnings
 from pathlib import Path
 from typing import Any, cast
@@ -21,9 +23,13 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from langchain.chat_models import init_chat_model  # noqa: E402
+
+from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.models.state import MessagesState  # noqa: E402
 from src.ui import chat, home, settings, wandb  # noqa: E402
+from src.ui.database import DatabaseManager  # noqa: E402
 
 # Suppress Pydantic warnings from LangChain
 warnings.filterwarnings(
@@ -31,45 +37,337 @@ warnings.filterwarnings(
 )
 
 
+def _generate_chat_title(user_message: str) -> str:
+    """Generate a concise title for a chat based on the first user message.
+
+    Args:
+        user_message: The first user message in the conversation
+
+    Returns:
+        A short, summarized title (max 50 characters)
+    """
+    max_title_length = 50
+    truncate_at = 47
+
+    try:
+        # Use a fast model to generate title
+        llm = init_chat_model(config.llm_model)
+
+        prompt = f"""Generate a very short title (maximum 4-5 words) that summarizes this question or request:
+
+"{user_message}"
+
+Reply with ONLY the title, nothing else. No quotes, no punctuation at the end."""
+
+        response = llm.invoke(prompt)
+        # Ensure content is a string
+        content = response.content
+        if isinstance(content, list):
+            # Handle list content by joining
+            title = " ".join(str(item) for item in content).strip()
+        else:
+            title = str(content).strip()
+
+        # Remove quotes if present
+        title = title.strip("\"'")
+
+        # Limit to max length
+        if len(title) > max_title_length:
+            return title[:truncate_at] + "..."
+        else:
+            return title
+    except Exception:
+        # Fallback to truncated message if generation fails
+        if len(user_message) > max_title_length:
+            return user_message[:max_title_length] + "..."
+        else:
+            return user_message
+
+
+def _get_db() -> DatabaseManager:
+    """Get or create database manager instance.
+
+    Returns:
+        DatabaseManager instance
+    """
+    if "db_manager" not in st.session_state:
+        st.session_state.db_manager = DatabaseManager()
+    return st.session_state.db_manager
+
+
+def _create_new_chat(name: str | None = None) -> str:
+    """Create a new chat and return its ID.
+
+    Args:
+        name: Optional name for the chat. Auto-generated if None
+
+    Returns:
+        The ID of the newly created chat (UUID)
+    """
+    # Save current chat before creating new one
+    old_chat_id = st.session_state.active_chat_id
+    if old_chat_id:
+        _save_active_chat_to_storage()
+
+        # Delete the old chat if it's empty (no messages)
+        if old_chat_id in st.session_state.chats:
+            old_chat = st.session_state.chats[old_chat_id]
+            if len(old_chat.get("messages", [])) == 0:
+                # Delete empty chat from memory (not in DB since it was never saved)
+                del st.session_state.chats[old_chat_id]
+
+    if name is None:
+        st.session_state.chat_counter += 1
+        name = f"New Chat {st.session_state.chat_counter}"
+
+    # Generate session ID
+    session_id = str(uuid.uuid4())
+
+    # DON'T create in database yet - wait until first message
+    # We'll create it when the first message is added
+
+    # Create new chat data in session
+    st.session_state.chats[session_id] = {
+        "id": session_id,
+        "title": name,
+        "created_at": datetime.datetime.now(),
+        "messages": [],
+        "agent_state": {"messages": []},
+        "agent": SupervisorAgent(),
+        "config": {"configurable": {"thread_id": session_id}},
+        "waiting_for_confirmation": False,
+        "saved_to_db": False,  # Track if this chat has been saved to DB yet
+    }
+
+    # Set as active chat and sync (this will clear the display)
+    st.session_state.active_chat_id = session_id
+    _sync_active_chat_to_session()
+
+    return session_id
+
+
+def _sync_active_chat_to_session() -> None:
+    """Sync the active chat data to session state for backward compatibility."""
+    if (
+        st.session_state.active_chat_id
+        and st.session_state.active_chat_id in st.session_state.chats
+    ):
+        active_chat = st.session_state.chats[st.session_state.active_chat_id]
+        st.session_state.messages = active_chat["messages"]
+        st.session_state.agent = active_chat["agent"]
+        st.session_state.agent_state = active_chat["agent_state"]
+        st.session_state.config = active_chat["config"]
+        st.session_state.waiting_for_confirmation = active_chat[
+            "waiting_for_confirmation"
+        ]
+
+
+def _save_active_chat_to_storage() -> None:
+    """Save the current session state back to the active chat storage and database."""
+    if (
+        st.session_state.active_chat_id
+        and st.session_state.active_chat_id in st.session_state.chats
+    ):
+        active_chat = st.session_state.chats[st.session_state.active_chat_id]
+        active_chat["messages"] = st.session_state.messages
+        active_chat["agent"] = st.session_state.agent
+        active_chat["agent_state"] = st.session_state.agent_state
+        active_chat["config"] = st.session_state.config
+        active_chat["waiting_for_confirmation"] = (
+            st.session_state.waiting_for_confirmation
+        )
+
+        # Only save to database if chat has at least 1 message
+        if len(active_chat["messages"]) < 1:
+            return
+
+        # Auto-generate title from first message
+        new_title = None
+        if active_chat["title"].startswith("New Chat") or active_chat[
+            "title"
+        ].startswith("Chat "):
+            first_user_msg = next(
+                (
+                    msg["content"]
+                    for msg in active_chat["messages"]
+                    if msg["role"] == "user"
+                ),
+                None,
+            )
+            if first_user_msg:
+                # Generate a concise title using AI
+                new_title = _generate_chat_title(first_user_msg)
+                active_chat["title"] = new_title
+
+        # Save to database
+        db = _get_db()
+
+        # Create in database if not already saved
+        if not active_chat.get("saved_to_db", False):
+            db.create_conversation(
+                name=active_chat["title"], session_id=st.session_state.active_chat_id
+            )
+            active_chat["saved_to_db"] = True
+
+        # Update title if changed
+        if new_title:
+            db.update_conversation_name(st.session_state.active_chat_id, new_title)
+
+        # Save agent state
+        db.save_conversation_state(
+            conversation_id=st.session_state.active_chat_id,
+            agent_state=st.session_state.agent_state,
+            config=st.session_state.config,
+            waiting_for_confirmation=st.session_state.waiting_for_confirmation,
+        )
+
+
+def _switch_to_chat(chat_id: str) -> None:
+    """Switch to a different chat and navigate to chat page.
+
+    Args:
+        chat_id: The ID of the chat to switch to
+    """
+    if chat_id in st.session_state.chats:
+        # Save current chat first
+        _save_active_chat_to_storage()
+
+        # Switch to new chat
+        st.session_state.active_chat_id = chat_id
+        _sync_active_chat_to_session()
+
+        # Store that we want to navigate to chat page
+        st.session_state._switch_to_chat_page = True
+
+
+def _delete_chat(chat_id: str) -> None:
+    """Delete a chat from session and database.
+
+    Args:
+        chat_id: The ID of the chat to delete
+    """
+    if chat_id in st.session_state.chats:
+        # Delete from session
+        del st.session_state.chats[chat_id]
+
+        # Delete from database
+        db = _get_db()
+        db.delete_conversation(chat_id)
+
+        # If deleted chat was active, switch to another or create new
+        if st.session_state.active_chat_id == chat_id:
+            if st.session_state.chats:
+                # Switch to first available chat
+                first_chat_id = next(iter(st.session_state.chats.keys()))
+                _switch_to_chat(first_chat_id)
+            else:
+                # Create new chat if no chats remain
+                _create_new_chat()
+
+
+def _load_chats_from_database() -> None:
+    """Load all conversations from database into session state."""
+    try:
+        db = _get_db()
+        conversations = db.get_all_conversations()
+
+        for conv in conversations:
+            chat_id = conv["id"]
+
+            # Load messages
+            messages = db.get_messages(chat_id)
+            display_messages = [
+                {"role": msg["role"], "content": msg["content"]} for msg in messages
+            ]
+
+            # Load state
+            state_data = db.get_conversation_state(chat_id)
+            if state_data:
+                agent_state = state_data["agent_state"]
+                config = state_data["config"]
+                waiting_for_confirmation = state_data["waiting_for_confirmation"]
+            else:
+                agent_state = {"messages": []}
+                config = {"configurable": {"thread_id": chat_id}}
+                waiting_for_confirmation = False
+
+            # Create chat data in session
+            st.session_state.chats[chat_id] = {
+                "id": chat_id,
+                "title": conv["name"],
+                "created_at": conv["created_at"],
+                "messages": display_messages,
+                "agent_state": agent_state,
+                "agent": SupervisorAgent(),
+                "config": config,
+                "waiting_for_confirmation": waiting_for_confirmation,
+                "saved_to_db": True,  # Already in database
+            }
+
+        # Set the most recently updated as active
+        if conversations and not st.session_state.active_chat_id:
+            st.session_state.active_chat_id = conversations[0]["id"]
+            _sync_active_chat_to_session()
+
+    except Exception:
+        # Silently fail - if loading fails, start fresh
+        pass
+
+
+def _initialize_chat_state() -> None:
+    """Initialize chat-related session state."""
+    defaults: dict[str, Any] = {
+        "chats": {},
+        "active_chat_id": None,
+        "chat_counter": 0,
+        "messages": [],
+        "agent": SupervisorAgent(),
+        "agent_state": {"messages": []},
+        "config": {"configurable": {"thread_id": "streamlit-session"}},
+        "waiting_for_confirmation": False,
+    }
+
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def _initialize_stl_settings() -> None:
+    """Initialize STL viewer settings."""
+    defaults: dict[str, Any] = {
+        "stl_color": "#0069B4",
+        "stl_material": "material",
+        "stl_height": 400,
+        "stl_auto_rotate": True,
+        "stl_opacity": 1.0,
+        "stl_shininess": 100,
+    }
+
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
 def initialize_session_state() -> None:
     """Initialize Streamlit session state variables."""
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    # Initialize chat state
+    _initialize_chat_state()
 
-    if "agent" not in st.session_state:
-        st.session_state.agent = SupervisorAgent()
+    # Try to load chats from database on first run
+    if "chats_loaded" not in st.session_state:
+        _load_chats_from_database()
+        st.session_state.chats_loaded = True
 
-    if "agent_state" not in st.session_state:
-        st.session_state.agent_state = {"messages": []}
-
-    if "config" not in st.session_state:
-        st.session_state.config = {"configurable": {"thread_id": "streamlit-session"}}
-
-    if "waiting_for_confirmation" not in st.session_state:
-        st.session_state.waiting_for_confirmation = False
+    # Create first chat if none exists
+    if not st.session_state.chats:
+        _create_new_chat()
 
     # Page navigation
     if "current_page" not in st.session_state:
         st.session_state.current_page = "chat"
 
-    # STL viewer settings
-    if "stl_color" not in st.session_state:
-        st.session_state.stl_color = "#0069B4"
-
-    if "stl_material" not in st.session_state:
-        st.session_state.stl_material = "material"
-
-    if "stl_height" not in st.session_state:
-        st.session_state.stl_height = 400
-
-    if "stl_auto_rotate" not in st.session_state:
-        st.session_state.stl_auto_rotate = True
-
-    if "stl_opacity" not in st.session_state:
-        st.session_state.stl_opacity = 1.0
-
-    if "stl_shininess" not in st.session_state:
-        st.session_state.stl_shininess = 100
+    # Initialize STL viewer settings
+    _initialize_stl_settings()
 
 
 def find_images_in_text(text: str) -> list[Path]:
@@ -898,10 +1196,20 @@ def process_user_input(user_input: str) -> None:
     # Check if we're waiting for confirmation from a previous interrupt
     if st.session_state.waiting_for_confirmation:
         _handle_confirmation_response(user_input)
+        _save_active_chat_to_storage()  # Save after confirmation response
         return
 
     # Normal flow - add user message to display
     st.session_state.messages.append({"role": "user", "content": user_input})
+
+    # Save user message to database
+    if st.session_state.active_chat_id:
+        db = _get_db()
+        db.add_message(
+            conversation_id=st.session_state.active_chat_id,
+            role="user",
+            content=user_input,
+        )
 
     # Add user message to agent state
     st.session_state.agent_state["messages"].append(HumanMessage(content=user_input))
@@ -941,6 +1249,7 @@ def process_user_input(user_input: str) -> None:
                     st.session_state.messages_before_confirmation = messages_before
                     # Show confirmation prompt and wait for user response
                     _show_confirmation_prompt(user_request)
+                    _save_active_chat_to_storage()  # Save before waiting
                     return  # Wait for user's confirmation response
 
             # Update agent state
@@ -955,8 +1264,20 @@ def process_user_input(user_input: str) -> None:
                 st.session_state.messages.append(
                     {"role": "assistant", "content": full_response}
                 )
+
+                # Save assistant message to database
+                if st.session_state.active_chat_id:
+                    db = _get_db()
+                    db.add_message(
+                        conversation_id=st.session_state.active_chat_id,
+                        role="assistant",
+                        content=full_response,
+                    )
             else:
                 st.info("Agent is processing... (no response yet)")
+
+            # Save chat state after successful interaction
+            _save_active_chat_to_storage()
 
         except Exception as e:
             error_msg = f"❌ **Error:** {e!s}"
@@ -964,13 +1285,93 @@ def process_user_input(user_input: str) -> None:
             # Remove the last user message on error
             if st.session_state.agent_state["messages"]:
                 st.session_state.agent_state["messages"].pop()
-
-
+            # Save even on error
+            _save_active_chat_to_storage()
 
 
 def render_sidebar() -> None:
-    """Render the sidebar with controls and galleries."""
-    # Empty sidebar - only navigation icons will be visible
+    """Render the sidebar with chat management controls."""
+    # Constants for chat display
+    max_title_length = 35
+    truncated_title_length = 32
+
+    # New Chat button at the top
+    if st.button(
+        "+ New Chat", key="new_chat_btn", use_container_width=True, type="primary"
+    ):
+        # Save current chat before creating new one
+        _save_active_chat_to_storage()
+        # Create new chat without auto-generated name (will be generated from first message)
+        _create_new_chat()
+        # The new chat is now active and will show empty message list
+        st.rerun()
+
+    st.markdown("---")
+
+    # Filter chats to only show those with at least 1 message OR the active chat
+    # (so that newly created empty chats are visible)
+    chats_with_messages = {
+        chat_id: chat_data
+        for chat_id, chat_data in st.session_state.chats.items()
+        if len(chat_data.get("messages", [])) >= 1
+        or chat_id == st.session_state.active_chat_id
+    }
+
+    # Sort chats by created time (newest first)
+    sorted_chats = sorted(
+        chats_with_messages.items(),
+        key=lambda x: x[1].get("created_at", datetime.datetime.now()),
+        reverse=True,
+    )
+
+    # Display each chat as a clickable item
+    for chat_id, chat_data in sorted_chats:
+        title = chat_data["title"]
+        is_active = chat_id == st.session_state.active_chat_id
+
+        # Truncate title if too long
+        display_title = title
+        if len(title) > max_title_length:
+            display_title = f"{title[:truncated_title_length]}..."
+
+        # Create a container for each chat item
+        col1, col2 = st.columns([9, 1])
+
+        with col1:
+            # All chats show as buttons for consistent positioning
+            button_clicked = st.button(
+                display_title,
+                key=f"chat_{chat_id}",
+                use_container_width=True,
+                type="secondary",
+                disabled=False,  # Always clickable to allow navigation from other pages
+            )
+            # Switch chat if clicked and not active, or navigate if active but not on chat page
+            if button_clicked:
+                if not is_active:
+                    # Switching to a different chat
+                    _switch_to_chat(chat_id)
+                    st.rerun()
+                else:
+                    # Active chat clicked - just navigate to chat page
+                    st.session_state._switch_to_chat_page = True
+                    st.rerun()
+
+        with col2:
+            # Simple x button for delete
+            if st.button(
+                "x",
+                key=f"delete_{chat_id}",
+                help="Delete",
+                disabled=is_active and len(chats_with_messages) == 1,
+                type="secondary",
+            ):
+                _delete_chat(chat_id)
+                st.rerun()
+
+    # Show empty state if no chats
+    if not sorted_chats:
+        st.info("No conversations yet. Click '+ New Chat' to start!")
 
 
 def main() -> None:
@@ -989,32 +1390,89 @@ def main() -> None:
         page_title="EngiAI - Engineering Design Chatbot",
         page_icon=page_icon,
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",  # Show sidebar for chat management
     )
 
-    # Custom CSS to set minimum sidebar width and increase icon size
+    # Custom CSS for sidebar and chat management
     st.markdown(
         """
         <style>
-        /* Set minimum width for sidebar */
+        /* Set sidebar width for chat management */
         [data-testid="stSidebar"] {
-            min-width: 200px;
-            max-width: 200px;
+            min-width: 300px;
+            max-width: 300px;
         }
         [data-testid="stSidebar"][aria-expanded="true"] {
-            min-width: 200px;
-            max-width: 200px;
+            min-width: 300px;
+            max-width: 300px;
         }
-        /* Make navigation icons much bigger */
+        /* Make navigation icons bigger */
         [data-testid="stSidebar"] .stPageLink svg {
-            width: 3rem !important;
-            height: 3rem !important;
+            width: 2.5rem !important;
+            height: 2.5rem !important;
         }
         [data-testid="stSidebar"] .stPageLink {
-            padding: 1.5rem 0.5rem !important;
+            padding: 1rem 0.5rem !important;
         }
         [data-testid="stSidebar"] .stPageLink span {
+            font-size: 1.1rem !important;
+        }
+        /* Chat list styling - Simple and clean */
+        [data-testid="stSidebar"] button[kind="secondary"] {
+            text-align: left !important;
+            border: none !important;
+            background: transparent !important;
+            padding: 0.25rem 0rem !important;
+            font-size: 0.9rem !important;
+            font-weight: normal !important;
+            box-shadow: none !important;
+            justify-content: flex-start !important;
+            margin: 0 !important;
+        }
+        /* Remove internal button padding and force left alignment */
+        [data-testid="stSidebar"] button[kind="secondary"] p {
+            margin: 0 !important;
+            padding: 0 !important;
+            text-align: left !important;
+            width: 100% !important;
+        }
+        [data-testid="stSidebar"] button[kind="secondary"] div {
+            text-align: left !important;
+            justify-content: flex-start !important;
+        }
+        [data-testid="stSidebar"] button[kind="secondary"]:hover:not(:disabled) {
+            background: rgba(128, 128, 128, 0.1) !important;
+        }
+        /* Disabled buttons (active chat) - same styling as enabled */
+        [data-testid="stSidebar"] button[kind="secondary"]:disabled {
+            opacity: 1.0 !important;
+            color: inherit !important;
+            cursor: default !important;
+        }
+        /* Delete button (x) styling */
+        [data-testid="stSidebar"] button[kind="secondary"]:has(p:contains("x")) {
+            padding: 0.25rem 0.5rem !important;
             font-size: 1.2rem !important;
+            min-width: 2rem !important;
+            text-align: center !important;
+        }
+        /* Remove column padding for chat rows */
+        [data-testid="stSidebar"] [data-testid="column"] {
+            padding: 0 !important;
+        }
+        /* Reduce spacing between chat items - very compact */
+        [data-testid="stSidebar"] .element-container {
+            margin-bottom: 0rem !important;
+            padding-bottom: 0rem !important;
+        }
+        [data-testid="stSidebar"] .row-widget {
+            margin-bottom: 0rem !important;
+            margin-top: 0rem !important;
+            gap: 0 !important;
+        }
+        /* Target the specific container divs */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div {
+            gap: 0rem !important;
         }
         </style>
         """,
@@ -1025,33 +1483,39 @@ def main() -> None:
     initialize_session_state()
 
     # Define navigation pages
-    pages = [
-        st.Page(
-            home.render,
-            title="Home",
-            icon=":material/home:",
-            url_path="home",
-            default=True,
-        ),
-        st.Page(
-            chat.render,
-            title="Chat",
-            icon=":material/chat:",
-            url_path="chat",
-        ),
-        st.Page(
-            wandb.render,
-            title="W&B Report",
-            icon=":material/analytics:",
-            url_path="wandb-report",
-        ),
-        st.Page(
-            settings.render,
-            title="Settings",
-            icon=":material/settings:",
-            url_path="settings",
-        ),
-    ]
+    home_page = st.Page(
+        home.render,
+        title="Home",
+        icon=":material/home:",
+        url_path="home",
+        default=True,
+    )
+    chat_page = st.Page(
+        chat.render,
+        title="Chat",
+        icon=":material/chat:",
+        url_path="chat",
+    )
+    wandb_page = st.Page(
+        wandb.render,
+        title="W&B Report",
+        icon=":material/analytics:",
+        url_path="wandb-report",
+    )
+    settings_page = st.Page(
+        settings.render,
+        title="Settings",
+        icon=":material/settings:",
+        url_path="settings",
+    )
+
+    pages = [home_page, chat_page, wandb_page, settings_page]
+
+    # Check if we need to switch to chat page
+    if st.session_state.get("_switch_to_chat_page", False):
+        st.session_state._switch_to_chat_page = False
+        # Navigate to chat page
+        st.switch_page(chat_page)
 
     # Create navigation
     page = st.navigation(pages)

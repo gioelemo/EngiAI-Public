@@ -45,9 +45,7 @@ def render() -> None:
 
     # STL Viewer Settings
     st.markdown("## 🎨 3D Viewer")
-    st.info(
-        "**Note:** Changing these settings will reload all 3D models in the chat."
-    )
+    st.info("**Note:** Changing these settings will reload all 3D models in the chat.")
 
     col1, col2 = st.columns(2)
 

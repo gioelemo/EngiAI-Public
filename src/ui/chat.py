@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import streamlit as st
-from PIL import Image
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent

@@ -197,3 +197,9 @@ outputs/
 /tests/test_optimization_workflow.py
 
 /artifacts/
+
+# Chat data (user conversations)
+data/chats/
+data/conversations.db
+data/*.db
+*.db
