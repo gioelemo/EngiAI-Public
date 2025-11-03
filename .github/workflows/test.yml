@@ -28,5 +28,6 @@ jobs:
       env:
         OPENAI_API_KEY: test-key-123
         TAVILY_API_KEY: test-key-456
+        SKIP_MCP: "true"
       run: |
         pytest -v -m "not slow"

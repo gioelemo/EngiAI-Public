@@ -51,6 +51,7 @@ class SupervisorAgent:
         self.engineering_agent = EngineeringAgent(model_name=self.model_name)
         self.hpc_agent = HPCAgent(model_name=self.model_name)
         self.search_agent = SearchAgent(model_name=self.model_name)
+        # PrusaAgent will check SKIP_MCP env var automatically
         self.prusa_agent = PrusaAgent(model_name=self.model_name)
         # Disable CLI agent's internal confirmation - supervisor handles interrupts at its level
         self.cli_agent = CLIAgent(

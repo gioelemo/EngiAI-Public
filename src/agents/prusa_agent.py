@@ -27,36 +27,47 @@ from src.utils.prompts import PRUSA_AGENT_SYSTEM_PROMPT
 class PrusaAgent:
     """Agent specialized in 3D printer management via Prusa Connect."""
 
-    def __init__(self, model_name: str | None = None):
+    def __init__(self, model_name: str | None = None, skip_mcp: bool = False):
         """Initialize the Prusa agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
+            skip_mcp: Skip MCP server initialization (useful for testing)
         """
         self.model_name = model_name or config.llm_model
         self.llm = init_chat_model(self.model_name)
 
-        # Set up MCP connection to Prusa server
-        prusa_mcp_path = os.getenv(
-            "PRUSA_MCP_PATH", str(Path.home() / "Desktop" / "prusa-mcp")
-        )
-        uv_path = os.getenv("UV_PATH", str(Path.home() / ".local" / "bin" / "uv"))
+        # Check if MCP should be skipped (for testing or when not available)
+        skip_mcp = skip_mcp or os.getenv("SKIP_MCP", "false").lower() == "true"
 
-        # MCP server parameters
-        self.server_params = StdioServerParameters(
-            command=uv_path,
-            args=[
-                "--directory",
-                prusa_mcp_path,
-                "run",
-                "src/prusa-mcp.py",
-            ],
-        )
+        if skip_mcp:
+            # Initialize with empty tools for testing
+            self.tools = []
+            self.tools_by_name = {}
+            self.llm_with_tools = self.llm
+            self.server_params = None
+        else:
+            # Set up MCP connection to Prusa server
+            prusa_mcp_path = os.getenv(
+                "PRUSA_MCP_PATH", str(Path.home() / "Desktop" / "prusa-mcp")
+            )
+            uv_path = os.getenv("UV_PATH", str(Path.home() / ".local" / "bin" / "uv"))
 
-        # Initialize tools synchronously
-        self.tools = self._load_tools_sync()
-        self.tools_by_name = {tool.name: tool for tool in self.tools}
-        self.llm_with_tools = self.llm.bind_tools(self.tools)
+            # MCP server parameters
+            self.server_params = StdioServerParameters(
+                command=uv_path,
+                args=[
+                    "--directory",
+                    prusa_mcp_path,
+                    "run",
+                    "src/prusa-mcp.py",
+                ],
+            )
+
+            # Initialize tools synchronously
+            self.tools = self._load_tools_sync()
+            self.tools_by_name = {tool.name: tool for tool in self.tools}
+            self.llm_with_tools = self.llm.bind_tools(self.tools)  # type: ignore[assignment]
 
         # Build the agent graph
         self.agent = self._build_agent()
