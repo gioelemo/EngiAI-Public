@@ -1376,14 +1376,9 @@ def render_sidebar() -> None:
 
 def main() -> None:
     """Main Streamlit application."""
-    # Try to use logo as page icon
-    logo_path = project_root / "assets" / "logo_notext.png"
-    page_icon: str | Image.Image = "🤖"
-    if logo_path.exists():
-        try:
-            page_icon = Image.open(logo_path)
-        except Exception:
-            page_icon = "🤖"
+    # Use emoji as page icon (more reliable than loading image files)
+    # Image icons can cause MediaFileStorageError on reruns
+    page_icon = "🤖"
 
     # Page configuration
     st.set_page_config(
