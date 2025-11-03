@@ -230,5 +230,10 @@ module = [
   "diffusers",
   "watchdog",
   "langchain-mcp-adapters",
+  "sqlalchemy",
+  "sqlalchemy.*",
+  "mcp",
+  "mcp.*",
+  "pydantic"
 ]
 ignore_missing_imports = true
