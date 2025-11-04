@@ -1084,12 +1084,24 @@ def _format_tool_calls_for_display(tool_calls: list) -> str:
         tool_calls: List of tool call dictionaries
 
     Returns:
-        Formatted string with command details
+        Formatted string with command details, or empty string if only safe tools
     """
+    # Safe tools that don't require user confirmation
+    safe_tools = {
+        "open_gui_application",
+        "check_cli_tool_available",
+        "list_directory_contents",
+        "get_prusa_slicer_path",
+    }
+
     info_lines = []
     for tool_call in tool_calls:
         tool_name = tool_call.get("name", "Unknown")
         args = tool_call.get("args", {})
+
+        # Skip safe tools - they don't need confirmation
+        if tool_name in safe_tools:
+            continue
 
         if tool_name == "execute_cli_command":
             command = args.get("command", "N/A")
@@ -1102,18 +1114,8 @@ def _format_tool_calls_for_display(tool_calls: list) -> str:
                 info_lines.append(f"**Working directory:** `{working_dir}`")
             info_lines.append(f"**Timeout:** {timeout}s")
 
-        elif tool_name == "check_cli_tool_available":
-            tool = args.get("tool_name", "N/A")
-            info_lines.append(f"**Checking availability of tool:** `{tool}`")
-
-        elif tool_name == "list_directory_contents":
-            directory = args.get("directory_path", "N/A")
-            pattern = args.get("pattern")
-            info_lines.append(f"**Listing directory:** `{directory}`")
-            if pattern:
-                info_lines.append(f"**Pattern:** `{pattern}`")
-
         else:
+            # Unknown tool - show it for safety
             info_lines.append(f"**Tool:** `{tool_name}`")
             if args:
                 info_lines.append(f"**Arguments:** `{args}`")
