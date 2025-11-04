@@ -26,7 +26,7 @@ This directory contains the web-based user interface for the Engineer Assistant 
 
 ```bash
 # Activate the conda environment
-conda activate python-ruff-template
+conda activate engineer-assistant
 
 # Run Streamlit
 streamlit run src/ui/streamlit_app.py
