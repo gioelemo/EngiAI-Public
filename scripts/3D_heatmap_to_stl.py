@@ -13,9 +13,42 @@ splits = {
 }
 df = pd.read_parquet("hf://datasets/IDEALLab/heat_conduction_3d_v0/" + splits["train"])
 
-INDEX = 0  # Change this to visualize different designs
+# Filter by design parameters instead of index
+TARGET_VOLUME = 0.4  # Target volume fraction (0.0 to 1.0)
+TARGET_AREA = 0.4  # Target surface area ratio (0.0 to 1.0)
+TOLERANCE = 0.05  # Tolerance for matching (+/- 5%)
 
-optimal_design_array = df.loc[INDEX, "optimal_design"]
+# Find designs matching the target parameters
+filtered_df = df[
+    (df["volume"] >= TARGET_VOLUME - TOLERANCE)
+    & (df["volume"] <= TARGET_VOLUME + TOLERANCE)
+    & (df["area"] >= TARGET_AREA - TOLERANCE)
+    & (df["area"] <= TARGET_AREA + TOLERANCE)
+]
+
+if len(filtered_df) == 0:
+    print(
+        f"Warning: No designs found matching volume={TARGET_VOLUME}, area={TARGET_AREA}"
+    )
+    print("Using closest match instead...")
+    # Find closest match by computing distance
+    df["distance"] = (
+        (df["volume"] - TARGET_VOLUME) ** 2 + (df["area"] - TARGET_AREA) ** 2
+    ) ** 0.5
+    closest_idx = df["distance"].idxmin()
+    selected_design = df.loc[closest_idx]
+    print(
+        f"Selected design: volume={selected_design['volume']:.3f}, area={selected_design['area']:.3f}"
+    )
+else:
+    print(f"Found {len(filtered_df)} designs matching criteria")
+    # Use the first matching design
+    selected_design = filtered_df.iloc[0]
+    print(
+        f"Selected design: volume={selected_design['volume']:.3f}, area={selected_design['area']:.3f}"
+    )
+
+optimal_design_array = selected_design["optimal_design"]
 
 # Debug: check what we're dealing with
 print(f"Type: {type(optimal_design_array)}")
@@ -55,7 +88,7 @@ ax = fig.add_subplot(111, projection="3d")
 x, y, z = np.indices((size + 1, size + 1, size + 1)) / size  # Normalize to [0,1]
 
 # Define which voxels to plot (threshold for material presence)
-threshold = 0.4
+threshold = 0.5
 filled = design > threshold
 print(
     f"Voxels filled: {np.sum(filled)} / {design.size} ({100 * np.sum(filled) / design.size:.1f}%)"
@@ -69,36 +102,6 @@ ax.voxels(
     edgecolor="k",
     alpha=0.7,
 )
-cube_vertices = np.array(
-    [
-        [0, 0, 0],
-        [1, 0, 0],
-        [1, 1, 0],
-        [0, 1, 0],
-        [0, 0, 1],
-        [1, 0, 1],
-        [1, 1, 1],
-        [0, 1, 1],
-    ]
-)
-
-cube_edges = [
-    (0, 1),
-    (1, 2),
-    (2, 3),
-    (3, 0),  # Bottom face
-    (4, 5),
-    (5, 6),
-    (6, 7),
-    (7, 4),  # Top face
-    (0, 4),
-    (1, 5),
-    (2, 6),
-    (3, 7),
-]  # Side edges
-
-for edge in cube_edges:
-    ax.plot(*zip(*cube_vertices[list(edge)], strict=True), color="red", linewidth=2)
 
 # ============================================================================
 # Generate STL from voxel data
@@ -234,7 +237,7 @@ stl_mesh = voxel_to_stl(
 )
 
 # Show visualization
-open_window = False  # Set to True to display the matplotlib visualization
+open_window = True  # Set to True to display the matplotlib visualization
 if open_window:
     plt.show()
 
