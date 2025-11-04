@@ -193,9 +193,6 @@ Thumbs.db
 # Generated outputs (images, designs, STL files)
 outputs/
 
-/tests/test_notebook_comparison.py
-/tests/test_optimization_workflow.py
-
 /artifacts/
 
 # Chat data (user conversations)
