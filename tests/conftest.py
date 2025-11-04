@@ -11,6 +11,9 @@ import pytest
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 
+# Disable LangSmith tracing during tests to avoid rate limits
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 # ============================================================================
 # BASIC LLM FIXTURES
 # ============================================================================

@@ -17,13 +17,14 @@ from sqlalchemy import (
     Text,
     create_engine,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 # Load environment variables
 load_dotenv()
 
-Base = declarative_base()  # type: ignore[misc]
+
+class Base(DeclarativeBase):
+    """Base class for SQLAlchemy models."""
 
 
 def _serialize_messages(messages: list[BaseMessage]) -> list[dict]:
