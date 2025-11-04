@@ -15,6 +15,18 @@ from src.ui.streamlit_app import display_message, process_user_input  # noqa: E4
 
 def render() -> None:
     """Render the chat page."""
+    # IMPORTANT: Check for pending suggestion FIRST, before any rendering
+    # This handles the case where a button was clicked and stored a suggestion
+    pending_suggestion = None
+    if (
+        hasattr(st.session_state, "selected_suggestion")
+        and st.session_state.selected_suggestion
+    ):
+        pending_suggestion = st.session_state.selected_suggestion
+        st.session_state.selected_suggestion = (
+            None  # Clear immediately to prevent double-processing
+        )
+
     # Small logo at top when chat has messages
     if st.session_state.messages:
         # Display chat history
@@ -35,9 +47,15 @@ def render() -> None:
                 unsafe_allow_html=True,
             )
 
-    # Chat input
-    if prompt := st.chat_input("Ask me anything about engineering design..."):
-        process_user_input(prompt)
+    # Chat input - always show it so user can respond to follow-up questions
+    prompt = st.chat_input("Ask me anything about engineering design...")
+
+    # Determine what to process: pending suggestion takes priority, then chat input
+    input_to_process = pending_suggestion if pending_suggestion else prompt
+
+    # Process the input if we have any
+    if input_to_process:
+        process_user_input(input_to_process)
 
 
 if __name__ == "__main__":

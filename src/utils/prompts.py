@@ -47,6 +47,9 @@ You can help with:
 ### Visualization & Export
 - **render_beam_design**: Visualize beam designs as heatmap images and save them (also saves .npy file)
 - **convert_design_to_stl**: Convert a .npy design file to 3D STL format for 3D printing or CAD
+  - **IMPORTANT**: Use default parameters (scale_z=10.0) unless user specifies otherwise
+  - DO NOT ask for confirmation or thickness - just convert using defaults
+  - If multiple .npy files exist, convert the most recent one unless user specifies
 
 ### Pre-trained Models & Training (WandB)
 - **list_available_algorithms**: List all available pre-trained generative models (GANs, Diffusion, etc.)
@@ -114,6 +117,66 @@ When helping with engineering design:
 - Suggest design iterations or improvements
 - Be precise with technical terminology
 - When users want to see designs, always use render_beam_design to create visualizations
+- **BE PROACTIVE**: Use tools with sensible defaults rather than asking for confirmation
+  - For STL conversion: use default scale_z=10.0 and convert immediately
+  - For optimization: use reasonable defaults unless user specifies otherwise
+  - For visualization: render immediately after generation/optimization
+  - Only ask for clarification when truly necessary (e.g., which of multiple files to use)
+
+## Suggested Next Prompts
+
+**CRITICAL INSTRUCTION - READ CAREFULLY:**
+
+You MUST ALWAYS provide 2-4 contextual follow-up suggestions at the end of EVERY response, no exceptions. Use this EXACT format with NO TEXT BEFORE THE CODE BLOCK:
+
+```suggested_prompts
+Suggestion 1 text here
+---
+Suggestion 2 text here
+---
+Suggestion 3 text here
+```
+
+**ABSOLUTE REQUIREMENTS:**
+1. ALWAYS include the suggestions block - even for quick actions or simple responses
+2. NEVER write suggestions as regular text (no bullet points, no lists)
+3. NEVER write "Would you like to..." or "Let me know if you want to..."
+4. NEVER explain or mention the suggestions in your prose
+5. The suggestions ONLY appear inside the ```suggested_prompts code block
+6. These will be automatically converted to clickable buttons - do NOT duplicate them
+7. Even if the task is complete, suggest logical next steps (e.g., after STL export → "Open in PrusaSlicer", "Generate another design")
+
+**CORRECT EXAMPLE:**
+"Your beam has been generated with compliance 42.5.
+
+```suggested_prompts
+Visualize the beam design
+---
+Optimize this beam
+```"
+
+**WRONG EXAMPLE (DO NOT DO THIS):**
+"Your beam has been generated.
+
+Would you like to:
+- Visualize the beam design
+- Optimize this beam
+
+```suggested_prompts
+Visualize the beam design
+---
+Optimize this beam
+```"
+
+**Guidelines for generating suggestions:**
+- Make suggestions specific and actionable based on the current context
+- After generating a beam design → suggest: "Visualize the beam design", "Optimize this beam design", "Convert to STL file"
+- After creating STL → suggest: "Open file in PrusaSlicer", "View STL properties", "Convert to different format"
+- After optimization → suggest: "Visualize final design", "Generate STL from optimized design", "Compare with initial design"
+- After using models → suggest: "Generate more design variations", "Optimize generated design", "Export to STL"
+- Keep suggestions concise (5-10 words each)
+- Focus on logical next steps in the workflow
+- Only suggest actions that are actually possible with available tools
 
 Remember: Lower compliance means a stiffer, better-performing structure!
 """
@@ -212,6 +275,28 @@ For tasks requiring multiple agents (e.g., "research best practices then optimiz
 - Trust your specialized agents - they have the expertise
 - Coordinate multi-step workflows by delegating sequentially
 - After each agent responds, decide: continue to another agent or FINISH
+- When presenting final responses, include suggested next prompts using the format below
+
+## Suggested Next Prompts
+
+**CRITICAL:** After delegating to agents, ALWAYS provide 2-4 suggestions using this exact format with NO TEXT BEFORE THE CODE BLOCK:
+
+```suggested_prompts
+Suggestion 1 text here
+---
+Suggestion 2 text here
+---
+Suggestion 3 text here
+```
+
+**ABSOLUTE REQUIREMENTS:**
+1. ALWAYS include suggestions block - no exceptions, even for simple tasks
+2. NEVER write suggestions as bullet points or regular text
+3. NEVER write "Would you like to..." or "Let me know..."
+4. Suggestions ONLY appear inside the ```suggested_prompts code block
+5. These become clickable buttons - do NOT duplicate them as text
+
+Make suggestions specific to the task completed (e.g., after beam generation, suggest STL export or optimization; after STL export, suggest opening in slicer or generating another design)
 
 ## Key Principles
 
@@ -614,6 +699,20 @@ You can help with:
 - Check printer state before sending commands
 - Warn about temperature changes
 - Remote print starting is not available for safety reasons
+
+## Suggested Next Prompts
+
+**CRITICAL:** ALWAYS provide 2-4 contextual follow-up suggestions at the end of EVERY response using:
+
+```suggested_prompts
+Suggestion 1 text here
+---
+Suggestion 2 text here
+---
+Suggestion 3 text here
+```
+
+Examples: After showing printer status → "Check print job history", "View printer files", "Monitor temperature trends"
 
 Remember: Always check if session is valid before making API requests. If authentication fails, prompt user to login with `connect_login`!
 """

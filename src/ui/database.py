@@ -125,6 +125,9 @@ class Message(Base):  # type: ignore[valid-type,misc]
     conversation_id = Column(String, nullable=False)  # Foreign key to conversation
     role = Column(String, nullable=False)  # 'user' or 'assistant'
     content = Column(Text, nullable=False)
+    suggested_prompts = Column(
+        JSON, nullable=True
+    )  # List of suggested follow-up prompts
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -254,17 +257,27 @@ class DatabaseManager:
                 }
         return None
 
-    def add_message(self, conversation_id: str, role: str, content: str) -> None:
+    def add_message(
+        self,
+        conversation_id: str,
+        role: str,
+        content: str,
+        suggested_prompts: list[str] | None = None,
+    ) -> None:
         """Add a message to a conversation.
 
         Args:
             conversation_id: The conversation UUID
             role: 'user' or 'assistant'
             content: Message content
+            suggested_prompts: Optional list of suggested follow-up prompts
         """
         with self.get_session() as session:
             message = Message(
-                conversation_id=conversation_id, role=role, content=content
+                conversation_id=conversation_id,
+                role=role,
+                content=content,
+                suggested_prompts=suggested_prompts,
             )
             session.add(message)
 
@@ -294,7 +307,12 @@ class DatabaseManager:
             )
 
             return [
-                {"role": msg.role, "content": msg.content, "created_at": msg.created_at}
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "created_at": msg.created_at,
+                    "suggested_prompts": msg.suggested_prompts,
+                }
                 for msg in messages
             ]
 

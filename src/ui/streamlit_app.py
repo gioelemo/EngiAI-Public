@@ -760,12 +760,19 @@ def display_message(message: dict, message_idx: int = 0) -> None:
     """Display a single message in the chat interface.
 
     Args:
-        message: Dictionary with 'role' and 'content' keys
+        message: Dictionary with 'role' and 'content' keys (and optionally 'suggested_prompts')
         message_idx: Index of the message in the chat history for unique keys
     """
     with st.chat_message(message["role"]):
         # Fix LaTeX delimiters before displaying
         content = _fix_latex_delimiters(message["content"])
+
+        # For assistant messages, also clean any suggestions block from content
+        # (in case the content was saved before extraction)
+        if message["role"] == "assistant":
+            # Extract and remove any suggestions block that might be in the stored content
+            cleaned_content, _ = _extract_suggested_prompts(content)
+            content = cleaned_content
 
         # Display text content
         st.markdown(content)
@@ -784,6 +791,31 @@ def display_message(message: dict, message_idx: int = 0) -> None:
         log_files = find_log_files_in_text(message["content"])
         for log_path in log_files:
             _display_log_file(log_path, button_key_prefix=f"msg_{message_idx}_log")
+
+        # Display suggested prompts for assistant messages
+        # Now we display for ALL messages, including the last one
+        if message["role"] == "assistant" and message.get("suggested_prompts"):
+            suggestions = message["suggested_prompts"]
+            if suggestions:
+                st.markdown("---")
+                st.markdown("**💡 Suggested next steps:**")
+
+                # Create columns for suggestions (max 2 per row)
+                num_cols = min(2, len(suggestions))
+                cols = st.columns(num_cols)
+
+                for idx, suggestion in enumerate(suggestions):
+                    col_idx = idx % num_cols
+                    with cols[col_idx]:
+                        # Create a button for each suggestion
+                        if st.button(
+                            suggestion,
+                            key=f"hist_suggestion_{message_idx}_{idx}",
+                            use_container_width=True,
+                        ):
+                            # Store the selected suggestion to process
+                            st.session_state.selected_suggestion = suggestion
+                            st.rerun()
 
 
 def format_tool_call(tool_call: Any) -> str:
@@ -1151,14 +1183,113 @@ def _show_confirmation_prompt(user_request: str) -> None:
     st.session_state.messages.append({"role": "assistant", "content": confirm_msg})
 
 
-def _format_and_display_messages(new_messages: list) -> str:
+def _extract_suggested_prompts(response: str) -> tuple[str, list[str]]:
+    """Extract suggested prompts from the response.
+
+    Args:
+        response: The full response text
+
+    Returns:
+        Tuple of (cleaned_response, list of suggested prompts)
+    """
+    # Pattern to match suggested prompts block
+    pattern = r"```suggested_prompts\s*(.*?)\s*```"
+    match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+
+    if not match:
+        return response, []
+
+    # Extract the suggestions
+    suggestions_text = match.group(1)
+    suggestions = [s.strip() for s in suggestions_text.split("---") if s.strip()]
+
+    # Remove the suggestions block from the response
+    cleaned_response = re.sub(pattern, "", response, flags=re.DOTALL | re.IGNORECASE)
+
+    # Strategy: Look for any paragraph that contains bullet points matching our suggestions
+    # This is more aggressive but effective
+    for suggestion in suggestions:
+        # Escape special regex characters in the suggestion
+        escaped_suggestion = re.escape(suggestion)
+        # Remove any lines that contain this exact suggestion
+        # This catches bullet points like "- Visualize the beam" or "* Visualize the beam"
+        cleaned_response = re.sub(
+            rf"^\s*[-•*]\s*{escaped_suggestion}\s*$",
+            "",
+            cleaned_response,
+            flags=re.MULTILINE | re.IGNORECASE,
+        )
+
+    # Also remove common header patterns that introduce suggestions
+    patterns_to_remove = [
+        # "Would you like to:" followed by newlines/bullets
+        r"(?:Would you like to|Let me know (?:if you (?:want|would like) to|your next step)|Alternatively|You (?:can|could|may))[:\s]*\n+(?:\s*[-•*]\s*[^\n]*\n+)*",
+        # "Next steps:" or similar followed by newlines/bullets
+        r"(?:Next steps?|Suggested (?:actions?|steps?|next steps?)|What'?s next\??)[:\s]*\n+(?:\s*[-•*]\s*[^\n]*\n+)*",
+        # Standalone paragraph with only bullets (after we removed the matching ones)
+        r"\n{2,}\s*(?:[-•*]\s*\n+)*\s*\n{2,}",
+    ]
+
+    for pattern_to_remove in patterns_to_remove:
+        cleaned_response = re.sub(
+            pattern_to_remove,
+            "\n\n",
+            cleaned_response,
+            flags=re.MULTILINE | re.IGNORECASE,
+        )
+
+    # Clean up excessive newlines
+    cleaned_response = re.sub(r"\n{3,}", "\n\n", cleaned_response)
+    cleaned_response = cleaned_response.strip()
+
+    return cleaned_response, suggestions
+
+
+def _display_suggested_prompts(suggestions: list[str]) -> None:
+    """Display suggested prompts as clickable buttons.
+
+    Args:
+        suggestions: List of suggested prompt strings
+    """
+    if not suggestions:
+        return
+
+    st.markdown("---")
+    st.markdown("**💡 Suggested next steps:**")
+
+    # Create columns for suggestions (max 2 per row)
+    num_cols = min(2, len(suggestions))
+    cols = st.columns(num_cols)
+
+    # Use message count to ensure unique keys for newly displayed suggestions
+    msg_count = len(st.session_state.get("messages", []))
+
+    for idx, suggestion in enumerate(suggestions):
+        col_idx = idx % num_cols
+        button_key = f"new_suggestion_{msg_count}_{idx}"
+        with cols[col_idx]:
+            # Create a button for each suggestion
+            # Use "new_" prefix and message count to distinguish from history buttons
+            button_clicked = st.button(
+                suggestion,
+                key=button_key,
+                use_container_width=True,
+            )
+            if button_clicked:
+                # Store the selected suggestion to process
+                st.session_state.selected_suggestion = suggestion
+                # Trigger rerun so chat.py can process the suggestion
+                st.rerun()
+
+
+def _format_and_display_messages(new_messages: list) -> tuple[str, list[str]]:
     """Format and display new messages from the agent.
 
     Args:
         new_messages: List of new messages to display
 
     Returns:
-        Formatted response string
+        Tuple of (formatted response string, list of suggested prompts)
     """
     response_parts = []
     for message in new_messages:
@@ -1169,14 +1300,22 @@ def _format_and_display_messages(new_messages: list) -> str:
             response_parts.append(formatted)
 
     full_response = "\n\n".join(response_parts)
+    suggested_prompts: list[str] = []
+
     if full_response:
+        # Extract suggested prompts first
+        cleaned_response, suggested_prompts = _extract_suggested_prompts(full_response)
+
         # Extract and display validation warnings as separate Streamlit components
-        cleaned_response = _extract_and_display_validation_warnings(full_response)
-        # Display the cleaned response (without validation block)
+        cleaned_response = _extract_and_display_validation_warnings(cleaned_response)
+
+        # Display the cleaned response (without validation block and suggestions)
         st.markdown(cleaned_response)
+
         # Display media files
         display_response_media(cleaned_response)
-    return full_response
+
+    return full_response, suggested_prompts
 
 
 def _handle_confirmation_response(user_input: str) -> None:
@@ -1207,10 +1346,16 @@ def _handle_confirmation_response(user_input: str) -> None:
                     messages_before:
                 ]
 
-                full_response = _format_and_display_messages(new_messages)
+                full_response, suggested_prompts = _format_and_display_messages(
+                    new_messages
+                )
                 if full_response:
                     st.session_state.messages.append(
-                        {"role": "assistant", "content": full_response}
+                        {
+                            "role": "assistant",
+                            "content": full_response,
+                            "suggested_prompts": suggested_prompts,
+                        }
                     )
             except Exception as e:
                 st.error(f"Error executing command: {e}")
@@ -1296,12 +1441,18 @@ def process_user_input(user_input: str) -> None:
 
             # Get and display new messages
             new_messages = st.session_state.agent_state["messages"][messages_before:]
-            full_response = _format_and_display_messages(new_messages)
+            full_response, suggested_prompts = _format_and_display_messages(
+                new_messages
+            )
 
             if full_response:
                 # Save to display history
                 st.session_state.messages.append(
-                    {"role": "assistant", "content": full_response}
+                    {
+                        "role": "assistant",
+                        "content": full_response,
+                        "suggested_prompts": suggested_prompts,
+                    }
                 )
 
                 # Save assistant message to database
@@ -1311,12 +1462,16 @@ def process_user_input(user_input: str) -> None:
                         conversation_id=st.session_state.active_chat_id,
                         role="assistant",
                         content=full_response,
+                        suggested_prompts=suggested_prompts,
                     )
             else:
                 st.info("Agent is processing... (no response yet)")
 
             # Save chat state after successful interaction
             _save_active_chat_to_storage()
+
+            # Trigger rerun so that chat.py renders all messages with buttons
+            st.rerun()
 
         except Exception as e:
             error_msg = f"❌ **Error:** {e!s}"
