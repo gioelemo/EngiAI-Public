@@ -333,7 +333,14 @@ def _initialize_chat_state() -> None:
 
 
 def _initialize_stl_settings() -> None:
-    """Initialize STL viewer settings."""
+    """Initialize STL viewer settings from database."""
+    # Get database manager
+    if "db_manager" not in st.session_state:
+        st.session_state.db_manager = DatabaseManager()
+
+    db = st.session_state.db_manager
+
+    # Default values
     defaults: dict[str, Any] = {
         "stl_color": "#0069B4",
         "stl_material": "material",
@@ -341,11 +348,14 @@ def _initialize_stl_settings() -> None:
         "stl_auto_rotate": True,
         "stl_opacity": 1.0,
         "stl_shininess": 100,
+        "media_save_dir": str(Path(__file__).parent.parent.parent / "outputs"),
+        "media_auto_save": False,
     }
 
+    # Load from database or use defaults
     for key, value in defaults.items():
         if key not in st.session_state:
-            st.session_state[key] = value
+            st.session_state[key] = db.get_setting(key, value)
 
 
 def initialize_session_state() -> None:

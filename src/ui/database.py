@@ -143,6 +143,17 @@ class ConversationState(Base):  # type: ignore[valid-type,misc]
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Settings(Base):  # type: ignore[valid-type,misc]
+    """Model for storing user settings."""
+
+    __tablename__ = "settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String, unique=True, nullable=False)
+    value = Column(JSON, nullable=False)  # Store any type of value as JSON
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class DatabaseManager:
     """Manager class for database operations."""
 
@@ -426,3 +437,60 @@ class DatabaseManager:
                 conv.name = name  # type: ignore[assignment]
                 conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
                 session.commit()
+
+    def get_setting(self, key: str, default: Any = None) -> Any:
+        """Get a setting value by key.
+
+        Args:
+            key: Setting key
+            default: Default value if setting not found
+
+        Returns:
+            The setting value or default
+        """
+        with self.get_session() as session:
+            setting = session.query(Settings).filter_by(key=key).first()
+            if setting:
+                return setting.value
+        return default
+
+    def set_setting(self, key: str, value: Any) -> None:
+        """Set a setting value.
+
+        Args:
+            key: Setting key
+            value: Setting value (will be JSON serialized)
+        """
+        with self.get_session() as session:
+            setting = session.query(Settings).filter_by(key=key).first()
+
+            if setting:
+                # Update existing setting
+                setting.value = value  # type: ignore[assignment]
+                setting.updated_at = datetime.utcnow()  # type: ignore[assignment]
+            else:
+                # Create new setting
+                setting = Settings(key=key, value=value)
+                session.add(setting)
+
+            session.commit()
+
+    def get_all_settings(self) -> dict[str, Any]:
+        """Get all settings as a dictionary.
+
+        Returns:
+            Dictionary mapping setting keys to values
+        """
+        with self.get_session() as session:
+            settings = session.query(Settings).all()
+            return {str(setting.key): setting.value for setting in settings}
+
+    def delete_setting(self, key: str) -> None:
+        """Delete a setting by key.
+
+        Args:
+            key: Setting key to delete
+        """
+        with self.get_session() as session:
+            session.query(Settings).filter_by(key=key).delete()
+            session.commit()
