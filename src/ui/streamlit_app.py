@@ -4,6 +4,7 @@ Streamlit UI for the Engineer Assistant chatbot.
 This provides a web-based chat interface for interacting with the multi-agent system.
 """
 
+import base64
 import contextlib
 import datetime
 import re
@@ -93,6 +94,46 @@ def _get_db() -> DatabaseManager:
     if "db_manager" not in st.session_state:
         st.session_state.db_manager = DatabaseManager()
     return st.session_state.db_manager
+
+
+def _process_uploaded_images(
+    files: list[Any],
+) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    """Process uploaded image files to base64 format.
+
+    Args:
+        files: List of uploaded file objects from Streamlit
+
+    Returns:
+        Tuple of (images_for_display, images_for_agent)
+        - images_for_display: List of dicts with 'data' (base64) and 'type' keys for storage
+        - images_for_agent: List of dicts in LangChain vision format
+    """
+    images_for_display = []
+    images_for_agent = []
+
+    for file in files:
+        # Read the file bytes
+        file_bytes = file.read()
+
+        # Convert to base64
+        base64_image = base64.b64encode(file_bytes).decode("utf-8")
+
+        # Determine image type
+        image_type = file.type if hasattr(file, "type") else "image/jpeg"
+
+        # For display/storage
+        images_for_display.append({"data": base64_image, "type": image_type})
+
+        # For LangChain agent (vision format)
+        images_for_agent.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{image_type};base64,{base64_image}"},
+            }
+        )
+
+    return images_for_display, images_for_agent
 
 
 def _create_new_chat(name: str | None = None) -> str:
@@ -276,9 +317,14 @@ def _load_chats_from_database() -> None:
 
             # Load messages
             messages = db.get_messages(chat_id)
-            display_messages = [
-                {"role": msg["role"], "content": msg["content"]} for msg in messages
-            ]
+            display_messages = []
+            for msg in messages:
+                display_msg = {"role": msg["role"], "content": msg["content"]}
+                if msg.get("images"):
+                    display_msg["images"] = msg["images"]
+                if msg.get("suggested_prompts"):
+                    display_msg["suggested_prompts"] = msg["suggested_prompts"]
+                display_messages.append(display_msg)
 
             # Load state
             state_data = db.get_conversation_state(chat_id)
@@ -787,7 +833,13 @@ def display_message(message: dict, message_idx: int = 0) -> None:
         # Display text content
         st.markdown(content)
 
-        # Display images
+        # Display uploaded images (from user messages with image attachments)
+        if message.get("images"):
+            for img_data in message["images"]:
+                img_bytes = base64.b64decode(img_data["data"])
+                st.image(img_bytes, width=400)
+
+        # Display images referenced in text (file paths)
         images = find_images_in_text(message["content"])
         for img_path in images:
             _display_image(img_path, button_key_prefix=f"msg_{message_idx}_img")
@@ -821,7 +873,7 @@ def display_message(message: dict, message_idx: int = 0) -> None:
                         if st.button(
                             suggestion,
                             key=f"hist_suggestion_{message_idx}_{idx}",
-                            use_container_width=True,
+                            width="stretch",
                         ):
                             # Store the selected suggestion to process
                             st.session_state.selected_suggestion = suggestion
@@ -1283,7 +1335,7 @@ def _display_suggested_prompts(suggestions: list[str]) -> None:
             button_clicked = st.button(
                 suggestion,
                 key=button_key,
-                use_container_width=True,
+                width="stretch",
             )
             if button_clicked:
                 # Store the selected suggestion to process
@@ -1381,20 +1433,46 @@ def _handle_confirmation_response(user_input: str) -> None:
             )
 
 
-def process_user_input(user_input: str) -> None:
+def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa: PLR0912, PLR0915
     """Process user input and generate response.
 
     Args:
-        user_input: The user's message
+        user_input: The user's message (string) or dict with 'text' and 'files' keys
     """
+    # Parse input - handle both string and dict formats
+    # st.chat_input with files returns a ChatInputValue object with 'text' and 'files' attributes
+    if isinstance(user_input, str):
+        text_content = user_input
+        files = []
+    elif hasattr(user_input, "text") and hasattr(user_input, "files"):
+        # ChatInputValue object from Streamlit
+        text_content = str(user_input.text) if user_input.text else ""
+        files = list(user_input.files) if user_input.files else []
+    elif isinstance(user_input, dict):
+        text_content = user_input.get("text", "")
+        files = user_input.get("files", [])
+    else:
+        # Fallback: convert to string
+        text_content = str(user_input)
+        files = []
+
+    # Process images if any
+    images_for_display: list[dict[str, str]] = []
+    images_for_agent: list[dict[str, Any]] = []
+    if files:
+        images_for_display, images_for_agent = _process_uploaded_images(files)
+
     # Check if we're waiting for confirmation from a previous interrupt
     if st.session_state.waiting_for_confirmation:
-        _handle_confirmation_response(user_input)
+        _handle_confirmation_response(text_content)
         _save_active_chat_to_storage()  # Save after confirmation response
         return
 
     # Normal flow - add user message to display
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    message_dict: dict[str, Any] = {"role": "user", "content": text_content}
+    if images_for_display:
+        message_dict["images"] = images_for_display
+    st.session_state.messages.append(message_dict)
 
     # Save user message to database
     if st.session_state.active_chat_id:
@@ -1402,15 +1480,34 @@ def process_user_input(user_input: str) -> None:
         db.add_message(
             conversation_id=st.session_state.active_chat_id,
             role="user",
-            content=user_input,
+            content=text_content,
+            images=images_for_display if images_for_display else None,
         )
 
+    # Create LangChain message with multimodal content if images present
+    if images_for_agent:
+        # Create multimodal content: [text, image1, image2, ...]
+        message_content: list[dict[str, Any]] = [
+            {"type": "text", "text": text_content},
+            *images_for_agent,
+        ]
+        human_message = HumanMessage(
+            content=cast(str | list[str | dict[Any, Any]], message_content)
+        )
+    else:
+        human_message = HumanMessage(content=text_content)
+
     # Add user message to agent state
-    st.session_state.agent_state["messages"].append(HumanMessage(content=user_input))
+    st.session_state.agent_state["messages"].append(human_message)
 
     # Display user message
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(text_content)
+        # Display uploaded images
+        if images_for_display:
+            for img_data in images_for_display:
+                img_bytes = base64.b64decode(img_data["data"])
+                st.image(img_bytes, width=400)
 
     # Generate response
     with st.chat_message("assistant"), st.spinner("Thinking..."):
@@ -1500,9 +1597,7 @@ def render_sidebar() -> None:
     truncated_title_length = 32
 
     # New Chat button at the top
-    if st.button(
-        "+ New Chat", key="new_chat_btn", use_container_width=True, type="primary"
-    ):
+    if st.button("+ New Chat", key="new_chat_btn", width="stretch", type="primary"):
         # Save current chat before creating new one
         _save_active_chat_to_storage()
         # Create new chat without auto-generated name (will be generated from first message)
@@ -1548,7 +1643,7 @@ def render_sidebar() -> None:
             button_clicked = st.button(
                 display_title,
                 key=f"chat_{chat_id}",
-                use_container_width=True,
+                width="stretch",
                 type="secondary",
                 disabled=False,  # Always clickable to allow navigation from other pages
             )

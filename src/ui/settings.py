@@ -167,7 +167,7 @@ def _render_chat_settings() -> None:
     """Render chat settings section."""
     st.markdown("## 💬 Chat Settings")
 
-    if st.button("🗑️ Clear Conversation", use_container_width=True, type="primary"):
+    if st.button("🗑️ Clear Conversation", width="stretch", type="primary"):
         st.session_state.messages = []
         st.session_state.agent_state = {"messages": []}
         st.success("✅ Conversation cleared!")

@@ -126,6 +126,7 @@ class Message(Base):  # type: ignore[valid-type,misc]
     conversation_id = Column(String, nullable=False)  # Foreign key to conversation
     role = Column(String, nullable=False)  # 'user' or 'assistant'
     content = Column(Text, nullable=False)
+    images = Column(JSON, nullable=True)  # List of image data (base64 encoded)
     suggested_prompts = Column(
         JSON, nullable=True
     )  # List of suggested follow-up prompts
@@ -275,6 +276,7 @@ class DatabaseManager:
         role: str,
         content: str,
         suggested_prompts: list[str] | None = None,
+        images: list[dict[str, Any]] | None = None,
     ) -> None:
         """Add a message to a conversation.
 
@@ -283,6 +285,7 @@ class DatabaseManager:
             role: 'user' or 'assistant'
             content: Message content
             suggested_prompts: Optional list of suggested follow-up prompts
+            images: Optional list of image data dictionaries with 'data' (base64) and 'type' keys
         """
         with self.get_session() as session:
             message = Message(
@@ -290,6 +293,7 @@ class DatabaseManager:
                 role=role,
                 content=content,
                 suggested_prompts=suggested_prompts,
+                images=images,
             )
             session.add(message)
 
@@ -324,6 +328,7 @@ class DatabaseManager:
                     "content": msg.content,
                     "created_at": msg.created_at,
                     "suggested_prompts": msg.suggested_prompts,
+                    "images": msg.images,
                 }
                 for msg in messages
             ]

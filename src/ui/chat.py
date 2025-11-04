@@ -47,11 +47,15 @@ def render() -> None:
                 unsafe_allow_html=True,
             )
 
-    # Chat input - always show it so user can respond to follow-up questions
-    prompt = st.chat_input("Ask me anything about engineering design...")
+    # Chat input with image upload support - always show it so user can respond to follow-up questions
+    message = st.chat_input(
+        "Ask me anything about engineering design...",
+        accept_file=True,
+        file_type=["png", "jpg", "jpeg", "gif", "webp"],
+    )
 
     # Determine what to process: pending suggestion takes priority, then chat input
-    input_to_process = pending_suggestion if pending_suggestion else prompt
+    input_to_process = pending_suggestion if pending_suggestion else message
 
     # Process the input if we have any
     if input_to_process:
