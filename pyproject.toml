@@ -238,7 +238,7 @@ module = [
   "mcp",
   "mcp.*",
   "pydantic",
-  "langchain_community.*"
+  "langchain_community.*",
   "langchain_*"
 ]
 ignore_missing_imports = true
