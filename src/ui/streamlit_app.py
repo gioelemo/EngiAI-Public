@@ -9,12 +9,14 @@ import contextlib
 import datetime
 import re
 import sys
+import tempfile
 import uuid
 import warnings
 from pathlib import Path
 from typing import Any, cast
 
 import streamlit as st
+from langchain_community.document_loaders import MathpixPDFLoader
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from PIL import Image
 from streamlit_stl import stl_from_file  # type: ignore[import-untyped]
@@ -96,17 +98,57 @@ def _get_db() -> DatabaseManager:
     return st.session_state.db_manager
 
 
+def _extract_pdf_text(pdf_files: list[dict[str, str]]) -> str:
+    """Extract text from PDF files using MathPixPDFLoader.
+
+    Args:
+        pdf_files: List of PDF file data dicts with 'data' (base64) and 'name' keys
+
+    Returns:
+        Extracted text from all PDFs
+    """
+    all_text = []
+
+    for pdf_file in pdf_files:
+        # Decode base64 to bytes
+        pdf_bytes = base64.b64decode(pdf_file["data"])
+        file_name = pdf_file.get("name", "document.pdf")
+
+        # Write to temporary file (MathPixPDFLoader needs a file path)
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+            tmp_file.write(pdf_bytes)
+            tmp_path = tmp_file.name
+
+        try:
+            # Use MathPixPDFLoader to extract text
+            loader = MathpixPDFLoader(tmp_path)
+            docs = loader.load()
+
+            # Combine all pages
+            pdf_text = f"\n\n=== {file_name} ===\n\n"
+            pdf_text += "\n\n".join(doc.page_content for doc in docs)
+            all_text.append(pdf_text)
+
+        finally:
+            # Clean up temp file
+            tmp_file_path = Path(tmp_path)
+            if tmp_file_path.exists():
+                tmp_file_path.unlink()
+
+    return "\n\n".join(all_text)
+
+
 def _process_uploaded_images(
     files: list[Any],
 ) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
-    """Process uploaded image files to base64 format.
+    """Process uploaded image and PDF files to base64 format.
 
     Args:
         files: List of uploaded file objects from Streamlit
 
     Returns:
         Tuple of (images_for_display, images_for_agent)
-        - images_for_display: List of dicts with 'data' (base64) and 'type' keys for storage
+        - images_for_display: List of dicts with 'data' (base64), 'type', and 'name' keys for storage
         - images_for_agent: List of dicts in LangChain vision format
     """
     images_for_display = []
@@ -117,19 +159,28 @@ def _process_uploaded_images(
         file_bytes = file.read()
 
         # Convert to base64
-        base64_image = base64.b64encode(file_bytes).decode("utf-8")
+        base64_data = base64.b64encode(file_bytes).decode("utf-8")
 
-        # Determine image type
-        image_type = file.type if hasattr(file, "type") else "image/jpeg"
+        # Determine file type
+        file_type = file.type if hasattr(file, "type") else "application/octet-stream"
+        file_name = file.name if hasattr(file, "name") else "unknown"
 
         # For display/storage
-        images_for_display.append({"data": base64_image, "type": image_type})
+        images_for_display.append(
+            {
+                "data": base64_data,
+                "type": file_type,
+                "name": file_name,
+            }
+        )
 
-        # For LangChain agent (vision format)
+        # For LangChain agent
+        # Note: PDF support varies by model. Claude 3.5 Sonnet and some others support PDFs
+        # as if they were images using the same format
         images_for_agent.append(
             {
                 "type": "image_url",
-                "image_url": {"url": f"data:{image_type};base64,{base64_image}"},
+                "image_url": {"url": f"data:{file_type};base64,{base64_data}"},
             }
         )
 
@@ -833,11 +884,26 @@ def display_message(message: dict, message_idx: int = 0) -> None:
         # Display text content
         st.markdown(content)
 
-        # Display uploaded images (from user messages with image attachments)
+        # Display uploaded files (images and PDFs from user messages)
         if message.get("images"):
-            for img_data in message["images"]:
-                img_bytes = base64.b64decode(img_data["data"])
-                st.image(img_bytes, width=400)
+            for file_data in message["images"]:
+                file_type = file_data.get("type", "")
+                file_name = file_data.get("name", "file")
+
+                if file_type == "application/pdf":
+                    # Display PDF as a download link
+                    pdf_bytes = base64.b64decode(file_data["data"])
+                    st.download_button(
+                        label=f"📄 {file_name}",
+                        data=pdf_bytes,
+                        file_name=file_name,
+                        mime="application/pdf",
+                        key=f"pdf_{message_idx}_{file_name}",
+                    )
+                else:
+                    # Display as image
+                    img_bytes = base64.b64decode(file_data["data"])
+                    st.image(img_bytes, width=400)
 
         # Display images referenced in text (file paths)
         images = find_images_in_text(message["content"])
@@ -1484,12 +1550,30 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             images=images_for_display if images_for_display else None,
         )
 
-    # Create LangChain message with multimodal content if images present
-    if images_for_agent:
+    # Check if we have PDFs - they will be extracted and added as text
+    has_pdfs = any(f.get("type") == "application/pdf" for f in images_for_display)
+
+    # Filter out PDFs from images_for_agent (PDFs are handled separately via text extraction)
+    non_pdf_images = (
+        [
+            img
+            for img in images_for_agent
+            if not any(
+                f.get("type") == "application/pdf"
+                and f.get("data") in img.get("image_url", {}).get("url", "")
+                for f in images_for_display
+            )
+        ]
+        if has_pdfs
+        else images_for_agent
+    )
+
+    # Create LangChain message with multimodal content if images present (no PDFs)
+    if non_pdf_images:
         # Create multimodal content: [text, image1, image2, ...]
         message_content: list[dict[str, Any]] = [
             {"type": "text", "text": text_content},
-            *images_for_agent,
+            *non_pdf_images,
         ]
         human_message = HumanMessage(
             content=cast(str | list[str | dict[Any, Any]], message_content)
@@ -1497,21 +1581,55 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     else:
         human_message = HumanMessage(content=text_content)
 
-    # Add user message to agent state
+    # Add user message to agent state (PDFs will be added via text extraction later)
     st.session_state.agent_state["messages"].append(human_message)
 
     # Display user message
     with st.chat_message("user"):
         st.markdown(text_content)
-        # Display uploaded images
+        # Display uploaded files
         if images_for_display:
-            for img_data in images_for_display:
-                img_bytes = base64.b64decode(img_data["data"])
-                st.image(img_bytes, width=400)
+            for file_data in images_for_display:
+                file_type = file_data.get("type", "")
+                file_name = file_data.get("name", "file")
+
+                if file_type == "application/pdf":
+                    # Display PDF as info (will be sent to AI)
+                    st.info(f"📄 Attached: {file_name}")
+                else:
+                    # Display as image
+                    img_bytes = base64.b64decode(file_data["data"])
+                    st.image(img_bytes, width=400)
 
     # Generate response
     with st.chat_message("assistant"), st.spinner("Thinking..."):
         try:
+            # Check if we have PDFs - extract text and prepend to user message
+            pdf_files = [
+                f for f in images_for_display if f.get("type") == "application/pdf"
+            ]
+
+            if pdf_files:
+                # Extract PDF text using MathPixPDFLoader
+                try:
+                    pdf_text = _extract_pdf_text(pdf_files)
+
+                    # Update the user message in agent state to include PDF content
+                    # Remove the last message (text-only) and replace with PDF-enhanced version
+                    st.session_state.agent_state["messages"].pop()
+
+                    # Create enhanced message with PDF text
+                    enhanced_content = (
+                        f"PDF Content:\n\n{pdf_text}\n\nUser Question: {text_content}"
+                    )
+                    st.session_state.agent_state["messages"].append(
+                        HumanMessage(content=enhanced_content)
+                    )
+
+                except Exception as e:
+                    st.error(f"Error extracting PDF text: {e!s}")
+                    # Continue with regular processing
+
             # Track messages before invocation
             messages_before = len(st.session_state.agent_state["messages"])
 

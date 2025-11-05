@@ -51,7 +51,7 @@ def render() -> None:
     message = st.chat_input(
         "Ask me anything about engineering design...",
         accept_file=True,
-        file_type=["png", "jpg", "jpeg", "gif", "webp"],
+        file_type=["png", "jpg", "jpeg", "gif", "webp", "pdf"],
     )
 
     # Determine what to process: pending suggestion takes priority, then chat input
