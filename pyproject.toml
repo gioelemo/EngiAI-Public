@@ -234,6 +234,7 @@ module = [
   "sqlalchemy.*",
   "mcp",
   "mcp.*",
-  "pydantic"
+  "pydantic",
+  "langchain_community.*"
 ]
 ignore_missing_imports = true
