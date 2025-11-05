@@ -32,6 +32,7 @@ dependencies = [
     "cvxopt",
     "psycopg2-binary ==2.9.10",
     "sqlalchemy ==2.0.36",
+    "langchain-community ==0.4.1",
 ]
 
 [project.optional-dependencies]
