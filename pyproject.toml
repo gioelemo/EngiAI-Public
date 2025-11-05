@@ -239,6 +239,7 @@ module = [
   "mcp.*",
   "pydantic",
   "langchain_community.*",
-  "langchain_*"
+  "langchain_chroma",
+  "langchain_openai"
 ]
 ignore_missing_imports = true
