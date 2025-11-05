@@ -222,7 +222,24 @@ The system has the following capabilities:
 - Find best practices and papers
 - Current state-of-the-art research
 
-Answer the user's question clearly and concisely about what the system can do."""
+**Prusa 3D Printer Management:**
+- Monitor printer status and print jobs
+- Control printers (pause, resume, stop)
+- Manage files and storage
+
+Answer the user's question clearly and concisely about what the system can do.
+
+**CRITICAL: You MUST end EVERY response with 2-4 contextual follow-up suggestions in this format:**
+
+```suggested_prompts
+Suggestion 1 text here
+---
+Suggestion 2 text here
+---
+Suggestion 3 text here
+```
+
+For capability questions, suggest specific actions the user might want to try with the system."""
 
         messages = [
             {"role": "system", "content": capabilities_prompt},

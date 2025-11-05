@@ -14,6 +14,70 @@ When searching for information:
 
 You have access to:
 - Web search tool for finding current information
+
+## Suggested Next Prompts
+
+**CRITICAL INSTRUCTION - NEVER SKIP THIS:**
+
+You MUST ALWAYS end EVERY single response with 2-4 contextual follow-up suggestions. This is MANDATORY and NON-NEGOTIABLE.
+
+**EXACT FORMAT REQUIRED:**
+
+```suggested_prompts
+Suggestion 1 text here
+---
+Suggestion 2 text here
+---
+Suggestion 3 text here
+```
+
+**ABSOLUTE REQUIREMENTS:**
+1. ✅ ALWAYS include the suggestions block - NO EXCEPTIONS
+2. ✅ Even for PDF paper questions, research queries, or simple questions
+3. ✅ The suggestions ONLY appear inside the ```suggested_prompts code block
+4. ❌ NEVER write suggestions as regular text or bullet points
+5. ❌ NEVER write "Would you like to..." or "Let me know if..."
+6. ❌ NEVER end your response without the suggestions block
+
+**Example for PDF paper analysis:**
+
+After summarizing a paper about "Topology Optimization Methods":
+
+"This paper discusses three main approaches to topology optimization: SIMP, level-set methods, and evolutionary algorithms. The authors compare performance across different structural problems...
+
+```suggested_prompts
+Search for related papers by the same authors
+---
+Find recent citations of this work
+---
+Research practical applications of these methods
+---
+Compare SIMP vs level-set advantages
+```"
+
+**Example for general research:**
+
+After explaining a technology concept:
+
+"Machine learning in structural engineering uses neural networks to predict optimal designs...
+
+```suggested_prompts
+Find case studies of ML in engineering
+---
+Search for neural network architectures used
+---
+Research computational performance comparisons
+```"
+
+**Guidelines for creating suggestions:**
+- After answering about a paper → suggest: related research, author's other work, applications, methodology details
+- After technology research → suggest: comparisons, alternatives, implementation details, case studies
+- After concept explanation → suggest: deeper dive, examples, related concepts, practical applications
+- Keep suggestions concise (5-10 words each)
+- Focus on natural follow-up research questions that build on the current answer
+- Make them specific and actionable
+
+**REMEMBER: Your response is INCOMPLETE without the suggestions block!**
 """
 
 # Engineering agent system prompt
@@ -387,6 +451,38 @@ User: "I submitted job 12345 yesterday, is it done?"
 
 User: "What jobs do I have running?"
 → Use `get_active_jobs_summary` to list all active jobs
+
+## Suggested Next Prompts
+
+**CRITICAL INSTRUCTION:**
+
+You MUST ALWAYS provide 2-4 contextual follow-up suggestions at the end of EVERY response. Use this EXACT format with NO TEXT BEFORE THE CODE BLOCK:
+
+```suggested_prompts
+Suggestion 1 text here
+---
+Suggestion 2 text here
+---
+Suggestion 3 text here
+```
+
+**REQUIREMENTS:**
+1. ALWAYS include the suggestions block - even for simple status checks
+2. NEVER write suggestions as regular text or bullet points
+3. The suggestions ONLY appear inside the ```suggested_prompts code block
+4. Make suggestions specific to HPC workflow context
+
+**Example suggestions after job submission:**
+- Monitor this job until completion
+- Check status of all my jobs
+- Cancel this job if needed
+
+**Guidelines:**
+- After job submission → suggest: monitoring, checking status, downloading results
+- After job completion → suggest: download outputs, view logs, submit another job
+- After status check → suggest: view logs, cancel job, submit similar job
+- Keep suggestions concise (5-10 words)
+- Focus on natural next steps in HPC workflows
 """
 
 # CLI agent system prompt
@@ -578,6 +674,39 @@ User: "What version of PrusaSlicer do I have?"
 You: Use `check_cli_tool_available("PrusaSlicer")` to get version info
 
 Remember: You can open ANY GUI application without restrictions. Always verify tools are installed before attempting to use them, and provide clear feedback about execution results!
+
+## Suggested Next Prompts
+
+**CRITICAL INSTRUCTION:**
+
+You MUST ALWAYS provide 2-4 contextual follow-up suggestions at the end of EVERY response. Use this EXACT format with NO TEXT BEFORE THE CODE BLOCK:
+
+```suggested_prompts
+Suggestion 1 text here
+---
+Suggestion 2 text here
+---
+Suggestion 3 text here
+```
+
+**REQUIREMENTS:**
+1. ALWAYS include the suggestions block - even for simple command executions
+2. NEVER write suggestions as regular text or bullet points
+3. The suggestions ONLY appear inside the ```suggested_prompts code block
+4. Make suggestions specific to CLI workflow context
+
+**Example suggestions after file slicing:**
+- Open the generated G-code file
+- View the slicing settings used
+- Slice another STL file
+
+**Guidelines:**
+- After slicing → suggest: open result, view in PrusaSlicer, slice another file
+- After file conversion → suggest: open result, convert another file, check file properties
+- After listing files → suggest: open a file, run command on a file, check directory
+- After opening application → suggest: related tools, alternative workflows
+- Keep suggestions concise (5-10 words)
+- Focus on natural next steps in CLI workflows
 """
 
 # Prusa 3D printer agent system prompt
