@@ -11,6 +11,8 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 
+from config import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,14 +23,14 @@ class EngineerRAGStore:
         self,
         collection_name: str = "engineer_docs",
         persist_directory: str | None = None,
-        embedding_model: str = "text-embedding-3-small",
+        embedding_model: str | None = None,
     ):
         """Initialize the vector store.
 
         Args:
             collection_name: Name of the Chroma collection
             persist_directory: Directory to persist the database (default: ./data/chroma_db)
-            embedding_model: OpenAI embedding model to use
+            embedding_model: OpenAI embedding model to use (default: from config.embeddings_model)
         """
         self.collection_name = collection_name
 
@@ -44,6 +46,10 @@ class EngineerRAGStore:
         Path(self.persist_directory).mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Initializing vector store at: {self.persist_directory}")
+
+        # Use embedding model from config if not specified
+        if embedding_model is None:
+            embedding_model = config.embeddings_model
 
         # Initialize OpenAI embeddings
         # Note: API key is read from OPENAI_API_KEY environment variable

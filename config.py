@@ -32,6 +32,9 @@ class Config:
 
         # Model configuration
         self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4o")
+        self.embeddings_model: str = os.getenv(
+            "EMBEDDINGS_MODEL", "text-embedding-3-small"
+        )
 
         # HPC/SLURM configuration
         self.hpc_host_alias: str = os.getenv("HPC_HOST_ALIAS", "euler")
