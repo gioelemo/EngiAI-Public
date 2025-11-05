@@ -24,7 +24,7 @@ def render() -> None:
         if logo_path.exists():
             try:
                 logo = Image.open(logo_path)
-                st.image(logo, width="stretch")
+                st.image(logo, width='stretch')
             except Exception:
                 st.markdown(
                     '<h1 style="text-align: center;">💬 EngiAI</h1>',
