@@ -11,10 +11,10 @@ from typing import Any, Literal
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMessage
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from config import config
+from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
 from src.tools.cli import (
     check_cli_tool_available,
@@ -138,8 +138,8 @@ class CLIAgent:
         )
         agent_builder.add_edge("tool_node", "llm_call")
 
-        # Compile with checkpointer for conversation memory
-        checkpointer = InMemorySaver()
+        # Compile with persistent checkpointer for conversation memory
+        checkpointer = get_checkpointer()
 
         # Use interrupt_before for human-in-the-loop confirmation
         # When interrupt_before is set, the graph will pause before executing tool_node

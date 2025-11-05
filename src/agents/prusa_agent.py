@@ -13,13 +13,13 @@ from typing import Literal
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMessage
 from langchain_core.tools import StructuredTool
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from pydantic import BaseModel, Field, create_model
 
 from config import config
+from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
 from src.utils.prompts import PRUSA_AGENT_SYSTEM_PROMPT
 
@@ -338,9 +338,9 @@ Please provide a brief summary of what was accomplished and any next steps."""
         workflow.add_edge("tools", "agent")
         workflow.add_edge("summarize", END)
 
-        # Compile with memory
-        memory = InMemorySaver()
-        return workflow.compile(checkpointer=memory)
+        # Compile with persistent checkpointer
+        checkpointer = get_checkpointer()
+        return workflow.compile(checkpointer=checkpointer)
 
     def invoke(self, state, config):
         """Invoke the Prusa agent.

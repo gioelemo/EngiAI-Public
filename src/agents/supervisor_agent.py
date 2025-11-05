@@ -9,7 +9,6 @@ from typing import Annotated, cast
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
@@ -21,6 +20,7 @@ from src.agents.hpc_agent import HPCAgent
 from src.agents.prusa_agent import PrusaAgent
 from src.agents.rag_agent import RAGAgent
 from src.agents.search_agent import SearchAgent
+from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
 
 
@@ -368,10 +368,12 @@ For capability questions, suggest specific actions the user might want to try wi
         workflow.add_edge("prusa_agent", END)
         workflow.add_edge("cli_agent", END)
 
-        # Compile with memory
-        memory = InMemorySaver()
+        # Compile with persistent checkpointer
+        checkpointer = get_checkpointer()
         # Interrupt before CLI agent so we can check its planned commands
-        return workflow.compile(checkpointer=memory, interrupt_before=["cli_agent"])
+        return workflow.compile(
+            checkpointer=checkpointer, interrupt_before=["cli_agent"]
+        )
 
     def invoke(self, state, config):
         """Invoke the supervisor agent.

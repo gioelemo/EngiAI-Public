@@ -52,6 +52,11 @@ class Config:
         # CLI Tools configuration
         self.prusa_slicer_path: str = os.getenv("PRUSA_SLICER_PATH", "PrusaSlicer")
 
+        # Database configuration for persistent checkpointing
+        self.database_url: str = os.getenv(
+            "DATABASE_URL", "sqlite:///data/conversations.db"
+        )
+
         # LangSmith configuration
         self.langchain_tracing = (
             os.getenv("LANGCHAIN_TRACING", "false").lower() == "true"

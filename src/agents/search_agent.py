@@ -6,10 +6,10 @@ from typing import Any, Literal
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMessage
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from config import config
+from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
 from src.tools.search import create_search_tool
 from src.utils.prompts import SEARCH_AGENT_SYSTEM_PROMPT
@@ -115,8 +115,8 @@ class SearchAgent:
         )
         agent_builder.add_edge("tool_node", "llm_call")
 
-        # Compile with checkpointer for conversation memory
-        checkpointer = InMemorySaver()
+        # Compile with persistent checkpointer for conversation memory
+        checkpointer = get_checkpointer()
         return agent_builder.compile(checkpointer=checkpointer)
 
     def invoke(self, state: MessagesState, config: dict | None = None) -> MessagesState:

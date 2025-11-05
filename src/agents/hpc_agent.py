@@ -9,10 +9,10 @@ from typing import Literal
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from config import config
+from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
 from src.tools.hpc import (
     cancel_slurm_job,
@@ -61,7 +61,7 @@ class HPCAgent:
         # Create the agent graph
         self.graph = self._create_graph()
         self.app = self.graph.compile(
-            checkpointer=InMemorySaver(),
+            checkpointer=get_checkpointer(),
         )
 
     def _create_graph(self) -> StateGraph:
