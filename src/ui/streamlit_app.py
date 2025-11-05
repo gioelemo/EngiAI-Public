@@ -7,6 +7,7 @@ This provides a web-based chat interface for interacting with the multi-agent sy
 import base64
 import contextlib
 import datetime
+import logging
 import re
 import sys
 import tempfile
@@ -21,6 +22,8 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from PIL import Image
 from streamlit_stl import stl_from_file  # type: ignore[import-untyped]
 
+logger = logging.getLogger(__name__)
+
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
@@ -31,6 +34,7 @@ from langchain.chat_models import init_chat_model  # noqa: E402
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.models.state import MessagesState  # noqa: E402
+from src.tools import EngineerRAGStore, MultimodalDocumentProcessor  # noqa: E402
 from src.ui import chat, home, settings, wandb  # noqa: E402
 from src.ui.database import DatabaseManager  # noqa: E402
 
@@ -1604,15 +1608,60 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     # Generate response
     with st.chat_message("assistant"), st.spinner("Thinking..."):
         try:
-            # Check if we have PDFs - extract text and prepend to user message
+            # Check if we have PDFs - extract and add to RAG system
             pdf_files = [
                 f for f in images_for_display if f.get("type") == "application/pdf"
             ]
 
             if pdf_files:
-                # Extract PDF text using MathPixPDFLoader
+                # Extract PDF text using MathPixPDFLoader AND add to RAG vector store
                 try:
                     pdf_text = _extract_pdf_text(pdf_files)
+
+                    # ALSO add PDFs to RAG system for persistent storage
+                    processor = MultimodalDocumentProcessor()
+                    vector_store = EngineerRAGStore(collection_name="engineer_docs")
+
+                    # Process and store each PDF in the RAG system
+                    for pdf_file in pdf_files:
+                        pdf_bytes = base64.b64decode(pdf_file["data"])
+                        file_name = pdf_file.get("name", "document.pdf")
+
+                        # Write to temporary file for processing
+                        with tempfile.NamedTemporaryFile(
+                            suffix=".pdf", delete=False
+                        ) as tmp_file:
+                            tmp_file.write(pdf_bytes)
+                            tmp_path = tmp_file.name
+
+                        try:
+                            # Process PDF and add to vector store
+                            docs = processor.process_file(tmp_path)
+
+                            # Update source metadata to use original filename instead of temp path
+                            for doc in docs:
+                                doc.metadata["source"] = file_name
+                                doc.metadata["original_name"] = file_name
+
+                            # Add to vector store
+                            vector_store.add_documents(docs)
+
+                            # Count non-empty documents
+                            non_empty = sum(
+                                1 for doc in docs if doc.page_content.strip()
+                            )
+                            st.success(
+                                f"✓ Added '{file_name}' to knowledge base ({non_empty} text chunks)"
+                            )
+
+                        except Exception as e:
+                            st.error(f"Error processing '{file_name}': {e!s}")
+                            logger.exception(f"Failed to process {file_name}")
+                        finally:
+                            # Clean up temp file
+                            tmp_file_path = Path(tmp_path)
+                            if tmp_file_path.exists():
+                                tmp_file_path.unlink()
 
                     # Update the user message in agent state to include PDF content
                     # Remove the last message (text-only) and replace with PDF-enhanced version
@@ -1627,7 +1676,7 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                     )
 
                 except Exception as e:
-                    st.error(f"Error extracting PDF text: {e!s}")
+                    st.error(f"Error processing PDF: {e!s}")
                     # Continue with regular processing
 
             # Track messages before invocation

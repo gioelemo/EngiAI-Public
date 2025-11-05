@@ -4,6 +4,7 @@ Tools module for the engineer assistant.
 This module contains all custom tools that can be used by agents.
 """
 
+from src.tools.document_processor import MultimodalDocumentProcessor
 from src.tools.engibench import (
     check_beam_constraints,
     create_beam_problem,
@@ -20,10 +21,15 @@ from src.tools.engiopt import (
     load_wandb_model,
     sample_designs_from_model,
 )
+from src.tools.rag_chain import EngineeringRAGChain
 from src.tools.search import create_search_tool
 from src.tools.stl_export import convert_design_to_stl
+from src.tools.vector_store import EngineerRAGStore
 
 __all__ = [
+    "EngineerRAGStore",
+    "EngineeringRAGChain",
+    "MultimodalDocumentProcessor",
     "check_beam_constraints",
     "convert_design_to_stl",
     "create_beam_problem",
