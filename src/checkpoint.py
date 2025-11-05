@@ -74,9 +74,13 @@ def get_checkpointer() -> MemorySaver:
             _checkpointer = MemorySaver()
             _initialized = True
             if not POSTGRES_AVAILABLE:
-                print("⚠️  PostgresSaver not available (install langgraph-checkpoint-postgres)")
+                print(
+                    "⚠️  PostgresSaver not available (install langgraph-checkpoint-postgres)"
+                )
             print("   Using MemorySaver - conversations persist within session only")
-            print("   For persistent storage across restarts, install langgraph-checkpoint-postgres")
+            print(
+                "   For persistent storage across restarts, install langgraph-checkpoint-postgres"
+            )
 
     return _checkpointer  # type: ignore[return-value]
 
