@@ -21,8 +21,8 @@ class AgentInfo(TypedDict, total=False):
 
 
 # Set up the figure
-fig, ax = plt.subplots(1, 1, figsize=(18, 10))
-ax.set_xlim(0, 14)
+fig, ax = plt.subplots(1, 1, figsize=(22, 12))
+ax.set_xlim(0, 16)
 ax.set_ylim(0, 12)
 ax.axis("off")
 
@@ -32,6 +32,7 @@ color_supervisor = "#FFE5B4"
 color_agent = "#D4E6F1"
 color_tool = "#E8DAEF"
 color_arrow = "#34495E"
+color_storage = "#C8E6C9"  # Green for storage systems
 
 # Tool category colors
 tool_colors = {
@@ -42,6 +43,8 @@ tool_colors = {
     "search": "#9775FA",  # Purple - Search tools
     "hpc": "#FF9F1C",  # Gold/Orange - HPC tools
     "mcp": "#868E96",  # Gray - MCP tools (planned)
+    "rag": "#20C997",  # Teal - RAG/document tools
+    "cli": "#FD7E14",  # Orange - CLI tools
 }
 
 # Tool category mapping
@@ -77,11 +80,22 @@ tool_categories = {
     "print_document": "mcp",
     "export_pdf": "mcp",
     "format_report": "mcp",
+    # RAG tools
+    "search_documents": "rag",
+    "add_document": "rag",
+    "list_documents": "rag",
+    "clear_document_memory": "rag",
+    # CLI tools
+    "execute_cli_command": "cli",
+    "check_cli_tool_available": "cli",
+    "list_directory_contents": "cli",
+    "open_gui_application": "cli",
+    "get_prusa_slicer_path": "cli",
 }
 
 # Title
 ax.text(
-    7,
+    8,
     11.5,
     "Multi-Agent Engineer Assistant System",
     fontsize=20,
@@ -91,7 +105,7 @@ ax.text(
 
 # User
 user_box = FancyBboxPatch(
-    (5.5, 9.8),
+    (6.5, 9.8),
     3,
     0.8,
     boxstyle="round,pad=0.1",
@@ -100,11 +114,11 @@ user_box = FancyBboxPatch(
     linewidth=2,
 )
 ax.add_patch(user_box)
-ax.text(7, 10.2, "User", fontsize=14, ha="center", fontweight="bold")
+ax.text(8, 10.2, "User", fontsize=14, ha="center", fontweight="bold")
 
 # Supervisor Agent
 supervisor_box = FancyBboxPatch(
-    (4.5, 7.8),
+    (5.5, 7.8),
     5,
     1.2,
     boxstyle="round,pad=0.1",
@@ -113,9 +127,9 @@ supervisor_box = FancyBboxPatch(
     linewidth=3,
 )
 ax.add_patch(supervisor_box)
-ax.text(7, 8.65, "Supervisor Agent", fontsize=14, ha="center", fontweight="bold")
+ax.text(8, 8.65, "Supervisor Agent", fontsize=14, ha="center", fontweight="bold")
 ax.text(
-    7,
+    8,
     8.25,
     "Routes requests to specialized agents",
     fontsize=9,
@@ -125,20 +139,20 @@ ax.text(
 
 # Arrow from user to supervisor
 arrow1 = FancyArrowPatch(
-    (7, 9.8),
-    (7, 9.0),
+    (8, 9.8),
+    (8, 9.0),
     arrowstyle="->",
     mutation_scale=30,
     linewidth=2,
     color=color_arrow,
 )
 ax.add_patch(arrow1)
-ax.text(7.3, 9.4, "Query", fontsize=9)
+ax.text(8.3, 9.4, "Query", fontsize=9)
 
 # Arrow from supervisor back to user
 arrow2 = FancyArrowPatch(
-    (6.7, 9.0),
-    (6.7, 9.8),
+    (7.7, 9.0),
+    (7.7, 9.8),
     arrowstyle="->",
     mutation_scale=30,
     linewidth=2,
@@ -146,7 +160,7 @@ arrow2 = FancyArrowPatch(
     linestyle="--",
 )
 ax.add_patch(arrow2)
-ax.text(6.0, 9.4, "Response", fontsize=9)
+ax.text(7.0, 9.4, "Response", fontsize=9)
 
 # Agent position thresholds for arrow routing
 LEFT_AGENT_THRESHOLD = 5.0  # Agent x-position below this is considered "left"
@@ -155,17 +169,22 @@ RIGHT_AGENT_THRESHOLD = 9.0  # Agent x-position above this is considered "right"
 # Specialized Agents
 agents: list[AgentInfo] = [
     {
-        "name": "Code Execution Agent (Currently Disabled)",
+        "name": "RAG Agent",
         "icon": "",
-        "x": 0.2,
+        "x": 0.5,
         "y": 5.0,
-        "tools": ["execute_python_code", "execute_python_expression"],
-        "desc": "Python REPL, calculations",
+        "tools": [
+            "search_documents",
+            "add_document",
+            "list_documents",
+            "clear_document_memory",
+        ],
+        "desc": "Document Q&A, PDF analysis, knowledge base",
     },
     {
         "name": "Engineering Agent",
         "icon": "",
-        "x": 3.0,
+        "x": 3.3,
         "y": 2.0,
         "tools": [
             # EngiBench tools (red)
@@ -190,7 +209,7 @@ agents: list[AgentInfo] = [
     {
         "name": "HPC Agent",
         "icon": "",
-        "x": 5.8,
+        "x": 6.3,
         "y": 2.0,
         "tools": [
             "test_hpc_connection",
@@ -202,18 +221,30 @@ agents: list[AgentInfo] = [
         "desc": "SLURM job management, euler.ethz.ch cluster",
     },
     {
-        "name": "Printer Agent (MCP)",
+        "name": "Prusa Agent",
         "icon": "",
-        "x": 8.8,
+        "x": 9.3,
         "y": 2.0,
-        "tools": ["printer status", "slice stl", "print file"],
-        "desc": "Document generation and printing (planned)",
-        "planned": True,
+        "tools": ["get_printer_status", "list_print_jobs", "control_printer"],
+        "desc": "Prusa Connect 3D printer management",
+    },
+    {
+        "name": "CLI Agent",
+        "icon": "",
+        "x": 12.3,
+        "y": 2.0,
+        "tools": [
+            "execute_cli_command",
+            "check_cli_tool_available",
+            "list_directory_contents",
+            "get_prusa_slicer_path",
+        ],
+        "desc": "Local command execution, PrusaSlicer",
     },
     {
         "name": "Search Agent",
         "icon": "",
-        "x": 11.3,
+        "x": 12.8,
         "y": 5.0,
         "tools": ["TavilySearch"],
         "desc": "Web research, information gathering",
@@ -323,9 +354,9 @@ for agent in agents:
         )
 
     # Arrow from supervisor to agent
-    # Supervisor box: x=4.5-9.5, y=7.8-9.0
+    # Supervisor box: x=5.5-10.5, y=7.8-9.0
     # Calculate proper edge connection points
-    supervisor_x = 4.5
+    supervisor_x = 5.5
     supervisor_width = 5
     supervisor_y = 7.8
     supervisor_bottom_y = 7.8
@@ -336,60 +367,135 @@ for agent in agents:
     agent_top_y = agent["y"] + box_height
 
     # Determine supervisor exit point based on agent position
-    SUPERVISOR_CENTER_X = 7.0  # Center x-position of supervisor
-    ENGINEERING_AGENT_THRESHOLD = 5.5  # X position threshold for Engineering agent
-    HPC_AGENT_THRESHOLD = 8.5  # X position threshold for HPC agent
+    SUPERVISOR_CENTER_X = 8.0  # Center x-position of supervisor
+    ENGINEERING_AGENT_THRESHOLD = 6.5  # X position threshold for Engineering agent
+    HPC_AGENT_THRESHOLD = 9.5  # X position threshold for HPC agent
+    PRUSA_AGENT_THRESHOLD = 11.0  # X position threshold for Prusa agent
 
-    # For side agents (Code Execution and Search), use angled arrows
-    if agent_center_x < LEFT_AGENT_THRESHOLD:  # Left agents (Code Execution)
-        supervisor_exit_x = supervisor_x + 0.3
-        supervisor_exit_y = supervisor_y + 0.5
+    # For side agents (RAG and Search), connect to sides
+    if agent_center_x < LEFT_AGENT_THRESHOLD:  # Left agents (RAG)
+        supervisor_exit_x = supervisor_x  # Left edge
+        supervisor_exit_y = supervisor_y + 0.6  # Mid-height on left side
     elif agent_center_x > RIGHT_AGENT_THRESHOLD:  # Right agents (Search)
-        supervisor_exit_x = supervisor_x + supervisor_width - 0.3
-        supervisor_exit_y = supervisor_y + 0.5
-    else:  # Center agents (Engineering, HPC, Printer)
+        supervisor_exit_x = supervisor_x + supervisor_width  # Right edge
+        supervisor_exit_y = supervisor_y + 0.6  # Mid-height on right side
+    else:  # Center agents (Engineering, HPC, Prusa, CLI)
         # Distribute connection points across bottom of supervisor based on agent position
-        # Engineering: ~4.25, HPC: ~7.05, Printer: ~10.05
         if agent_center_x < ENGINEERING_AGENT_THRESHOLD:  # Engineering Agent
-            supervisor_exit_x = supervisor_x + supervisor_width * 0.2
+            supervisor_exit_x = supervisor_x + supervisor_width * 0.25
         elif agent_center_x < HPC_AGENT_THRESHOLD:  # HPC Agent
-            supervisor_exit_x = supervisor_x + supervisor_width * 0.5
-        else:  # Printer Agent
-            supervisor_exit_x = supervisor_x + supervisor_width * 0.8
+            supervisor_exit_x = supervisor_x + supervisor_width * 0.45
+        elif agent_center_x < PRUSA_AGENT_THRESHOLD:  # Prusa Agent
+            supervisor_exit_x = supervisor_x + supervisor_width * 0.65
+        else:  # CLI Agent
+            supervisor_exit_x = supervisor_x + supervisor_width * 0.85
         supervisor_exit_y = supervisor_bottom_y
 
     # Adjust connection style based on agent position
     arrow_linestyle = "--" if is_planned else "-"
     arrow_color = "gray" if is_planned else color_arrow
 
-    if agent_center_x < LEFT_AGENT_THRESHOLD or agent_center_x > RIGHT_AGENT_THRESHOLD:
-        # Angled arrows for side agents
-        arrow = FancyArrowPatch(
-            (supervisor_exit_x, supervisor_exit_y),
-            (agent_center_x, agent_top_y),
-            arrowstyle="<->",
-            mutation_scale=20,
-            linewidth=1.5,
-            color=arrow_color,
-            connectionstyle="arc3,rad=0.2",
-            linestyle=arrow_linestyle,
-        )
-    else:
-        # Straight arrow for center agent
-        arrow = FancyArrowPatch(
-            (supervisor_exit_x, supervisor_exit_y),
-            (agent_center_x, agent_top_y),
-            arrowstyle="<->",
-            mutation_scale=20,
-            linewidth=1.5,
-            color=arrow_color,
-            linestyle=arrow_linestyle,
-        )
+    # Simple straight arrows (no curves, no L-shape)
+    arrow = FancyArrowPatch(
+        (supervisor_exit_x, supervisor_exit_y),
+        (agent_center_x, agent_top_y),
+        arrowstyle="<->",
+        mutation_scale=20,
+        linewidth=1.5,
+        color=arrow_color,
+        linestyle=arrow_linestyle,
+    )
     ax.add_patch(arrow)
 
-# Add legend for tool colors in bottom left corner
+# Storage Systems Section (bottom of diagram)
+storage_y = 0.5
+storage_height = 1.0
+
+# PostgreSQL Database
+postgres_box = FancyBboxPatch(
+    (1.0, storage_y),
+    5.0,
+    storage_height,
+    boxstyle="round,pad=0.1",
+    edgecolor="black",
+    facecolor=color_storage,
+    linewidth=2,
+)
+ax.add_patch(postgres_box)
+ax.text(
+    3.5,
+    storage_y + storage_height - 0.2,
+    "PostgreSQL Database",
+    fontsize=11,
+    ha="center",
+    fontweight="bold",
+)
+ax.text(
+    3.5,
+    storage_y + storage_height - 0.5,
+    "Conversation history, messages, settings",
+    fontsize=8,
+    ha="center",
+    style="italic",
+)
+ax.text(
+    3.5,
+    storage_y + storage_height - 0.75,
+    "Persistent state with PostgresSaver",
+    fontsize=7,
+    ha="center",
+    color="gray",
+)
+
+# ChromaDB Vector Store
+chroma_box = FancyBboxPatch(
+    (6.5, storage_y),
+    5.0,
+    storage_height,
+    boxstyle="round,pad=0.1",
+    edgecolor="black",
+    facecolor=color_storage,
+    linewidth=2,
+)
+ax.add_patch(chroma_box)
+ax.text(
+    9.0,
+    storage_y + storage_height - 0.2,
+    "ChromaDB Vector Store",
+    fontsize=11,
+    ha="center",
+    fontweight="bold",
+)
+ax.text(
+    9.0,
+    storage_y + storage_height - 0.5,
+    "Document embeddings for RAG",
+    fontsize=8,
+    ha="center",
+    style="italic",
+)
+ax.text(
+    9.0,
+    storage_y + storage_height - 0.75,
+    "OpenAI embeddings (text-embedding-3-small)",
+    fontsize=7,
+    ha="center",
+    color="gray",
+)
+
+# Add storage section label
+ax.text(
+    1.0,
+    storage_y - 0.3,
+    "Persistent Storage Layer",
+    fontsize=10,
+    fontweight="bold",
+    color="#2E7D32",
+)
+
+# Add legend for tool colors in top left corner
 legend_x = 0.5
-legend_y = 3.5
+legend_y = 11.0
 ax.text(
     legend_x,
     legend_y + 0.3,
@@ -403,9 +509,10 @@ legend_items = [
     ("EngiBench", "engibench"),
     ("WandB/ML", "engiopt"),
     ("STL Export", "stl"),
-    ("Code Exec", "code"),
+    ("HPC/SLURM", "hpc"),
+    ("RAG/Docs", "rag"),
+    ("CLI Tools", "cli"),
     ("Search", "search"),
-    ("MCP (planned)", "mcp"),
 ]
 
 for i, (label, category) in enumerate(legend_items):
