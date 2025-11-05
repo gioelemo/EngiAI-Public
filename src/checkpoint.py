@@ -6,6 +6,8 @@ This module provides a singleton checkpointer instance that's shared across all 
 - Uses MemorySaver for SQLite or as fallback (persistent within single session)
 """
 
+from typing import Any
+
 from langgraph.checkpoint.memory import MemorySaver
 
 try:
@@ -19,7 +21,7 @@ except ImportError:
 from config import config
 
 # Global checkpointer instance (initialized lazily)
-_checkpointer: MemorySaver | None = None
+_checkpointer: MemorySaver | Any | None = None
 _context_manager = None  # Keep context manager alive
 _initialized: bool = False
 

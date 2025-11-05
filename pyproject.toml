@@ -155,8 +155,18 @@ max-complexity = 10
 max-args = 5
 
 [tool.ruff.lint.per-file-ignores]
-# Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Tests can use magic values, assertions, relative imports, imports in functions, unused args, and many args
+"tests/**/*" = [
+    "PLR2004",  # magic-value-comparison
+    "S101",     # assert
+    "TID252",   # relative-imports
+    "PLC0415",  # import-outside-toplevel - test imports intentionally inside functions
+    "ARG002",   # unused-method-argument - mock parameters required by @patch decorators
+    "PLR0913",  # too-many-arguments - pytest fixtures can have many parameters
+    "N806",     # non-lowercase-variable-in-function - mock variables use PascalCase
+    "F841",     # unused-variable - some test fixtures create variables for mocking
+    "SIM117",   # multiple-with-statements - sometimes clearer as nested in tests
+]
 # Allow print statements in scripts
 "scripts/**/*" = ["T20"]
 
