@@ -1,0 +1,117 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+.obsidian/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+cover/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.ruff_cache/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+docs/
+*.md
+
+# CI/CD
+.github/
+.pre-commit-cache/
+
+# Generated outputs (reduce image size)
+outputs/
+artifacts/
+
+# Database files (should not be in container)
+data/chats/
+data/chroma_db/
+data/conversations.db
+data/*.db
+*.db
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Streamlit cache
+.streamlit/secrets.toml
+.streamlit/cache/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Docker (but keep docker-entrypoint.sh)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+!docker-entrypoint.sh
+
+# Batch/shell scripts (keep only what's needed for Docker)
+*.bat
+test.slurm
+setup.sh
+run_ui.sh
+# Keep docker-entrypoint.sh for Docker startup
+
+# Environment files (secrets should be provided at runtime)
+environment.yml
