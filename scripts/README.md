@@ -4,6 +4,69 @@ This directory contains utility scripts and examples for the Engineering Assista
 
 ## Available Scripts
 
+### Paper Import & Database Management
+
+#### Local Paper Import (`import_local_papers.py`)
+
+Import papers from a local directory or mounted network share.
+
+**Setup:**
+
+Add to your `.env` file:
+```bash
+PAPERS_SOURCE_DIR=/path/to/your/papers
+PAPERS_STATE_FILE=data/local_import_state.json
+PAPERS_COLLECTION=engineer_docs
+```
+
+**Usage:**
+```bash
+# Dry run (preview)
+python import_local_papers.py --dry-run
+
+# Import papers (uses .env configuration)
+python import_local_papers.py
+
+# Or specify path directly (overrides .env)
+python import_local_papers.py /Volumes/Share/Papers
+```
+
+#### Quick Database Check (`quick_db_check.py`)
+
+Fast overview of your ChromaDB contents:
+
+```bash
+python quick_db_check.py
+```
+
+#### Database Inspector (`inspect_chromadb.py`)
+
+Comprehensive database inspection with many options:
+
+```bash
+# List all collections
+python inspect_chromadb.py
+
+# Show collection stats
+python inspect_chromadb.py --collection engineer_docs --stats
+
+# List documents
+python inspect_chromadb.py --collection engineer_docs --list
+
+# List unique sources
+python inspect_chromadb.py --collection engineer_docs --sources
+
+# Search by metadata
+python inspect_chromadb.py --collection engineer_docs --search '{"source_type": "local"}'
+
+# Export metadata to JSON
+python inspect_chromadb.py --collection engineer_docs --export ../data/metadata.json
+```
+
+**See [Paper Import Guide](../docs/PAPER_IMPORT_GUIDE.md) for detailed documentation.**
+
+---
+
 ### 1. 3D Heatmap to STL
 TODO: Write description
 ---
