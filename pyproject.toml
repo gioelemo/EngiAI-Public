@@ -29,6 +29,7 @@ dependencies = [
     "watchdog ==6.0.0",
     "python-dotenv",
     "engibench",
+    "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git",
     "scipy",
     "cvxopt",
     "psycopg2-binary ==2.9.11",
