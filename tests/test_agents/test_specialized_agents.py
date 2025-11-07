@@ -22,7 +22,7 @@ from src.agents.search_agent import SearchAgent
 @pytest.mark.unit
 def test_cli_agent_creation():
     """Test that CLI agent can be created."""
-    with patch("src.agents.cli_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -37,7 +37,7 @@ def test_cli_agent_creation():
 @pytest.mark.unit
 def test_cli_agent_has_tools():
     """Test that CLI agent is bound with correct tools."""
-    with patch("src.agents.cli_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -57,7 +57,7 @@ def test_cli_agent_has_tools():
 @pytest.mark.unit
 def test_engineering_agent_creation():
     """Test that Engineering agent can be created."""
-    with patch("src.agents.engineering_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -72,7 +72,7 @@ def test_engineering_agent_creation():
 @pytest.mark.unit
 def test_engineering_agent_has_engibench_tools():
     """Test that Engineering agent has EngiBench tools."""
-    with patch("src.agents.engineering_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -93,7 +93,7 @@ def test_engineering_agent_has_engibench_tools():
 @pytest.mark.unit
 def test_hpc_agent_creation():
     """Test that HPC agent can be created."""
-    with patch("src.agents.hpc_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -108,7 +108,7 @@ def test_hpc_agent_creation():
 @pytest.mark.unit
 def test_hpc_agent_has_slurm_tools():
     """Test that HPC agent has SLURM tools."""
-    with patch("src.agents.hpc_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -129,7 +129,7 @@ def test_hpc_agent_has_slurm_tools():
 @pytest.mark.unit
 def test_search_agent_creation():
     """Test that Search agent can be created."""
-    with patch("src.agents.search_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -144,7 +144,7 @@ def test_search_agent_creation():
 @pytest.mark.unit
 def test_search_agent_has_search_tool():
     """Test that Search agent has search tool."""
-    with patch("src.agents.search_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -164,7 +164,7 @@ def test_search_agent_has_search_tool():
 @pytest.mark.unit
 def test_agents_use_config_model():
     """Test that agents use model from config."""
-    with patch("src.agents.cli_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -179,7 +179,7 @@ def test_agents_use_config_model():
 @pytest.mark.unit
 def test_agents_with_custom_model_name():
     """Test that agents can be created with custom model name."""
-    with patch("src.agents.engineering_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -199,7 +199,7 @@ def test_agents_with_custom_model_name():
 @pytest.mark.unit
 def test_cli_agent_confirmation_flag():
     """Test that CLI agent respects confirmation flag."""
-    with patch("src.agents.cli_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -214,7 +214,7 @@ def test_cli_agent_confirmation_flag():
 @pytest.mark.unit
 def test_engineering_agent_confirmation_flag():
     """Test that Engineering agent can be created."""
-    with patch("src.agents.engineering_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         mock_llm = Mock()
         mock_llm.bind_tools = Mock(return_value=mock_llm)
         mock_init.return_value = mock_llm
@@ -233,7 +233,7 @@ def test_engineering_agent_confirmation_flag():
 @pytest.mark.unit
 def test_agent_creation_with_missing_api_key():
     """Test agent creation when API key is missing."""
-    with patch("src.agents.cli_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         # Simulate missing API key error
         mock_init.side_effect = ValueError("API key not found")
 
@@ -244,7 +244,7 @@ def test_agent_creation_with_missing_api_key():
 @pytest.mark.unit
 def test_agent_creation_with_invalid_model():
     """Test agent creation with invalid model name."""
-    with patch("src.agents.hpc_agent.init_chat_model") as mock_init:
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
         # Simulate invalid model error
         mock_init.side_effect = RuntimeError("Model not found")
 

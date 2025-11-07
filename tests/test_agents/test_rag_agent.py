@@ -104,7 +104,7 @@ class TestRAGAgentInitialization:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_rag_agent_initialization(
         self, mock_init_llm, mock_processor, mock_store, mock_chain
     ):
@@ -125,7 +125,7 @@ class TestRAGAgentInitialization:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_rag_agent_tools_created(
         self, mock_init_llm, mock_processor, mock_store, mock_chain
     ):
@@ -150,7 +150,7 @@ class TestRAGAgentSearchDocuments:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_success(
         self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
     ):
@@ -172,7 +172,7 @@ class TestRAGAgentSearchDocuments:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_with_num_results(
         self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
     ):
@@ -192,7 +192,7 @@ class TestRAGAgentSearchDocuments:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_error_handling(
         self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
     ):
@@ -217,7 +217,7 @@ class TestRAGAgentAddDocument:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_add_document_success(
         self,
         mock_init_llm,
@@ -249,7 +249,7 @@ class TestRAGAgentAddDocument:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_add_document_with_metadata(
         self,
         mock_init_llm,
@@ -282,7 +282,7 @@ class TestRAGAgentAddDocument:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_add_document_error_handling(
         self,
         mock_init_llm,
@@ -312,7 +312,7 @@ class TestRAGAgentListDocuments:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_list_documents_success(
         self,
         mock_init_llm,
@@ -354,7 +354,7 @@ class TestRAGAgentListDocuments:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_list_documents_empty(
         self,
         mock_init_llm,
@@ -384,7 +384,7 @@ class TestRAGAgentClearMemory:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_clear_memory_success(
         self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
     ):
@@ -406,11 +406,11 @@ class TestRAGAgentClearMemory:
 class TestRAGAgentInvoke:
     """Test RAG agent invocation."""
 
-    @patch("src.agents.rag_agent.get_checkpointer")
+    @patch("src.agents.base_agent.get_checkpointer")
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_invoke_with_simple_query(
         self,
         mock_init_llm,
@@ -447,7 +447,7 @@ class TestRAGAgentSystemPrompt:
     @patch("src.agents.rag_agent.EngineeringRAGChain")
     @patch("src.agents.rag_agent.EngineerRAGStore")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.rag_agent.init_chat_model")
+    @patch("src.agents.base_agent.init_chat_model")
     def test_system_prompt_content(
         self,
         mock_init_llm,
