@@ -268,6 +268,6 @@ services:
 ## Support
 
 For issues or questions:
-1. Check the [troubleshooting section](#troubleshooting)
-2. Review the [database schema](#database-schema)
+1. Check the troubleshooting section above
+2. Review the database schema section above
 3. Open an issue on GitHub with error logs

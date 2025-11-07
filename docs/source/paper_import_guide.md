@@ -4,7 +4,7 @@ This guide explains how to automatically import PDF papers from your local files
 
 ## Overview
 
-The import script ([scripts/import_local_papers.py](../scripts/import_local_papers.py)) provides automatic importing of PDF papers from local directories or mounted shares. It supports:
+The import script (`scripts/import_local_papers.py` in the project root) provides automatic importing of PDF papers from local directories or mounted shares. It supports:
 
 - **Incremental Updates**: Only processes new or modified files
 - **State Tracking**: Remembers which files have been imported

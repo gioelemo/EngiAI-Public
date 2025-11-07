@@ -18,7 +18,7 @@ This guide explains how to deploy the Engineer Assistant chatbot using Docker on
    ```
 
 2. **Edit the `.env` file** and add your API keys:
-   ```env
+   ```bash
    OPENAI_API_KEY=your_actual_openai_key
    TAVILY_API_KEY=your_actual_tavily_key
    ```
@@ -145,7 +145,7 @@ If you build the image on your local machine and want to deploy on Windows Serve
 - `DATABASE_URL`: Database connection string (default: `sqlite:///data/conversations.db`)
 - `LANGCHAIN_TRACING`: Enable LangSmith tracing (default: `false`)
 
-See [.env.example](.env.example) for all available configuration options.
+See `.env.example` in the project root for all available configuration options.
 
 ### About MCP Server (Prusa 3D Printer Integration)
 
@@ -324,6 +324,6 @@ services:
 ## Support
 
 For issues and questions:
-- Check the main [README.md](README.md)
-- Review the [DATABASE_SETUP.md](DATABASE_SETUP.md) for database configuration
+- Check the main README.md in the project root
+- Review the [Database Setup Guide](database_setup.md) for database configuration
 - Check Docker logs for error messages

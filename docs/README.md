@@ -1,0 +1,304 @@
+# Building Documentation
+
+This directory contains the Sphinx documentation for Engineer Assistant.
+
+The documentation follows the [EngiBench](https://engibench.ethz.ch) template style using `sphinx-book-theme`.
+
+## Quick Start
+
+### Install Documentation Dependencies
+
+```bash
+# Install docs dependencies
+pip install -e ".[docs]"
+```
+
+### Build the Documentation
+
+```bash
+# From project root
+make docs
+
+# Or from docs directory
+cd docs
+make dirhtml
+```
+
+The built documentation will be in `docs/build/dirhtml/index.html`.
+
+### Live Preview During Development
+
+For automatic rebuilding when you edit documentation files:
+
+```bash
+# From project root
+make docs-watch
+
+# Or use sphinx-autobuild directly
+sphinx-autobuild -b dirhtml docs/source docs/build/dirhtml
+```
+
+This will start a local server at `http://localhost:8000` with live reload.
+
+### View the Documentation
+
+```bash
+# Serve locally on http://localhost:8000
+make docs-serve
+
+# Or open directly
+open docs/build/dirhtml/index.html  # macOS
+xdg-open docs/build/dirhtml/index.html  # Linux
+start docs/build/dirhtml/index.html  # Windows
+```
+
+## Documentation Structure
+
+```
+docs/
+├── source/
+│   ├── conf.py              # Sphinx configuration (EngiBench-style)
+│   ├── index.rst            # Main landing page
+│   ├── installation.md      # Installation guide
+│   ├── quickstart.md        # Quick start tutorial
+│   ├── configuration.md     # Configuration reference
+│   ├── _static/             # Static files (images, CSS, etc.)
+│   ├── _templates/          # Custom templates
+│   ├── usage/               # User guides (to be added)
+│   │   ├── agents.md
+│   │   ├── tools.md
+│   │   └── hpc.md
+│   └── api/                 # API reference (to be added)
+│       ├── agents.rst
+│       ├── tools.rst
+│       └── utils.rst
+├── build/                   # Generated HTML (gitignored)
+├── Makefile                 # Build commands (Unix)
+└── make.bat                 # Build commands (Windows)
+```
+
+## Theme
+
+We use `sphinx-book-theme` to match the EngiBench documentation style, featuring:
+- Repository integration buttons (GitHub)
+- Clean, modern design optimized for technical documentation
+- Support for markdown via MyST Parser
+- Math rendering with MathJax (`$inline$` and `$$display$$`)
+- Version switcher in sidebar (future enhancement)
+
+Update the repository URL in `docs/source/conf.py` under `html_theme_options`.
+
+## Writing Documentation
+
+### Markdown Files
+
+The documentation supports both reStructuredText (.rst) and Markdown (.md) files thanks to the `myst-parser` extension.
+
+**Example Markdown:**
+
+```markdown
+# My Page Title
+
+This is a paragraph with **bold** and *italic* text.
+
+## Code Example
+
+\`\`\`python
+from src.agents import EngineeringAgent
+
+agent = EngineeringAgent()
+result = agent.optimize(problem="beams2d")
+\`\`\`
+
+## Links
+
+- [External Link](https://example.com)
+- [Internal Link](quickstart.md)
+```
+
+### reStructuredText Files
+
+For more advanced features, use .rst files:
+
+```rst
+My Page Title
+=============
+
+This is a paragraph.
+
+.. code-block:: python
+
+   from src.agents import EngineeringAgent
+
+   agent = EngineeringAgent()
+
+.. note::
+   This is an important note!
+
+.. toctree::
+   :maxdepth: 2
+
+   subpage1
+   subpage2
+```
+
+## Sphinx Commands
+
+### Build Documentation
+
+```bash
+cd docs
+make dirhtml  # EngiBench uses dirhtml builder
+```
+
+### Clean Build
+
+```bash
+cd docs
+make clean
+```
+
+### Check Links
+
+```bash
+cd docs
+make linkcheck
+```
+
+## Configuration
+
+Edit `docs/source/conf.py` to customize:
+
+- Project metadata (name, author, version)
+- Theme settings and repository URL
+- Extensions
+- Math rendering options
+
+The configuration follows EngiBench's setup with:
+- `sphinx-book-theme` for modern UI
+- MyST Parser for Markdown support with `dollarmath` and `amsmath` extensions
+- Napoleon for Google/NumPy-style docstrings
+- GitHub integration buttons
+- Intersphinx links to Python and LangChain docs
+    'sphinx.ext.mathjax',      # Math equations
+    'myst_parser',             # Markdown support
+]
+```
+
+## Auto-generating API Documentation
+
+To auto-generate API docs from docstrings:
+
+```bash
+# Install sphinx-apidoc
+pip install sphinx
+
+# Generate API docs
+sphinx-apidoc -o docs/source/api src/
+```
+
+## Deployment
+
+### GitHub Pages
+
+1. Build docs: `make docs`
+2. Push `docs/build/dirhtml/` to `gh-pages` branch
+3. Enable GitHub Pages in repo settings
+
+### Read the Docs
+
+1. Connect your GitHub repo to [readthedocs.org](https://readthedocs.org)
+2. RTD will auto-build on each commit
+3. Add `.readthedocs.yaml` config (optional)
+
+### Automated GitHub Action
+
+Create `.github/workflows/docs.yml`:
+
+```yaml
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -e ".[docs]"
+      - name: Build docs
+        run: cd docs && make html
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build/html
+```
+
+## Tips
+
+1. **Preview changes**: Use `make docs-serve` to preview locally
+2. **Watch mode**: Use `sphinx-autobuild` for live reload
+   ```bash
+   pip install sphinx-autobuild
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install -e ".[docs]"
+      - name: Build documentation
+        run: make docs
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build/dirhtml
+```
+
+## Best Practices
+
+1. **Keep docs updated**: Update documentation when adding features
+2. **Use live preview**: Run `make docs-watch` during development for instant feedback
+3. **Check warnings**: Fix all Sphinx warnings for clean builds
+4. **Follow EngiBench style**: Maintain consistency with the EngiBench template
+
+## Troubleshooting
+
+### Build fails with "conf.py not found"
+
+Make sure you're in the `docs/` directory or use `make docs` from project root.
+
+### Module import errors
+
+Ensure `sys.path` is set correctly in `conf.py`:
+
+```python
+from pathlib import Path
+sys.path.insert(0, str(Path('../..').resolve()))
+```
+
+### Theme not found
+
+Install the theme: `pip install sphinx-book-theme`
+
+### Markdown not rendering
+
+The MyST parser should already be installed with `pip install -e ".[docs]"`.
+
+## Resources
+
+- [Sphinx Documentation](https://www.sphinx-doc.org/)
+- [Sphinx Book Theme](https://sphinx-book-theme.readthedocs.io/)
+- [MyST Parser](https://myst-parser.readthedocs.io/)
+- [EngiBench Documentation](https://engibench.ethz.ch) (template reference)
+- [EngiBench GitHub](https://github.com/IDEALLab/EngiBench) (source code)
