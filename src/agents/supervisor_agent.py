@@ -14,6 +14,7 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
 from config import config
+from src.agents.arxiv_agent import ArXivAgent
 from src.agents.cli_agent import CLIAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.hpc_agent import HPCAgent
@@ -55,6 +56,7 @@ class SupervisorAgent:
         self.rag_agent = (
             RAGAgent()
         )  # RAG agent doesn't need model_name, uses ChatOpenAI internally
+        self.arxiv_agent = ArXivAgent(model_name=self.model_name)
         # PrusaAgent will check SKIP_MCP env var automatically
         self.prusa_agent = PrusaAgent(model_name=self.model_name)
         # Disable CLI agent's internal confirmation - supervisor handles interrupts at its level
@@ -81,6 +83,9 @@ class SupervisorAgent:
             "- rag_agent: Questions about uploaded documents, papers, PDFs (use this for 'what does the paper say', 'explain this document', 'summarize the research')"
         )
         available_agents.append(
+            "- arxiv_agent: ArXiv research paper search, download papers from ArXiv, analyze academic papers with RAG (use this for 'find papers about', 'search ArXiv for', 'download paper', 'analyze this ArXiv paper')"
+        )
+        available_agents.append(
             "- prusa_agent: Prusa 3D printer management via Prusa Connect (printer status, job monitoring, printer control, file management)"
         )
         available_agents.append(
@@ -92,6 +97,7 @@ class SupervisorAgent:
                 "'hpc_agent'",
                 "'search_agent'",
                 "'rag_agent'",
+                "'arxiv_agent'",
                 "'prusa_agent'",
                 "'cli_agent'",
             ]
@@ -119,6 +125,7 @@ class SupervisorAgent:
             + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information ONLINE → use search_agent\n"
             + "- Questions about UPLOADED documents, papers, PDFs: 'what does the paper say', 'explain this document', 'summarize the research', 'what are the findings' → use rag_agent\n"
+            + "- ArXiv paper search and analysis: 'find papers on ArXiv', 'search ArXiv for', 'download ArXiv paper', 'analyze paper 1605.08386', 'what papers are available on', 'ArXiv ID', 'arxiv.org' → use arxiv_agent\n"
             + "- Prusa printer management: 'printer status', 'print jobs', 'pause print', 'resume print', 'stop print', 'start print', 'Prusa Connect', 'printer', '3D printer' → use prusa_agent\n"
             + "- EXECUTE CLI commands: 'slice file.stl', 'run PrusaSlicer', 'convert file', 'execute pwd' → use cli_agent\n"
             + "\n"
@@ -175,9 +182,12 @@ class SupervisorAgent:
             next_agent = "hpc_agent"
         elif "search" in content:
             next_agent = "search_agent"
-        elif "rag" in content or "document" in content or "paper" in content:
+        elif "rag" in content or "document" in content:
             # RAG handles: questions about uploaded documents/papers
             next_agent = "rag_agent"
+        elif "arxiv" in content or "paper" in content:
+            # ArXiv handles: ArXiv paper search, download, and analysis
+            next_agent = "arxiv_agent"
         elif (
             "prusa" in content
             or "printer" in content
@@ -234,6 +244,12 @@ The system has the following capabilities:
 - Question-answering about uploaded documents
 - Document summarization and information extraction
 - Persistent knowledge base for your papers
+
+**ArXiv Research:**
+- Search ArXiv for academic papers
+- Download and analyze ArXiv papers
+- Ask questions about downloaded papers using RAG
+- Track and manage your research paper collection
 
 **Web Research:**
 - Search for engineering information
@@ -303,6 +319,15 @@ For capability questions, suggest specific actions the user might want to try wi
         )
         return {"messages": [result["messages"][-1]], "next": "FINISH"}
 
+    def _arxiv_node(self, state: SupervisorState):
+        """Delegate to ArXiv agent for paper search and analysis."""
+        agent_state = cast(MessagesState, {"messages": state["messages"]})
+        result = self.arxiv_agent.invoke(
+            agent_state,
+            {"configurable": {"thread_id": "arxiv"}},
+        )
+        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+
     def _prusa_node(self, state: SupervisorState):
         """Delegate to Prusa agent."""
         agent_state = cast(MessagesState, {"messages": state["messages"]})
@@ -334,6 +359,7 @@ For capability questions, suggest specific actions the user might want to try wi
         workflow.add_node("hpc_agent", self._hpc_node)
         workflow.add_node("search_agent", self._search_node)
         workflow.add_node("rag_agent", self._rag_node)
+        workflow.add_node("arxiv_agent", self._arxiv_node)
         workflow.add_node("prusa_agent", self._prusa_node)
         workflow.add_node("cli_agent", self._cli_node)
 
@@ -347,6 +373,7 @@ For capability questions, suggest specific actions the user might want to try wi
             "hpc_agent": "hpc_agent",
             "search_agent": "search_agent",
             "rag_agent": "rag_agent",
+            "arxiv_agent": "arxiv_agent",
             "prusa_agent": "prusa_agent",
             "cli_agent": "cli_agent",
             "FINISH": END,
@@ -365,6 +392,7 @@ For capability questions, suggest specific actions the user might want to try wi
         workflow.add_edge("hpc_agent", END)
         workflow.add_edge("search_agent", END)
         workflow.add_edge("rag_agent", END)
+        workflow.add_edge("arxiv_agent", END)
         workflow.add_edge("prusa_agent", END)
         workflow.add_edge("cli_agent", END)
 
