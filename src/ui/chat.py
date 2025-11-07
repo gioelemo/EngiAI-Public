@@ -10,7 +10,8 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.ui.streamlit_app import display_message, process_user_input  # noqa: E402
+from src.ui.message_processing import display_message  # noqa: E402
+from src.ui.streamlit_app import process_user_input  # noqa: E402
 
 
 def render() -> None:
