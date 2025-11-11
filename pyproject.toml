@@ -241,6 +241,7 @@ module = [
   "engibench.*",
   "engiopt.*",
   "fabric",
+  "httpx",
   "langchain.*",
   "langchain-mcp-adapters",
   "langchain_chroma",
@@ -265,6 +266,7 @@ module = [
   "streamlit.components.*",
   "streamlit_stl",
   "torch",
+  "uvicorn",
   "wandb",
   "watchdog",
 ]
