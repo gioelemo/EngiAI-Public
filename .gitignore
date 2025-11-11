@@ -208,3 +208,7 @@ data/*.db
 # Paper import state and logs
 data/local_import_state.json
 data/*.log
+data/connect_state.json
+
+# External prusa-mcp folder (mounted from ~/Desktop/prusa-mcp)
+prusa-mcp/

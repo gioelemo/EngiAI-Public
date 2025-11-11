@@ -6,22 +6,31 @@ This agent specializes in interacting with Prusa Connect to manage
 """
 
 import asyncio
+import concurrent.futures
+import contextlib
+import logging
 import os
-from pathlib import Path
 from typing import Literal
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.graph import END, START, StateGraph
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
 from pydantic import BaseModel, Field, create_model
 
 from config import config
+from prusa_mcp_server.client import PrusaMCPClient
 from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
 from src.utils.prompts import PRUSA_AGENT_SYSTEM_PROMPT
+
+# Try to import nest_asyncio for better async compatibility
+try:
+    import nest_asyncio  # type: ignore[import-not-found]
+
+    NEST_ASYNCIO_AVAILABLE = True
+except ImportError:
+    NEST_ASYNCIO_AVAILABLE = False
 
 
 class PrusaAgent:
@@ -45,24 +54,11 @@ class PrusaAgent:
             self.tools = []
             self.tools_by_name = {}
             self.llm_with_tools = self.llm
-            self.server_params = None
+            self.mcp_client = None
         else:
-            # Set up MCP connection to Prusa server
-            prusa_mcp_path = os.getenv(
-                "PRUSA_MCP_PATH", str(Path.home() / "Desktop" / "prusa-mcp")
-            )
-            uv_path = os.getenv("UV_PATH", str(Path.home() / ".local" / "bin" / "uv"))
-
-            # MCP server parameters
-            self.server_params = StdioServerParameters(
-                command=uv_path,
-                args=[
-                    "--directory",
-                    prusa_mcp_path,
-                    "run",
-                    "src/prusa-mcp.py",
-                ],
-            )
+            # Set up HTTP connection to external Prusa MCP server
+            mcp_server_url = os.getenv("PRUSA_MCP_URL", "http://localhost:8765")
+            self.mcp_client = PrusaMCPClient(server_url=mcp_server_url)
 
             # Initialize tools synchronously
             self.tools = self._load_tools_sync()
@@ -73,57 +69,73 @@ class PrusaAgent:
         self.agent = self._build_agent()
 
     def _call_mcp_tool_sync(self, tool_name: str, **kwargs):
-        """Call an MCP tool synchronously by creating a new session."""
+        """Call an MCP tool synchronously using the HTTP client."""
+        logger = logging.getLogger(__name__)
 
-        async def _call():
-            async with (
-                stdio_client(self.server_params) as (read, write),
-                ClientSession(read, write) as session,
-            ):
-                await session.initialize()
-                result = await session.call_tool(tool_name, kwargs)
-                if result.content:
-                    return "\n".join(
-                        [
-                            c.text if hasattr(c, "text") else str(c)
-                            for c in result.content
-                        ]
-                    )
-                return "Tool executed successfully"
+        if not self.mcp_client:
+            return "MCP client not initialized"
 
-        # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(_call())
-        finally:
-            loop.close()
+        logger.info(f"Calling MCP tool '{tool_name}' with kwargs: {kwargs}")
+        result = self.mcp_client.call_tool_sync(tool_name, **kwargs)
+        logger.info(
+            f"MCP tool '{tool_name}' returned: {result[:200] if result else '(empty)'}"
+        )
+        return result
 
-    def _load_tools_sync(self):
-        """Load MCP tools synchronously."""
+    def _load_tools_sync(self):  # noqa: PLR0912, PLR0915
+        """Load MCP tools synchronously using the HTTP client."""
+        if not self.mcp_client:
+            return []
 
         async def _load():
-            async with (
-                stdio_client(self.server_params) as (read, write),
-                ClientSession(read, write) as session,
-            ):
-                await session.initialize()
-                response = await session.list_tools()
-                return response.tools
+            """Load tools but DON'T disconnect - keep connection alive for tool calls."""
+            try:
+                tools = await self.mcp_client.list_tools()
+            except Exception:
+                # Ensure we disconnect even if there's an error
+                with contextlib.suppress(Exception):
+                    await self.mcp_client.disconnect()
+                raise
+            else:
+                # DON'T disconnect here - we need the connection for subsequent tool calls
+                # The connection will be reused for actual tool invocations
+                return tools
 
-        # Get tool list
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Get tool list - try to use existing event loop or create new one
         try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = None
+        except RuntimeError:
+            loop = None
+
+        if loop is None:
+            # No event loop in current thread, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             mcp_tools = loop.run_until_complete(_load())
-        finally:
-            loop.close()
+        elif loop.is_running():
+            # We're in an async context, need to handle this differently
+            if NEST_ASYNCIO_AVAILABLE:
+                nest_asyncio.apply(loop)
+                mcp_tools = loop.run_until_complete(_load())
+            else:
+                # Fallback: run in new thread
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(lambda: asyncio.run(_load()))
+                    mcp_tools = future.result()
+        else:
+            # Loop exists but not running
+            mcp_tools = loop.run_until_complete(_load())
 
         tools = []
         for mcp_tool in mcp_tools:
             # Create a wrapper function for this specific tool
             def make_tool_func(tool_name):
                 def call_tool(**kwargs):
+                    print(
+                        f"DEBUG: call_tool wrapper called for '{tool_name}' with kwargs: {kwargs}"
+                    )
                     return self._call_mcp_tool_sync(tool_name, **kwargs)
 
                 return call_tool
@@ -240,7 +252,18 @@ class PrusaAgent:
                 continue
 
             try:
+                logger = logging.getLogger(__name__)
+                print(
+                    f"DEBUG _tool_node: Invoking tool '{tool_name}' with args: {tool_args}"
+                )
+                logger.info(f"Invoking tool '{tool_name}' with args: {tool_args}")
                 result = tool.invoke(tool_args)
+                print(
+                    f"DEBUG _tool_node: Tool '{tool_name}' result: {result[:100] if result else '(empty)'}"
+                )
+                logger.info(
+                    f"Tool '{tool_name}' result: {result[:200] if result else '(empty)'}"
+                )
                 outputs.append(
                     ToolMessage(
                         content=str(result),
@@ -249,6 +272,8 @@ class PrusaAgent:
                     )
                 )
             except Exception as e:
+                logger = logging.getLogger(__name__)
+                logger.exception(f"Error invoking tool '{tool_name}'")
                 outputs.append(
                     ToolMessage(
                         content=f"Error executing {tool_name}: {e!s}",

@@ -39,6 +39,9 @@ run-ui:  ## Start the Streamlit UI
 run-cli:  ## Start the CLI chat interface
 	python -m src.cli.chat
 
+run-mcp:  ## Start the standalone Prusa MCP server
+	./prusa_mcp_server/run.sh
+
 # Build documentation
 .PHONY: docs
 docs:

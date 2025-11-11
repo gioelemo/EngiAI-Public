@@ -1,0 +1,59 @@
+services:
+  # Standalone Prusa MCP Server
+  prusa-mcp-server:
+    build:
+      context: .
+      dockerfile: prusa_mcp_server/Dockerfile
+    container_name: prusa-mcp-server
+    ports:
+      - "8765:8000"  # Map host 8765 to container 8000 (FastMCP default)
+    environment:
+      - PRUSA_MCP_PATH=/app/prusa-mcp
+      - PRUSA_EMAIL=${PRUSA_EMAIL:-}
+      - PRUSA_PASSWORD=${PRUSA_PASSWORD:-}
+      - PRUSA_CONNECT_URL=${PRUSA_CONNECT_URL:-https://connect.prusa3d.com}
+      - PRUSA_CONNECT_STATE=/app/data/connect_state.json
+      - HEADLESS=${HEADLESS:-1}
+    volumes:
+      # Mount data directory to persist connect state
+      - ./data:/app/data
+      # Mount the original prusa-mcp folder from your Desktop
+      - ~/Desktop/prusa-mcp:/app/prusa-mcp:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8000)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - engineer-assistant
+
+  # Main chatbot application (connects to external MCP server)
+  chatbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: engineer-assistant-chatbot
+    ports:
+      - "8501:8501"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - SKIP_MCP=false  # Enable MCP client
+      - PRUSA_MCP_URL=http://prusa-mcp-server:8000  # Connect to MCP server (internal port)
+      - LLM_MODEL=${LLM_MODEL:-openai:gpt-4o}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/conversations.db}
+    volumes:
+      - ./data:/app/data
+      - ~/.ssh:/root/.ssh-host:ro
+    depends_on:
+      prusa-mcp-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - engineer-assistant
+
+networks:
+  engineer-assistant:
+    driver: bridge

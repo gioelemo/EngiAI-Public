@@ -290,7 +290,9 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "engineering"}},
         )
-        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+        # Return all new messages from the agent to preserve tool call/response pairs
+        new_messages = result["messages"][len(state["messages"]) :]
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _hpc_node(self, state: SupervisorState):
         """Delegate to HPC agent."""
@@ -299,7 +301,9 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "hpc"}},
         )
-        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+        # Return all new messages from the agent to preserve tool call/response pairs
+        new_messages = result["messages"][len(state["messages"]) :]
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _search_node(self, state: SupervisorState):
         """Delegate to search agent."""
@@ -308,7 +312,9 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "search"}},
         )
-        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+        # Return all new messages from the agent to preserve tool call/response pairs
+        new_messages = result["messages"][len(state["messages"]) :]
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _rag_node(self, state: SupervisorState):
         """Delegate to RAG agent for document Q&A."""
@@ -317,7 +323,9 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "rag"}},
         )
-        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+        # Return all new messages from the agent to preserve tool call/response pairs
+        new_messages = result["messages"][len(state["messages"]) :]
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _arxiv_node(self, state: SupervisorState):
         """Delegate to ArXiv agent for paper search and analysis."""
@@ -326,7 +334,9 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "arxiv"}},
         )
-        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+        # Return all new messages from the agent to preserve tool call/response pairs
+        new_messages = result["messages"][len(state["messages"]) :]
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _prusa_node(self, state: SupervisorState):
         """Delegate to Prusa agent."""
@@ -335,7 +345,9 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "prusa"}},
         )
-        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+        # Return all new messages from the agent to preserve tool call/response pairs
+        new_messages = result["messages"][len(state["messages"]) :]
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _cli_node(self, state: SupervisorState):
         """Delegate to CLI agent."""
@@ -344,7 +356,9 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "cli"}},
         )
-        return {"messages": [result["messages"][-1]], "next": "FINISH"}
+        # Return all new messages from the agent to preserve tool call/response pairs
+        new_messages = result["messages"][len(state["messages"]) :]
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _build_graph(self):
         """Build the supervisor workflow graph with agent routing."""
