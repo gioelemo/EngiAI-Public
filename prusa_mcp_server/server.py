@@ -70,6 +70,11 @@ def main():
     # Get the SSE app from FastMCP
     app = mcp_server.sse_app
 
+    # If app is a callable (factory function), call it to get the actual app instance
+    if callable(app):
+        logger.info("Detected app factory, calling it to get app instance")
+        app = app()
+
     # Run the app with uvicorn on the specified host/port
     logger.info(f"Running SSE server on {host}:{port}")
     uvicorn.run(app, host=host, port=port)
