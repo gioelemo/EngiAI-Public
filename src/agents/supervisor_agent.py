@@ -299,7 +299,7 @@ For capability questions, suggest specific actions the user might want to try wi
             if isinstance(msg, AIMessage) and not msg.tool_calls
         ]
         if not final_messages and new_messages:
-            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+            final_messages.append(new_messages[-1])
         return {"messages": final_messages, "next": "FINISH"}
 
     def _hpc_node(self, state: SupervisorState):
@@ -318,7 +318,7 @@ For capability questions, suggest specific actions the user might want to try wi
             if isinstance(msg, AIMessage) and not msg.tool_calls
         ]
         if not final_messages and new_messages:
-            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+            final_messages.append(new_messages[-1])
         return {"messages": final_messages, "next": "FINISH"}
 
     def _search_node(self, state: SupervisorState):
@@ -337,7 +337,7 @@ For capability questions, suggest specific actions the user might want to try wi
             if isinstance(msg, AIMessage) and not msg.tool_calls
         ]
         if not final_messages and new_messages:
-            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+            final_messages.append(new_messages[-1])
         return {"messages": final_messages, "next": "FINISH"}
 
     def _rag_node(self, state: SupervisorState):
@@ -356,7 +356,7 @@ For capability questions, suggest specific actions the user might want to try wi
             if isinstance(msg, AIMessage) and not msg.tool_calls
         ]
         if not final_messages and new_messages:
-            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+            final_messages.append(new_messages[-1])
         return {"messages": final_messages, "next": "FINISH"}
 
     def _arxiv_node(self, state: SupervisorState):
@@ -375,7 +375,7 @@ For capability questions, suggest specific actions the user might want to try wi
             if isinstance(msg, AIMessage) and not msg.tool_calls
         ]
         if not final_messages and new_messages:
-            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+            final_messages.append(new_messages[-1])
         return {"messages": final_messages, "next": "FINISH"}
 
     def _prusa_node(self, state: SupervisorState):
@@ -394,7 +394,7 @@ For capability questions, suggest specific actions the user might want to try wi
             if isinstance(msg, AIMessage) and not msg.tool_calls
         ]
         if not final_messages and new_messages:
-            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+            final_messages.append(new_messages[-1])
         return {"messages": final_messages, "next": "FINISH"}
 
     def _cli_node(self, state: SupervisorState):
@@ -413,7 +413,7 @@ For capability questions, suggest specific actions the user might want to try wi
             if isinstance(msg, AIMessage) and not msg.tool_calls
         ]
         if not final_messages and new_messages:
-            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+            final_messages.append(new_messages[-1])
         return {"messages": final_messages, "next": "FINISH"}
 
     def _build_graph(self):
