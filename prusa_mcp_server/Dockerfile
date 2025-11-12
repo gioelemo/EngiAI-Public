@@ -41,6 +41,7 @@ RUN playwright install chromium --with-deps
 # Set environment variables
 ENV PRUSA_MCP_PATH=/app/prusa-mcp
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
 # Expose port
 EXPOSE 8765
@@ -49,5 +50,5 @@ EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://localhost:8765/sse', timeout=5.0)" || exit 1
 
-# Run the server
-CMD ["python", "-m", "prusa_mcp_server.server", "0.0.0.0", "8765"]
+# Run the server as a script (not as a module to avoid RuntimeWarning)
+CMD ["python", "/app/prusa_mcp_server/run_server.py"]
