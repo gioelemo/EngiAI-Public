@@ -8,7 +8,7 @@ sub-agents (Engineering, Search, etc.) rather than having all tools directly.
 from typing import Annotated, cast
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, AnyMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
@@ -290,9 +290,17 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "engineering"}},
         )
-        # Return all new messages from the agent to preserve tool call/response pairs
-        new_messages = result["messages"][len(state["messages"]) :]
-        return {"messages": new_messages, "next": "FINISH"}
+        # Extract only final AI responses, excluding intermediate tool calls/responses
+        input_len = len(state["messages"])
+        new_messages = result["messages"][input_len:]
+        final_messages: list[AnyMessage] = [
+            msg
+            for msg in new_messages
+            if isinstance(msg, AIMessage) and not msg.tool_calls
+        ]
+        if not final_messages and new_messages:
+            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+        return {"messages": final_messages, "next": "FINISH"}
 
     def _hpc_node(self, state: SupervisorState):
         """Delegate to HPC agent."""
@@ -301,9 +309,17 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "hpc"}},
         )
-        # Return all new messages from the agent to preserve tool call/response pairs
-        new_messages = result["messages"][len(state["messages"]) :]
-        return {"messages": new_messages, "next": "FINISH"}
+        # Extract only final AI responses, excluding intermediate tool calls/responses
+        input_len = len(state["messages"])
+        new_messages = result["messages"][input_len:]
+        final_messages: list[AnyMessage] = [
+            msg
+            for msg in new_messages
+            if isinstance(msg, AIMessage) and not msg.tool_calls
+        ]
+        if not final_messages and new_messages:
+            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+        return {"messages": final_messages, "next": "FINISH"}
 
     def _search_node(self, state: SupervisorState):
         """Delegate to search agent."""
@@ -312,9 +328,17 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "search"}},
         )
-        # Return all new messages from the agent to preserve tool call/response pairs
-        new_messages = result["messages"][len(state["messages"]) :]
-        return {"messages": new_messages, "next": "FINISH"}
+        # Extract only final AI responses, excluding intermediate tool calls/responses
+        input_len = len(state["messages"])
+        new_messages = result["messages"][input_len:]
+        final_messages: list[AnyMessage] = [
+            msg
+            for msg in new_messages
+            if isinstance(msg, AIMessage) and not msg.tool_calls
+        ]
+        if not final_messages and new_messages:
+            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+        return {"messages": final_messages, "next": "FINISH"}
 
     def _rag_node(self, state: SupervisorState):
         """Delegate to RAG agent for document Q&A."""
@@ -323,9 +347,17 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "rag"}},
         )
-        # Return all new messages from the agent to preserve tool call/response pairs
-        new_messages = result["messages"][len(state["messages"]) :]
-        return {"messages": new_messages, "next": "FINISH"}
+        # Extract only final AI responses, excluding intermediate tool calls/responses
+        input_len = len(state["messages"])
+        new_messages = result["messages"][input_len:]
+        final_messages: list[AnyMessage] = [
+            msg
+            for msg in new_messages
+            if isinstance(msg, AIMessage) and not msg.tool_calls
+        ]
+        if not final_messages and new_messages:
+            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+        return {"messages": final_messages, "next": "FINISH"}
 
     def _arxiv_node(self, state: SupervisorState):
         """Delegate to ArXiv agent for paper search and analysis."""
@@ -334,9 +366,17 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "arxiv"}},
         )
-        # Return all new messages from the agent to preserve tool call/response pairs
-        new_messages = result["messages"][len(state["messages"]) :]
-        return {"messages": new_messages, "next": "FINISH"}
+        # Extract only final AI responses, excluding intermediate tool calls/responses
+        input_len = len(state["messages"])
+        new_messages = result["messages"][input_len:]
+        final_messages: list[AnyMessage] = [
+            msg
+            for msg in new_messages
+            if isinstance(msg, AIMessage) and not msg.tool_calls
+        ]
+        if not final_messages and new_messages:
+            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+        return {"messages": final_messages, "next": "FINISH"}
 
     def _prusa_node(self, state: SupervisorState):
         """Delegate to Prusa agent."""
@@ -345,9 +385,17 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "prusa"}},
         )
-        # Return all new messages from the agent to preserve tool call/response pairs
-        new_messages = result["messages"][len(state["messages"]) :]
-        return {"messages": new_messages, "next": "FINISH"}
+        # Extract only final AI responses, excluding intermediate tool calls/responses
+        input_len = len(state["messages"])
+        new_messages = result["messages"][input_len:]
+        final_messages: list[AnyMessage] = [
+            msg
+            for msg in new_messages
+            if isinstance(msg, AIMessage) and not msg.tool_calls
+        ]
+        if not final_messages and new_messages:
+            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+        return {"messages": final_messages, "next": "FINISH"}
 
     def _cli_node(self, state: SupervisorState):
         """Delegate to CLI agent."""
@@ -356,9 +404,17 @@ For capability questions, suggest specific actions the user might want to try wi
             agent_state,
             {"configurable": {"thread_id": "cli"}},
         )
-        # Return all new messages from the agent to preserve tool call/response pairs
-        new_messages = result["messages"][len(state["messages"]) :]
-        return {"messages": new_messages, "next": "FINISH"}
+        # Extract only final AI responses, excluding intermediate tool calls/responses
+        input_len = len(state["messages"])
+        new_messages = result["messages"][input_len:]
+        final_messages: list[AnyMessage] = [
+            msg
+            for msg in new_messages
+            if isinstance(msg, AIMessage) and not msg.tool_calls
+        ]
+        if not final_messages and new_messages:
+            final_messages = cast(list[AnyMessage], [new_messages[-1]])
+        return {"messages": final_messages, "next": "FINISH"}
 
     def _build_graph(self):
         """Build the supervisor workflow graph with agent routing."""
