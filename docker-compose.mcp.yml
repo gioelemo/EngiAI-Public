@@ -40,6 +40,8 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - MATHPIX_API_ID=${MATHPIX_API_ID:-}
+      - MATHPIX_API_KEY=${MATHPIX_API_KEY:-}
       - SKIP_MCP=false  # Enable MCP client
       - PRUSA_MCP_URL=http://prusa-mcp-server:8000  # Connect to MCP server (internal port)
       - LLM_MODEL=${LLM_MODEL:-openai:gpt-4o}
