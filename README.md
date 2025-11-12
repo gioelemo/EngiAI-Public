@@ -9,11 +9,39 @@
 
 Jarvis-Style Multimodal AI Assistant for Closed-Loop Design-for-Manufacturing Correction.
 
-## Quick Setup
+## 🎯 Quick Start
+
+### 🚀 Fastest Way: Docker (Recommended)
+
+```bash
+# 1. Clone and navigate to the repository
+git clone https://github.com/gioelemo/engineer-assistant.git
+cd engineer-assistant
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your OpenAI and Tavily API keys
+
+# 3. Start the application
+docker-compose up -d
+
+# 4. Open your browser
+# Visit: http://localhost:8501
+```
+
+That's it! The complete AI assistant is now running in Docker with all dependencies isolated.
+
+**To stop:** `docker-compose down`
+
+---
+
+## Local Development Setup (Conda)
+
+For developers who want to modify the code or run without Docker:
 
 ### Prerequisites
 - [Miniforge](https://github.com/conda-forge/miniforge) installed
-- VS Code with Python extension
+- VS Code with Python extension (recommended)
 
 ### One-Command Setup
 
@@ -94,7 +122,71 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
 
 ### Running the Application
 
-**Before running any applications, configure your environment variables:**
+## 🚀 Deployment Options
+
+### 📦 Option 1: Docker Compose (⭐ RECOMMENDED for Production)
+
+Docker provides the most reliable, isolated, and portable deployment. All dependencies are containerized with consistent behavior across environments.
+
+**Prerequisites:**
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running
+
+**Quick Start:**
+
+1. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys (see configuration section below)
+   ```
+
+2. **Choose your deployment mode:**
+
+   **a) Basic Deployment (No Prusa MCP):**
+   ```bash
+   docker-compose up -d
+   ```
+
+   **b) Full Deployment with Prusa 3D Printer Integration:**
+   ```bash
+   # Requires prusa-mcp folder at ~/Desktop/prusa-mcp
+   docker-compose -f docker-compose.mcp.yml up -d
+   ```
+
+3. **Access the application:**
+   - **Web UI**: http://localhost:8501
+   - **Prusa MCP Server** (if enabled): http://localhost:8765
+
+4. **View logs:**
+   ```bash
+   docker-compose logs -f chatbot          # Basic deployment
+   docker-compose -f docker-compose.mcp.yml logs -f  # Full deployment
+   ```
+
+5. **Stop services:**
+   ```bash
+   docker-compose down
+   # or
+   docker-compose -f docker-compose.mcp.yml down
+   ```
+
+**Benefits:**
+- ✅ Isolated environment with all dependencies
+- ✅ Consistent behavior across machines
+- ✅ Easy to scale and deploy
+- ✅ Automatic restarts on failure
+- ✅ Volume persistence for data
+- ✅ No conda/Python environment conflicts
+
+---
+
+### 💻 Option 2: Local Development (Conda)
+
+Best for active development and testing new features.
+
+**Prerequisites:**
+- Conda environment activated: `conda activate engineer-assistant`
+
+**Configuration:**
 
 1. **Create your environment file:**
    ```bash
@@ -109,60 +201,153 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
    nano .env  # Terminal editor
    ```
 
-   Add your actual API keys to the `.env` file:
-   ```
-   OPENAI_API_KEY=your-actual-openai-api-key-here
-   TAVILY_API_KEY=your-actual-tavily-api-key-here
+**Running Modes:**
 
-   # Optional: Choose your preferred LLM model (defaults to gpt-4.1)
-   LLM_MODEL=openai:gpt-4.1
-   ```
-
-   **Available model options:**
-   - `openai:gpt-4.1` (default, fast and cost-effective)
-   - `openai:gpt-4o` (most capable OpenAI model)
-   - `openai:gpt-3.5-turbo` (legacy, cheaper option)
-   - `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
-
-   **CLI Tools configuration:**
-   - `PRUSA_SLICER_PATH`: Path to PrusaSlicer executable (default: `prusa-slicer`)
-     - **macOS:** `/Applications/Original Prusa Drivers/PrusaSlicer.app/Contents/MacOS/PrusaSlicer`
-     - **Windows:** `C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe`
-     - **Linux:** `prusa-slicer` (if in PATH)
-
-**Run the Multi-Agent Assistant:**
-
-#### Option 1: Web UI (Recommended)
+#### a) Streamlit Web UI
 ```bash
-# Launch the Streamlit web interface
+# Using convenience script
 ./run_ui.sh
 
-# Or manually:
+# Or directly with streamlit
 streamlit run src/ui/streamlit_app.py
+
+# Or via Makefile
+make run-ui
 ```
 
-The web UI provides:
+**Features:**
 - 💬 Clean chat interface
 - 🔧 Real-time tool usage visualization
 - 📥 Direct file downloads
 - 🗑️ Conversation management
+- 📊 Multi-chat support with database
 
-See [src/ui/README.md](src/ui/README.md) for more details.
+**Access:** http://localhost:8501 (or port shown in terminal)
 
-#### Option 2: Command Line Interface
+#### b) Command Line Interface
 ```bash
-# Starts the supervisor system in CLI mode
+# Start interactive CLI
 python -m src.main
+
+# Or via Makefile
+make run-cli
 ```
 
-The system includes:
+**Features:**
+- Terminal-based chat
+- Direct command execution
+- Tool confirmation prompts
+- Lightweight and fast
+
+#### c) Standalone Prusa MCP Server
+```bash
+# Start external MCP server
+./prusa_mcp_server/run.sh
+
+# Or via Makefile
+make run-mcp
+```
+
+Then in another terminal, run the main app with MCP enabled:
+```bash
+export SKIP_MCP=false
+export PRUSA_MCP_URL=http://localhost:8765
+streamlit run src/ui/streamlit_app.py
+```
+
+---
+
+### 🎯 Quick Comparison
+
+| Feature | Docker Compose | Local Development |
+|---------|----------------|-------------------|
+| **Setup Time** | 5 minutes | 10-15 minutes |
+| **Isolation** | ✅ Complete | ⚠️ Shared environment |
+| **Portability** | ✅ Run anywhere | ❌ Needs conda setup |
+| **Production Ready** | ✅ Yes | ❌ Development only |
+| **Hot Reload** | ❌ Requires rebuild | ✅ Instant changes |
+| **Resource Usage** | Moderate | Light |
+| **Prusa MCP** | ✅ Integrated | ⚠️ Manual setup |
+| **Best For** | Production, demos | Active development |
+
+---
+
+### ⚙️ Environment Configuration
+
+**Required API Keys:**
+```env
+OPENAI_API_KEY=your-actual-openai-api-key-here
+TAVILY_API_KEY=your-actual-tavily-api-key-here
+```
+
+**Optional Configuration:**
+```env
+# LLM Model Selection (defaults to gpt-4.1)
+LLM_MODEL=openai:gpt-4.1
+
+# Database (SQLite default, PostgreSQL recommended for production)
+DATABASE_URL=sqlite:///data/conversations.db
+# or for PostgreSQL:
+# DATABASE_URL=postgresql://user:password@localhost:5432/engineer_assistant
+
+# Prusa MCP Integration (set to false to disable)
+SKIP_MCP=true
+PRUSA_MCP_URL=http://localhost:8765
+
+# CLI Tools
+PRUSA_SLICER_PATH=prusa-slicer
+```
+
+**Available LLM Models:**
+- `openai:gpt-4.1` (default, fast and cost-effective)
+- `openai:gpt-4o` (most capable OpenAI model)
+- `openai:gpt-3.5-turbo` (legacy, cheaper option)
+- `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
+
+**PrusaSlicer Path by Platform:**
+- **macOS:** `/Applications/Original Prusa Drivers/PrusaSlicer.app/Contents/MacOS/PrusaSlicer`
+- **Windows:** `C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe`
+- **Linux:** `prusa-slicer` (if in PATH)
+
+---
+
+### 🤖 Available Agents
+
+The system includes specialized agents coordinated by a supervisor:
+
 - **Engineering Agent**: Structural optimization with EngiBench
 - **Search Agent**: Web research and information gathering
-- **Prusa Agent**: 3D printer management via Prusa Connect
+- **RAG Agent**: Document Q&A with vector store
+- **ArXiv Agent**: Scientific paper search and analysis
+- **Prusa Agent**: 3D printer management via Prusa Connect (optional)
 - **HPC Agent**: HPC cluster job management via SSH
 - **CLI Agent**: Local command-line tool execution
 
 The supervisor intelligently routes your requests to the appropriate agent!
+
+---
+
+### 🛠️ Makefile Commands (Local Development)
+
+For convenience, common commands are available via Makefile:
+
+```bash
+make help          # Show all available commands
+make install       # Install/update conda environment
+make run-ui        # Start Streamlit web interface
+make run-cli       # Start CLI chat interface
+make run-mcp       # Start standalone Prusa MCP server
+make test          # Run all tests
+make test-fast     # Run only fast tests
+make test-cov      # Run tests with coverage report
+make lint          # Check code quality (ruff + mypy)
+make format        # Format code with ruff
+make clean         # Clean cache and build files
+make docs          # Build documentation
+make docs-watch    # Serve docs with live reload
+```
+
+---
 
 ### Engineering Agent with EngiBench
 
@@ -427,15 +612,31 @@ python connection.py submit outputs/test.slurm
 
 ## What's Included
 
-- **Python 3.11.8** via conda-forge
-- **Ruff** for fast linting/formatting
+### Core Features
+- **🐳 Docker Deployment**: Production-ready containerized deployment with Docker Compose
+- **🤖 Multi-Agent System**: Supervisor coordinates specialized agents (Engineering, Search, RAG, HPC, Prusa, CLI)
+- **💬 Interactive UI**: Streamlit web interface with chat, file uploads, and visualization
+- **🔧 Engineering Tools**: EngiBench integration for structural optimization and topology design
+- **🔍 RAG System**: Document Q&A with vector store (ChromaDB) and multimodal support
+- **🖨️ 3D Printer Integration**: Prusa Connect integration via MCP (Model Context Protocol)
+- **🖥️ HPC Integration**: SLURM job management for remote compute clusters
+- **📊 Database Support**: PostgreSQL and SQLite for conversation persistence
+
+### Development Tools
+- **Python 3.11+** with conda-forge
+- **Ruff** for fast linting and formatting
+- **MyPy** for static type checking
 - **Pre-commit hooks** for automated quality checks
 - **VS Code integration** with consistent settings
-- **Modular architecture** with agents, tools, and CLI separation
-- **Interactive AI chatbot** with arithmetic and web search
-- **Engineering optimization** with EngiBench integration
+- **Comprehensive test suite** with pytest
 - **Environment variable management** with `.env` support
+
+### Architecture
+- **Modular design** with clear separation of agents, tools, and CLI
+- **LangGraph workflows** for agent orchestration
+- **LangChain integration** for LLM interactions
 - **Extensible tool system** for easy feature additions
+- **Type-safe** with full type annotations
 
 ## Project Structure
 
@@ -443,56 +644,94 @@ python connection.py submit outputs/test.slurm
 ├── .vscode/
 │   ├── extensions.json          # Recommended VS Code extensions
 │   └── settings_template.json   # VS Code settings template
+├── prusa_mcp_server/            # Standalone Prusa MCP server
+│   ├── __init__.py
+│   ├── server.py                # HTTP/SSE server wrapper
+│   ├── client.py                # HTTP client for MCP
+│   ├── Dockerfile               # MCP server Docker image
+│   ├── run.sh                   # Standalone server script
+│   └── README.md                # MCP deployment guide
 ├── src/                         # Source code (modular structure)
 │   ├── agents/                  # Agent implementations
-│   │   ├── cli_agent.py         # CLI agent
+│   │   ├── arxiv_agent.py       # Scientific paper search
+│   │   ├── cli_agent.py         # CLI command execution
 │   │   ├── engineering_agent.py # Engineering optimization
-│   │   ├── hpc_agent.py         # Agent to connect to SSH machine
+│   │   ├── hpc_agent.py         # HPC cluster management
+│   │   ├── prusa_agent.py       # 3D printer control
+│   │   ├── rag_agent.py         # Document Q&A
 │   │   ├── search_agent.py      # Web search
 │   │   └── supervisor_agent.py  # Coordinates specialized agents
 │   ├── cli/                     # Command-line interfaces
-│   │   └── chat.py              # Interactive chat with supervisor
+│   │   └── chat.py              # Interactive CLI chat
 │   ├── models/                  # State definitions
 │   │   └── state.py             # Conversation state
 │   ├── tools/                   # Custom tools
 │   │   ├── cli.py               # CLI tools
-│   │   ├── connection.py        # Functions to connect to HPC cluster via ssh
-│   │   ├── engibench.py         # Engineering optimization tools
-│   │   ├── engiopt.py           # Engineering optimization tools
-│   │   ├── hpc.py               # Functions to monitor the HPC cluster
-│   │   ├── job_monitor.py       # Functions to monitor the HPC cluster
+│   │   ├── connection.py        # HPC SSH connection (Fabric)
+│   │   ├── engibench.py         # Engineering optimization
+│   │   ├── engiopt.py           # EngiOpt integration
+│   │   ├── hpc.py               # HPC monitoring
+│   │   ├── rag_chain.py         # RAG pipeline
 │   │   ├── search.py            # Web search
-│   │   └── stl_export.py        # 3D model export
-│   ├── ui/                      # User Interface
-│   │   └── streamlit_app.py     # Streamlit App
+│   │   ├── stl_export.py        # 3D model export
+│   │   └── vector_store.py      # ChromaDB integration
+│   ├── ui/                      # Streamlit web interface
+│   │   ├── streamlit_app.py     # Main Streamlit app
+│   │   ├── chat.py              # Chat page
+│   │   ├── home.py              # Home page
+│   │   ├── settings.py          # Settings page
+│   │   └── chat_management.py   # Multi-chat DB management
 │   ├── utils/                   # Utilities
 │   │   └── prompts.py           # System prompts
-│   ├── main.py                  # Main entry point
-│   ├── example.py               # Example usage
-│   └── README.md                # Detailed architecture docs
+│   └── main.py                  # CLI entry point
 ├── scripts/                     # Utility scripts
-│   ├── 2D_heatmap_to_stl_extruded.py     # Convert heatmaps to 3D STL files
-│   ├── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL files
-│   └── generate_architecture_diagram.py  # Generate system diagrams
+│   ├── 2D_heatmap_to_stl_extruded.py  # Convert heatmaps to 3D
+│   ├── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL
+│   ├── import_local_papers.py   # Import PDFs to vector store
+│   ├── generate_architecture_diagram.py  # Agent system diagram
+│   └── generate_docker_mcp_diagram.py    # Docker MCP deployment diagram
+├── data/                        # Data directory (gitignored)
+│   ├── chroma_db/               # Vector store database
+│   └── conversations.db         # SQLite chat history
 ├── outputs/                     # Generated outputs
-│   ├── agent_architecture.png   # System architecture diagram
-│   ├── workflow_example.png     # Example workflow diagram
 │   ├── *.slurm                  # Generated SLURM job scripts
 │   └── *.npy, *.png, *.stl      # Engineering design outputs
 ├── tests/                       # Unit and integration tests
-│   ├── test_example.py
-│   ├── test_optimization_workflow.py
-│   └── test_notebook_comparison.py
+│   ├── test_agents/             # Agent tests
+│   ├── test_tools/              # Tool tests
+│   └── conftest.py              # Test configuration
+├── docker-compose.yml           # Basic Docker deployment
+├── docker-compose.mcp.yml       # Full deployment with MCP
+├── Dockerfile                   # Main application Docker image
 ├── .env.example                 # Environment variables template
 ├── config.py                    # Configuration management
-├── connection.py                # HPC cluster SSH connection (Fabric-based)
 ├── environment.yml              # Conda environment
-├── pyproject.toml               # Project config & ruff settings
-├── setup.sh / setup.bat         # One-command setup
+├── pyproject.toml               # Project config & dependencies
+├── Makefile                     # Convenient command shortcuts
+├── requirements-mcp.txt         # MCP server dependencies
+├── setup.sh / setup.bat         # One-command local setup
 └── README.md                    # This file
 ```
 
-See `src/README.md` for detailed architecture documentation and how to add new features.
+See `src/README.md` for detailed architecture documentation and `prusa_mcp_server/README.md` for MCP deployment options.
+
+### 📊 Architecture Diagrams
+
+Generate visual diagrams of the system architecture:
+
+```bash
+# Generate agent system architecture diagram
+python scripts/generate_architecture_diagram.py
+# Output: outputs/agent_architecture.png
+
+# Generate Docker MCP deployment diagram
+python scripts/generate_docker_mcp_diagram.py
+# Output: outputs/docker_mcp_architecture.png
+```
+
+The diagrams show:
+- **Agent Architecture**: Multi-agent system with supervisor and specialized agents
+- **Docker MCP**: Container deployment with HTTP/SSE communication between services
 
 ## Adding Dependencies
 
@@ -524,9 +763,45 @@ Both are required for the chatbot to work properly.
 
 ## Troubleshooting
 
+### Docker Issues
+- **Port already in use:** Stop conflicting services or change ports in `docker-compose.yml`
+  ```bash
+  # Check what's using port 8501
+  lsof -i :8501
+  # Kill the process or change the port mapping
+  ```
+- **Container won't start:** Check logs with `docker-compose logs -f chatbot`
+- **Can't access UI:** Ensure Docker Desktop is running and containers are up: `docker-compose ps`
+- **Permission errors (Linux):** Add your user to docker group: `sudo usermod -aG docker $USER`
+- **Out of disk space:** Clean up Docker: `docker system prune -a`
+
+### Local Development Issues
 - **Ruff not found in VS Code:** Restart VS Code after activating the conda environment
 - **Pre-commit not working:** Run `pre-commit install` again
-- **Environment issues:** Delete and recreate: `conda env remove -n engineer-assistant && conda env create -f environment.yml`
-- **Missing API keys error:** Make sure you've created `.env` file and added your actual API keys
-- **Chatbot not responding:** Verify your OpenAI API key is valid and has sufficient credits
-- **Web search not working:** Check your Tavily API key in the `.env` file
+- **Environment issues:** Delete and recreate:
+  ```bash
+  conda env remove -n engineer-assistant
+  conda env create -f environment.yml
+  ```
+- **Streamlit command not found:** Ensure conda environment is activated: `conda activate engineer-assistant`
+
+### API & Configuration Issues
+- **Missing API keys error:** Ensure `.env` file exists with valid keys (copy from `.env.example`)
+- **Chatbot not responding:** Verify OpenAI API key is valid and has sufficient credits
+- **Web search not working:** Check Tavily API key in `.env` file
+- **Database errors:** Check `DATABASE_URL` in `.env` or delete `data/conversations.db` to reset
+
+### Prusa MCP Issues
+- **MCP connection failed:** Ensure MCP server is running on port 8765
+  ```bash
+  # Check if server is running
+  curl http://localhost:8765/sse
+  ```
+- **Tools not loading:** Set `SKIP_MCP=true` in `.env` to disable MCP integration
+- **prusa-mcp folder not found:** Ensure `~/Desktop/prusa-mcp` exists or update `PRUSA_MCP_PATH`
+
+### Getting Help
+- Check the [GitHub Issues](https://github.com/gioelemo/engineer-assistant/issues)
+- Review logs in `data/*.log` files
+- For Docker: `docker-compose logs -f`
+- For local: Check terminal output for error messages
