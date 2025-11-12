@@ -7,6 +7,7 @@ allowing the agent to connect to an externally running MCP server.
 
 import asyncio
 import concurrent.futures
+import contextlib
 import logging
 from typing import Any
 
@@ -59,13 +60,18 @@ class PrusaMCPClient:
 
     async def disconnect(self):
         """Disconnect from the MCP server."""
-        if self._session_context:
-            await self._session_context.__aexit__(None, None, None)
-        if self._client_context:
-            await self._client_context.__aexit__(None, None, None)
-
-        self.session = None
-        logger.info("Disconnected from Prusa MCP server")
+        try:
+            if self._session_context:
+                with contextlib.suppress(RuntimeError, GeneratorExit):
+                    await self._session_context.__aexit__(None, None, None)
+            if self._client_context:
+                with contextlib.suppress(RuntimeError, GeneratorExit):
+                    await self._client_context.__aexit__(None, None, None)
+        finally:
+            self.session = None
+            self._session_context = None
+            self._client_context = None
+            logger.info("Disconnected from Prusa MCP server")
 
     async def list_tools(self) -> list:
         """List available tools from the MCP server."""

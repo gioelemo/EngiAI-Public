@@ -19,6 +19,21 @@ from src.ui.database import DatabaseManager
 logger = logging.getLogger(__name__)
 
 
+def get_supervisor_agent() -> SupervisorAgent:
+    """Get or create a shared SupervisorAgent instance.
+
+    This prevents creating multiple agent instances which would
+    reinitialize all sub-agents (RAG, MCP clients, etc.) unnecessarily.
+
+    Returns:
+        Shared SupervisorAgent instance
+    """
+    if "supervisor_agent" not in st.session_state:
+        logger.info("Creating new SupervisorAgent instance")
+        st.session_state.supervisor_agent = SupervisorAgent()
+    return st.session_state.supervisor_agent
+
+
 def generate_chat_title(user_message: str) -> str:
     """Generate a concise title for a chat based on the first user message.
 
@@ -115,7 +130,7 @@ def create_new_chat(name: str | None = None) -> str:
         "created_at": datetime.datetime.now(),
         "messages": [],
         "agent_state": {"messages": []},
-        "agent": SupervisorAgent(),
+        "agent": get_supervisor_agent(),
         "config": {"configurable": {"thread_id": session_id}},
         "waiting_for_confirmation": False,
         "saved_to_db": False,  # Track if this chat has been saved to DB yet
@@ -285,7 +300,7 @@ def load_chats_from_database() -> None:
                 "created_at": conv["created_at"],
                 "messages": display_messages,
                 "agent_state": agent_state,
-                "agent": SupervisorAgent(),
+                "agent": get_supervisor_agent(),
                 "config": config,
                 "waiting_for_confirmation": waiting_for_confirmation,
                 "saved_to_db": True,  # Already in database
@@ -303,12 +318,12 @@ def load_chats_from_database() -> None:
 
 def initialize_chat_state() -> None:
     """Initialize chat-related session state."""
+    # Initialize basic state first
     defaults: dict[str, Any] = {
         "chats": {},
         "active_chat_id": None,
         "chat_counter": 0,
         "messages": [],
-        "agent": SupervisorAgent(),
         "agent_state": {"messages": []},
         "config": {"configurable": {"thread_id": "streamlit-session"}},
         "waiting_for_confirmation": False,
@@ -317,3 +332,7 @@ def initialize_chat_state() -> None:
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+    # Initialize agent separately using cached instance
+    if "agent" not in st.session_state:
+        st.session_state.agent = get_supervisor_agent()
