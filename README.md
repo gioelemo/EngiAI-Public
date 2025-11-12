@@ -397,14 +397,8 @@ ssh-keygen -t ed25519 -C "your_email@example.com"
 
 # When prompted:
 # - Save to: ~/.ssh/id_ed25519 (press Enter for default)
-# - Enter passphrase (optional but recommended)
+# - Enter passphrase (recommended for security)
 # - Confirm passphrase
-
-# Add key to SSH agent
-ssh-add ~/.ssh/id_ed25519
-
-# (macOS only) Add key to keychain
-ssh-add --apple-load-keychain ~/.ssh/id_ed25519
 ```
 
 #### 2. Copy Public Key to HPC Cluster
@@ -424,24 +418,73 @@ chmod 600 ~/.ssh/authorized_keys
 EOF
 ```
 
-#### 3. Configure SSH Config
+#### 3. Configure SSH Config for Automatic Key Loading
 
-Edit `~/.ssh/config` to add your HPC host (or append to existing config):
+Edit `~/.ssh/config` to enable automatic key loading and keychain integration:
+
+**IMPORTANT for macOS users:** Add this configuration to automatically load your SSH key without repeated passphrase prompts:
 
 ```bash
+# Default settings for all hosts (automatic key loading)
+Host *
+    AddKeysToAgent yes
+    UseKeychain yes
+    IdentityFile ~/.ssh/id_ed25519
+
+# Your HPC Cluster
 Host euler
     HostName euler.ethz.ch
     User your_username
     IdentityFile ~/.ssh/id_ed25519
     ForwardAgent yes
-    UseKeychain yes
-    AddKeysToAgent yes
 ```
 
-Then test the connection:
+**What each setting does:**
+- `AddKeysToAgent yes` - Automatically adds keys to SSH agent when used
+- `UseKeychain yes` - Stores passphrases in macOS Keychain (prevents repeated prompts)
+- `IdentityFile` - Specifies which SSH key to use
+- `ForwardAgent yes` - Allows SSH agent forwarding for multi-hop connections
+
+#### 4. Add Key to SSH Agent and Keychain (One-Time Setup)
+
+**macOS:**
 ```bash
-ssh euler  # Should connect without password
+# Add your key to SSH agent and save passphrase to Keychain
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519
 ```
+
+**Linux:**
+```bash
+# Add your key to SSH agent
+ssh-add ~/.ssh/id_ed25519
+```
+
+After entering your passphrase once:
+- ✅ Key is loaded into SSH agent
+- ✅ Passphrase is saved to macOS Keychain (macOS only)
+- ✅ Key auto-loads on every login (no more passphrase prompts!)
+
+#### 5. Verify SSH Setup
+
+```bash
+# Check that your key is loaded
+ssh-add -l
+# Should show: 256 SHA256:... your_email@example.com (ED25519)
+
+# Test HPC connection
+ssh euler
+# Should connect without asking for passphrase!
+```
+
+#### 6. Restart Docker (if using Docker deployment)
+
+If you're running the application in Docker, restart the container to pick up the SSH agent:
+
+```bash
+docker-compose -f docker-compose.mcp.yml restart chatbot
+```
+
+Now your SSH connections will work seamlessly from both your terminal and the Docker container!
 
 ### Using the HPC Connection Tool
 
@@ -799,6 +842,42 @@ Both are required for the chatbot to work properly.
   ```
 - **Tools not loading:** Set `SKIP_MCP=true` in `.env` to disable MCP integration
 - **prusa-mcp folder not found:** Ensure `~/Desktop/prusa-mcp` exists or update `PRUSA_MCP_PATH`
+
+### SSH & HPC Connection Issues
+- **"SSH key is encrypted" error in Docker:**
+  ```bash
+  # Add your key to SSH agent
+  ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+
+  # Verify it's loaded
+  ssh-add -l
+
+  # Restart Docker container
+  docker-compose -f docker-compose.mcp.yml restart chatbot
+  ```
+- **"Agent has no identities" error:**
+  ```bash
+  # Check if SSH agent is running
+  echo $SSH_AUTH_SOCK
+  # Should show a path like: /private/tmp/com.apple.launchd.*/Listeners
+
+  # Add your key
+  ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+  ```
+- **Connection works locally but fails in Docker:**
+  - Ensure SSH agent is running on host: `ssh-add -l`
+  - Verify `SSH_AUTH_SOCK` environment variable is set
+  - Check that `~/.ssh/config` has `AddKeysToAgent yes` and `UseKeychain yes`
+  - Restart Docker after adding keys: `docker-compose -f docker-compose.mcp.yml restart chatbot`
+- **SSH key permissions errors:**
+  ```bash
+  # Fix SSH key permissions
+  chmod 700 ~/.ssh
+  chmod 600 ~/.ssh/id_ed25519
+  chmod 644 ~/.ssh/id_ed25519.pub
+  chmod 600 ~/.ssh/config
+  chmod 644 ~/.ssh/known_hosts
+  ```
 
 ### Getting Help
 - Check the [GitHub Issues](https://github.com/gioelemo/engineer-assistant/issues)

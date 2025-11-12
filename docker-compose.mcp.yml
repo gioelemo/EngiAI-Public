@@ -51,9 +51,11 @@ services:
       - WANDB_ENTITY=${WANDB_ENTITY:-}
       - WANDB_REPORT_URL=${WANDB_REPORT_URL:-}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///data/conversations.db}
+      - SSH_AUTH_SOCK=/ssh-agent
     volumes:
       - ./data:/app/data
       - ~/.ssh:/root/.ssh-host:ro
+      - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
     depends_on:
       prusa-mcp-server:
         condition: service_healthy
