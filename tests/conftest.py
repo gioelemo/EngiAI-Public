@@ -352,12 +352,16 @@ def setup_test_environment():
     # Could set environment variables, configure logging, etc.
 
     os.environ["TESTING"] = "true"
+    # Skip MCP server connection during tests (PrusaAgent will skip initialization)
+    os.environ["SKIP_MCP"] = "true"
 
     yield
 
     # Cleanup after all tests
     if "TESTING" in os.environ:
         del os.environ["TESTING"]
+    if "SKIP_MCP" in os.environ:
+        del os.environ["SKIP_MCP"]
 
 
 # ============================================================================
