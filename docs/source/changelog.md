@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web UI using Streamlit
 - CLI interface for command-line usage
 - Docker build system (2 separate containers: Chatbot + MCP server for Prusa)
+- Support to change model temperature
 
 ### Changed
 - Updated documentation theme to sphinx-book-theme
