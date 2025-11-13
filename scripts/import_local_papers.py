@@ -37,11 +37,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.tools import EngineerRAGStore, MultimodalDocumentProcessor  # noqa: E402
 
 # Configure logging
+# Ensure log directory exists
+log_file = Path("data/local_import.log")
+log_file.parent.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("data/local_import.log"),
+        logging.FileHandler(log_file),
         logging.StreamHandler(sys.stdout),
     ],
 )

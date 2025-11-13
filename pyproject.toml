@@ -179,8 +179,8 @@ max-args = 5
     "F841",     # unused-variable - some test fixtures create variables for mocking
     "SIM117",   # multiple-with-statements - sometimes clearer as nested in tests
 ]
-# Allow print statements in scripts
-"scripts/**/*" = ["T20"]
+# Allow print statements and numeric module names in scripts
+"scripts/**/*" = ["T20", "N999"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
