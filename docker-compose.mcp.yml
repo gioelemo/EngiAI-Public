@@ -17,8 +17,8 @@ services:
     volumes:
       # Mount data directory to persist connect state
       - ./data:/app/data
-      # Mount the original prusa-mcp folder from your Desktop
-      - ~/Desktop/prusa-mcp:/app/prusa-mcp:ro
+      # Mount the original prusa-mcp folder (configurable via PRUSA_MCP_LOCAL_PATH in .env)
+      - ${PRUSA_MCP_LOCAL_PATH:-~/Desktop/prusa-mcp}:/app/prusa-mcp:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8000)); s.close()"]
