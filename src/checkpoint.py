@@ -6,9 +6,14 @@ This module provides a singleton checkpointer instance that's shared across all 
 - Uses MemorySaver for SQLite or as fallback (persistent within single session)
 """
 
+import logging
 from typing import Any
 
 from langgraph.checkpoint.memory import MemorySaver
+
+from config import config
+
+logger = logging.getLogger(__name__)
 
 try:
     from langgraph.checkpoint.postgres import PostgresSaver
@@ -17,8 +22,6 @@ try:
 except ImportError:
     PostgresSaver = None  # type: ignore[assignment, misc]
     POSTGRES_AVAILABLE = False
-
-from config import config
 
 # Global checkpointer instance (initialized lazily)
 _checkpointer: MemorySaver | Any | None = None
@@ -63,12 +66,12 @@ def get_checkpointer() -> MemorySaver:
                 if not _initialized:
                     _checkpointer.setup()
                     _initialized = True
-                    print(
-                        "✅ PostgreSQL checkpointer initialized (persistent across restarts)"
+                    logger.info(
+                        "PostgreSQL checkpointer initialized (persistent across restarts)"
                     )
             except Exception as e:
-                print(f"⚠️  Failed to initialize PostgreSQL checkpointer: {e}")
-                print("   Falling back to MemorySaver")
+                logger.warning(f"Failed to initialize PostgreSQL checkpointer: {e}")
+                logger.info("   Falling back to MemorySaver")
                 _checkpointer = MemorySaver()
                 _initialized = True
         else:
@@ -76,11 +79,13 @@ def get_checkpointer() -> MemorySaver:
             _checkpointer = MemorySaver()
             _initialized = True
             if not POSTGRES_AVAILABLE:
-                print(
-                    "⚠️  PostgresSaver not available (install langgraph-checkpoint-postgres)"
+                logger.warning(
+                    "PostgresSaver not available (install langgraph-checkpoint-postgres)"
                 )
-            print("   Using MemorySaver - conversations persist within session only")
-            print(
+            logger.info(
+                "   Using MemorySaver - conversations persist within session only"
+            )
+            logger.info(
                 "   For persistent storage across restarts, install langgraph-checkpoint-postgres"
             )
 

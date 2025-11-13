@@ -29,18 +29,34 @@ AUTHORS_LIST_LENGTH = 80
 class ArXivAgent(BaseAgent):
     """Agent for ArXiv paper search and analysis with RAG integration."""
 
-    def __init__(self, model_name: str | None = None, temperature: float | None = None):
+    def __init__(
+        self,
+        model_name: str | None = None,
+        temperature: float | None = None,
+        vector_store: EngineerRAGStore | None = None,
+        rag_chain: EngineeringRAGChain | None = None,
+    ):
         """Initialize the ArXiv agent with search and RAG capabilities.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
+            vector_store: Shared vector store instance (creates new if None)
+            rag_chain: Shared RAG chain instance (creates new if None)
         """
         # Initialize RAG components for paper analysis
         # Use the same collection as RAG agent for unified knowledge base
         self.document_processor = MultimodalDocumentProcessor()
-        self.vector_store = EngineerRAGStore(collection_name="engineer_docs")
-        self.rag_chain = EngineeringRAGChain(self.vector_store)
+
+        # Use shared instances or create new ones
+        if rag_chain is not None:
+            self.rag_chain = rag_chain
+            self.vector_store = rag_chain.vectorstore
+        else:
+            self.vector_store = vector_store or EngineerRAGStore(
+                collection_name="engineer_docs"
+            )
+            self.rag_chain = EngineeringRAGChain(self.vector_store)
 
         super().__init__(model_name=model_name, temperature=temperature)
         logger.info("ArXiv Agent initialized with RAG system")

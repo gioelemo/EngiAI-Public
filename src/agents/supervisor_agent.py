@@ -5,6 +5,7 @@ This agent uses a hierarchical approach - it delegates tasks to specialized
 sub-agents (Engineering, Search, etc.) rather than having all tools directly.
 """
 
+import logging
 from typing import Annotated, cast
 
 from langchain.chat_models import init_chat_model
@@ -23,6 +24,9 @@ from src.agents.rag_agent import RAGAgent
 from src.agents.search_agent import SearchAgent
 from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
+from src.tools import EngineeringRAGChain, EngineerRAGStore
+
+logger = logging.getLogger(__name__)
 
 
 class SupervisorState(TypedDict):
@@ -53,6 +57,11 @@ class SupervisorAgent:
         )
         self.llm = init_chat_model(self.model_name, temperature=self.temperature)
 
+        # Create shared vector store and RAG chain for RAG and ArXiv agents
+        self.shared_vector_store = EngineerRAGStore(collection_name="engineer_docs")
+        self.shared_rag_chain = EngineeringRAGChain(self.shared_vector_store)
+        logger.info("Shared RAG chain created for RAG and ArXiv agents")
+
         # Initialize specialized sub-agents
         self.engineering_agent = EngineeringAgent(
             model_name=self.model_name, temperature=self.temperature
@@ -63,11 +72,12 @@ class SupervisorAgent:
         self.search_agent = SearchAgent(
             model_name=self.model_name, temperature=self.temperature
         )
-        self.rag_agent = (
-            RAGAgent()
-        )  # RAG agent doesn't need model_name, uses ChatOpenAI internally
+        # Share RAG chain between RAG and ArXiv agents
+        self.rag_agent = RAGAgent(rag_chain=self.shared_rag_chain)
         self.arxiv_agent = ArXivAgent(
-            model_name=self.model_name, temperature=self.temperature
+            model_name=self.model_name,
+            temperature=self.temperature,
+            rag_chain=self.shared_rag_chain,
         )
         # PrusaAgent will check SKIP_MCP env var automatically
         self.prusa_agent = PrusaAgent(

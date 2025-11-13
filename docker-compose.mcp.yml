@@ -1,4 +1,25 @@
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: engineer-assistant-postgres
+    environment:
+      - POSTGRES_DB=engineer_assistant
+      - POSTGRES_USER=engiai_user
+      - POSTGRES_PASSWORD=engineer_ai_2025
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engiai_user -d engineer_assistant"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - engineer-assistant
+
   # Standalone Prusa MCP Server
   prusa-mcp-server:
     build:
@@ -64,6 +85,8 @@ services:
       # Inside container, papers are always at /app/papers
       - ${PAPERS_SOURCE_DIR:-./papers}:/app/papers:ro
     depends_on:
+      postgres:
+        condition: service_healthy
       prusa-mcp-server:
         condition: service_healthy
     restart: unless-stopped
@@ -73,3 +96,6 @@ services:
 networks:
   engineer-assistant:
     driver: bridge
+
+volumes:
+  postgres_data:
