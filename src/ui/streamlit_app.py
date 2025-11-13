@@ -371,6 +371,11 @@ def render_sidebar() -> None:
         # The new chat is now active and will show empty message list
         st.rerun()
 
+    # Warning message about API usage and data privacy
+    st.warning(
+        "Don't share personal data. Limit use - API key usage applies.", icon="⚠️"
+    )
+
     st.markdown("---")
 
     # Filter chats to only show those with at least 1 message OR the active chat
