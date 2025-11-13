@@ -1,5 +1,6 @@
 """Settings page for the Engineer Assistant Streamlit app."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from scripts.import_local_papers import LocalPaperImporter  # noqa: E402
 from src.ui.database import DatabaseManager  # noqa: E402
 
 
@@ -179,6 +181,118 @@ def _render_chat_settings() -> None:
         st.info(f"📊 Current conversation has {num_messages} messages")
 
 
+def _render_paper_import_settings() -> None:
+    """Render paper import settings section."""
+    st.markdown("## 📚 Paper Import")
+    st.markdown("Bulk import PDF papers into the RAG knowledge base.")
+
+    # Get configuration from environment
+    papers_source_dir = os.getenv(
+        "PAPERS_SOURCE_DIR", ""
+    )  # Container path for operations
+    papers_source_dir_host = os.getenv(
+        "PAPERS_SOURCE_DIR_HOST", ""
+    )  # Host path for display
+    papers_state_file = os.getenv("PAPERS_STATE_FILE", "data/local_import_state.json")
+    papers_collection = os.getenv("PAPERS_COLLECTION", "engineer_docs")
+
+    # Display configuration (show host path to user)
+    display_path = (
+        papers_source_dir_host if papers_source_dir_host else papers_source_dir
+    )
+    st.info(
+        f"**Papers directory (host):** `{display_path if display_path else 'Not configured'}`"
+    )
+
+    if not papers_source_dir:
+        st.warning(
+            "⚠️ Papers directory not configured. Set `PAPERS_SOURCE_DIR` in your `.env` file "
+            "to enable bulk import."
+        )
+        return
+
+    # Check if directory exists and is accessible (use container path)
+    papers_path = Path(papers_source_dir)
+    if not papers_path.exists():
+        st.error(
+            f"❌ Papers directory does not exist: `{papers_source_dir}`\n\n"
+            "Please check your `.env` configuration and ensure the folder is mounted in Docker."
+        )
+        return
+
+    # Show directory stats
+    try:
+        pdf_files = list(papers_path.rglob("*.pdf")) + list(papers_path.rglob("*.PDF"))
+        pdf_files = [
+            f for f in pdf_files if not any(part.startswith(".") for part in f.parts)
+        ]
+        st.success(f"✅ Found {len(pdf_files)} PDF files in the directory")
+    except Exception as e:
+        st.error(f"❌ Error scanning directory: {e}")
+        return
+
+    # Import button with options
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        dry_run = st.checkbox(
+            "Dry run (preview only)",
+            value=False,
+            help="Preview which files would be imported without actually importing them",
+        )
+
+    with col2:
+        max_files = st.number_input(
+            "Max files",
+            min_value=1,
+            max_value=1000,
+            value=10,
+            help="Maximum number of files to import in one batch",
+        )
+
+    if st.button("📥 Import Papers", type="primary", use_container_width=True):
+        with st.spinner("Importing papers..."):
+            try:
+                # Create importer
+                importer = LocalPaperImporter(
+                    source_dir=str(papers_path),
+                    state_file=papers_state_file,
+                    collection_name=papers_collection,
+                )
+
+                # Run import
+                stats = importer.run(dry_run=dry_run, max_files=max_files)
+
+                # Display results
+                if dry_run:
+                    st.info(
+                        f"**Dry Run Results:**\n\n"
+                        f"- Total files found: {stats['total_files']}\n"
+                        f"- New/modified files: {stats['new_files']}\n"
+                        f"- Would process: {min(stats['new_files'], max_files)}"
+                    )
+                elif stats["successful"] > 0:
+                    st.success(
+                        f"✅ **Import Complete!**\n\n"
+                        f"- Total files found: {stats['total_files']}\n"
+                        f"- New/modified files: {stats['new_files']}\n"
+                        f"- Processed: {stats['processed']}\n"
+                        f"- ✓ Successful: {stats['successful']}\n"
+                        f"- ✗ Failed: {stats['failed']}\n"
+                        f"- Skipped: {stats['skipped']}"
+                    )
+                elif stats["new_files"] == 0:
+                    st.info("All papers are already imported. No new files to process.")
+                else:
+                    st.warning(
+                        f"⚠️ Import completed with errors:\n\n"
+                        f"- Failed: {stats['failed']}/{stats['processed']}"
+                    )
+
+            except Exception as e:
+                st.error(f"❌ Import failed: {e}")
+
+
 def _render_about_section() -> None:
     """Render about section."""
     st.markdown("## About")
@@ -186,7 +300,7 @@ def _render_about_section() -> None:
         """
         **EngiAI - Engineering Design Assistant**
 
-        Version: 1.0.0
+        Version: 0.0.1
 
         This application uses:
         - Multi-agent AI system for specialized tasks
@@ -214,6 +328,9 @@ def render() -> None:
 
     st.markdown("---")
     _render_chat_settings()
+
+    st.markdown("---")
+    _render_paper_import_settings()
 
     st.markdown("---")
     _render_about_section()

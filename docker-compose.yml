@@ -19,9 +19,16 @@ services:
       - WANDB_REPORT_URL=${WANDB_REPORT_URL:-}
       - SKIP_MCP=${SKIP_MCP:-true}
       - SSH_AUTH_SOCK=/ssh-agent
+      - PAPERS_SOURCE_DIR=/app/papers
+      - PAPERS_SOURCE_DIR_HOST=${PAPERS_SOURCE_DIR:-Not configured}
+      - PAPERS_STATE_FILE=${PAPERS_STATE_FILE:-data/local_import_state.json}
+      - PAPERS_COLLECTION=${PAPERS_COLLECTION:-engineer_docs}
     volumes:
       # Mount data directory for persistent storage
       - ./data:/app/data
+      # Mount papers directory for bulk import (host path configurable via PAPERS_SOURCE_DIR in .env)
+      # Inside container, papers are always at /app/papers
+      - ${PAPERS_SOURCE_DIR:-./papers}:/app/papers:ro
       # Mount SSH configuration for HPC cluster access
       # Mounted to temporary location, entrypoint script will copy with proper permissions
       - ${HOME}/.ssh:/root/.ssh-host:ro

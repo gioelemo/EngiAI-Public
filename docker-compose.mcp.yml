@@ -52,10 +52,17 @@ services:
       - WANDB_REPORT_URL=${WANDB_REPORT_URL:-}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///data/conversations.db}
       - SSH_AUTH_SOCK=/ssh-agent
+      - PAPERS_SOURCE_DIR=/app/papers
+      - PAPERS_SOURCE_DIR_HOST=${PAPERS_SOURCE_DIR:-Not configured}
+      - PAPERS_STATE_FILE=${PAPERS_STATE_FILE:-data/local_import_state.json}
+      - PAPERS_COLLECTION=${PAPERS_COLLECTION:-engineer_docs}
     volumes:
       - ./data:/app/data
       - ~/.ssh:/root/.ssh-host:ro
       - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
+      # Mount papers directory for bulk import (host path configurable via PAPERS_SOURCE_DIR in .env)
+      # Inside container, papers are always at /app/papers
+      - ${PAPERS_SOURCE_DIR:-./papers}:/app/papers:ro
     depends_on:
       prusa-mcp-server:
         condition: service_healthy

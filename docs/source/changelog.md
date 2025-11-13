@@ -39,4 +39,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for various LLM backends
 
 [Unreleased]: https://github.com/gioelemo/engineer-assistant/compare/v0.0.1...HEAD
-[0.1.0]: https://github.com/gioelemo/engineer-assistant/releases/tag/v0.0.1
+[0.0.1]: https://github.com/gioelemo/engineer-assistant/releases/tag/v0.0.1
