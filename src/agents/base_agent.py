@@ -8,6 +8,7 @@ Provides common functionality for all agents including:
 - Common node implementations (_llm_call, _tool_node, _should_continue)
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 
@@ -19,6 +20,8 @@ from config import config
 from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
 
+logger = logging.getLogger(__name__)
+
 
 class BaseAgent(ABC):
     """Abstract base class for LangGraph agents with common functionality."""
@@ -28,6 +31,7 @@ class BaseAgent(ABC):
         model_name: str | None = None,
         tools: list | None = None,
         require_confirmation: bool = False,
+        temperature: float | None = None,
     ):
         """Initialize the base agent.
 
@@ -35,9 +39,16 @@ class BaseAgent(ABC):
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             tools: List of LangChain tools for this agent
             require_confirmation: Whether to require user confirmation before tool execution
+            temperature: Model temperature (defaults to config.llm_temperature)
         """
         self.model_name = model_name or config.llm_model
-        self.llm = init_chat_model(self.model_name)
+        self.temperature = (
+            temperature if temperature is not None else config.llm_temperature
+        )
+        logger.debug(
+            f"Initializing {self.__class__.__name__} with temperature={self.temperature}"
+        )
+        self.llm = init_chat_model(self.model_name, temperature=self.temperature)
         self.require_confirmation = require_confirmation
 
         # Initialize tools

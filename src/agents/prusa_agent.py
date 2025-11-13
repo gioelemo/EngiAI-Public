@@ -36,15 +36,24 @@ except ImportError:
 class PrusaAgent:
     """Agent specialized in 3D printer management via Prusa Connect."""
 
-    def __init__(self, model_name: str | None = None, skip_mcp: bool = False):
+    def __init__(
+        self,
+        model_name: str | None = None,
+        skip_mcp: bool = False,
+        temperature: float | None = None,
+    ):
         """Initialize the Prusa agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             skip_mcp: Skip MCP server initialization (useful for testing)
+            temperature: Model temperature (defaults to config.llm_temperature)
         """
         self.model_name = model_name or config.llm_model
-        self.llm = init_chat_model(self.model_name)
+        self.temperature = (
+            temperature if temperature is not None else config.llm_temperature
+        )
+        self.llm = init_chat_model(self.model_name, temperature=self.temperature)
 
         # Check if MCP should be skipped (for testing or when not available)
         skip_mcp = skip_mcp or os.getenv("SKIP_MCP", "false").lower() == "true"

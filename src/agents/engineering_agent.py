@@ -30,13 +30,14 @@ from src.utils.prompts import ENGINEERING_AGENT_SYSTEM_PROMPT
 class EngineeringAgent(BaseAgent):
     """Agent specialized in engineering design and structural optimization."""
 
-    def __init__(self, model_name: str | None = None):
+    def __init__(self, model_name: str | None = None, temperature: float | None = None):
         """Initialize the engineering agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
+            temperature: Model temperature (defaults to config.llm_temperature)
         """
-        super().__init__(model_name=model_name)
+        super().__init__(model_name=model_name, temperature=temperature)
 
     def _create_tools(self) -> list:
         """Create the list of engineering tools.

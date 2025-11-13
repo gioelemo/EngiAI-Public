@@ -47,8 +47,8 @@ def generate_chat_title(user_message: str) -> str:
     truncate_at = 47
 
     try:
-        # Use a fast model to generate title
-        llm = init_chat_model(config.llm_model)
+        # Use a fast model to generate title (with lower temperature for consistency)
+        llm = init_chat_model(config.llm_model, temperature=0.3)
 
         prompt = f"""Generate a very short title (maximum 4-5 words) that summarizes this question or request:
 

@@ -40,28 +40,44 @@ class SupervisorAgent:
     tasks to appropriate specialized agents based on the request.
     """
 
-    def __init__(self, model_name: str | None = None):
+    def __init__(self, model_name: str | None = None, temperature: float | None = None):
         """Initialize the supervisor agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
+            temperature: Model temperature (defaults to config.llm_temperature)
         """
         self.model_name = model_name or config.llm_model
-        self.llm = init_chat_model(self.model_name)
+        self.temperature = (
+            temperature if temperature is not None else config.llm_temperature
+        )
+        self.llm = init_chat_model(self.model_name, temperature=self.temperature)
 
         # Initialize specialized sub-agents
-        self.engineering_agent = EngineeringAgent(model_name=self.model_name)
-        self.hpc_agent = HPCAgent(model_name=self.model_name)
-        self.search_agent = SearchAgent(model_name=self.model_name)
+        self.engineering_agent = EngineeringAgent(
+            model_name=self.model_name, temperature=self.temperature
+        )
+        self.hpc_agent = HPCAgent(
+            model_name=self.model_name, temperature=self.temperature
+        )
+        self.search_agent = SearchAgent(
+            model_name=self.model_name, temperature=self.temperature
+        )
         self.rag_agent = (
             RAGAgent()
         )  # RAG agent doesn't need model_name, uses ChatOpenAI internally
-        self.arxiv_agent = ArXivAgent(model_name=self.model_name)
+        self.arxiv_agent = ArXivAgent(
+            model_name=self.model_name, temperature=self.temperature
+        )
         # PrusaAgent will check SKIP_MCP env var automatically
-        self.prusa_agent = PrusaAgent(model_name=self.model_name)
+        self.prusa_agent = PrusaAgent(
+            model_name=self.model_name, temperature=self.temperature
+        )
         # Disable CLI agent's internal confirmation - supervisor handles interrupts at its level
         self.cli_agent = CLIAgent(
-            model_name=self.model_name, require_confirmation=False
+            model_name=self.model_name,
+            require_confirmation=False,
+            temperature=self.temperature,
         )
 
         # Build the supervisor graph

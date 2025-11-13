@@ -20,18 +20,19 @@ logger = logging.getLogger(__name__)
 class RAGAgent(BaseAgent):
     """Agent for document-based question answering using RAG."""
 
-    def __init__(self, model_name: str | None = None):
+    def __init__(self, model_name: str | None = None, temperature: float | None = None):
         """Initialize the RAG agent with vector store and tools.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
+            temperature: Model temperature (defaults to config.llm_temperature)
         """
         # Initialize RAG components before calling super().__init__()
         self.document_processor = MultimodalDocumentProcessor()
         self.vector_store = EngineerRAGStore(collection_name="engineer_docs")
         self.rag_chain = EngineeringRAGChain(self.vector_store)
 
-        super().__init__(model_name=model_name)
+        super().__init__(model_name=model_name, temperature=temperature)
         logger.info("RAG Agent initialized with vector store")
 
     def _create_tools(self) -> list:

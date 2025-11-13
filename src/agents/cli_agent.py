@@ -22,16 +22,22 @@ class CLIAgent(BaseAgent):
     """Agent specialized in executing local command-line tools."""
 
     def __init__(
-        self, model_name: str | None = None, require_confirmation: bool = True
+        self,
+        model_name: str | None = None,
+        require_confirmation: bool = True,
+        temperature: float | None = None,
     ):
         """Initialize the CLI agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             require_confirmation: Whether to require user confirmation before executing commands (default: True)
+            temperature: Model temperature (defaults to config.llm_temperature)
         """
         super().__init__(
-            model_name=model_name, require_confirmation=require_confirmation
+            model_name=model_name,
+            require_confirmation=require_confirmation,
+            temperature=temperature,
         )
 
     def _create_tools(self) -> list:

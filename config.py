@@ -3,9 +3,12 @@ Configuration module inspired from https://github.com/SoheylM/agentic-eng-design
 Handles loading of environment variables and configuration settings.
 """
 
+import logging
 import os
 
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 
 class Config:
@@ -32,6 +35,10 @@ class Config:
 
         # Model configuration
         self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4o")
+        self.llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+        logger.info(
+            f"Loaded LLM configuration: model={self.llm_model}, temperature={self.llm_temperature}"
+        )
         self.embeddings_model: str = os.getenv(
             "EMBEDDINGS_MODEL", "text-embedding-3-small"
         )

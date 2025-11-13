@@ -29,11 +29,12 @@ AUTHORS_LIST_LENGTH = 80
 class ArXivAgent(BaseAgent):
     """Agent for ArXiv paper search and analysis with RAG integration."""
 
-    def __init__(self, model_name: str | None = None):
+    def __init__(self, model_name: str | None = None, temperature: float | None = None):
         """Initialize the ArXiv agent with search and RAG capabilities.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
+            temperature: Model temperature (defaults to config.llm_temperature)
         """
         # Initialize RAG components for paper analysis
         # Use the same collection as RAG agent for unified knowledge base
@@ -41,7 +42,7 @@ class ArXivAgent(BaseAgent):
         self.vector_store = EngineerRAGStore(collection_name="engineer_docs")
         self.rag_chain = EngineeringRAGChain(self.vector_store)
 
-        super().__init__(model_name=model_name)
+        super().__init__(model_name=model_name, temperature=temperature)
         logger.info("ArXiv Agent initialized with RAG system")
 
     def _create_tools(self) -> list:
