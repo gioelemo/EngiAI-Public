@@ -161,7 +161,7 @@ class TestArXivAgentInitialization:
 
         assert agent is not None
         assert agent.model_name == "openai:gpt-4o"
-        mock_init_llm.assert_called_once_with("openai:gpt-4o")
+        mock_init_llm.assert_called_once_with("openai:gpt-4o", temperature=0.7)
         mock_processor.assert_called_once()
         mock_store.assert_called_once_with(collection_name="engineer_docs")
         mock_chain.assert_called_once()
