@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HPC agent for cluster job submission and monitoring
 - Web UI using Streamlit
 - CLI interface for command-line usage
+- Docker build system (2 separate containers: Chatbot + MCP server for Prusa)
 
 ### Changed
 - Updated documentation theme to sphinx-book-theme
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Mock author structure in ArXiv agent tests
+- Different small fix (see full changelog)
 
 ## [0.0.1] - 2025-11-06
 
