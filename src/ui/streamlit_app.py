@@ -52,6 +52,7 @@ from src.utils.api_usage import (  # noqa: E402
     UNLIMITED_LIMIT_VALUE,
     USAGE_THRESHOLD_CRITICAL,
     USAGE_THRESHOLD_WARNING,
+    get_mathpix_usage,
     get_tavily_usage,
 )
 
@@ -431,6 +432,54 @@ def render_tavily_usage_widget() -> None:
         # Silently fail - don't show error in sidebar
 
 
+def render_mathpix_usage_widget() -> None:
+    """Render a compact Mathpix API usage widget in the sidebar."""
+    try:
+        # Fetch usage data (with caching to avoid too many requests)
+        cache_key = "mathpix_usage_cache"
+        cache_time_key = "mathpix_usage_cache_time"
+        cache_duration = 300  # 5 minutes
+
+        # Check if we need to fetch fresh data
+        current_time = datetime.datetime.now()
+        should_fetch = True
+
+        if cache_time_key in st.session_state:
+            last_fetch = st.session_state[cache_time_key]
+            time_diff = (current_time - last_fetch).total_seconds()
+            if time_diff < cache_duration and cache_key in st.session_state:
+                should_fetch = False
+
+        if should_fetch:
+            usage = get_mathpix_usage(config.mathpix_api_key, config.mathpix_api_id)
+            st.session_state[cache_key] = usage
+            st.session_state[cache_time_key] = current_time
+        else:
+            usage = st.session_state.get(cache_key)
+
+        if usage:
+            # Determine status based on usage percentage
+            status_color, status_text = _get_usage_status(usage.pages_percentage)
+
+            # Display compact usage info
+            with st.expander(
+                f"{status_color} Mathpix API: {status_text}", expanded=False
+            ):
+                # Pages usage
+                pages_text = _format_usage_text(
+                    usage.pages_usage, usage.pages_limit, usage.pages_percentage
+                )
+                st.caption(f"**Pages:** {pages_text}")
+                st.caption(f"**Rate Limit:** {usage.rate_limit} req/min")
+
+                # Link to settings
+                st.caption("[View details in Settings →](settings#mathpix-ocr-api)")
+
+    except Exception as e:
+        logger.debug(f"Failed to fetch Mathpix usage for sidebar: {e}")
+        # Silently fail - don't show error in sidebar
+
+
 def render_sidebar() -> None:
     """Render the sidebar with chat management controls."""
     # Constants for chat display
@@ -455,6 +504,9 @@ def render_sidebar() -> None:
 
     # Tavily API usage widget
     render_tavily_usage_widget()
+
+    # Mathpix API usage widget
+    render_mathpix_usage_widget()
 
     st.markdown("---")
 

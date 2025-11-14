@@ -17,6 +17,7 @@ from src.ui.database import DatabaseManager  # noqa: E402
 from src.utils.api_usage import (  # noqa: E402
     USAGE_THRESHOLD_CRITICAL,
     USAGE_THRESHOLD_WARNING,
+    get_mathpix_usage,
     get_tavily_usage,
 )
 
@@ -299,12 +300,8 @@ def _render_paper_import_settings() -> None:
                 st.error(f"❌ Import failed: {e}")
 
 
-def _render_api_usage_section() -> None:
-    """Render API usage monitoring section."""
-    st.markdown("## 📊 API Usage")
-    st.markdown("Monitor your external API usage and limits.")
-
-    # Tavily API usage
+def _render_tavily_usage() -> None:
+    """Render Tavily API usage section."""
     st.markdown("### 🔍 Tavily Search API")
 
     if st.button("🔄 Refresh Usage Stats", key="refresh_tavily_usage"):
@@ -372,6 +369,70 @@ def _render_api_usage_section() -> None:
         "💡 **Tip:** Tavily usage resets on the 1st of each month. "
         "Click 'Refresh Usage Stats' to see your current usage."
     )
+
+
+def _render_mathpix_usage() -> None:
+    """Render Mathpix API usage section."""
+    st.markdown("### 📐 Mathpix OCR API")
+
+    if st.button("🔄 Refresh Usage Stats", key="refresh_mathpix_usage"):
+        with st.spinner("Fetching Mathpix usage..."):
+            usage = get_mathpix_usage(config.mathpix_api_key, config.mathpix_api_id)
+
+            if usage:
+                # Display monthly pages usage
+                st.info("**Rate Limit:** 50 requests/minute")
+
+                # Pages usage progress bar
+                pages_col1, pages_col2 = st.columns([3, 1])
+
+                with pages_col1:
+                    st.progress(
+                        usage.pages_percentage / 100,
+                        text=f"{usage.pages_usage:,} / {usage.pages_limit:,} pages ({usage.pages_percentage:.1f}%)",
+                    )
+
+                with pages_col2:
+                    if usage.pages_percentage > USAGE_THRESHOLD_CRITICAL:
+                        st.error("🔴 Critical")
+                    elif usage.pages_percentage > USAGE_THRESHOLD_WARNING:
+                        st.warning("🟡 High")
+                    else:
+                        st.success("🟢 Good")
+
+                # Display warnings
+                if usage.is_critical:
+                    st.error(
+                        "⚠️ **Critical Usage Level!** You're approaching your API limits. "
+                        "Consider upgrading your plan or reducing usage."
+                    )
+                elif usage.is_approaching_limit:
+                    st.warning(
+                        "⚠️ **High Usage Level.** You've used over 80% of your API limits. "
+                        "Monitor your usage to avoid hitting the limit."
+                    )
+
+            else:
+                st.error(
+                    "❌ Failed to fetch Mathpix usage. Please check your API key configuration."
+                )
+
+    st.info(
+        "💡 **Tip:** Mathpix usage resets on the 5th of each month. "
+        "Click 'Refresh Usage Stats' to see your current usage."
+    )
+
+
+def _render_api_usage_section() -> None:
+    """Render API usage monitoring section."""
+    st.markdown("## 📊 API Usage")
+    st.markdown("Monitor your external API usage and limits.")
+
+    # Render Tavily usage
+    _render_tavily_usage()
+
+    # Render Mathpix usage
+    _render_mathpix_usage()
 
 
 def _render_about_section() -> None:
