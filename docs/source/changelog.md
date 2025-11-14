@@ -13,10 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ArXiv agent for searching and analyzing research papers
 - RAG agent for knowledge base queries
 - HPC agent for cluster job submission and monitoring
-- Web UI using Streamlit
+- Improved Web UI using Streamlit
 - CLI interface for command-line usage
 - Docker build system (2 separate containers: Chatbot + MCP server for Prusa)
 - Support to change model temperature
+- Warning on API key usage (Tavily and Mathpix)
 
 ### Changed
 - Updated documentation theme to sphinx-book-theme
