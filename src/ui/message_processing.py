@@ -15,9 +15,11 @@ from src.ui.media_display import (
     display_image,
     display_log_file,
     display_response_media,
+    display_slurm_file,
     display_stl,
     find_images_in_text,
     find_log_files_in_text,
+    find_slurm_files_in_text,
     find_stl_files_in_text,
 )
 
@@ -359,6 +361,99 @@ def format_and_display_messages(new_messages: list) -> tuple[str, list[str]]:
     return full_response, suggested_prompts
 
 
+def _display_uploaded_files(message: dict, message_idx: int) -> None:
+    """Display uploaded files (images and PDFs) from user messages.
+
+    Args:
+        message: Message dictionary
+        message_idx: Index of the message for unique keys
+    """
+    if not message.get("images"):
+        return
+
+    for file_data in message["images"]:
+        file_type = file_data.get("type", "")
+        file_name = file_data.get("name", "file")
+
+        if file_type == "application/pdf":
+            # Display PDF as a download link
+            pdf_bytes = base64.b64decode(file_data["data"])
+            st.download_button(
+                label=f"📄 {file_name}",
+                data=pdf_bytes,
+                file_name=file_name,
+                mime="application/pdf",
+                key=f"pdf_{message_idx}_{file_name}",
+            )
+        else:
+            # Display as image
+            img_bytes = base64.b64decode(file_data["data"])
+            st.image(img_bytes, width=400)
+
+
+def _display_media_files(message: dict, message_idx: int) -> None:
+    """Display media files referenced in message content.
+
+    Args:
+        message: Message dictionary
+        message_idx: Index of the message for unique keys
+    """
+    # Display images referenced in text (file paths)
+    images = find_images_in_text(message["content"])
+    for img_path in images:
+        display_image(img_path, button_key_prefix=f"msg_{message_idx}_img")
+
+    # Display STL files
+    stl_files = find_stl_files_in_text(message["content"])
+    for idx, stl_path in enumerate(stl_files):
+        display_stl(stl_path, idx, button_key_prefix=f"msg_{message_idx}_stl")
+
+    # Display SLURM scripts
+    slurm_files = find_slurm_files_in_text(message["content"])
+    for slurm_path in slurm_files:
+        display_slurm_file(slurm_path, button_key_prefix=f"msg_{message_idx}_slurm")
+
+    # Display log files (.err and .out)
+    log_files = find_log_files_in_text(message["content"])
+    for log_path in log_files:
+        display_log_file(log_path, button_key_prefix=f"msg_{message_idx}_log")
+
+
+def _display_suggested_prompts(message: dict, message_idx: int) -> None:
+    """Display suggested prompts for assistant messages.
+
+    Args:
+        message: Message dictionary
+        message_idx: Index of the message for unique keys
+    """
+    if message["role"] != "assistant" or not message.get("suggested_prompts"):
+        return
+
+    suggestions = message["suggested_prompts"]
+    if not suggestions:
+        return
+
+    st.markdown("---")
+    st.markdown("**💡 Suggested next steps:**")
+
+    # Create columns for suggestions (max 2 per row)
+    num_cols = min(2, len(suggestions))
+    cols = st.columns(num_cols)
+
+    for idx, suggestion in enumerate(suggestions):
+        col_idx = idx % num_cols
+        with cols[col_idx]:
+            # Create a button for each suggestion
+            if st.button(
+                suggestion,
+                key=f"hist_suggestion_{message_idx}_{idx}",
+                width="stretch",
+            ):
+                # Store the selected suggestion to process
+                st.session_state.selected_suggestion = suggestion
+                st.rerun()
+
+
 def display_message(message: dict, message_idx: int = 0) -> None:
     """Display a single message in the chat interface.
 
@@ -371,72 +466,14 @@ def display_message(message: dict, message_idx: int = 0) -> None:
         content = fix_latex_delimiters(message["content"])
 
         # For assistant messages, also clean any suggestions block from content
-        # (in case the content was saved before extraction)
         if message["role"] == "assistant":
-            # Extract and remove any suggestions block that might be in the stored content
             cleaned_content, _ = extract_suggested_prompts(content)
             content = cleaned_content
 
         # Display text content
         st.markdown(content)
 
-        # Display uploaded files (images and PDFs from user messages)
-        if message.get("images"):
-            for file_data in message["images"]:
-                file_type = file_data.get("type", "")
-                file_name = file_data.get("name", "file")
-
-                if file_type == "application/pdf":
-                    # Display PDF as a download link
-                    pdf_bytes = base64.b64decode(file_data["data"])
-                    st.download_button(
-                        label=f"📄 {file_name}",
-                        data=pdf_bytes,
-                        file_name=file_name,
-                        mime="application/pdf",
-                        key=f"pdf_{message_idx}_{file_name}",
-                    )
-                else:
-                    # Display as image
-                    img_bytes = base64.b64decode(file_data["data"])
-                    st.image(img_bytes, width=400)
-
-        # Display images referenced in text (file paths)
-        images = find_images_in_text(message["content"])
-        for img_path in images:
-            display_image(img_path, button_key_prefix=f"msg_{message_idx}_img")
-
-        # Display STL files
-        stl_files = find_stl_files_in_text(message["content"])
-        for idx, stl_path in enumerate(stl_files):
-            display_stl(stl_path, idx, button_key_prefix=f"msg_{message_idx}_stl")
-
-        # Display log files (.err and .out)
-        log_files = find_log_files_in_text(message["content"])
-        for log_path in log_files:
-            display_log_file(log_path, button_key_prefix=f"msg_{message_idx}_log")
-
-        # Display suggested prompts for assistant messages
-        # Now we display for ALL messages, including the last one
-        if message["role"] == "assistant" and message.get("suggested_prompts"):
-            suggestions = message["suggested_prompts"]
-            if suggestions:
-                st.markdown("---")
-                st.markdown("**💡 Suggested next steps:**")
-
-                # Create columns for suggestions (max 2 per row)
-                num_cols = min(2, len(suggestions))
-                cols = st.columns(num_cols)
-
-                for idx, suggestion in enumerate(suggestions):
-                    col_idx = idx % num_cols
-                    with cols[col_idx]:
-                        # Create a button for each suggestion
-                        if st.button(
-                            suggestion,
-                            key=f"hist_suggestion_{message_idx}_{idx}",
-                            width="stretch",
-                        ):
-                            # Store the selected suggestion to process
-                            st.session_state.selected_suggestion = suggestion
-                            st.rerun()
+        # Display all file types
+        _display_uploaded_files(message, message_idx)
+        _display_media_files(message, message_idx)
+        _display_suggested_prompts(message, message_idx)

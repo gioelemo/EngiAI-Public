@@ -174,6 +174,40 @@ def find_log_files_in_text(text: str) -> list[Path]:
     return log_paths
 
 
+def find_slurm_files_in_text(text: str) -> list[Path]:
+    """Find SLURM script files (.slurm) mentioned in text.
+
+    Args:
+        text: Text that may contain file paths
+
+    Returns:
+        List of valid SLURM file paths
+    """
+    slurm_paths = []
+    seen: set[str] = set()
+
+    # Look for .slurm file patterns
+    patterns = [
+        r"outputs/[\w\-_.]+\.slurm",
+        r"[\w\-_.]+\.slurm",
+    ]
+
+    for pattern in patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        for match in matches:
+            path = Path(match)
+            if not path.is_absolute():
+                path = project_root / match
+
+            if path.exists() and path.suffix.lower() == ".slurm":
+                key = str(path.resolve())
+                if key not in seen:
+                    slurm_paths.append(path)
+                    seen.add(key)
+
+    return slurm_paths
+
+
 def save_file_to_server(file_path: Path, save_dir_path: Path) -> bool:
     """Save a file to the server directory.
 
@@ -205,44 +239,53 @@ def auto_save_if_enabled(file_path: Path) -> None:
         save_file_to_server(file_path, save_dir)
 
 
-def render_download_save_controls(
-    file_path: Path, file_type: str, button_key_prefix: str
-) -> None:
+def render_download_save_controls(file_path: Path, button_key_prefix: str) -> None:
     """Render download and save buttons for a media file.
 
     Args:
         file_path: Path to the file
-        file_type: Type of file ('image' or 'stl')
         button_key_prefix: Unique prefix for button keys
     """
-    cols = st.columns([1, 1, 2])
-
     # Create unique key based on file path hash and prefix
     unique_key_base = f"{button_key_prefix}_{abs(hash(str(file_path)))}"
 
+    # Determine MIME type based on file extension
+    mime_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".stl": "application/sla",
+        ".slurm": "text/plain",
+        ".sh": "text/plain",
+    }
+    mime = mime_types.get(file_path.suffix.lower(), "application/octet-stream")
+
+    # Create two columns with equal width for buttons
+    cols = st.columns(2)
+
     # Download button
     with cols[0]:
-        mime = "image/png" if file_type == "image" else "application/sla"
-        label = f"Download {file_type}"
         st.download_button(
-            label=label,
+            label="📥 Download",
             data=file_path.read_bytes(),
             file_name=file_path.name,
             mime=mime,
             key=f"{unique_key_base}_download",
+            use_container_width=True,
         )
 
     # Save to server button
     with cols[1]:
         if st.button(
-            f"Save to server: {file_path.name}",
+            "💾 Save to server",
             key=f"{unique_key_base}_save",
+            use_container_width=True,
         ):
             save_dir = Path(st.session_state.media_save_dir)
             if save_file_to_server(file_path, save_dir):
-                st.success(f"Saved {file_path.name} to {save_dir}")
+                st.success(f"✅ Saved to {save_dir / file_path.name}")
             else:
-                st.warning(f"Could not save {file_type}")
+                st.error(f"❌ Could not save {file_path.name}")
 
     # Auto-save
     auto_save_if_enabled(file_path)
@@ -262,7 +305,7 @@ def display_image(img_path: Path, button_key_prefix: str) -> None:
     try:
         image = Image.open(img_path)
         st.image(image, caption=img_path.name, width=500)
-        render_download_save_controls(img_path, "image", button_key_prefix)
+        render_download_save_controls(img_path, button_key_prefix)
     except FileNotFoundError:
         # Silently skip - file was deleted
         pass
@@ -298,7 +341,7 @@ def display_stl(stl_path: Path, idx: int, button_key_prefix: str) -> None:
             shininess=st.session_state.stl_shininess,
             key=stable_key,
         )
-        render_download_save_controls(stl_path, "stl", button_key_prefix)
+        render_download_save_controls(stl_path, button_key_prefix)
     except FileNotFoundError:
         # Silently skip - file was deleted
         pass
@@ -368,8 +411,42 @@ def display_log_file(log_path: Path, button_key_prefix: str) -> None:
         st.warning(f"Could not display log file {log_path.name}: {e}")
 
 
+def display_slurm_file(slurm_path: Path, button_key_prefix: str) -> None:
+    """Display a SLURM script file with syntax highlighting and download controls.
+
+    Args:
+        slurm_path: Path to SLURM script file
+        button_key_prefix: Unique prefix for button keys
+    """
+    if not slurm_path.exists():
+        st.info(f"SLURM script not found: {slurm_path.name}")
+        return
+
+    try:
+        # Read SLURM script content
+        content = slurm_path.read_text(encoding="utf-8", errors="replace")
+
+        # Display SLURM script header
+        st.markdown(f"### 📋 SLURM Script: `{slurm_path.name}`")
+
+        # Display the full script content
+        if content.strip():
+            st.code(content, language="bash")
+        else:
+            st.info("SLURM script is empty")
+
+        # Download and save controls
+        render_download_save_controls(slurm_path, button_key_prefix)
+
+        # Auto-save if enabled
+        auto_save_if_enabled(slurm_path)
+
+    except Exception as e:
+        st.warning(f"Could not display SLURM script {slurm_path.name}: {e}")
+
+
 def display_response_media(response_text: str) -> None:
-    """Display images, STL files, and log files found in response text.
+    """Display images, STL files, SLURM scripts, and log files found in response text.
 
     Args:
         response_text: The response text to scan for media files
@@ -383,6 +460,11 @@ def display_response_media(response_text: str) -> None:
     stl_files = find_stl_files_in_text(response_text)
     for idx, stl_path in enumerate(stl_files):
         display_stl(stl_path, idx, button_key_prefix="resp_stl")
+
+    # Display SLURM scripts
+    slurm_files = find_slurm_files_in_text(response_text)
+    for slurm_path in slurm_files:
+        display_slurm_file(slurm_path, button_key_prefix="resp_slurm")
 
     # Display log files (.err and .out)
     log_files = find_log_files_in_text(response_text)
