@@ -304,15 +304,30 @@ OPENAI_API_KEY=your-actual-openai-api-key-here
 TAVILY_API_KEY=your-actual-tavily-api-key-here
 ```
 
+**Database Configuration:**
+
+The database configuration differs between Docker and local development:
+
+- **Docker Deployment**: Uses PostgreSQL container (hostname: `postgres`)
+  ```env
+  DATABASE_URL=postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant
+  ```
+
+- **Local Development**: Use SQLite (recommended) or local PostgreSQL
+  ```env
+  # SQLite (recommended for local development)
+  DATABASE_URL=sqlite:///data/conversations.db
+
+  # OR local PostgreSQL (if you have it installed)
+  # DATABASE_URL=postgresql://user:password@localhost:5432/engineer_assistant
+  ```
+
+**⚠️ Important:** When running locally with `streamlit run`, make sure your `.env` uses `sqlite:///` or `localhost` (NOT `postgres` hostname, which only exists in Docker).
+
 **Optional Configuration:**
 ```env
 # LLM Model Selection (defaults to gpt-4.1)
 LLM_MODEL=openai:gpt-4.1
-
-# Database (SQLite default, PostgreSQL recommended for production)
-DATABASE_URL=sqlite:///data/conversations.db
-# or for PostgreSQL:
-# DATABASE_URL=postgresql://user:password@localhost:5432/engineer_assistant
 
 # Prusa MCP Integration (set to false to disable)
 SKIP_MCP=true
@@ -857,6 +872,12 @@ Both are required for the chatbot to work properly.
 - **Chatbot not responding:** Verify OpenAI API key is valid and has sufficient credits
 - **Web search not working:** Check Tavily API key in `.env` file
 - **Database errors:** Check `DATABASE_URL` in `.env` or delete `data/conversations.db` to reset
+- **"could not translate host name 'postgres'" error when running locally:**
+  Your `.env` file is configured for Docker. Change `DATABASE_URL` to use SQLite:
+  ```env
+  DATABASE_URL=sqlite:///data/conversations.db
+  ```
+  The `postgres` hostname only works inside Docker containers. Use `localhost` or SQLite for local development.
 
 ### Prusa MCP Issues
 - **MCP connection failed:** Ensure MCP server is running on port 8765

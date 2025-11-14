@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import streamlit as st
-from PIL import Image
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -23,8 +22,8 @@ def render() -> None:
         logo_path = project_root / "assets" / "logo.png"
         if logo_path.exists():
             try:
-                logo = Image.open(logo_path)
-                st.image(logo, width="stretch")
+                # Use file path directly instead of PIL to avoid caching issues
+                st.image(str(logo_path), width="stretch")
             except Exception:
                 st.markdown(
                     '<h1 style="text-align: center;">💬 EngiAI</h1>',
