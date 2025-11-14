@@ -136,7 +136,9 @@ def draw_agent(  # noqa: PLR0913
         linewidth=1.5,
     )
     ax.add_patch(agent_box)
-    ax.text(x + width / 2, y + height / 2, f"{icon}\n{name}", fontsize=9, ha="center")
+    ax.text(
+        x + width / 2, y + height / 2 - 0.1, f"{icon}\n{name}", fontsize=9, ha="center"
+    )
 
 
 # Create figure
@@ -158,17 +160,17 @@ color_browser = "#E8F4F8"
 ax.text(
     10,
     13.5,
-    "Docker MCP Deployment Architecture",
+    "Docker Deployment Architecture",
     fontsize=22,
     fontweight="bold",
     ha="center",
 )
 
-# Docker network background
+# Docker network background (expanded to include PostgreSQL)
 network_box = Rectangle(
     (0.5, 1.0),
     19,
-    11,
+    11.3,
     facecolor=color_network,
     alpha=0.2,
     edgecolor="green",
@@ -177,8 +179,8 @@ network_box = Rectangle(
 )
 ax.add_patch(network_box)
 ax.text(
-    1.5,
-    11.2,
+    1.0,
+    11.5,
     "⚡ Docker Network: engineer-assistant",
     fontsize=11,
     fontweight="bold",
@@ -186,8 +188,53 @@ ax.text(
 )
 
 # ============================================================================
-# LEFT SIDE: Prusa MCP Server Container
+# LEFT SIDE: Prusa MCP Server & PostgreSQL Containers
 # ============================================================================
+
+# PostgreSQL Container
+draw_container(
+    ax,
+    x=1.0,
+    y=1.5,
+    width=5.5,
+    height=3.5,
+    label="□ postgres",
+    color="#E8EAF6",
+    services=[
+        {"name": "PostgreSQL 15", "port": "5432"},
+        {"name": "DB: engineer_assistant"},
+    ],
+)
+
+# Port mapping indicator for PostgreSQL
+ax.text(
+    3.75,
+    1.6,
+    "Port Mapping: 5432 → 5432",
+    fontsize=9,
+    ha="center",
+    bbox={"boxstyle": "round,pad=0.3", "facecolor": "yellow", "alpha": 0.7},
+)
+
+# Volume mount indicator for PostgreSQL data
+volume_box_postgres = FancyBboxPatch(
+    (1.25, 2.0),
+    5.0,
+    0.6,
+    boxstyle="round,pad=0.05",
+    edgecolor="orange",
+    facecolor=color_volume,
+    linewidth=2,
+    linestyle="--",
+)
+ax.add_patch(volume_box_postgres)
+ax.text(
+    3.8,
+    2.2,
+    "⊕ postgres_data (persistent)\n (Chat & Settings)",
+    fontsize=8,
+    ha="center",
+)
 
 # Prusa MCP Server Container
 draw_container(
@@ -196,7 +243,7 @@ draw_container(
     y=5.5,
     width=5.5,
     height=5.5,
-    label="⚙ prusa-mcp-server",
+    label="□ prusa-mcp-server",
     color=color_mcp_container,
     services=[
         {"name": "FastMCP Server", "port": "8000 (internal)"},
@@ -207,28 +254,17 @@ draw_container(
 # Port mapping indicator
 ax.text(
     3.75,
-    5.2,
+    5.6,
     "Port Mapping: 8765 → 8000",
     fontsize=9,
     ha="center",
     bbox={"boxstyle": "round,pad=0.3", "facecolor": "yellow", "alpha": 0.7},
 )
 
-# MCP Server components
-components_y = 8.5
-components = [
-    "[HTTP/SSE] Transport",
-    "[TOOLS] MCP Tools Handler",
-    "[API] Prusa Connect API",
-    "[BROWSER] Playwright Browser",
-]
-
-for i, comp in enumerate(components):
-    ax.text(1.5, components_y - i * 0.5, comp, fontsize=9)
 
 # Volume mount indicator for prusa-mcp
 volume_box1 = FancyBboxPatch(
-    (1.3, 6.0),
+    (1.25, 6.0),
     2.0,
     0.6,
     boxstyle="round,pad=0.05",
@@ -238,11 +274,11 @@ volume_box1 = FancyBboxPatch(
     linestyle="--",
 )
 ax.add_patch(volume_box1)
-ax.text(2.3, 6.3, "⊕ ~/Desktop/prusa-mcp", fontsize=8, ha="center")
+ax.text(2.3, 6.2, "⊕ prusa-mcp folder\n (MCP files)", fontsize=8, ha="center")
 
 # Volume mount indicator for data
 volume_box2 = FancyBboxPatch(
-    (4.0, 6.0),
+    (4.25, 6.0),
     2.0,
     0.6,
     boxstyle="round,pad=0.05",
@@ -252,7 +288,24 @@ volume_box2 = FancyBboxPatch(
     linestyle="--",
 )
 ax.add_patch(volume_box2)
-ax.text(5.0, 6.3, "⊕ ./data/connect_state", fontsize=8, ha="center")
+ax.text(
+    5.25, 6.2, "⊕ ./data/connect_state\n (Connection cookies)", fontsize=8, ha="center"
+)
+
+# Prusa Connect API box (external service the MCP server connects to)
+prusa_connect_box = FancyBboxPatch(
+    (1.25, 7.3),
+    5,
+    0.9,
+    boxstyle="round,pad=0.05",
+    edgecolor="black",
+    facecolor="#F0F0F0",
+    linewidth=1.5,
+    linestyle="--",
+)
+ax.add_patch(prusa_connect_box)
+ax.text(3.75, 7.75, "☁ Prusa Connect (External API)", fontsize=9, ha="center")
+
 
 # ============================================================================
 # RIGHT SIDE: Main Chatbot Container
@@ -265,7 +318,7 @@ draw_container(
     y=5.5,
     width=11,
     height=5.5,
-    label="⚙ engineer-assistant-chatbot",
+    label="□ engineer-assistant-chatbot",
     color=color_chatbot_container,
     services=[
         {"name": "Streamlit Web UI", "port": "8501"},
@@ -275,7 +328,7 @@ draw_container(
 # Port mapping indicator
 ax.text(
     14,
-    5.2,
+    5.6,
     "Port Mapping: 8501 → 8501",
     fontsize=9,
     ha="center",
@@ -326,15 +379,15 @@ for agent in agents:
         ax,
         float(agent["x"]),
         float(agent["y"]),
-        1.2,
-        0.6,
+        1.0,
+        0.5,
         str(agent["name"]),
         str(agent["icon"]),
         color_agent,
     )
 
 
-# Volume mount indicator for data
+# Volume mount indicator for data (ChromaDB)
 volume_box3 = FancyBboxPatch(
     (8.5, 6.0),
     2.0,
@@ -346,7 +399,30 @@ volume_box3 = FancyBboxPatch(
     linestyle="--",
 )
 ax.add_patch(volume_box3)
-ax.text(9.5, 6.3, "⊕ ./data/conversations", fontsize=8, ha="center")
+ax.text(9.5, 6.2, "⊕ ./data/chroma_db\n (RAG docs)", fontsize=8, ha="center")
+
+# Connection from chatbot to PostgreSQL
+draw_arrow(
+    ax,
+    7.99,
+    5.45,
+    6.5,
+    5.0,
+    "PostgreSQL\nCheckpointer\n(port 5432)",
+    "#9C27B0",
+    "-",
+)
+
+# Add dependency note
+ax.text(
+    7.25,
+    4.5,
+    "⚡ Health Check:\nChatbot waits for\nPostgreSQL ready",
+    fontsize=8,
+    ha="center",
+    bbox={"boxstyle": "round,pad=0.3", "facecolor": "#E8F5E9", "alpha": 0.8},
+    style="italic",
+)
 
 # ============================================================================
 # COMMUNICATION FLOWS
@@ -388,7 +464,7 @@ mcp_server_receive_y = 8.5
 
 # User's browser
 browser_box = FancyBboxPatch(
-    (12.0, 12.2),
+    (12.0, 12.5),
     3.5,
     0.7,
     boxstyle="round,pad=0.05",
@@ -399,7 +475,7 @@ browser_box = FancyBboxPatch(
 ax.add_patch(browser_box)
 ax.text(
     13.75,
-    12.55,
+    12.75,
     "→ User Browser",
     fontsize=11,
     ha="center",
@@ -407,24 +483,24 @@ ax.text(
 )
 
 # Arrow from browser to Streamlit
-draw_arrow(ax, 13.75, 12.2, 13.75, 11.0, "→ http://localhost:8501", "#3498DB")
+draw_arrow(ax, 13.75, 12.45, 13.75, 11.0, "→ http://localhost:8501", "#3498DB")
 
-# External API connections
+# External API connections (positioned below PostgreSQL container)
 external_y = 4.25
 external_apis: list[dict[str, Any]] = [
-    {"name": "Prusa Connect", "icon": "☁", "x": 1.0},  # Under MCP server
-    {"name": "OpenAI API", "icon": "◈", "x": 8.0},  # AI/ML Service
-    {"name": "Tavily API", "icon": "◉", "x": 10.0},  # Search service
-    {"name": "Weights & Biases", "icon": "◈", "x": 12.0},  # AI/ML Service
-    {"name": "Hugging Face", "icon": "◈", "x": 14.0},  # AI/ML Service
-    {"name": "HPC Cluster", "icon": "◆", "x": 16.0},  # Compute Service
+    {"name": "OpenAI API", "icon": "◈", "x": 8},  # AI/ML Service
+    {"name": "Tavily API", "icon": "◉", "x": 9.75},  # Search service
+    {"name": "ArXiv API", "icon": "◐", "x": 11.5},  # Research papers
+    {"name": "Weights & Biases", "icon": "◈", "x": 13.25},  # AI/ML Service
+    {"name": "Hugging Face", "icon": "◈", "x": 15},  # AI/ML Service
+    {"name": "HPC Cluster", "icon": "◆", "x": 16.75},  # Compute Service
 ]
 
 for api in external_apis:
     api_box = FancyBboxPatch(
         (float(api["x"]), external_y),
-        1.8,
-        0.6,
+        1.2,
+        0.5,
         boxstyle="round,pad=0.05",
         edgecolor="black",
         facecolor="#F0F0F0",
@@ -433,28 +509,26 @@ for api in external_apis:
     )
     ax.add_patch(api_box)
     ax.text(
-        float(api["x"]) + 0.9,
-        external_y + 0.3,
+        float(api["x"]) + 0.6,
+        external_y + 0.25,
         f"{api['icon']} {api['name']}",
         fontsize=8,
         ha="center",
     )
 
 # Connection arrows to external APIs
-draw_arrow(
-    ax, 2.0, 5.45, 2.0, 4.85, "", "#95A5A6", "--"
-)  # MCP to Prusa Connect (vertical)
-draw_arrow(ax, 9.0, 5.45, 9.0, 4.85, "", "#95A5A6", "--")  # To OpenAI
-draw_arrow(ax, 11.0, 5.45, 11.0, 4.85, "", "#95A5A6", "--")  # To Tavily
-draw_arrow(ax, 13.0, 5.45, 13.0, 4.85, "", "#95A5A6", "--")  # To Weights & Biases
-draw_arrow(ax, 15.0, 5.45, 15.0, 4.85, "", "#95A5A6", "--")  # To Hugging Face
-draw_arrow(ax, 17.0, 5.45, 17.0, 4.85, "", "#95A5A6", "--")  # To HPC
+draw_arrow(ax, 8.625, 5.45, 8.625, 4.85, "", "#95A5A6", "--")  # To OpenAI
+draw_arrow(ax, 10.325, 5.45, 10.325, 4.85, "", "#95A5A6", "--")  # To Tavily
+draw_arrow(ax, 12.075, 5.45, 12.075, 4.85, "", "#95A5A6", "--")  # To ArXiv
+draw_arrow(ax, 13.825, 5.45, 13.825, 4.85, "", "#95A5A6", "--")  # To Weights & Biases
+draw_arrow(ax, 15.575, 5.45, 15.575, 4.85, "", "#95A5A6", "--")  # To Hugging Face
+draw_arrow(ax, 17.325, 5.45, 17.325, 4.85, "", "#95A5A6", "--")  # To HPC
 
 # ============================================================================
-# LEGEND
+# LEGEND (Adjusted position to avoid PostgreSQL container)
 # ============================================================================
 
-legend_x = 1.0
+legend_x = 8.0
 legend_y = 2.5
 
 ax.text(legend_x, legend_y + 1.3, "Legend:", fontsize=11, fontweight="bold")
@@ -463,8 +537,10 @@ ax.text(legend_x, legend_y + 1.3, "Legend:", fontsize=11, fontweight="bold")
 legend_items: list[dict[str, str | float]] = [
     {"color": color_mcp_container, "label": "Prusa MCP Server Container", "alpha": 0.3},
     {"color": color_chatbot_container, "label": "Main Chatbot Container", "alpha": 0.3},
-    {"color": color_volume, "label": "Volume Mount (Host -> Container)", "alpha": 1.0},
+    {"color": "#E8EAF6", "label": "PostgreSQL Database Container", "alpha": 0.3},
+    {"color": color_volume, "label": "Volume Mount (Host → Container)", "alpha": 1.0},
     {"color": "#E74C3C", "label": "HTTP/SSE Communication", "alpha": 1.0},
+    {"color": "#9C27B0", "label": "Database Connection", "alpha": 1.0},
     {"color": "#95A5A6", "label": "External API Calls", "alpha": 1.0},
 ]
 
@@ -487,14 +563,15 @@ for i, item in enumerate(legend_items):
     ax.text(legend_x + 0.4, y_pos, str(item["label"]), fontsize=8, va="center")
 
 # Symbols legend (two columns)
-symbols_x = 6.5
+symbols_x = 10.75
 symbols_y = 2.5
 
 ax.text(symbols_x, symbols_y + 1.3, "Symbols:", fontsize=11, fontweight="bold")
 
 symbol_items: list[dict[str, str]] = [
-    {"symbol": "⚙", "label": "Container/Engineering Agent"},
+    {"symbol": "□", "label": "Docker Container"},
     {"symbol": "★", "label": "Supervisor Agent"},
+    {"symbol": "⚙", "label": "Engineering Agent"},
     {"symbol": "◉", "label": "Search Agent/Service"},
     {"symbol": "◈", "label": "AI/ML/Document Agent/Service"},
     {"symbol": "◐", "label": "ArXiv Agent (Papers)"},
@@ -518,7 +595,7 @@ for i, symbol_item in enumerate(symbol_items):
     else:
         # Second column
         y_pos = symbols_y + 0.8 - (i - items_per_column) * 0.25
-        x_pos = symbols_x + 5.5  # Offset for second column
+        x_pos = symbols_x + 2.5  # Offset for second column
 
     ax.text(x_pos, y_pos, symbol_item["symbol"], fontsize=12, va="center", ha="center")
     ax.text(x_pos + 0.3, y_pos, symbol_item["label"], fontsize=8, va="center")
@@ -533,5 +610,3 @@ print(f"[OK] Docker MCP architecture diagram saved to: {output_path}")
 output_path_pdf = "outputs/docker_mcp_architecture.pdf"
 plt.savefig(output_path_pdf, format="pdf", bbox_inches="tight", facecolor="white")
 print(f"[OK] Docker MCP architecture diagram (PDF) saved to: {output_path_pdf}")
-
-plt.show()
