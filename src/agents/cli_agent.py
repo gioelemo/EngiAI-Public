@@ -9,11 +9,10 @@ Uses LangGraph's interrupt_before mechanism for human-in-the-loop confirmation.
 
 from src.agents.base_agent import BaseAgent
 from src.tools.cli import (
-    check_cli_tool_available,
     execute_cli_command,
-    get_prusa_slicer_path,
     list_directory_contents,
     open_gui_application,
+    open_terminal,
 )
 from src.utils.prompts import CLI_AGENT_SYSTEM_PROMPT
 
@@ -24,14 +23,14 @@ class CLIAgent(BaseAgent):
     def __init__(
         self,
         model_name: str | None = None,
-        require_confirmation: bool = True,
+        require_confirmation: bool = False,
         temperature: float | None = None,
     ):
         """Initialize the CLI agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
-            require_confirmation: Whether to require user confirmation before executing commands (default: True)
+            require_confirmation: Whether to require user confirmation before executing commands (default: False)
             temperature: Model temperature (defaults to config.llm_temperature)
         """
         super().__init__(
@@ -48,10 +47,9 @@ class CLIAgent(BaseAgent):
         """
         return [
             execute_cli_command,
-            check_cli_tool_available,
             list_directory_contents,
             open_gui_application,
-            get_prusa_slicer_path,
+            open_terminal,
         ]
 
     def _get_system_prompt(self) -> str:

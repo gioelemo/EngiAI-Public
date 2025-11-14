@@ -25,11 +25,17 @@ cp .env.example .env
 # 3. Start the application
 docker-compose up -d
 
-# 4. Open your browser
+# 4. (Optional) Start host service for GUI app integration
+# In a separate terminal:
+python host_service.py
+
+# 5. Open your browser
 # Visit: http://localhost:8501
 ```
 
 That's it! The complete AI assistant is now running in Docker with all dependencies isolated.
+
+**Note:** The host service (step 4) is optional and only needed if you want to open GUI applications like PrusaSlicer from within the chatbot.
 
 **To stop:** `docker-compose down`
 
@@ -168,6 +174,24 @@ Docker provides the most reliable, isolated, and portable deployment. All depend
    # or
    docker-compose -f docker-compose.mcp.yml down
    ```
+
+6. **For GUI Application Integration (Optional):**
+
+   If you want the Docker container to open GUI applications (like PrusaSlicer, Blender, etc.) on your host machine:
+
+   ```bash
+   # In a separate terminal, run the host service:
+   python host_service.py
+   ```
+
+   This allows the containerized assistant to:
+   - ✅ Open PrusaSlicer for 3D model slicing
+   - ✅ Launch other GUI applications (VS Code, Terminal, etc.)
+   - ✅ Execute commands on your host machine
+
+   The host service runs on `http://localhost:9999` and provides a secure bridge between the Docker container and your local system.
+
+   **Note:** This is only needed if you plan to use commands like "open PrusaSlicer" from within the chatbot.
 
 **Benefits:**
 - ✅ Isolated environment with all dependencies
@@ -842,6 +866,26 @@ Both are required for the chatbot to work properly.
   ```
 - **Tools not loading:** Set `SKIP_MCP=true` in `.env` to disable MCP integration
 - **prusa-mcp folder not found:** Ensure `~/Desktop/prusa-mcp` exists or update `PRUSA_MCP_PATH`
+
+### Host Service & GUI Integration Issues
+- **"Cannot connect to host service" error:** Start the host service on your local machine:
+  ```bash
+  python host_service.py
+  ```
+  The service should show: `Starting Host Service on http://localhost:9999`
+
+- **PrusaSlicer/GUI apps won't open:**
+  1. Verify host service is running: `lsof -i :9999`
+  2. Check Docker can reach host: `docker exec engineer-assistant-chatbot curl http://host.docker.internal:9999/health`
+  3. Ensure the application is installed on your host machine
+
+- **Port 9999 already in use:** Change the port in `.env`:
+  ```bash
+  HOST_SERVICE_PORT=9998  # Use a different port
+  ```
+  Then restart both the host service and Docker containers.
+
+- **Security concerns:** The host service only accepts connections from localhost and has a whitelist of allowed applications. See `host_service.py` for the whitelist.
 
 ### SSH & HPC Connection Issues
 - **"SSH key is encrypted" error in Docker:**

@@ -58,6 +58,8 @@ services:
     container_name: engineer-assistant-chatbot
     ports:
       - "8501:8501"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # For Linux support
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
@@ -77,6 +79,7 @@ services:
       - PAPERS_SOURCE_DIR_HOST=${PAPERS_SOURCE_DIR:-Not configured}
       - PAPERS_STATE_FILE=${PAPERS_STATE_FILE:-data/local_import_state.json}
       - PAPERS_COLLECTION=${PAPERS_COLLECTION:-engineer_docs}
+      - HOST_SERVICE_PORT=${HOST_SERVICE_PORT:-9999}  # Port for host service
       # HPC/SLURM Configuration
       - HPC_HOST_ALIAS=${HPC_HOST_ALIAS:-euler}
       - SLURM_VENV_PATH=${SLURM_VENV_PATH:-~/venvs/engineer_assistant}

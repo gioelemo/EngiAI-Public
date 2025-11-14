@@ -1,5 +1,6 @@
 """CLI command execution tools for running local command-line applications."""
 
+import logging
 import os
 import platform
 import shlex
@@ -7,11 +8,98 @@ import subprocess
 from pathlib import Path
 from shutil import which
 
+import requests
 from langchain_core.tools import tool
 
 # File size constants
 _KB = 1024
 _MB = 1024 * 1024
+
+# HTTP status codes
+HTTP_OK = 200
+
+logger = logging.getLogger(__name__)
+
+
+def _is_running_in_docker() -> bool:
+    """Detect if code is running inside a Docker container."""
+    # Check for .dockerenv file
+    if Path("/.dockerenv").exists():
+        return True
+
+    # Check cgroup for docker
+    try:
+        with Path("/proc/self/cgroup").open() as f:
+            return any("docker" in line for line in f)
+    except Exception:
+        pass
+
+    return False
+
+
+def _get_host_service_url() -> str:
+    """Get the host service URL for Docker environments."""
+    # In Docker, host.docker.internal resolves to the host machine
+    # For Linux, we need to use the host IP or bridge network
+    port = os.getenv("HOST_SERVICE_PORT", "9999")
+
+    # Try host.docker.internal first (works on Docker Desktop for Mac/Windows)
+    host = "host.docker.internal"
+
+    # On Linux, host.docker.internal doesn't work by default
+    # We can use the default gateway IP or configure extra_hosts in docker-compose
+    if platform.system() == "Linux":
+        # This will be configured via extra_hosts in docker-compose
+        host = "host.docker.internal"
+
+    return f"http://{host}:{port}"
+
+
+def _open_via_host_service(app_name: str, file_path: str | None = None) -> str:
+    """Open an application via the host service (for Docker environments)."""
+    try:
+        host_service_url = _get_host_service_url()
+        logger.info(
+            f"[HOST_SERVICE] Attempting to open '{app_name}' via {host_service_url}"
+        )
+
+        # Test if host service is available
+        try:
+            logger.info(
+                f"[HOST_SERVICE] Testing connection to {host_service_url}/health"
+            )
+            response = requests.get(f"{host_service_url}/health", timeout=2)
+            logger.info(f"[HOST_SERVICE] Health check response: {response.status_code}")
+            if response.status_code != HTTP_OK:
+                return f"Error: Host service at {host_service_url} is not responding correctly. Please start host_service.py on your host machine."
+        except requests.exceptions.RequestException as e:
+            logger.exception("[HOST_SERVICE] Connection failed")
+            return f"""Error: Cannot connect to host service at {host_service_url}.
+
+To fix this:
+1. On your HOST machine, run: python host_service.py
+2. Make sure the service is running on port {os.getenv("HOST_SERVICE_PORT", "9999")}
+
+Details: {e!s}"""
+
+        # Send request to open application
+        logger.info(f"[HOST_SERVICE] Sending POST request to open {app_name}")
+        response = requests.post(
+            f"{host_service_url}/open",
+            json={"app_name": app_name, "file_path": file_path},
+            timeout=5,
+        )
+
+        result = response.json()
+        logger.info(f"[HOST_SERVICE] Response: {result}")
+        if result.get("success"):
+            return result.get("message", "Application opened successfully")
+        else:
+            return f"Error from host service: {result.get('message', 'Unknown error')}"
+
+    except Exception as e:
+        logger.exception("[HOST_SERVICE] Exception occurred")
+        return f"Error communicating with host service: {e!s}"
 
 
 @tool
@@ -247,11 +335,16 @@ def open_gui_application(
 ) -> str:
     """Open a GUI application, optionally with a file.
 
+    **IMPORTANT**: This tool OPENS GUI applications - it doesn't check if they exist first.
+    Just call it directly when the user says "open [app name]". The tool will handle
+    finding the application automatically.
+
     This tool launches GUI applications like PrusaSlicer, Blender, MeshLab, etc.
     so you can interact with them directly instead of using CLI commands.
 
     Args:
-        app_name: Name or path to the application (e.g., "PrusaSlicer", "/Applications/PrusaSlicer.app")
+        app_name: Name or path to the application (e.g., "PrusaSlicer", "Blender", "Mail")
+                  Just use the simple name - the tool will find it automatically
         file_path: Optional file to open with the application
         wait_for_exit: If True, waits for the application to close before returning (default: False)
 
@@ -259,17 +352,33 @@ def open_gui_application(
         Success message or error description.
 
     Example:
-        >>> open_gui_application("PrusaSlicer")
-        >>> open_gui_application("PrusaSlicer", file_path="model.stl")
-        >>> open_gui_application("/Applications/Original Prusa Drivers/PrusaSlicer.app")
+        User says "open PrusaSlicer" → open_gui_application("PrusaSlicer")
+        User says "open Blender" → open_gui_application("Blender")
+        User says "open Mail" → open_gui_application("Mail")
 
     Note:
+        - DO NOT check if the app exists first - just call this tool directly
         - On macOS, can open .app bundles directly
         - On Windows, looks for .exe files
         - On Linux, uses standard application launcher
         - By default, launches in background so you can continue working
+        - When running in Docker, uses the host service to open apps on the host machine
+        - The tool handles finding the app path automatically
     """
+    logger.info(
+        f"[OPEN_GUI_APP] Called with app_name='{app_name}', file_path={file_path}"
+    )
+
     try:
+        # Check if running in Docker
+        is_docker = _is_running_in_docker()
+        logger.info(f"[OPEN_GUI_APP] Running in Docker: {is_docker}")
+
+        if is_docker:
+            # Use host service to open application on host machine
+            logger.info("[OPEN_GUI_APP] Delegating to host service")
+            return _open_via_host_service(app_name, file_path)
+
         # Validate file path
         error = _validate_file_path(file_path)
         if error:
@@ -381,3 +490,116 @@ def get_prusa_slicer_path() -> str:
 
     suggestions.append("\nTo configure, set PRUSA_SLICER_PATH in your .env file")
     return "\n".join(suggestions)
+
+
+@tool
+def open_terminal(  # noqa: PLR0911, PLR0912
+    working_dir: str | None = None,
+    command: str | None = None,
+) -> str:
+    """Open a terminal window, optionally in a specific directory or with a command.
+
+    This tool opens a terminal/command prompt window on the system.
+
+    Args:
+        working_dir: Optional directory to open the terminal in
+        command: Optional command to run in the terminal
+
+    Returns:
+        Success message or error description.
+
+    Example:
+        >>> open_terminal()
+        >>> open_terminal(working_dir="/path/to/project")
+        >>> open_terminal(working_dir="/path/to/project", command="ls -la")
+
+    Note:
+        - On macOS, opens Terminal.app
+        - On Linux, tries common terminal emulators
+        - On Windows, opens cmd.exe or PowerShell
+        - When running in Docker, uses the host service to open terminal on the host machine
+    """
+    try:
+        # Check if running in Docker
+        if _is_running_in_docker():
+            # Use host service to open terminal on host machine
+            host_service_url = _get_host_service_url()
+
+            try:
+                response = requests.get(f"{host_service_url}/health", timeout=2)
+                if response.status_code != HTTP_OK:
+                    return f"Error: Host service at {host_service_url} is not responding correctly. Please start host_service.py on your host machine."
+            except requests.exceptions.RequestException as e:
+                return f"""Error: Cannot connect to host service at {host_service_url}.
+
+To fix this:
+1. On your HOST machine, run: python host_service.py
+2. Make sure the service is running on port {os.getenv("HOST_SERVICE_PORT", "9999")}
+
+Details: {e!s}"""
+
+            # Send request to open terminal
+            response = requests.post(
+                f"{host_service_url}/terminal",
+                json={"working_dir": working_dir, "command": command},
+                timeout=5,
+            )
+
+            result = response.json()
+            if result.get("success"):
+                return result.get("message", "Terminal opened successfully")
+            else:
+                return (
+                    f"Error from host service: {result.get('message', 'Unknown error')}"
+                )
+
+        # Native execution (not in Docker)
+        system = platform.system()
+
+        if system == "Darwin":
+            # macOS: Use AppleScript to open Terminal
+            script_parts = ['tell application "Terminal"', "activate"]
+
+            if working_dir or command:
+                script_parts.append(f'do script "cd {working_dir or "~"}"')
+                if command:
+                    script_parts.append(f'do script "{command}" in front window')
+
+            script_parts.append("end tell")
+            script = "\n".join(script_parts)
+
+            subprocess.run(["osascript", "-e", script], check=True)
+            return "✓ Opened Terminal on macOS"
+
+        elif system == "Linux":
+            # Linux: Try common terminal emulators
+            terminals = ["gnome-terminal", "xterm", "konsole"]
+            for term in terminals:
+                try:
+                    cmd = [term]
+                    if working_dir:
+                        cmd.extend(["--working-directory", working_dir])
+                    subprocess.Popen(
+                        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                except FileNotFoundError:
+                    continue
+                else:
+                    return f"✓ Opened {term} on Linux"
+
+            return "Error: No terminal emulator found on Linux"
+
+        elif system == "Windows":
+            # Windows: Open Command Prompt
+            cmd = ["cmd.exe"]
+            if working_dir:
+                cmd = ["cmd.exe", "/K", f"cd /d {working_dir}"]
+            creation_flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+            subprocess.Popen(cmd, creationflags=creation_flags)
+            return "✓ Opened Command Prompt on Windows"
+
+        else:
+            return f"Error: Unsupported platform: {system}"
+
+    except Exception as e:
+        return f"Error opening terminal: {e!s}"

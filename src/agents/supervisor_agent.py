@@ -115,7 +115,7 @@ class SupervisorAgent:
             "- prusa_agent: Prusa 3D printer management via Prusa Connect (printer status, job monitoring, printer control, file management)"
         )
         available_agents.append(
-            "- cli_agent: Execute local CLI commands (PrusaSlicer, mesh processing, file conversion, any command-line tool)"
+            "- cli_agent: Open GUI applications (PrusaSlicer, Terminal, Blender, etc.) and execute local CLI commands (mesh processing, file conversion, any command-line tool)"
         )
         agent_names.extend(
             [
@@ -153,7 +153,7 @@ class SupervisorAgent:
             + "- Questions about UPLOADED documents, papers, PDFs: 'what does the paper say', 'explain this document', 'summarize the research', 'what are the findings' → use rag_agent\n"
             + "- ArXiv paper search and analysis: 'find papers on ArXiv', 'search ArXiv for', 'download ArXiv paper', 'analyze paper 1605.08386', 'what papers are available on', 'ArXiv ID', 'arxiv.org' → use arxiv_agent\n"
             + "- Prusa printer management: 'printer status', 'print jobs', 'pause print', 'resume print', 'stop print', 'start print', 'Prusa Connect', 'printer', '3D printer' → use prusa_agent\n"
-            + "- EXECUTE CLI commands: 'slice file.stl', 'run PrusaSlicer', 'convert file', 'execute pwd' → use cli_agent\n"
+            + "- OPEN GUI applications or EXECUTE CLI commands: 'open PrusaSlicer', 'open Terminal', 'open Mail', 'slice file.stl', 'convert file', 'execute pwd' → use cli_agent\n"
             + "\n"
             + "Respond with ONLY ONE WORD: "
             + ", ".join(agent_names[:-1])
@@ -163,13 +163,40 @@ class SupervisorAgent:
             + "No explanations, no other text, just the agent name or FINISH."
         )
 
-    def _supervisor_node(self, state: SupervisorState):
+    def _supervisor_node(self, state: SupervisorState):  # noqa: PLR0912
         """Supervisor decides which agent should act next."""
         # Only route if we haven't routed yet (no next value set)
         if state.get("next") and state["next"] != "":
             # Already routed, finish
             return {
                 "next": "FINISH",
+                "messages": state["messages"],
+            }
+
+        # Check user message directly for "open" commands - route to CLI immediately
+        last_user_message = ""
+        for msg in reversed(state["messages"]):
+            if hasattr(msg, "type") and msg.type == "human":
+                last_user_message = str(msg.content).lower()
+                break
+            elif isinstance(msg, dict) and msg.get("role") == "user":
+                last_user_message = str(msg.get("content", "")).lower()
+                break
+
+        logger.info(
+            f"[SUPERVISOR ROUTING DEBUG] Last user message: '{last_user_message}'"
+        )
+        logger.info(
+            f"[SUPERVISOR ROUTING DEBUG] Starts with 'open ': {last_user_message.startswith('open ')}"
+        )
+
+        # Direct routing for "open" commands - bypass LLM routing
+        if last_user_message.startswith("open "):
+            logger.info(
+                "[SUPERVISOR ROUTING DEBUG] ROUTING TO CLI_AGENT (direct routing)"
+            )
+            return {
+                "next": "cli_agent",
                 "messages": state["messages"],
             }
 
@@ -222,7 +249,7 @@ class SupervisorAgent:
         ):
             # Prusa handles: printer management, job monitoring, printer control
             next_agent = "prusa_agent"
-        elif "cli" in content or "command" in content:
+        elif "cli" in content or "command" in content or "run" in content:
             # CLI handles: local command-line tool execution
             next_agent = "cli_agent"
         elif "finish" in content or "supervisor" in content:
@@ -230,6 +257,7 @@ class SupervisorAgent:
             next_agent = "supervisor_response"
 
         # Preserve the original messages and add the routing decision
+        logger.info(f"[SUPERVISOR ROUTING DEBUG] LLM routing decision: '{next_agent}'")
         return {
             "next": next_agent,
             "messages": state["messages"],
@@ -439,11 +467,13 @@ For capability questions, suggest specific actions the user might want to try wi
 
     def _cli_node(self, state: SupervisorState):
         """Delegate to CLI agent."""
+        logger.info("[SUPERVISOR] _cli_node invoked - delegating to CLI agent")
         agent_state = cast(MessagesState, {"messages": state["messages"]})
         result = self.cli_agent.invoke(
             agent_state,
             {"configurable": {"thread_id": "cli"}},
         )
+        logger.info("[SUPERVISOR] CLI agent returned result")
         # Extract only the LAST final AI response, excluding intermediate tool calls/responses
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
@@ -510,10 +540,8 @@ For capability questions, suggest specific actions the user might want to try wi
 
         # Compile with persistent checkpointer
         checkpointer = get_checkpointer()
-        # Interrupt before CLI agent so we can check its planned commands
-        return workflow.compile(
-            checkpointer=checkpointer, interrupt_before=["cli_agent"]
-        )
+        # No interrupts - CLI agent handles confirmation internally if needed
+        return workflow.compile(checkpointer=checkpointer)
 
     def invoke(self, state, config):
         """Invoke the supervisor agent.
