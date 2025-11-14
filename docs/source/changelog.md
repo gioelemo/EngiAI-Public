@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker build system (2 separate containers: Chatbot + MCP server for Prusa)
 - Support to change model temperature
 - Warning on API key usage (Tavily and Mathpix)
+- Open Application from Docker into local GUI using host_service.py
 
 ### Changed
 - Updated documentation theme to sphinx-book-theme

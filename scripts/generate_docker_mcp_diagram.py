@@ -464,7 +464,7 @@ mcp_server_receive_y = 8.5
 
 # User's browser
 browser_box = FancyBboxPatch(
-    (12.0, 12.5),
+    (10.5, 12.5),
     3.5,
     0.7,
     boxstyle="round,pad=0.05",
@@ -474,7 +474,7 @@ browser_box = FancyBboxPatch(
 )
 ax.add_patch(browser_box)
 ax.text(
-    13.75,
+    12.25,
     12.75,
     "→ User Browser",
     fontsize=11,
@@ -483,7 +483,39 @@ ax.text(
 )
 
 # Arrow from browser to Streamlit
-draw_arrow(ax, 13.75, 12.45, 13.75, 11.0, "→ http://localhost:8501", "#3498DB")
+draw_arrow(ax, 12.25, 12.45, 12.25, 11.0, "→ http://localhost:8501", "#3498DB")
+
+# Host Service (runs on host machine, outside Docker)
+host_service_box = FancyBboxPatch(
+    (14.5, 12.5),
+    3.5,
+    0.7,
+    boxstyle="round,pad=0.05",
+    edgecolor="black",
+    facecolor="#FFE5CC",
+    linewidth=2,
+)
+ax.add_patch(host_service_box)
+ax.text(
+    16.25,
+    12.75,
+    "⚙ Host Service\n(host_service.py)",
+    fontsize=10,
+    ha="center",
+    fontweight="bold",
+)
+
+# Arrow from chatbot to Host Service
+draw_arrow(
+    ax,
+    16.25,
+    11.0,
+    16.25,
+    12.45,
+    "http://host.docker.internal:9999\nOpen GUI Apps",
+    "#FF6B6B",
+    "--",
+)
 
 # External API connections (positioned below PostgreSQL container)
 external_y = 4.25
@@ -538,9 +570,11 @@ legend_items: list[dict[str, str | float]] = [
     {"color": color_mcp_container, "label": "Prusa MCP Server Container", "alpha": 0.3},
     {"color": color_chatbot_container, "label": "Main Chatbot Container", "alpha": 0.3},
     {"color": "#E8EAF6", "label": "PostgreSQL Database Container", "alpha": 0.3},
+    {"color": "#FFE5CC", "label": "Host Service (on Host Machine)", "alpha": 1.0},
     {"color": color_volume, "label": "Volume Mount (Host → Container)", "alpha": 1.0},
     {"color": "#E74C3C", "label": "HTTP/SSE Communication", "alpha": 1.0},
     {"color": "#9C27B0", "label": "Database Connection", "alpha": 1.0},
+    {"color": "#FF6B6B", "label": "Host Service Connection", "alpha": 1.0},
     {"color": "#95A5A6", "label": "External API Calls", "alpha": 1.0},
 ]
 
