@@ -11,8 +11,14 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from config import config  # noqa: E402
 from scripts.import_local_papers import LocalPaperImporter  # noqa: E402
 from src.ui.database import DatabaseManager  # noqa: E402
+from src.utils.api_usage import (  # noqa: E402
+    USAGE_THRESHOLD_CRITICAL,
+    USAGE_THRESHOLD_WARNING,
+    get_tavily_usage,
+)
 
 
 def _init_db() -> DatabaseManager:
@@ -293,6 +299,81 @@ def _render_paper_import_settings() -> None:
                 st.error(f"❌ Import failed: {e}")
 
 
+def _render_api_usage_section() -> None:
+    """Render API usage monitoring section."""
+    st.markdown("## 📊 API Usage")
+    st.markdown("Monitor your external API usage and limits.")
+
+    # Tavily API usage
+    st.markdown("### 🔍 Tavily Search API")
+
+    if st.button("🔄 Refresh Usage Stats", key="refresh_tavily_usage"):
+        with st.spinner("Fetching Tavily usage..."):
+            usage = get_tavily_usage(config.tavily_api_key)
+
+            if usage:
+                # Display account-level usage
+                st.info(f"**Current Plan:** {usage.current_plan}")
+
+                # Plan usage progress bar
+                plan_col1, plan_col2 = st.columns([3, 1])
+
+                with plan_col1:
+                    st.progress(
+                        usage.plan_percentage / 100,
+                        text=f"{usage.plan_usage:,} / {usage.plan_limit:,} requests ({usage.plan_percentage:.1f}%)",
+                    )
+
+                with plan_col2:
+                    if usage.plan_percentage > USAGE_THRESHOLD_CRITICAL:
+                        st.error("🔴 Critical")
+                    elif usage.plan_percentage > USAGE_THRESHOLD_WARNING:
+                        st.warning("🟡 High")
+                    else:
+                        st.success("🟢 Good")
+
+                # Pay-as-you-go usage (if applicable)
+                if usage.paygo_limit > 0:
+                    st.markdown("**Pay-as-you-go Usage:**")
+                    paygo_col1, paygo_col2 = st.columns([3, 1])
+
+                    with paygo_col1:
+                        st.progress(
+                            usage.paygo_percentage / 100,
+                            text=f"{usage.paygo_usage:,} / {usage.paygo_limit:,} requests ({usage.paygo_percentage:.1f}%)",
+                        )
+
+                    with paygo_col2:
+                        if usage.paygo_percentage > USAGE_THRESHOLD_CRITICAL:
+                            st.error("🔴 Critical")
+                        elif usage.paygo_percentage > USAGE_THRESHOLD_WARNING:
+                            st.warning("🟡 High")
+                        else:
+                            st.success("🟢 Good")
+
+                # Display warnings
+                if usage.is_critical:
+                    st.error(
+                        "⚠️ **Critical Usage Level!** You're approaching your API limits. "
+                        "Consider upgrading your plan or reducing usage."
+                    )
+                elif usage.is_approaching_limit:
+                    st.warning(
+                        "⚠️ **High Usage Level.** You've used over 80% of your API limits. "
+                        "Monitor your usage to avoid hitting the limit."
+                    )
+
+            else:
+                st.error(
+                    "❌ Failed to fetch Tavily usage. Please check your API key configuration."
+                )
+
+    st.info(
+        "💡 **Tip:** Tavily usage resets on the 1st of each month. "
+        "Click 'Refresh Usage Stats' to see your current usage."
+    )
+
+
 def _render_about_section() -> None:
     """Render about section."""
     st.markdown("## About")
@@ -331,6 +412,9 @@ def render() -> None:
 
     st.markdown("---")
     _render_paper_import_settings()
+
+    st.markdown("---")
+    _render_api_usage_section()
 
     st.markdown("---")
     _render_about_section()

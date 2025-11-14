@@ -31,6 +31,7 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "psycopg2-binary==2.9.11",
     "python-dotenv",
+    "requests>=2.31.0",
     "scipy",
     "sqlalchemy==2.0.36",
     "streamlit==1.50.0",
@@ -47,6 +48,7 @@ dev = [
   "mypy",
   "ruff",
   "pre-commit",
+  "types-requests",
 ]
 test = [
   "pytest>=8.0.0",

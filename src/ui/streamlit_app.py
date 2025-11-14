@@ -23,6 +23,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from config import config  # noqa: E402
 from src.tools import EngineerRAGStore, MultimodalDocumentProcessor  # noqa: E402
 from src.ui import chat, home, settings, wandb  # noqa: E402
 from src.ui.chat_management import (  # noqa: E402
@@ -46,6 +47,12 @@ from src.ui.file_processing import (  # noqa: E402
 )
 from src.ui.message_processing import (  # noqa: E402
     format_and_display_messages,
+)
+from src.utils.api_usage import (  # noqa: E402
+    UNLIMITED_LIMIT_VALUE,
+    USAGE_THRESHOLD_CRITICAL,
+    USAGE_THRESHOLD_WARNING,
+    get_tavily_usage,
 )
 
 # Suppress Pydantic warnings from LangChain
@@ -354,6 +361,76 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             save_active_chat_to_storage()
 
 
+def _get_usage_status(max_percentage: float) -> tuple[str, str]:
+    """Get status color and text based on usage percentage."""
+    if max_percentage > USAGE_THRESHOLD_CRITICAL:
+        return "🔴", "Critical"
+    if max_percentage > USAGE_THRESHOLD_WARNING:
+        return "🟡", "High"
+    return "🟢", "Good"
+
+
+def _format_usage_text(usage: int, limit: int, percentage: float) -> str:
+    """Format usage text with or without limit."""
+    if limit == UNLIMITED_LIMIT_VALUE:
+        return f"{usage:,} requests"
+    return f"{usage:,}/{limit:,} ({percentage:.0f}%)"
+
+
+def render_tavily_usage_widget() -> None:
+    """Render a compact Tavily API usage widget in the sidebar."""
+    try:
+        # Fetch usage data (with caching to avoid too many requests)
+        cache_key = "tavily_usage_cache"
+        cache_time_key = "tavily_usage_cache_time"
+        cache_duration = 300  # 5 minutes
+
+        # Check if we need to fetch fresh data
+        current_time = datetime.datetime.now()
+        should_fetch = True
+
+        if cache_time_key in st.session_state:
+            last_fetch = st.session_state[cache_time_key]
+            time_diff = (current_time - last_fetch).total_seconds()
+            if time_diff < cache_duration and cache_key in st.session_state:
+                should_fetch = False
+
+        if should_fetch:
+            usage = get_tavily_usage(config.tavily_api_key)
+            st.session_state[cache_key] = usage
+            st.session_state[cache_time_key] = current_time
+        else:
+            usage = st.session_state.get(cache_key)
+
+        if usage:
+            # Determine status based on usage percentage
+            max_percentage = max(usage.key_percentage, usage.plan_percentage)
+            status_color, status_text = _get_usage_status(max_percentage)
+
+            # Display compact usage info
+            with st.expander(
+                f"{status_color} Tavily API: {status_text}", expanded=False
+            ):
+                # Key usage
+                key_text = _format_usage_text(
+                    usage.key_usage, usage.key_limit, usage.key_percentage
+                )
+                st.caption(f"**Key:** {key_text}")
+
+                # Plan usage
+                plan_text = _format_usage_text(
+                    usage.plan_usage, usage.plan_limit, usage.plan_percentage
+                )
+                st.caption(f"**Monthly:** {plan_text}")
+
+                # Link to settings
+                st.caption("[View details in Settings →](settings#tavily-search-api)")
+
+    except Exception as e:
+        logger.debug(f"Failed to fetch Tavily usage for sidebar: {e}")
+        # Silently fail - don't show error in sidebar
+
+
 def render_sidebar() -> None:
     """Render the sidebar with chat management controls."""
     # Constants for chat display
@@ -375,6 +452,9 @@ def render_sidebar() -> None:
     st.warning(
         "Don't share personal data. Limit use - API key usage applies.", icon="⚠️"
     )
+
+    # Tavily API usage widget
+    render_tavily_usage_widget()
 
     st.markdown("---")
 
