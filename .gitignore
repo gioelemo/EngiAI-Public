@@ -212,3 +212,4 @@ data/connect_state.json
 
 # External prusa-mcp folder (mounted from ~/Desktop/prusa-mcp)
 prusa-mcp/
+*.zip

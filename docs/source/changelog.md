@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Script to get deployment zip to be uploaded on server
+
+### Changed
+- .
+
+### Fixed
+- Deployment fix for SSH configuration (do not work for the moment)
+
 ## [1.0.0] - 2025-11-17
 
 ### Added
