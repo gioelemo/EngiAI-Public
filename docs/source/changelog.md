@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2025-11-17
+
 ### Added
 - Documentation using Sphinx with EngiBench-style template
 - Comprehensive test suite for ArXiv agent
@@ -19,16 +21,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support to change model temperature
 - Warning on API key usage (Tavily and Mathpix)
 - Open Application from Docker into local GUI using host_service.py
+- Enhanced suggested prompts extraction with fallback patterns for malformed output
+- Improved Prusa agent system prompts with explicit formatting requirements
 
 ### Changed
 - Updated documentation theme to sphinx-book-theme
 - Reorganized dependencies alphabetically in configuration files
 - Switched to dirhtml builder for cleaner URLs
+- Removed non-functional preview links from Prusa print job outputs
 
 ### Fixed
 - Mock author structure in ArXiv agent tests
 - Different small fix
 - Wandb Download works again
+- Suggested prompts now display correctly in Streamlit when using Prusa agent
+- Network connectivity between chatbot and Prusa MCP server containers
 
 ## [0.0.1] - 2025-11-06
 
@@ -41,5 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vector store for document retrieval
 - Support for various LLM backends
 
-[Unreleased]: https://github.com/gioelemo/engineer-assistant/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/gioelemo/engineer-assistant/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/gioelemo/engineer-assistant/compare/v0.0.1...v1.0.0
 [0.0.1]: https://github.com/gioelemo/engineer-assistant/releases/tag/v0.0.1
