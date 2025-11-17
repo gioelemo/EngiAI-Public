@@ -379,17 +379,20 @@ def test_download_from_wandb_success(monkeypatch, tmp_path):
     mock_api.artifact.return_value = mock_artifact
 
     # Mock wandb module with nested structure for wandb.apis.public
-    mock_wandb = Mock()
+    mock_wandb_apis = Mock()
     mock_wandb_apis_public = Mock()
-    mock_wandb_apis_public.Api.return_value = mock_api
-    mock_wandb.apis.public = mock_wandb_apis_public
+    mock_wandb_apis_public.Api = Mock(return_value=mock_api)
+    mock_wandb_apis.public = mock_wandb_apis_public
+
+    mock_wandb = Mock()
+    mock_wandb.apis = mock_wandb_apis
 
     # Patch wandb import
     with patch.dict(
         "sys.modules",
         {
             "wandb": mock_wandb,
-            "wandb.apis": Mock(),
+            "wandb.apis": mock_wandb_apis,
             "wandb.apis.public": mock_wandb_apis_public,
         },
     ):
@@ -422,17 +425,20 @@ def test_download_from_wandb_checkpoint_not_found(monkeypatch, tmp_path):
     mock_api.artifact.return_value = mock_artifact
 
     # Mock wandb module with nested structure for wandb.apis.public
-    mock_wandb = Mock()
+    mock_wandb_apis = Mock()
     mock_wandb_apis_public = Mock()
-    mock_wandb_apis_public.Api.return_value = mock_api
-    mock_wandb.apis.public = mock_wandb_apis_public
+    mock_wandb_apis_public.Api = Mock(return_value=mock_api)
+    mock_wandb_apis.public = mock_wandb_apis_public
+
+    mock_wandb = Mock()
+    mock_wandb.apis = mock_wandb_apis
 
     # Patch wandb import
     with patch.dict(
         "sys.modules",
         {
             "wandb": mock_wandb,
-            "wandb.apis": Mock(),
+            "wandb.apis": mock_wandb_apis,
             "wandb.apis.public": mock_wandb_apis_public,
         },
     ):
@@ -460,17 +466,20 @@ def test_download_from_wandb_api_error(monkeypatch):
     mock_api.artifact.side_effect = RuntimeError("WandB API error")
 
     # Mock wandb module with nested structure for wandb.apis.public
-    mock_wandb = Mock()
+    mock_wandb_apis = Mock()
     mock_wandb_apis_public = Mock()
-    mock_wandb_apis_public.Api.return_value = mock_api
-    mock_wandb.apis.public = mock_wandb_apis_public
+    mock_wandb_apis_public.Api = Mock(return_value=mock_api)
+    mock_wandb_apis.public = mock_wandb_apis_public
+
+    mock_wandb = Mock()
+    mock_wandb.apis = mock_wandb_apis
 
     # Patch wandb import
     with patch.dict(
         "sys.modules",
         {
             "wandb": mock_wandb,
-            "wandb.apis": Mock(),
+            "wandb.apis": mock_wandb_apis,
             "wandb.apis.public": mock_wandb_apis_public,
         },
     ):
@@ -514,17 +523,20 @@ def test_download_wandb_model_multi_project_fallback(monkeypatch, tmp_path):
     mock_api.artifact.side_effect = artifact_side_effect
 
     # Mock wandb module with nested structure for wandb.apis.public
-    mock_wandb = Mock()
+    mock_wandb_apis = Mock()
     mock_wandb_apis_public = Mock()
-    mock_wandb_apis_public.Api.return_value = mock_api
-    mock_wandb.apis.public = mock_wandb_apis_public
+    mock_wandb_apis_public.Api = Mock(return_value=mock_api)
+    mock_wandb_apis.public = mock_wandb_apis_public
+
+    mock_wandb = Mock()
+    mock_wandb.apis = mock_wandb_apis
 
     # Patch wandb import
     with patch.dict(
         "sys.modules",
         {
             "wandb": mock_wandb,
-            "wandb.apis": Mock(),
+            "wandb.apis": mock_wandb_apis,
             "wandb.apis.public": mock_wandb_apis_public,
         },
     ):

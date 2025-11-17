@@ -239,7 +239,7 @@ def download_wandb_model(  # noqa: PLR0913
                 return result
 
             last_error = result.get("error", "Unknown error")
-            print(f"  ⚠ Not found in {project}, trying next project...")
+            logger.warning(f"Not found in {project}, trying next project...")
 
         # If all projects failed, return the last error
         return {
@@ -350,26 +350,28 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912, PLR0915
 
         # Download the artifact - try seed_X first, then v{X}, then latest
         logger.info(f"[DOWNLOAD] Attempting to fetch artifact: {artifact_path}")
-        print(f"Downloading {display_name} ({algorithm}) from WandB: {artifact_path}")
+        logger.info(
+            f"Downloading {display_name} ({algorithm}) from WandB: {artifact_path}"
+        )
         try:
             artifact = api.artifact(artifact_path, type="model")
         except Exception as e:
             # Try vX format as fallback
-            print(f"  Version 'seed_{seed}' not found: {e}")
-            print(f"  Trying 'v{seed}' format...")
+            logger.debug(f"Version 'seed_{seed}' not found: {e}")
+            logger.info(f"Trying 'v{seed}' format...")
             try:
                 artifact_path = f"{wandb_project}/{artifact_name}:v{seed}"
                 artifact = api.artifact(artifact_path, type="model")
             except Exception as e2:
                 # Try latest as last resort
-                print(f"  Version 'v{seed}' not found: {e2}")
-                print("  Trying 'latest' version...")
+                logger.debug(f"Version 'v{seed}' not found: {e2}")
+                logger.info("Trying 'latest' version...")
                 artifact_path = f"{wandb_project}/{artifact_name}:latest"
                 artifact = api.artifact(artifact_path, type="model")
 
         # Download to specified directory or default cache
-        print(f"  ✓ Found artifact: {artifact_path}")
-        print("  Downloading files...")
+        logger.info(f"Found artifact: {artifact_path}")
+        logger.info("Downloading files...")
         if download_dir:
             artifact_dir = artifact.download(root=download_dir)
         else:
@@ -385,7 +387,7 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912, PLR0915
                 "error": f"Checkpoint file not found at {checkpoint_path}",
             }
 
-        print(f"  ✓ Downloaded successfully to: {checkpoint_path}")
+        logger.info(f"Downloaded successfully to: {checkpoint_path}")
 
         # Get run configuration if available
         run_config = {}
@@ -413,22 +415,22 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912, PLR0915
                     try:
                         run_config = dict(run.config)
                     except (TypeError, ValueError):
-                        print(
-                            f"Warning: Could not convert run.config (type: {type(run.config)})"
+                        logger.warning(
+                            f"Could not convert run.config (type: {type(run.config)})"
                         )
                         run_config = {}
 
                 # Display hyperparameters if we have them
                 if run_config:
-                    print("\n" + "=" * 60)
-                    print("Model Hyperparameters from WandB:")
-                    print("=" * 60)
+                    logger.info("=" * 60)
+                    logger.info("Model Hyperparameters from WandB:")
+                    logger.info("=" * 60)
                     for key, value in run_config.items():
-                        print(f"  {key}: {value}")
-                    print("=" * 60 + "\n")
+                        logger.info(f"  {key}: {value}")
+                    logger.info("=" * 60)
         except Exception as e:
             # Silently skip if run config is not available - will use defaults
-            print(f"Note: Could not retrieve run configuration: {e}")
+            logger.debug(f"Note: Could not retrieve run configuration: {e}")
 
         # Determine actual model type for response
         actual_model_type = "model" if algorithm == "diffusion_2d_cond" else model_type
@@ -564,7 +566,10 @@ def load_wandb_model(  # noqa: PLR0913
         - Model is set to eval mode after loading
         - For diffusion models, the model_type parameter is informational only
     """
+    import logging
     import torch as th
+
+    logger = logging.getLogger(__name__)
 
     # Check if PyTorch is available
     if not TORCH_AVAILABLE:
@@ -594,12 +599,12 @@ def load_wandb_model(  # noqa: PLR0913
 
         # Display hyperparameters if provided
         if run_config:
-            print("\n" + "=" * 60)
-            print("Model Hyperparameters:")
-            print("=" * 60)
+            logger.info("=" * 60)
+            logger.info("Model Hyperparameters:")
+            logger.info("=" * 60)
             for key, value in run_config.items():
-                print(f"  {key}: {value}")
-            print("=" * 60 + "\n")
+                logger.info(f"  {key}: {value}")
+            logger.info("=" * 60)
 
         # Get model configuration
         if run_config and "latent_dim" in run_config:
@@ -701,6 +706,10 @@ def _load_diffusion_model(
 
     Returns: (model, sampler, num_timesteps, error_dict)
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     try:
         import torch as th
         from diffusers import UNet2DConditionModel  # type: ignore[import-untyped]
@@ -728,12 +737,12 @@ def _load_diffusion_model(
 
         # Display hyperparameters if available
         if run_config:
-            print("\n" + "=" * 60)
-            print("Diffusion Model Hyperparameters:")
-            print("=" * 60)
+            logger.info("=" * 60)
+            logger.info("Diffusion Model Hyperparameters:")
+            logger.info("=" * 60)
             for key, value in run_config.items():
-                print(f"  {key}: {value}")
-            print("=" * 60 + "\n")
+                logger.info(f"  {key}: {value}")
+            logger.info("=" * 60)
 
         # Set defaults if not in checkpoint
         layers_per_block = run_config.get("layers_per_block", 2)
@@ -1114,7 +1123,10 @@ def _find_or_download_model(
     Returns:
         Tuple of (checkpoint_path, error_dict). Error dict is None on success.
     """
+    import logging
     import random
+
+    logger = logging.getLogger(__name__)
 
     # If path provided, just validate it exists
     if checkpoint_path:
@@ -1150,7 +1162,7 @@ def _find_or_download_model(
                 return str(checkpoint), None
 
     # No existing model found, download one
-    print(
+    logger.info(
         f"No local model found for {problem_id}/{algorithm}. Downloading from WandB..."
     )
 
@@ -1257,7 +1269,10 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         - Diffusion models use iterative denoising (slower but higher quality)
         - GAN models use single-shot generation (faster)
     """
+    import logging
     import torch as th
+
+    logger = logging.getLogger(__name__)
 
     # Validate inputs
     error = _validate_sampling_inputs(algorithm, problem_id, conditions, n_samples)
@@ -1335,21 +1350,21 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 
             # Display hyperparameters if available in checkpoint
             if "config" in ckpt:
-                print("\n" + "=" * 60)
-                print("GAN Model Hyperparameters:")
-                print("=" * 60)
+                logger.info("=" * 60)
+                logger.info("GAN Model Hyperparameters:")
+                logger.info("=" * 60)
                 for key, value in ckpt["config"].items():
-                    print(f"  {key}: {value}")
-                print("=" * 60 + "\n")
+                    logger.info(f"  {key}: {value}")
+                logger.info("=" * 60)
             else:
                 # Display the parameters we're using
-                print("\n" + "=" * 60)
-                print("GAN Model Parameters (using defaults):")
-                print("=" * 60)
-                print(f"  latent_dim: {latent_dim}")
-                print(f"  n_conds: {len(problem.conditions)}")
-                print(f"  design_shape: {problem.design_space.shape}")
-                print("=" * 60 + "\n")
+                logger.info("=" * 60)
+                logger.info("GAN Model Parameters (using defaults):")
+                logger.info("=" * 60)
+                logger.info(f"  latent_dim: {latent_dim}")
+                logger.info(f"  n_conds: {len(problem.conditions)}")
+                logger.info(f"  design_shape: {problem.design_space.shape}")
+                logger.info("=" * 60)
 
             # Initialize the model
             is_conditional = SUPPORTED_ALGORITHMS[algorithm]["conditional"]
