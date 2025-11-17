@@ -4,7 +4,6 @@ Message processing and formatting functions for the Streamlit UI.
 Handles message formatting, display, and special content extraction.
 """
 
-import ast
 import base64
 import re
 from typing import Any
@@ -304,24 +303,8 @@ def format_ai_message(message: AIMessage | ToolMessage) -> str:
     max_content_length = 1000
 
     if isinstance(message, ToolMessage):
-        # Tool results - Try to parse as dict and extract user-friendly message
+        # Tool results
         content = str(message.content)
-
-        # Try to parse the content as a dict (common for structured tool returns)
-        try:
-            parsed = ast.literal_eval(content)
-            if isinstance(parsed, dict):
-                # If the dict has a "message" field, use that for display
-                if "message" in parsed:
-                    return parsed["message"]
-                # If it has "error" field and success is False, show the error
-                if not parsed.get("success", True) and "error" in parsed:
-                    return f"❌ {parsed['error']}"
-        except (ValueError, SyntaxError):
-            # Not a dict, use as-is
-            pass
-
-        # Fallback: show as code block (original behavior)
         if len(content) > max_content_length:
             content = content[:max_content_length] + "\n\n... (truncated)"
         return f"```\n{content}\n```"

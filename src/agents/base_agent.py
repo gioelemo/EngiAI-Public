@@ -114,11 +114,23 @@ class BaseAgent(ABC):
         # Only AIMessage has tool_calls
         if isinstance(last_message, AIMessage) and last_message.tool_calls:
             for tool_call in last_message.tool_calls:
-                tool = self.tools_by_name[tool_call["name"]]
-                observation = tool.invoke(tool_call["args"])
-                result.append(
-                    ToolMessage(content=str(observation), tool_call_id=tool_call["id"])
-                )
+                try:
+                    tool = self.tools_by_name[tool_call["name"]]
+                    observation = tool.invoke(tool_call["args"])
+                    result.append(
+                        ToolMessage(
+                            content=str(observation), tool_call_id=tool_call["id"]
+                        )
+                    )
+                except Exception as e:
+                    # CRITICAL: Always return a ToolMessage, even for errors
+                    # Otherwise OpenAI API will fail with "tool_call_id did not have response"
+                    error_content = (
+                        f"❌ Error executing tool '{tool_call['name']}': {e!s}"
+                    )
+                    result.append(
+                        ToolMessage(content=error_content, tool_call_id=tool_call["id"])
+                    )
 
         return {"messages": result}
 
