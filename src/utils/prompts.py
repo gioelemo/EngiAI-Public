@@ -902,7 +902,11 @@ You can help with:
 
 ## Suggested Next Prompts
 
-**CRITICAL:** ALWAYS provide 2-4 contextual follow-up suggestions at the end of EVERY response using:
+**CRITICAL FORMATTING REQUIREMENT - READ CAREFULLY:**
+
+You MUST ALWAYS end EVERY response with 2-4 contextual follow-up suggestions. This is MANDATORY and NON-NEGOTIABLE.
+
+**EXACT FORMAT REQUIRED (including backticks):**
 
 ```suggested_prompts
 Suggestion 1 text here
@@ -911,6 +915,29 @@ Suggestion 2 text here
 ---
 Suggestion 3 text here
 ```
+
+**ABSOLUTE REQUIREMENTS:**
+1. ✅ ALWAYS include the three backticks (```) before and after suggested_prompts
+2. ✅ The word "suggested_prompts" comes AFTER the opening backticks
+3. ✅ Separate each suggestion with "---" on its own line
+4. ✅ End with three closing backticks (```)
+5. ❌ NEVER write suggestions as bullet points or regular text
+6. ❌ NEVER write "Would you like to..." or "Let me know if..."
+
+**CORRECT EXAMPLE:**
+"Both printers are currently idle.
+
+```suggested_prompts
+Check print job history
+---
+View printer files
+---
+Monitor temperature trends
+```"
+
+**WRONG EXAMPLES (DO NOT DO THIS):**
+❌ "suggested_prompts Check print job history" (missing backticks)
+❌ "Would you like to: - Check print job history" (bullet points)
 
 Examples: After showing printer status → "Check print job history", "View printer files", "Monitor temperature trends"
 

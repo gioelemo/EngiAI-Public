@@ -67,11 +67,74 @@ def extract_suggested_prompts(response: str) -> tuple[str, list[str]]:
     Returns:
         Tuple of (cleaned_response, list of suggested prompts)
     """
-    # Pattern to match suggested prompts block
+    # Pattern to match suggested prompts block with proper backticks
     pattern = r"```suggested_prompts\s*(.*?)\s*```"
     match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
 
+    # Fallback: Check for malformed suggested_prompts without backticks
+    # This handles cases where LLM outputs "suggested_prompts" without code fences
     if not match:
+        # Pattern 1: Multi-line format (each suggestion on new line)
+        fallback_pattern_multiline = r"suggested_prompts\s*\n((?:.*?\n)+?)(?=\n\n|\Z)"
+        fallback_match = re.search(
+            fallback_pattern_multiline, response, re.DOTALL | re.IGNORECASE
+        )
+
+        if fallback_match:
+            # Extract suggestions from malformed block
+            suggestions_text = fallback_match.group(1)
+            # Try to parse line-by-line format (newline separated)
+            lines = [
+                line.strip() for line in suggestions_text.split("\n") if line.strip()
+            ]
+
+            # Filter out lines that look like markdown formatting or are too short
+            min_length = 3
+            suggestions = [
+                line
+                for line in lines
+                if len(line) > min_length
+                and not line.startswith("#")
+                and not line.startswith("*")
+            ]
+
+            if suggestions:
+                # Remove the malformed block from response
+                cleaned_response = response.replace(fallback_match.group(0), "").strip()
+                cleaned_response = re.sub(r"\n{3,}", "\n\n", cleaned_response)
+                return cleaned_response, suggestions
+
+        # Pattern 2: Single-line format (all on same line after "suggested_prompts")
+        fallback_pattern_inline = r"suggested_prompts\s+(.*?)(?=\n\n|\Z)"
+        fallback_match_inline = re.search(
+            fallback_pattern_inline, response, re.DOTALL | re.IGNORECASE
+        )
+
+        if fallback_match_inline:
+            suggestions_text = fallback_match_inline.group(1)
+            # Split by newlines to get individual suggestions
+            lines = [
+                line.strip() for line in suggestions_text.split("\n") if line.strip()
+            ]
+
+            min_length = 3
+            suggestions = [
+                line
+                for line in lines
+                if len(line) > min_length
+                and not line.startswith("#")
+                and not line.startswith("*")
+            ]
+
+            if suggestions:
+                # Remove the malformed block from response
+                cleaned_response = response.replace(
+                    fallback_match_inline.group(0), ""
+                ).strip()
+                cleaned_response = re.sub(r"\n{3,}", "\n\n", cleaned_response)
+                return cleaned_response, suggestions
+
+        # No suggestions found at all
         return response, []
 
     # Extract the suggestions
