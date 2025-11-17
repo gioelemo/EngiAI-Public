@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Mock author structure in ArXiv agent tests
-- Different small fix (see full changelog)
+- Different small fix
+- Wandb Download works again
 
 ## [0.0.1] - 2025-11-06
 
