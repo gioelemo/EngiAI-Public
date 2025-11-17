@@ -145,6 +145,7 @@ def download_wandb_model(  # noqa: PLR0913
     Returns:
         dict with download information:
         - success: bool indicating if download succeeded
+        - message: str with formatted success message - ALWAYS show this to the user verbatim
         - artifact_path: str with full WandB artifact path
         - download_path: str with local path to downloaded model
         - checkpoint_path: str with path to model checkpoint file
@@ -152,6 +153,9 @@ def download_wandb_model(  # noqa: PLR0913
         - algorithm_info: dict with algorithm properties (dimensions, conditional, etc.)
         - run_config: dict with training configuration (if available)
         - error: str with error message (only if success=False)
+
+        IMPORTANT: Always display the 'message' field to users as it contains important
+        information about seed mismatches and download details.
 
     Example:
         >>> # Download a discriminator model (default for GANs)
@@ -435,11 +439,34 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912, PLR0915
         # Determine actual model type for response
         actual_model_type = "model" if algorithm == "diffusion_2d_cond" else model_type
 
+        # Extract the actual version from the artifact path (e.g., "seed_123", "v12", "latest")
+        actual_version = (
+            artifact_path.split(":")[-1] if ":" in artifact_path else "unknown"
+        )
+
+        # Extract actual seed from run_config if available
+        actual_seed = run_config.get("seed", "unknown") if run_config else "unknown"
+
+        # Build success message with clear indication if seed differs
+        seed_mismatch = str(seed) != str(actual_seed) and actual_seed != "unknown"
+
+        if seed_mismatch:
+            seed_info = (
+                f"  ⚠️  SEED MISMATCH DETECTED ⚠️\n"
+                f"  Requested: seed {seed}\n"
+                f"  Actual: seed {actual_seed}\n"
+                f"  Reason: Model with seed {seed} does not exist in WandB.\n"
+                f"  Action: Downloaded '{actual_version}' version instead (trained with seed {actual_seed}).\n"
+            )
+        else:
+            seed_info = f"  Seed: {seed}\n"
+
         success_message = (
             f"✅ Successfully downloaded {display_name} model!\n"
             f"  Algorithm: {algorithm}\n"
             f"  Problem: {problem_id}\n"
-            f"  Seed: {seed}\n"
+            f"{seed_info}"
+            f"  Artifact version: {actual_version}\n"
             f"  WandB artifact: {artifact_path}\n"
             f"  Local path: {checkpoint_path}\n"
             f"  File size: {checkpoint_path.stat().st_size / (1024 * 1024):.1f} MB"
