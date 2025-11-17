@@ -908,21 +908,43 @@ def _save_designs(
 ) -> tuple[list[str], list[str]]:
     """Save generated designs as .npy and .png files. Returns (design_files, render_files)."""
     import numpy as np
+    import matplotlib.pyplot as plt
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     design_files = []
     render_files = []
 
     for i in range(n_samples):
+        design = gen_designs[i]
+
+        # Log design statistics for debugging
+        logger.info(f"Design {i} statistics:")
+        logger.info(f"  Shape: {design.shape}")
+        logger.info(f"  Min: {design.min():.4f}, Max: {design.max():.4f}")
+        logger.info(f"  Mean: {design.mean():.4f}, Std: {design.std():.4f}")
+        logger.info(f"  Non-zero elements: {np.count_nonzero(design)}/{design.size}")
+
         # Save as numpy array
         design_filename = output_path / f"generated_design_{i}.npy"
-        np.save(design_filename, gen_designs[i])
+        np.save(design_filename, design)
         design_files.append(str(design_filename))
 
         # Render and save visualization
         render_filename = output_path / f"generated_design_{i}.png"
-        fig, _ = problem.render(gen_designs[i])
-        fig.savefig(str(render_filename), dpi=150, bbox_inches="tight")
-        render_files.append(str(render_filename))
+        try:
+            fig, _ = problem.render(design)
+
+            # Save to file
+            fig.savefig(str(render_filename), dpi=150, bbox_inches="tight")
+            render_files.append(str(render_filename))
+
+            plt.close(fig)  # Close figure to free memory
+            logger.info(f"  Saved render to: {render_filename}")
+        except Exception:
+            logger.exception(f"  Failed to render design {i}")
+            render_files.append("ERROR: Rendering failed")
 
     return design_files, render_files
 
@@ -1251,6 +1273,8 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         output_dir: Directory to save generated designs (default: "outputs")
         seed: Model version/seed to download if checkpoint_path is None. Will try versions
             in order: seed_{X}, v{X}, latest (default: 1)
+            NOTE: This is for MODEL SELECTION, not generation randomness. Each generation
+            will produce different designs automatically using a time-based random seed.
 
     Returns:
         dict with:
@@ -1298,8 +1322,17 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     """
     import logging
     import torch as th
+    import time
 
     logger = logging.getLogger(__name__)
+
+    # Set random seed for reproducibility and diversity
+    # Use current time in nanoseconds to ensure different designs each time
+    generation_seed = int(time.time_ns() % (2**32))
+    th.manual_seed(generation_seed)
+    if th.cuda.is_available():
+        th.cuda.manual_seed_all(generation_seed)
+    logger.info(f"Using generation seed: {generation_seed}")
 
     # Validate inputs
     error = _validate_sampling_inputs(algorithm, problem_id, conditions, n_samples)
@@ -1317,10 +1350,29 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 
     # Set default conditions if not provided
     if conditions is None:
-        conditions = [
-            {"volfrac": 0.35, "rmin": 2.0, "forcedist": 0.2, "overhang_constraint": 0.0}
-            for _ in range(n_samples)
-        ]
+        # Add slight variations to conditions to ensure design diversity
+        # Each design gets slightly different target conditions
+        import random
+
+        conditions = []
+        for _ in range(n_samples):
+            # Add small random variations around base values
+            base_volfrac = 0.35
+            base_forcedist = 0.2
+            conditions.append(
+                {
+                    "volfrac": base_volfrac + random.uniform(-0.05, 0.05),  # 0.30-0.40
+                    "rmin": 2.0,  # Keep constant for consistent feature size
+                    "forcedist": base_forcedist
+                    + random.uniform(-0.1, 0.1),  # 0.10-0.30
+                    "overhang_constraint": 0.0,
+                }
+            )
+        logger.info(f"Generated varied conditions for {n_samples} designs:")
+        for i, cond in enumerate(conditions):
+            logger.info(
+                f"  Design {i}: volfrac={cond['volfrac']:.3f}, forcedist={cond['forcedist']:.2f}"
+            )
 
     try:
         # Import required libraries
@@ -1442,6 +1494,18 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
             gen_designs, n_samples, output_path, problem
         )
 
+        # Build message with just conditions (no images to avoid context overflow)
+        message_parts = []
+        for i in range(n_samples):
+            message_parts.append(f"**Design {i}:**")
+            message_parts.append(f"- Volume Fraction: {conditions[i]['volfrac']:.3f}")
+            message_parts.append(
+                f"- Force Distribution: {conditions[i]['forcedist']:.3f}"
+            )
+            message_parts.append(f"- Render: {render_files[i]}")
+            if i < n_samples - 1:
+                message_parts.append("")  # Empty line between designs
+
         return {
             "success": True,
             "n_samples": n_samples,
@@ -1452,7 +1516,7 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
             "problem_id": problem_id,
             "checkpoint_path": resolved_checkpoint_path,
             "output_dir": str(output_path),
-            "message": f"Successfully generated {n_samples} designs using {algorithm} model from {Path(resolved_checkpoint_path).parent.name}",
+            "message": "\n".join(message_parts),
         }
 
     except Exception as e:
