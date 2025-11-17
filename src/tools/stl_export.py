@@ -282,7 +282,7 @@ def convert_design_to_stl(
             "scale_xy": scale_xy,
             "scale_z": scale_z,
             "mirrored": mirror_y,
-            "message": f"Successfully converted {input_path.name} to {output_path.name}"
+            "message": f"Successfully converted {input_path.name} to outputs/{output_path.name}"
             + (" (mirrored along Y-axis)" if mirror_y else "")
             + f". Created 3D extruded mesh with {num_triangles} triangles from {non_zero_count} cells. "
             f"Dimensions: {width}x{height} grid, scaled by {scale_xy}x{scale_xy}x{scale_z}",
