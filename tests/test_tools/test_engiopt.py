@@ -378,12 +378,21 @@ def test_download_from_wandb_success(monkeypatch, tmp_path):
 
     mock_api.artifact.return_value = mock_artifact
 
-    # Mock wandb module
+    # Mock wandb module with nested structure for wandb.apis.public
     mock_wandb = Mock()
-    mock_wandb.Api.return_value = mock_api
+    mock_wandb_apis_public = Mock()
+    mock_wandb_apis_public.Api.return_value = mock_api
+    mock_wandb.apis.public = mock_wandb_apis_public
 
     # Patch wandb import
-    with patch.dict("sys.modules", {"wandb": mock_wandb}):
+    with patch.dict(
+        "sys.modules",
+        {
+            "wandb": mock_wandb,
+            "wandb.apis": Mock(),
+            "wandb.apis.public": mock_wandb_apis_public,
+        },
+    ):
         result = _download_from_wandb(
             problem_id="beams2d",
             algorithm="cgan_cnn_2d",
@@ -412,12 +421,21 @@ def test_download_from_wandb_checkpoint_not_found(monkeypatch, tmp_path):
 
     mock_api.artifact.return_value = mock_artifact
 
-    # Mock wandb module
+    # Mock wandb module with nested structure for wandb.apis.public
     mock_wandb = Mock()
-    mock_wandb.Api.return_value = mock_api
+    mock_wandb_apis_public = Mock()
+    mock_wandb_apis_public.Api.return_value = mock_api
+    mock_wandb.apis.public = mock_wandb_apis_public
 
     # Patch wandb import
-    with patch.dict("sys.modules", {"wandb": mock_wandb}):
+    with patch.dict(
+        "sys.modules",
+        {
+            "wandb": mock_wandb,
+            "wandb.apis": Mock(),
+            "wandb.apis.public": mock_wandb_apis_public,
+        },
+    ):
         result = _download_from_wandb(
             problem_id="beams2d",
             algorithm="cgan_cnn_2d",
@@ -441,12 +459,21 @@ def test_download_from_wandb_api_error(monkeypatch):
     mock_api = Mock()
     mock_api.artifact.side_effect = RuntimeError("WandB API error")
 
-    # Mock wandb module
+    # Mock wandb module with nested structure for wandb.apis.public
     mock_wandb = Mock()
-    mock_wandb.Api.return_value = mock_api
+    mock_wandb_apis_public = Mock()
+    mock_wandb_apis_public.Api.return_value = mock_api
+    mock_wandb.apis.public = mock_wandb_apis_public
 
     # Patch wandb import
-    with patch.dict("sys.modules", {"wandb": mock_wandb}):
+    with patch.dict(
+        "sys.modules",
+        {
+            "wandb": mock_wandb,
+            "wandb.apis": Mock(),
+            "wandb.apis.public": mock_wandb_apis_public,
+        },
+    ):
         result = _download_from_wandb(
             problem_id="beams2d",
             algorithm="cgan_cnn_2d",
@@ -486,12 +513,21 @@ def test_download_wandb_model_multi_project_fallback(monkeypatch, tmp_path):
 
     mock_api.artifact.side_effect = artifact_side_effect
 
-    # Mock wandb module
+    # Mock wandb module with nested structure for wandb.apis.public
     mock_wandb = Mock()
-    mock_wandb.Api.return_value = mock_api
+    mock_wandb_apis_public = Mock()
+    mock_wandb_apis_public.Api.return_value = mock_api
+    mock_wandb.apis.public = mock_wandb_apis_public
 
     # Patch wandb import
-    with patch.dict("sys.modules", {"wandb": mock_wandb}):
+    with patch.dict(
+        "sys.modules",
+        {
+            "wandb": mock_wandb,
+            "wandb.apis": Mock(),
+            "wandb.apis.public": mock_wandb_apis_public,
+        },
+    ):
         result = download_wandb_model.invoke(
             {
                 "problem_id": "beams2d",

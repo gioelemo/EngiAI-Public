@@ -272,6 +272,7 @@ module = [
   "torch",
   "uvicorn",
   "wandb",
+  "wandb.*",
   "watchdog",
 ]
 ignore_missing_imports = true
