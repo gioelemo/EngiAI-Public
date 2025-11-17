@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path("../..").resolve()))
 project = "Engineer Assistant"
 copyright = "2025, Engineer Assistant Contributors"
 author = "Gioele Molinari"
-release = "0.0.1"
+release = "1.0.0"
 
 # -- General configuration ---------------------------------------------------
 

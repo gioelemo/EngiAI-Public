@@ -1,6 +1,6 @@
 [project]
 name = "engineer-assistant"
-version = "0.0.1"
+version = "1.0.0"
 description = "AI Assistant for Mechanical Engineering Design"
 authors = [
     {name = "Gioele Molinari", email = "gioelemo@ethz.ch"}
