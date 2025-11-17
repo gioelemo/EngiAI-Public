@@ -25,7 +25,7 @@ if str(project_root) not in sys.path:
 
 from config import config  # noqa: E402
 from src.tools import EngineerRAGStore, MultimodalDocumentProcessor  # noqa: E402
-from src.ui import chat, home, settings, wandb  # noqa: E402
+from src.ui import chat, home, settings, wandb_report  # noqa: E402
 from src.ui.chat_management import (  # noqa: E402
     create_new_chat,
     delete_chat,
@@ -694,7 +694,7 @@ def main() -> None:
         url_path="chat",
     )
     wandb_page = st.Page(
-        wandb.render,
+        wandb_report.render,
         title="W&B Report",
         icon=":material/analytics:",
         url_path="wandb-report",

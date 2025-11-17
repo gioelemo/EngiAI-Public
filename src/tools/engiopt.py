@@ -109,12 +109,15 @@ def download_wandb_model(  # noqa: PLR0913
     problem_id: Literal["beams2d"] = "beams2d",
     algorithm: str = "cgan_cnn_2d",
     seed: int = 1,
-    model_type: Literal["discriminator", "generator"] = "discriminator",
+    model_type: Literal["discriminator", "generator"] = "generator",
     wandb_project: str | None = None,
     download_dir: str | None = None,
 ) -> dict[str, Any]:
     """
     Download a pre-trained generative model from WandB for engineering design.
+
+    Use this tool when the user asks to "download a model", "get a model from wandb",
+    "download the generator", or similar requests to download trained models.
 
     This tool downloads models trained with the engiopt library that can be used
     for inverse design tasks. By default, it searches the user's personal models first,
@@ -125,7 +128,9 @@ def download_wandb_model(  # noqa: PLR0913
         algorithm: Model architecture to download. Options:
             - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
             - diffusion_2d_cond: Conditional Diffusion (2D)
-        seed: Random seed used during model training (default: 1)
+        seed: Random seed / version number of the model to download.
+            IMPORTANT: If the user specifies a seed number (e.g., "seed 198", "with seed 198"),
+            you MUST pass that number here. Default: 1
         model_type: Type of model to download. Options:
             - discriminator: Download discriminator model [default] (for GANs)
             - generator: Download generator model (for GANs)
@@ -184,6 +189,20 @@ def download_wandb_model(  # noqa: PLR0913
         - For diffusion models, the model_type parameter is ignored
         - Customize project search order with WANDB_PERSONAL_PROJECT and WANDB_OFFICIAL_PROJECT env vars
     """
+    # Debug logging
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info("=" * 60)
+    logger.info("download_wandb_model called with:")
+    logger.info(f"  problem_id: {problem_id}")
+    logger.info(f"  algorithm: {algorithm}")
+    logger.info(f"  seed: {seed}")
+    logger.info(f"  model_type: {model_type}")
+    logger.info(f"  wandb_project: {wandb_project}")
+    logger.info(f"  download_dir: {download_dir}")
+    logger.info("=" * 60)
+
     # Validation checks
     error_response = _validate_download_inputs(problem_id, algorithm)
     if error_response:
@@ -276,7 +295,7 @@ def _check_wandb_available() -> dict[str, Any] | None:
     return None
 
 
-def _download_from_wandb(  # noqa: PLR0913, PLR0912
+def _download_from_wandb(  # noqa: PLR0913, PLR0912, PLR0915
     problem_id: str,
     algorithm: str,
     seed: int,
@@ -285,29 +304,72 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912
     download_dir: str | None,
 ) -> dict[str, Any]:
     """Download model artifact from WandB."""
-    import wandb
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"[DOWNLOAD] _download_from_wandb called for project: {wandb_project}")
 
     try:
+        # Use explicit import to avoid lazy loading issues
+        import wandb.apis.public
+
+        api_class = wandb.apis.public.Api
+        logger.info("[DOWNLOAD] Importing wandb API - success")
+    except (ImportError, AttributeError) as e:
+        logger.exception("[DOWNLOAD] Failed to import wandb Api")
+        return {
+            "success": False,
+            "error": f"Failed to import wandb Api: {e}",
+        }
+
+    try:
+        logger.info(
+            f"[DOWNLOAD] Getting artifact info for {problem_id}/{algorithm}/{model_type}"
+        )
         # Get correct artifact naming based on algorithm
         artifact_info = _get_artifact_info(problem_id, algorithm, model_type)
         artifact_name = artifact_info["artifact_name"]
         checkpoint_filename = artifact_info["checkpoint_filename"]
+        logger.info(
+            f"[DOWNLOAD] Artifact name: {artifact_name}, checkpoint: {checkpoint_filename}"
+        )
 
         # Construct the artifact path
+        # Try seed_X format first, then fall back to vX or latest
         artifact_version = f"seed_{seed}"
         artifact_path = f"{wandb_project}/{artifact_name}:{artifact_version}"
+        logger.info(f"[DOWNLOAD] Full artifact path: {artifact_path}")
 
         # Initialize WandB API
-        api = wandb.Api()
+        logger.info("[DOWNLOAD] Initializing WandB API...")
+        api = api_class()
+        logger.info("[DOWNLOAD] WandB API initialized successfully")
 
         # Determine display name for logging
         display_name = "model" if algorithm == "diffusion_2d_cond" else model_type
 
-        # Download the artifact
+        # Download the artifact - try seed_X first, then v{X}, then latest
+        logger.info(f"[DOWNLOAD] Attempting to fetch artifact: {artifact_path}")
         print(f"Downloading {display_name} ({algorithm}) from WandB: {artifact_path}")
-        artifact = api.artifact(artifact_path, type="model")
+        try:
+            artifact = api.artifact(artifact_path, type="model")
+        except Exception as e:
+            # Try vX format as fallback
+            print(f"  Version 'seed_{seed}' not found: {e}")
+            print(f"  Trying 'v{seed}' format...")
+            try:
+                artifact_path = f"{wandb_project}/{artifact_name}:v{seed}"
+                artifact = api.artifact(artifact_path, type="model")
+            except Exception as e2:
+                # Try latest as last resort
+                print(f"  Version 'v{seed}' not found: {e2}")
+                print("  Trying 'latest' version...")
+                artifact_path = f"{wandb_project}/{artifact_name}:latest"
+                artifact = api.artifact(artifact_path, type="model")
 
         # Download to specified directory or default cache
+        print(f"  ✓ Found artifact: {artifact_path}")
+        print("  Downloading files...")
         if download_dir:
             artifact_dir = artifact.download(root=download_dir)
         else:
@@ -322,6 +384,8 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912
                 "success": False,
                 "error": f"Checkpoint file not found at {checkpoint_path}",
             }
+
+        print(f"  ✓ Downloaded successfully to: {checkpoint_path}")
 
         # Get run configuration if available
         run_config = {}
@@ -369,6 +433,16 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912
         # Determine actual model type for response
         actual_model_type = "model" if algorithm == "diffusion_2d_cond" else model_type
 
+        success_message = (
+            f"✅ Successfully downloaded {display_name} model!\n"
+            f"  Algorithm: {algorithm}\n"
+            f"  Problem: {problem_id}\n"
+            f"  Seed: {seed}\n"
+            f"  WandB artifact: {artifact_path}\n"
+            f"  Local path: {checkpoint_path}\n"
+            f"  File size: {checkpoint_path.stat().st_size / (1024 * 1024):.1f} MB"
+        )
+
         return {
             "success": True,
             "artifact_path": artifact_path,
@@ -377,10 +451,11 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912
             "model_type": actual_model_type,
             "algorithm_info": SUPPORTED_ALGORITHMS[algorithm],
             "run_config": run_config,
-            "message": f"Successfully downloaded {display_name} ({algorithm}) model for {problem_id} (seed={seed})",
+            "message": success_message,
         }
 
     except Exception as e:
+        logger.exception("[DOWNLOAD] Exception in download function")
         return {
             "success": False,
             "error": f"Failed to download model from WandB: {e!s}",
@@ -1025,6 +1100,7 @@ def _find_or_download_model(
     checkpoint_path: str | None,
     problem_id: str,
     algorithm: str,
+    seed: int = 1,
 ) -> tuple[str | None, dict[str, Any] | None]:
     """
     Find a model checkpoint or download one if needed.
@@ -1033,6 +1109,7 @@ def _find_or_download_model(
         checkpoint_path: Optional path to checkpoint. If None, will search or download.
         problem_id: Engineering problem identifier
         algorithm: Model architecture type
+        seed: Random seed / version number for the model (default: 1)
 
     Returns:
         Tuple of (checkpoint_path, error_dict). Error dict is None on success.
@@ -1081,7 +1158,7 @@ def _find_or_download_model(
         {
             "problem_id": problem_id,
             "algorithm": algorithm,
-            "seed": 1,  # Default to seed 1
+            "seed": seed,
         }
     )
 
@@ -1104,6 +1181,7 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     latent_dim: int = 32,
     device: str = "cpu",
     output_dir: str = "outputs",
+    seed: int = 1,
 ) -> dict[str, Any]:
     """
     Sample/generate designs from a loaded generative model.
@@ -1132,6 +1210,8 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         latent_dim: Latent dimension of the model (default: 32)
         device: Device to run on: "cpu", "cuda", or "mps" (default: "cpu")
         output_dir: Directory to save generated designs (default: "outputs")
+        seed: Model version/seed to download if checkpoint_path is None. Will try versions
+            in order: seed_{X}, v{X}, latest (default: 1)
 
     Returns:
         dict with:
@@ -1186,7 +1266,7 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 
     # Find or download a model if no checkpoint path provided
     resolved_checkpoint_path, error = _find_or_download_model(
-        checkpoint_path, problem_id, algorithm
+        checkpoint_path, problem_id, algorithm, seed
     )
     if error:
         return error
@@ -1487,16 +1567,21 @@ def generate_training_command(cfg: TrainingConfig) -> dict[str, Any]:
     validation = _validate_hpc_resources(hpc_cfg)
 
     # Build command
-    use_wandb = cfg.wandb_entity is not None
-    wandb_str = cfg.wandb_entity if cfg.wandb_entity else "None"
+    use_wandb = os.getenv("USE_WANDB") == "True"
     track_flag = "--track" if use_wandb else "--no-track"
 
+    # Build base command
     command = (
         f"python engiopt/{cfg.algorithm}/{cfg.algorithm}.py "
         f'--problem-id "{cfg.problem_id}" {track_flag} '
-        f"--wandb-entity {wandb_str} --save-model "
-        f"--n-epochs {cfg.epochs} --seed {cfg.seed}"
     )
+
+    # Add wandb entity only if explicitly specified (otherwise use WANDB_ENTITY env var)
+    if cfg.wandb_entity is not None:
+        command += f"--wandb-entity {cfg.wandb_entity} "
+
+    # Add remaining flags
+    command += f"--save-model --n-epochs {cfg.epochs} --seed {cfg.seed}"
 
     # Build SLURM script and save
     slurm_script = _build_slurm_script(cfg, slurm, command)
