@@ -1225,7 +1225,7 @@ def get_problem_info(problem_type: str = "beams2d") -> dict[str, Any]:
     Get information about available EngiBench problems.
 
     Args:
-        problem_type: Type of problem ("beams2d", "airfoil", "truss", etc.)
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
             Default: "beams2d"
 
     Returns:
@@ -1243,31 +1243,49 @@ def get_problem_info(problem_type: str = "beams2d") -> dict[str, Any]:
     problems_info = {
         "beams2d": {
             "description": "2D beam topology optimization problem. Minimize compliance "
-            "(maximize stiffness) while satisfying volume constraints.",
+            "(maximize stiffness) while satisfying volume constraints. Based on the classic "
+            "88-line topology optimization code using SIMP (Solid Isotropic Material with "
+            "Penalization) method.",
             "objectives": [("compliance", "MINIMIZE")],
             "typical_conditions": {
-                "volfrac": "Volume fraction (0-1)",
-                "forcedist": "Force distribution parameter (0-1)",
+                "volfrac": "Volume fraction constraint (0-1, default: 0.35)",
+                "rmin": "Filter radius for density filtering (>0, default: 2.0)",
+                "forcedist": "Force distribution parameter (0-1, default: 0.0)",
+                "overhang_constraint": "Enable overhang constraint (bool, default: False)",
             },
-            "design_space": "2D grid (typically 50x100) with material density at each point",
+            "design_space": "2D grid (50x100) with material density [0,1] at each point",
         },
-        "airfoil": {
-            "description": "Airfoil shape optimization for aerodynamic performance",
-            "objectives": [("drag", "MINIMIZE"), ("lift", "MAXIMIZE")],
+        "thermoelastic2d": {
+            "description": "2D thermoelastic topology optimization problem. Multi-physics problem "
+            "that couples structural (mechanical) and thermal domains. Minimize total compliance "
+            "(structural + thermal) subject to volume constraints. Features one-way coupling from "
+            "thermal to elastic domain through thermal expansion.",
+            "objectives": [
+                ("structural_compliance", "MINIMIZE"),
+                ("thermal_compliance", "MINIMIZE"),
+                ("volume_fraction", "MINIMIZE"),
+            ],
             "typical_conditions": {
-                "reynolds": "Reynolds number",
-                "mach": "Mach number",
+                "volfrac": "Volume fraction constraint (0-1, default: 0.3)",
+                "rmin": "Filter radius for density filtering (>0, default: 1.1)",
+                "weight": "Domain weighting: 1.0=pure structural, 0.0=pure thermal (0-1, default: 0.5)",
+                "fixed_elements": "Binary NxN matrix of structurally fixed elements",
+                "force_elements_x": "Binary NxN matrix of x-direction structural loads",
+                "force_elements_y": "Binary NxN matrix of y-direction structural loads",
+                "heatsink_elements": "Binary NxN matrix of heatsink elements",
             },
-            "design_space": "Control points defining airfoil shape",
+            "design_space": "2D grid (64x64) with material density [0,1] at each point",
         },
     }
 
-    if problem_type.lower() in problems_info:
-        info = problems_info[problem_type.lower()]
+    problem_key = problem_type.lower()
+
+    if problem_key in problems_info:
+        info = problems_info[problem_key]
         return {
             "success": True,
             "available_problems": list(problems_info.keys()),
-            "selected_problem": problem_type.lower(),
+            "selected_problem": problem_key,
             **info,
         }
     else:
@@ -1289,7 +1307,7 @@ def get_problem_details(problem_type: str = "beams2d") -> dict[str, Any]:
     source of problem specifications.
 
     Args:
-        problem_type: Type of problem ("beams2d", etc.)
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
             Default: "beams2d"
 
     Returns:
@@ -1310,34 +1328,39 @@ def get_problem_details(problem_type: str = "beams2d") -> dict[str, Any]:
         >>> # [('compliance', 'MINIMIZE')]
     """
     try:
-        if problem_type.lower() == "beams2d":
-            problem = Beams2D()
+        problem_key = problem_type.lower()
 
-            return {
-                "success": True,
-                "problem_type": problem_type.lower(),
-                "design_space": str(problem.design_space),
-                "design_space_shape": problem.design_space.shape,
-                "design_space_bounds": {
-                    "low": float(problem.design_space.low.min()),
-                    "high": float(problem.design_space.high.max()),
-                },
-                "objectives": [
-                    (name, str(direction)) for name, direction in problem.objectives
-                ],
-                "conditions": problem.conditions,
-                "conditions_keys": problem.conditions_keys,
-                "dataset_id": problem.dataset_id,
-                "description": "This information comes directly from the EngiBench problem object. "
-                "The design_space defines where designs can exist (a 50x100 grid with values 0-1). "
-                "The objectives specify what to optimize (minimize compliance = maximize stiffness). "
-                "The conditions are the parameters that can be varied for different problem instances.",
-            }
-        else:
+        # Check if problem type is supported
+        if problem_key not in PROBLEM_REGISTRY:
             return {
                 "success": False,
-                "error": f"Problem type '{problem_type}' not supported yet. Currently only 'beams2d' is available.",
+                "error": f"Problem type '{problem_type}' not supported. Available: {list(PROBLEM_REGISTRY.keys())}",
             }
+
+        # Create problem instance using the registry
+        problem_class = PROBLEM_REGISTRY[problem_key]
+        problem = problem_class()
+
+        return {
+            "success": True,
+            "problem_type": problem_key,
+            "design_space": str(problem.design_space),
+            "design_space_shape": problem.design_space.shape,
+            "design_space_bounds": {
+                "low": float(problem.design_space.low.min()),
+                "high": float(problem.design_space.high.max()),
+            },
+            "objectives": [
+                (name, str(direction)) for name, direction in problem.objectives
+            ],
+            "conditions": problem.conditions,
+            "conditions_keys": problem.conditions_keys,
+            "dataset_id": problem.dataset_id,
+            "description": f"Information from the EngiBench {problem_key} problem object. "
+            f"The design_space defines where designs can exist (shape {problem.design_space.shape}). "
+            f"The objectives specify what to optimize. "
+            f"The conditions are the parameters that can be varied for different problem instances.",
+        }
     except ImportError:
         return {
             "success": False,
@@ -1357,7 +1380,7 @@ def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
     and their corresponding parameters.
 
     Args:
-        problem_type: Type of problem ("beams2d", etc.)
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
             Default: "beams2d"
 
     Returns:
@@ -1375,43 +1398,59 @@ def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
         >>> print(f"Features: {info['features']}")
     """
     try:
-        if problem_type.lower() == "beams2d":
-            problem = Beams2D()
-            dataset = problem.dataset
+        problem_key = problem_type.lower()
 
-            # Get information about each split
-            splits = {}
-            total_samples = 0
-            features: list[str] = []
-
-            for split_name in dataset:
-                split = dataset[split_name]
-                splits[split_name] = {
-                    "num_rows": len(split),
-                    "num_columns": len(split.column_names),
-                }
-                total_samples += len(split)
-                if not features and split.column_names:
-                    features = split.column_names
-
-            return {
-                "success": True,
-                "problem_type": problem_type.lower(),
-                "dataset_id": problem.dataset_id,
-                "splits": splits,
-                "split_names": list(dataset.keys()),
-                "features": features,
-                "total_samples": total_samples,
-                "description": "HuggingFace dataset containing pre-computed optimal beam designs. "
-                "Each sample includes the optimal design array, optimization parameters "
-                "(volfrac, rmin, forcedist, overhang_constraint), compliance value (c), "
-                "and optimization history.",
-            }
-        else:
+        # Check if problem type is supported
+        if problem_key not in PROBLEM_REGISTRY:
             return {
                 "success": False,
-                "error": f"Problem type '{problem_type}' not supported yet. Currently only 'beams2d' is available.",
+                "error": f"Problem type '{problem_type}' not supported. Available: {list(PROBLEM_REGISTRY.keys())}",
             }
+
+        # Create problem instance using the registry
+        problem_class = PROBLEM_REGISTRY[problem_key]
+        problem = problem_class()
+        dataset = problem.dataset
+
+        # Get information about each split
+        splits = {}
+        total_samples = 0
+        features: list[str] = []
+
+        for split_name in dataset:
+            split = dataset[split_name]
+            splits[split_name] = {
+                "num_rows": len(split),
+                "num_columns": len(split.column_names),
+            }
+            total_samples += len(split)
+            if not features and split.column_names:
+                features = split.column_names
+
+        # Problem-specific descriptions
+        descriptions = {
+            "beams2d": "HuggingFace dataset containing pre-computed optimal beam designs. "
+            "Each sample includes the optimal design array, optimization parameters "
+            "(volfrac, rmin, forcedist, overhang_constraint), compliance value (c), "
+            "and optimization history.",
+            "thermoelastic2d": "HuggingFace dataset containing pre-computed optimal thermoelastic designs. "
+            "Each sample includes the optimal design array, optimization parameters "
+            "(volfrac, temp_load, mech_load), compliance and thermal expansion values, "
+            "and optimization history.",
+        }
+
+        return {
+            "success": True,
+            "problem_type": problem_key,
+            "dataset_id": problem.dataset_id,
+            "splits": splits,
+            "split_names": list(dataset.keys()),
+            "features": features,
+            "total_samples": total_samples,
+            "description": descriptions.get(
+                problem_key, f"HuggingFace dataset for {problem_key} problem."
+            ),
+        }
     except ImportError:
         return {
             "success": False,

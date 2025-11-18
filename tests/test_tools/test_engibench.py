@@ -71,10 +71,18 @@ def test_get_problem_info_structure():
     assert "typical_conditions" in result1
     assert "available_problems" in result1
 
-    # Test default (no argument)
-    result2 = get_problem_info.invoke({})
+    # Test thermoelastic2d support
+    result2 = get_problem_info.invoke({"problem_type": "thermoelastic2d"})
+
     assert result2["success"] is True
-    assert result2["selected_problem"] == "beams2d"
+    assert result2["selected_problem"] == "thermoelastic2d"
+    assert "description" in result2
+    assert "objectives" in result2
+
+    # Test default (no argument)
+    result3 = get_problem_info.invoke({})
+    assert result3["success"] is True
+    assert result3["selected_problem"] == "beams2d"
 
 
 @pytest.mark.unit
