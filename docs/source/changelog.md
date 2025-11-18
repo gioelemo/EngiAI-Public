@@ -9,9 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Script to get deployment zip to be uploaded on server
+- ThermoElastic2D problem integration from EngiBench
+  - 7 new tools for multi-physics topology optimization
+  - Support for balancing structural and thermal performance
+  - create_thermoelastic_problem, simulate_thermoelastic_design, optimize_thermoelastic_design
+  - render_thermoelastic_design, check_thermoelastic_constraints
+  - get_thermoelastic_problem_details, get_thermoelastic_dataset_info
+  - Weight parameter to control structural vs thermal optimization emphasis
 
 ### Changed
-- .
+- Updated engineering agent system prompts with ThermoElastic2D workflow guidance
+- Enhanced prompts with multi-physics optimization concepts and key parameters
 
 ### Fixed
 - Deployment fix for SSH configuration (do not work for the moment)

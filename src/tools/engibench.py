@@ -16,6 +16,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from engibench.problems.beams2d.v0 import Beams2D  # type: ignore[import-untyped]
+from engibench.problems.thermoelastic2d.v0 import (
+    ThermoElastic2D,  # type: ignore[import-untyped]
+)
 from langchain_core.tools import tool
 
 matplotlib.use("Agg")  # Use non-interactive backend
@@ -27,6 +30,12 @@ EXPECTED_ARRAY_DIMENSIONS = 2  # For 2D beam design arrays
 # This allows tools like optimize_beam_design to reuse the problem
 # created by create_beam_problem without using global statements
 _state: dict[str, Any] = {
+    "problem_instance": None,
+    "last_design": None,
+}
+
+# State management for ThermoElastic2D problem
+_thermoelastic_state: dict[str, Any] = {
     "problem_instance": None,
     "last_design": None,
 }
@@ -52,6 +61,29 @@ def get_last_design() -> np.ndarray | None:
 def set_last_design(design: np.ndarray) -> None:
     """Store the last design for potential reuse."""
     _state["last_design"] = design
+
+
+# ThermoElastic2D state management functions
+def get_thermoelastic_problem_instance() -> ThermoElastic2D:
+    """Get the current thermoelastic problem instance, creating one if needed."""
+    if _thermoelastic_state["problem_instance"] is None:
+        _thermoelastic_state["problem_instance"] = ThermoElastic2D()
+    return _thermoelastic_state["problem_instance"]
+
+
+def set_thermoelastic_problem_instance(problem: ThermoElastic2D) -> None:
+    """Set the thermoelastic problem instance."""
+    _thermoelastic_state["problem_instance"] = problem
+
+
+def get_thermoelastic_last_design() -> np.ndarray | None:
+    """Get the last thermoelastic design that was created or used."""
+    return _thermoelastic_state["last_design"]
+
+
+def set_thermoelastic_last_design(design: np.ndarray) -> None:
+    """Store the last thermoelastic design for potential reuse."""
+    _thermoelastic_state["last_design"] = design
 
 
 @tool
@@ -844,6 +876,778 @@ def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
             return {
                 "success": False,
                 "error": f"Problem type '{problem_type}' not supported yet. Currently only 'beams2d' is available.",
+            }
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get dataset info: {e!s}"}
+
+
+# ============================================================================
+# ThermoElastic2D Tools
+# ============================================================================
+
+
+@tool
+def create_thermoelastic_problem(
+    seed: int = 0,
+) -> dict[str, Any]:
+    """
+    Create a 2D thermoelastic optimization problem using EngiBench.
+
+    The thermoelastic problem involves multi-physics topology optimization that
+    minimizes weakly coupled thermo-elastic compliance. It addresses the coupling
+    between structural and thermal domains using linear elasticity and steady-state
+    heat conduction with one-way thermal-to-elastic coupling.
+
+    Args:
+        seed: Random seed for reproducibility (default: 0)
+
+    Returns:
+        dict with problem info:
+        - problem_id: str identifier
+        - design_space: description of design space (64x64 grid)
+        - objectives: list of objectives to optimize (structural compliance,
+                     thermal compliance, volume fraction)
+        - conditions: problem conditions/constraints
+        - dataset_id: HuggingFace dataset identifier
+
+    Example:
+        >>> info = create_thermoelastic_problem(seed=42)
+        >>> print(info['objectives'])
+        >>> # [('structural_compliance', 'MINIMIZE'), ('thermal_compliance', 'MINIMIZE'), ('volume_fraction', 'MINIMIZE')]
+    """
+    try:
+        problem = ThermoElastic2D()
+        problem.reset(seed=seed)
+        print(f"Created ThermoElastic2D problem with seed {seed}")
+
+        # Store the problem instance for reuse by other tools
+        set_thermoelastic_problem_instance(problem)
+
+        return {
+            "problem_id": "thermoelastic2d",
+            "design_space": str(problem.design_space),
+            "objectives": [
+                (name, str(direction)) for name, direction in problem.objectives
+            ],
+            "conditions": problem.conditions,
+            "dataset_id": problem.dataset_id,
+            "success": True,
+            "message": f"Created ThermoElastic2D problem with seed {seed}",
+        }
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to create problem: {e!s}"}
+
+
+@tool
+def simulate_thermoelastic_design(
+    design_description: str,
+    volume_fraction: float = 0.3,
+    weight: float = 0.5,
+    rmin: float = 1.1,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """
+    Simulate a thermoelastic design and return its performance metrics.
+
+    This tool evaluates a thermoelastic design by running a multi-physics simulation
+    to calculate both structural and thermal compliance. The weight parameter controls
+    the balance between structural and thermal performance.
+
+    Args:
+        design_description: Description of the design approach (e.g., "uniform distribution",
+            "optimized topology", "random design"). The tool will generate or retrieve
+            an appropriate design based on this description.
+        volume_fraction: Fraction of volume that can be filled with material (0-1)
+            Default: 0.3 (30% material)
+        weight: Weight parameter controlling optimization emphasis (0-1)
+            1.0 = prioritize structural performance
+            0.0 = prioritize thermal performance
+            Default: 0.5 (balanced)
+        rmin: Density filter radius
+            Default: 1.1
+        seed: Random seed for reproducibility
+
+    Returns:
+        dict with simulation results:
+        - structural_compliance: float (lower is better)
+        - thermal_compliance: float (lower is better)
+        - volume_fraction_used: float (actual volume used)
+        - design_valid: bool (whether design satisfies constraints)
+        - message: str (description of results)
+
+    Example:
+        >>> result = simulate_thermoelastic_design(
+        ...     design_description="random design",
+        ...     volume_fraction=0.3,
+        ...     weight=0.5,
+        ...     seed=42
+        ... )
+        >>> print(f"Structural: {result['structural_compliance']}, Thermal: {result['thermal_compliance']}")
+    """
+    try:
+        # Use the existing problem instance to maintain consistency
+        problem = get_thermoelastic_problem_instance()
+
+        # Always reset the problem before simulation for clean state
+        problem.reset(seed=seed)
+
+        # Check if we have a stored design from previous operations
+        last_design = get_thermoelastic_last_design()
+
+        # Determine which design to simulate
+        if (
+            "last" in design_description.lower()
+            or "previous" in design_description.lower()
+            or "current" in design_description.lower()
+            or "optimized" in design_description.lower()
+        ) and last_design is not None:
+            # Use the stored design from previous operation
+            design = last_design
+        elif "random" in design_description.lower():
+            design, _ = problem.random_design()
+            # Store for future use
+            set_thermoelastic_last_design(design)
+        else:
+            # Use a random design from the dataset
+            design, _ = problem.random_design()
+            # Store for future use
+            set_thermoelastic_last_design(design)
+
+        # Build config
+        config = {
+            "volfrac": volume_fraction,
+            "weight": weight,
+            "rmin": rmin,
+        }
+
+        # Run simulation
+        objectives = problem.simulate(design=design, config=config)
+        structural_compliance = float(objectives[0])
+        thermal_compliance = float(objectives[1])
+        volume_fraction_actual = float(objectives[2])
+
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Simulation failed: {e!s}"}
+    else:
+        return {
+            "success": True,
+            "design_valid": True,
+            "structural_compliance": structural_compliance,
+            "thermal_compliance": thermal_compliance,
+            "volume_fraction_used": volume_fraction_actual,
+            "volume_fraction_target": volume_fraction,
+            "weight": weight,
+            "rmin": rmin,
+            "message": f"Simulation successful. Structural compliance: {structural_compliance:.4f}, "
+            f"Thermal compliance: {thermal_compliance:.4f}, Volume fraction: {volume_fraction_actual:.4f}",
+        }
+
+
+@tool
+def check_thermoelastic_constraints(
+    design_source: str = "last",
+    volume_fraction: float | None = None,
+    weight: float | None = None,
+    rmin: float | None = None,
+) -> dict[str, Any]:
+    """
+    Check if a thermoelastic design satisfies the problem constraints.
+
+    This tool validates whether a design meets the constraints specified
+    in the problem configuration. It checks the volume fraction and other
+    parameters that may affect optimization results.
+
+    Args:
+        design_source: Source of the design to check. Options:
+            - "last": Use the last design from state (default)
+            - "random": Generate and check a random design
+            - file path: Load design from .npy file (e.g., "my_design.npy")
+        volume_fraction: Target volume fraction (material density). If None, uses current problem settings
+        weight: Weight parameter (0-1). If None, uses current problem settings
+        rmin: Density filter radius. If None, uses current problem settings
+
+    Returns:
+        dict with constraint validation results:
+        - success: bool
+        - has_violations: bool (True if any constraints are violated)
+        - violations: dict (details of constraint violations, if any)
+        - config_used: dict (the configuration used for checking)
+        - design_source_used: str (which design source was actually used)
+        - message: str
+
+    Example:
+        >>> result = check_thermoelastic_constraints()
+        >>> if result['has_violations']:
+        ...     print("Violations found:", result['violations'])
+    """
+    try:
+        problem = get_thermoelastic_problem_instance()
+        if problem is None:
+            return {
+                "success": False,
+                "error": "No problem instance found. Create one first with create_thermoelastic_problem()",
+            }
+
+        # Get the design based on source
+        if design_source == "last":
+            design = _thermoelastic_state.get("last_design")
+            if design is None:
+                return {
+                    "success": False,
+                    "error": "No design found in state. Create a design first with simulate_thermoelastic_design() or optimize_thermoelastic_design()",
+                }
+            source_used = "last design from state"
+
+        elif design_source == "random":
+            design, _ = problem.random_design()
+            source_used = "randomly generated design"
+
+        else:
+            # Treat as file path
+            design_file = Path(design_source)
+            if not design_file.exists():
+                return {
+                    "success": False,
+                    "error": f"Design file not found: {design_source}",
+                }
+            design = np.load(design_file)
+            source_used = f"design from file: {design_source}"
+
+        # Build config dict
+        config = {}
+        if volume_fraction is not None:
+            config["volfrac"] = volume_fraction
+        if weight is not None:
+            config["weight"] = weight
+        if rmin is not None:
+            config["rmin"] = rmin
+
+        # Check constraints using the problem's method
+        violations = problem.check_constraints(design, config)
+
+        return {
+            "success": True,
+            "has_violations": bool(violations),
+            "violations": violations if violations else {},
+            "config_used": config,
+            "design_source_used": source_used,
+            "message": (
+                f"Checked {source_used}. "
+                f"{'Violations found: ' + str(violations) if violations else 'No violations detected.'}"
+            ),
+        }
+
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Constraint check failed: {e!s}"}
+
+
+@tool
+def optimize_thermoelastic_design(
+    starting_point: str = "random",
+    volume_fraction: float = 0.3,
+    weight: float = 0.5,
+    rmin: float = 1.1,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """
+    Optimize a thermoelastic design using gradient-based optimization.
+
+    This tool starts from an initial design and runs a multi-physics optimization
+    algorithm (topology optimization with SIMP) to find the best material distribution
+    that balances structural and thermal performance.
+
+    The problem is always reset before optimization to ensure reproducibility
+    and clean state.
+
+    Args:
+        starting_point: Initial design approach ("random", "uniform", or "sparse")
+            Default: "random"
+        volume_fraction: Maximum fraction of volume that can be filled (0-1)
+            Default: 0.3 (30% material)
+        weight: Weight parameter controlling optimization emphasis (0-1)
+            1.0 = prioritize structural performance
+            0.0 = prioritize thermal performance
+            Default: 0.5 (balanced)
+        rmin: Density filter radius
+            Default: 1.1
+        seed: Random seed for optimization (default: 0 for reproducibility)
+
+    Returns:
+        dict with optimization results:
+        - initial_structural_compliance: float
+        - initial_thermal_compliance: float
+        - final_structural_compliance: float
+        - final_thermal_compliance: float
+        - structural_improvement: float (percentage improvement)
+        - thermal_improvement: float (percentage improvement)
+        - iterations: int (number of optimization steps)
+        - success: bool
+        - message: str
+
+    Example:
+        >>> result = optimize_thermoelastic_design(
+        ...     starting_point="random",
+        ...     volume_fraction=0.3,
+        ...     weight=0.5,
+        ...     seed=0
+        ... )
+        >>> print(f"Structural improved by {result['structural_improvement']:.1f}%")
+    """
+    try:
+        # Use the existing problem instance if available
+        problem = get_thermoelastic_problem_instance()
+
+        # Always reset problem before optimization for clean state
+        problem.reset(seed=seed)
+
+        # Check if we have a last design from previous operations
+        last_design = get_thermoelastic_last_design()
+
+        # Determine starting design
+        if last_design is not None and starting_point.lower() != "random":
+            design = last_design
+        elif starting_point.lower() == "random":
+            design, _ = problem.random_design()
+        else:
+            design, _ = problem.random_design()
+
+        # Store this design for potential future use
+        set_thermoelastic_last_design(design)
+
+        # Configuration
+        config = {
+            "volfrac": volume_fraction,
+            "weight": weight,
+            "rmin": rmin,
+        }
+
+        # Get initial performance
+        initial_objectives = problem.simulate(design=design, config=config)
+        initial_structural = float(initial_objectives[0])
+        initial_thermal = float(initial_objectives[1])
+
+        # Run optimization
+        optimized_design, history = problem.optimize(design, config=config)
+
+        # Store the optimized design for potential future use
+        set_thermoelastic_last_design(optimized_design)
+
+        # Get final performance
+        final_objectives = problem.simulate(design=optimized_design, config=config)
+        final_structural = float(final_objectives[0])
+        final_thermal = float(final_objectives[1])
+
+        # Calculate improvements
+        structural_improvement = (
+            (initial_structural - final_structural) / initial_structural
+        ) * 100
+        thermal_improvement = (
+            (initial_thermal - final_thermal) / initial_thermal
+        ) * 100
+
+        return {
+            "success": True,
+            "initial_structural_compliance": initial_structural,
+            "initial_thermal_compliance": initial_thermal,
+            "final_structural_compliance": final_structural,
+            "final_thermal_compliance": final_thermal,
+            "structural_improvement": structural_improvement,
+            "thermal_improvement": thermal_improvement,
+            "iterations": len(history),
+            "volume_fraction": volume_fraction,
+            "weight": weight,
+            "rmin": rmin,
+            "design_stored": True,
+            "message": f"Optimization successful. Structural compliance improved by {structural_improvement:.1f}% "
+            f"({initial_structural:.4f} → {final_structural:.4f}), "
+            f"Thermal compliance improved by {thermal_improvement:.1f}% "
+            f"({initial_thermal:.4f} → {final_thermal:.4f}). "
+            f"Optimized design stored and ready for rendering.",
+        }
+
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Optimization failed: {e!s}"}
+
+
+def _select_thermoelastic_design_for_rendering(
+    problem: ThermoElastic2D,
+    design_description: str,
+    config: dict[str, float],
+    last_design: np.ndarray | None,
+) -> tuple[np.ndarray, str, tuple[float, float] | None]:
+    """
+    Select which thermoelastic design to render based on description and available designs.
+
+    Returns:
+        tuple of (design, design_type, (structural_compliance, thermal_compliance) or None)
+    """
+    design_type = "unknown"
+    compliances = None
+
+    # Priority 1: User asks for stored design AND we have one
+    if last_design is not None and any(
+        keyword in design_description.lower()
+        for keyword in ["last", "optimized", "previous", "current", "stored", "that"]
+    ):
+        design = last_design
+        design_type = "stored (from previous optimization)"
+        try:
+            objectives = problem.simulate(design=design, config=config)
+            compliances = (float(objectives[0]), float(objectives[1]))
+        except Exception:
+            compliances = None
+    # Priority 2: User wants new optimization (no stored design available)
+    elif "optimize" in design_description.lower() and last_design is None:
+        design, history = problem.optimize(config=config)
+        design_type = "newly optimized"
+        if history:
+            compliances = (
+                float(history[-1].obj_values[0]),
+                float(history[-1].obj_values[1]),
+            )
+        else:
+            compliances = None
+        set_thermoelastic_last_design(design)
+    # Priority 3: Random design requested
+    elif "random" in design_description.lower():
+        design, _ = problem.random_design()
+        design_type = "random"
+        set_thermoelastic_last_design(design)
+    # Priority 4: Default - use stored or random
+    elif last_design is not None:
+        design = last_design
+        design_type = "stored design"
+        try:
+            objectives = problem.simulate(design=design, config=config)
+            compliances = (float(objectives[0]), float(objectives[1]))
+        except Exception:
+            compliances = None
+    else:
+        design, _ = problem.random_design()
+        design_type = "random"
+        set_thermoelastic_last_design(design)
+
+    return design, design_type, compliances
+
+
+@tool
+def render_thermoelastic_design(  # noqa: PLR0913
+    design_description: str = "random design",
+    volume_fraction: float = 0.3,
+    weight: float = 0.5,
+    rmin: float = 1.1,
+    save_path: str = "thermoelastic_design.png",
+    seed: int | None = None,
+) -> dict[str, Any]:
+    """
+    Render a thermoelastic design as a visual heatmap and save it as an image file.
+
+    This tool creates a visual representation of a thermoelastic topology design,
+    showing material distribution. Dark areas represent solid material,
+    light areas represent voids/air.
+
+    The design array is also saved as a .npy file for numerical analysis.
+    All images are automatically saved to the 'outputs/' directory.
+
+    To prevent overwriting files when rendering before/after optimization,
+    the tool automatically adds suffixes like "_random", "_optimized", "_initial", etc.
+    based on the design_description.
+
+    Args:
+        design_description: Description of the design to render (e.g., "random design",
+            "optimized topology", "initial design", "final design").
+        volume_fraction: Fraction of volume filled with material (0-1)
+            Default: 0.3 (30% material)
+        weight: Weight parameter controlling optimization emphasis (0-1)
+            Default: 0.5 (balanced)
+        rmin: Density filter radius
+            Default: 1.1
+        save_path: Base filename for the image (will be saved in outputs/ directory)
+            Default: "thermoelastic_design.png"
+        seed: Random seed for reproducibility (None = use random seed)
+
+    Returns:
+        dict with rendering results:
+        - success: bool
+        - save_path: str (full path where PNG image was saved)
+        - npy_path: str (full path where numpy array was saved)
+        - design_shape: tuple (dimensions of the design grid)
+        - message: str (description of results)
+
+    Example:
+        >>> result = render_thermoelastic_design(design_description="optimized design")
+        >>> print(result['save_path'])
+    """
+    try:
+        # Create outputs directory if it doesn't exist
+        output_dir = Path("outputs")
+        output_dir.mkdir(exist_ok=True)
+
+        # Ensure save_path is in the outputs directory
+        save_path_obj = Path(save_path)
+        if save_path_obj.parent.name != "outputs":
+            full_save_path = output_dir / save_path_obj.name
+        else:
+            full_save_path = save_path_obj
+
+        # Use the existing problem instance to maintain consistency
+        problem = get_thermoelastic_problem_instance()
+
+        # Use a random seed if none provided
+        if seed is None:
+            seed = random.randint(0, 999999)
+        elif seed != 0:
+            problem.reset(seed=seed)
+
+        # Configuration with user-specified parameters
+        config = {
+            "volfrac": volume_fraction,
+            "weight": weight,
+            "rmin": rmin,
+        }
+
+        # Select design using helper function
+        design, design_type, compliances = _select_thermoelastic_design_for_rendering(
+            problem, design_description, config, get_thermoelastic_last_design()
+        )
+
+        # Add automatic suffix based on design type
+        desc_lower = design_description.lower()
+
+        suffix_map = {
+            "initial": "_initial",
+            "before": "_initial",
+            "final": "_final",
+            "after": "_final",
+            "optimized": "_optimized",
+            "optimal": "_optimized",
+            "random": "_random",
+        }
+
+        suffix = next(
+            (suf for keyword, suf in suffix_map.items() if keyword in desc_lower),
+            "_" + design_type.replace(" ", "_").replace("(", "").replace(")", ""),
+        )
+
+        # Insert suffix before file extension
+        stem = full_save_path.stem
+        extension = full_save_path.suffix
+        full_save_path = full_save_path.parent / f"{stem}{suffix}{extension}"
+
+        # Render the design using EngiBench's built-in render method
+        fig = problem.render(design, open_window=False)
+
+        # Add title with parameters
+        title = f"{design_type.title()} Design (volfrac={volume_fraction:.2f}, weight={weight:.2f}, rmin={rmin:.2f})"
+        if compliances is not None:
+            title += (
+                f"\nStructural: {compliances[0]:.4f}, Thermal: {compliances[1]:.4f}"
+            )
+
+        # Get the axis from the figure
+        ax = fig.gca()
+        ax.set_title(title, fontsize=10)
+
+        # Save the figure
+        fig.savefig(str(full_save_path), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # Save the design array as .npy file
+        npy_path = full_save_path.with_suffix(".npy")
+        np.save(str(npy_path), design)
+
+        result: dict[str, Any] = {
+            "success": True,
+            "save_path": str(full_save_path),
+            "npy_path": str(npy_path),
+            "design_shape": design.shape,
+            "design_type": design_type,
+            "seed": seed,
+            "volume_fraction_requested": volume_fraction,
+            "volume_fraction_actual": float(design.mean()),
+            "weight": weight,
+            "rmin": rmin,
+            "message": f"Successfully rendered {design_type} design and saved to {full_save_path}. "
+            f"Design array saved to {npy_path}. "
+            f"Requested volfrac={volume_fraction:.2f}, actual={design.mean():.3f}, weight={weight:.2f}, rmin={rmin:.2f}, seed={seed}",
+        }
+
+        if compliances is not None:
+            result["structural_compliance"] = compliances[0]
+            result["thermal_compliance"] = compliances[1]
+            message = str(result["message"])
+            result["message"] = (
+                f"{message}, structural={compliances[0]:.4f}, thermal={compliances[1]:.4f}"
+            )
+
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"engibench or matplotlib not installed: {e!s}. Install with: pip install engibench matplotlib",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Rendering failed: {e!s}"}
+    else:
+        return result
+
+
+@tool
+def get_thermoelastic_problem_details(
+    problem_type: str = "thermoelastic2d",
+) -> dict[str, Any]:
+    """
+    Get detailed information directly from the thermoelastic problem object's attributes.
+
+    This tool creates a problem instance and extracts information from its
+    design_space, objectives, and conditions attributes.
+
+    Args:
+        problem_type: Type of problem (currently only "thermoelastic2d")
+            Default: "thermoelastic2d"
+
+    Returns:
+        dict with problem details:
+        - success: bool
+        - problem_type: str
+        - design_space: str (from problem.design_space)
+        - objectives: list of tuples (name, direction)
+        - conditions: dict (from problem.conditions)
+        - dataset_id: str (from problem.dataset_id)
+
+    Example:
+        >>> details = get_thermoelastic_problem_details()
+        >>> print(details['design_space'])
+        >>> # Box(0.0, 1.0, (64, 64), float32)
+        >>> print(details['objectives'])
+        >>> # [('structural_compliance', 'MINIMIZE'), ('thermal_compliance', 'MINIMIZE'), ('volume_fraction', 'MINIMIZE')]
+    """
+    try:
+        if problem_type.lower() == "thermoelastic2d":
+            problem = ThermoElastic2D()
+
+            return {
+                "success": True,
+                "problem_type": problem_type.lower(),
+                "design_space": str(problem.design_space),
+                "design_space_shape": problem.design_space.shape,
+                "design_space_bounds": {
+                    "low": float(problem.design_space.low.min()),
+                    "high": float(problem.design_space.high.max()),
+                },
+                "objectives": [
+                    (name, str(direction)) for name, direction in problem.objectives
+                ],
+                "conditions": problem.conditions,
+                "dataset_id": problem.dataset_id,
+                "description": "This information comes directly from the EngiBench ThermoElastic2D problem object. "
+                "The design_space defines where designs can exist (a 64x64 grid with values 0-1). "
+                "The objectives specify what to optimize (minimize structural compliance, thermal compliance, and volume fraction). "
+                "The conditions are the parameters that can be varied for different problem instances (volume fraction, weight, rmin, etc.).",
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Problem type '{problem_type}' not supported. Currently only 'thermoelastic2d' is available.",
+            }
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get problem details: {e!s}"}
+
+
+@tool
+def get_thermoelastic_dataset_info(
+    problem_type: str = "thermoelastic2d",
+) -> dict[str, Any]:
+    """
+    Get information about the EngiBench dataset for the thermoelastic problem.
+
+    The dataset contains pre-computed optimal designs from the EngiBench benchmark.
+    Each dataset includes training, validation, and test splits with optimal designs
+    and their corresponding parameters.
+
+    Args:
+        problem_type: Type of problem (currently only "thermoelastic2d")
+            Default: "thermoelastic2d"
+
+    Returns:
+        dict with dataset information:
+        - success: bool
+        - dataset_id: str (HuggingFace dataset identifier)
+        - splits: dict with split names and their sizes
+        - features: list of feature names in the dataset
+        - total_samples: int
+        - description: str
+
+    Example:
+        >>> info = get_thermoelastic_dataset_info()
+        >>> print(f"Dataset has {info['total_samples']} total samples")
+    """
+    try:
+        if problem_type.lower() == "thermoelastic2d":
+            problem = ThermoElastic2D()
+            dataset = problem.dataset
+
+            # Get information about each split
+            splits = {}
+            total_samples = 0
+            features: list[str] = []
+
+            for split_name in dataset:
+                split = dataset[split_name]
+                splits[split_name] = {
+                    "num_rows": len(split),
+                    "num_columns": len(split.column_names),
+                }
+                total_samples += len(split)
+                if not features and split.column_names:
+                    features = split.column_names
+
+            return {
+                "success": True,
+                "problem_type": problem_type.lower(),
+                "dataset_id": problem.dataset_id,
+                "splits": splits,
+                "split_names": list(dataset.keys()),
+                "features": features,
+                "total_samples": total_samples,
+                "description": "HuggingFace dataset containing pre-computed optimal thermoelastic designs. "
+                "Each sample includes the optimal design array, optimization parameters "
+                "(volfrac, rmin, weight, etc.), structural and thermal compliance values, "
+                "and optimization history.",
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Problem type '{problem_type}' not supported. Currently only 'thermoelastic2d' is available.",
             }
     except ImportError:
         return {
