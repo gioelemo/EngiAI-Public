@@ -7,21 +7,13 @@ problems using the EngiBench library.
 
 from src.agents.base_agent import BaseAgent
 from src.tools.engibench import (
-    check_beam_constraints,
-    check_thermoelastic_constraints,
-    create_beam_problem,
-    create_thermoelastic_problem,
+    create_problem,
     get_dataset_info,
     get_problem_details,
     get_problem_info,
-    get_thermoelastic_dataset_info,
-    get_thermoelastic_problem_details,
-    optimize_beam_design,
-    optimize_thermoelastic_design,
-    render_beam_design,
-    render_thermoelastic_design,
-    simulate_beam_design,
-    simulate_thermoelastic_design,
+    optimize_design,
+    render_design,
+    simulate_design,
 )
 from src.tools.engiopt import (
     download_wandb_model,
@@ -53,23 +45,14 @@ class EngineeringAgent(BaseAgent):
             List of LangChain tools for engineering tasks
         """
         return [
-            # EngiBench Beams2D tools
-            check_beam_constraints,
-            create_beam_problem,
-            simulate_beam_design,
-            optimize_beam_design,
-            render_beam_design,
+            # Unified EngiBench tools
+            create_problem,
+            simulate_design,
+            optimize_design,
+            render_design,
             get_problem_info,
             get_problem_details,
             get_dataset_info,
-            # EngiBench ThermoElastic2D tools
-            check_thermoelastic_constraints,
-            create_thermoelastic_problem,
-            simulate_thermoelastic_design,
-            optimize_thermoelastic_design,
-            render_thermoelastic_design,
-            get_thermoelastic_problem_details,
-            get_thermoelastic_dataset_info,
             # Export tools
             convert_design_to_stl,
             # WandB model download tools
