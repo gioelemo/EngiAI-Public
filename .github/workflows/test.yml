@@ -3,7 +3,7 @@ name: Python tests
 
 on:
   push:
-    branches: [ main, UI ]
+    branches: [ main, UI,feature/thermoelastic2d-integration ]
   pull_request:
     branches: [ main ]
 
