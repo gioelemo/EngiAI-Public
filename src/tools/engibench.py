@@ -55,7 +55,11 @@ def get_problem_state(problem_type: str) -> dict[str, Any]:
     """Get the state dictionary for a given problem type."""
     problem_key = problem_type.lower()
     if problem_key not in _problem_states:
-        _problem_states[problem_key] = {"problem_instance": None, "last_design": None}
+        _problem_states[problem_key] = {
+            "problem_instance": None,
+            "last_design": None,
+            "initial_design": None,
+        }
     return _problem_states[problem_key]
 
 
@@ -84,6 +88,18 @@ def set_unified_last_design(problem_type: str, design: np.ndarray) -> None:
     """Store the last design for a given problem type."""
     state = get_problem_state(problem_type)
     state["last_design"] = design
+
+
+def get_initial_design(problem_type: str) -> np.ndarray | None:
+    """Get the initial design (before optimization) for a given problem type."""
+    state = get_problem_state(problem_type)
+    return state.get("initial_design")
+
+
+def set_initial_design(problem_type: str, design: np.ndarray) -> None:
+    """Store the initial design (before optimization) for a given problem type."""
+    state = get_problem_state(problem_type)
+    state["initial_design"] = design
 
 
 # ============================================================================
@@ -327,7 +343,9 @@ def optimize_design(
         else:
             design, _ = problem.random_design()
 
-        # Store initial design
+        # Store initial design separately for later visualization
+        set_initial_design(problem_type, design)
+        # Also set as last_design (will be overwritten after optimization)
         set_unified_last_design(problem_type, design)
 
         # Simulate initial design
@@ -340,7 +358,7 @@ def optimize_design(
             design, config=config if config else None
         )
 
-        # Store optimized design
+        # Store optimized design as the new last_design
         set_unified_last_design(problem_type, optimized_design)
 
         # Simulate final design
@@ -348,54 +366,14 @@ def optimize_design(
             design=optimized_design, config=config if config else None
         )
 
-        # Prepare results based on problem type
-        problem_key = problem_type.lower()
-        result: dict[str, Any] = {
-            "success": True,
-            "problem_type": problem_key,
-            "design_shape": optimized_design.shape,
-            "optimization_info": optimization_info,
-        }
-
-        if problem_key == "beams2d":
-            initial_compliance = float(initial_objectives[0])
-            final_compliance = float(final_objectives[0])
-            improvement = (
-                (initial_compliance - final_compliance) / initial_compliance
-            ) * 100
-
-            result.update(
-                {
-                    "initial_compliance": initial_compliance,
-                    "final_compliance": final_compliance,
-                    "improvement": improvement,
-                    "message": f"Optimized {problem_type} design: {initial_compliance:.6f} → {final_compliance:.6f} ({improvement:.1f}% improvement)",
-                }
-            )
-
-        elif problem_key == "thermoelastic2d":
-            initial_structural = float(initial_objectives[0])
-            initial_thermal = float(initial_objectives[1])
-            final_structural = float(final_objectives[0])
-            final_thermal = float(final_objectives[1])
-            structural_improvement = (
-                (initial_structural - final_structural) / initial_structural
-            ) * 100
-            thermal_improvement = (
-                (initial_thermal - final_thermal) / initial_thermal
-            ) * 100
-
-            result.update(
-                {
-                    "initial_structural_compliance": initial_structural,
-                    "initial_thermal_compliance": initial_thermal,
-                    "final_structural_compliance": final_structural,
-                    "final_thermal_compliance": final_thermal,
-                    "structural_improvement": structural_improvement,
-                    "thermal_improvement": thermal_improvement,
-                    "message": f"Optimized {problem_type} design: Structural {initial_structural:.6f}→{final_structural:.6f} ({structural_improvement:.1f}%), Thermal {initial_thermal:.6f}→{final_thermal:.6f} ({thermal_improvement:.1f}%)",
-                }
-            )
+        # Format results based on problem type
+        result = _format_optimization_result(
+            problem_type,
+            initial_objectives,
+            final_objectives,
+            optimized_design,
+            optimization_info,
+        )
 
         # Save if requested
         if save_result:
@@ -466,6 +444,102 @@ def _should_use_last_design(design_description: str) -> bool:
     desc_lower = design_description.lower()
     keywords = ["last", "previous", "current", "optimized", "final"]
     return any(keyword in desc_lower for keyword in keywords)
+
+
+def _get_design_to_render(
+    problem_type: str, design_description: str, problem: Any
+) -> tuple[np.ndarray, str]:
+    """Get the design to render based on the description.
+
+    Returns:
+        Tuple of (design array, design type string)
+    """
+    desc_lower = design_description.lower()
+
+    # Check if user wants the initial design (before optimization)
+    if "initial" in desc_lower or "before" in desc_lower or "starting" in desc_lower:
+        initial_design = get_initial_design(problem_type)
+        if initial_design is not None:
+            return initial_design, "initial design"
+        # No initial design stored, create a random one
+        design, _ = problem.random_design()
+        return design, "random design"
+
+    # Check if user wants optimized/final design
+    if _should_use_last_design(design_description):
+        last_design = get_unified_last_design(problem_type)
+        if last_design is not None:
+            return last_design, design_description
+        # No last design stored, create a random one
+        design, _ = problem.random_design()
+        return design, "random design"
+
+    # Default to random design
+    design, _ = problem.random_design()
+    return design, "random design"
+
+
+def _format_optimization_result(
+    problem_type: str,
+    initial_objectives: Any,
+    final_objectives: Any,
+    optimized_design: np.ndarray,
+    optimization_info: dict,
+) -> dict[str, Any]:
+    """Format optimization results based on problem type.
+
+    Returns:
+        Dictionary with formatted results
+    """
+    problem_key = problem_type.lower()
+    result: dict[str, Any] = {
+        "success": True,
+        "problem_type": problem_key,
+        "design_shape": optimized_design.shape,
+        "optimization_info": optimization_info,
+    }
+
+    if problem_key == "beams2d":
+        initial_compliance = float(initial_objectives[0])
+        final_compliance = float(final_objectives[0])
+        improvement = (
+            (initial_compliance - final_compliance) / initial_compliance
+        ) * 100
+
+        result.update(
+            {
+                "initial_compliance": initial_compliance,
+                "final_compliance": final_compliance,
+                "improvement": improvement,
+                "message": f"Optimized {problem_type} design: {initial_compliance:.6f} → {final_compliance:.6f} ({improvement:.1f}% improvement)",
+            }
+        )
+
+    elif problem_key == "thermoelastic2d":
+        initial_structural = float(initial_objectives[0])
+        initial_thermal = float(initial_objectives[1])
+        final_structural = float(final_objectives[0])
+        final_thermal = float(final_objectives[1])
+        structural_improvement = (
+            (initial_structural - final_structural) / initial_structural
+        ) * 100
+        thermal_improvement = (
+            (initial_thermal - final_thermal) / initial_thermal
+        ) * 100
+
+        result.update(
+            {
+                "initial_structural_compliance": initial_structural,
+                "initial_thermal_compliance": initial_thermal,
+                "final_structural_compliance": final_structural,
+                "final_thermal_compliance": final_thermal,
+                "structural_improvement": structural_improvement,
+                "thermal_improvement": thermal_improvement,
+                "message": f"Optimized {problem_type} design: Structural {initial_structural:.6f}→{final_structural:.6f} ({structural_improvement:.1f}%), Thermal {initial_thermal:.6f}→{final_thermal:.6f} ({thermal_improvement:.1f}%)",
+            }
+        )
+
+    return result
 
 
 @tool
@@ -541,15 +615,10 @@ def render_design(
         elif seed != 0:
             problem.reset(seed=seed)  # type: ignore[attr-defined]
 
-        # Get the design to render
-        last_design = get_unified_last_design(problem_type)
-
-        if _should_use_last_design(design_description) and last_design is not None:
-            design = last_design
-            design_type = design_description
-        else:
-            design, _ = problem.random_design()  # type: ignore[attr-defined]
-            design_type = "random design"
+        # Get the design to render based on description
+        design, design_type = _get_design_to_render(
+            problem_type, design_description, problem
+        )
 
         # Build versioned file path
         suffix = _get_design_suffix(design_description, design_type)

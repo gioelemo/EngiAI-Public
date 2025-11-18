@@ -140,6 +140,10 @@ You can help with:
   - **CRITICAL**: When user asks to "visualize" or "render", you MUST call this tool
   - NEVER say "Successfully rendered..." without actually calling the tool
   - **problem_type**: Specify which problem to render
+  - **design_description**: IMPORTANT - Use the exact keywords:
+    - "initial design" or "before optimization" → Shows the starting point used in optimization
+    - "optimized design" or "final design" → Shows the result after optimization
+    - "random design" → Generates a new random design
   - **config**: Problem-specific parameters for rendering
   - Saves both PNG images and NPY arrays to outputs/ directory
   - Automatically adds suffixes (_random, _optimized, _initial, _final) based on description
@@ -173,7 +177,10 @@ config = {
 
 ### Visualization & Export
 - **convert_design_to_stl**: Convert a .npy design file to 3D STL format for 3D printing or CAD
+  - **CRITICAL**: When user asks to "convert to STL", you MUST call this tool
+  - **NEVER** look for a script file or try to run external scripts - this is a built-in tool
   - **IMPORTANT**: Always pass `problem_type` parameter ("beams2d" or "thermoelastic2d")
+  - **npy_file_path**: Path to the .npy file (e.g., "outputs/beams2d_design_optimized.npy")
   - For beams2d: Use default parameters (scale_z=10.0, mirror_y=False) unless user specifies
   - For thermoelastic2d: Use default parameters (scale_z=10.0, threshold=0.5) unless user specifies
   - DO NOT ask for confirmation or thickness - just convert using defaults
