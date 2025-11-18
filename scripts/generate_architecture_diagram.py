@@ -2,6 +2,7 @@
 Generate a visual diagram of the multi-agent system architecture.
 """
 
+from pathlib import Path
 from typing import TypedDict
 
 import matplotlib.pyplot as plt
@@ -65,21 +66,16 @@ tool_categories = {
     "sample_designs_from_model": "engiopt",
     # STL export tools
     "convert_design_to_stl": "stl",
-    # Code execution tools
-    "execute_python_code": "code",
-    "execute_python_expression": "code",
+    # Code execution tools (use CLI-based executor instead)
     # Search tools
-    "TavilySearch": "search",
+    "create_search_tool": "search",
     # HPC tools
     "test_hpc_connection": "hpc",
     "submit_slurm_job": "hpc",
     "get_slurm_job_status": "hpc",
     "cancel_slurm_job": "hpc",
     "download_job_outputs": "hpc",
-    # MCP tools (planned)
-    "print_document": "mcp",
-    "export_pdf": "mcp",
-    "format_report": "mcp",
+    # MCP tools (planned) - none currently exported; keep mapping minimal
     # RAG tools
     "search_documents": "rag",
     "add_document": "rag",
@@ -91,7 +87,29 @@ tool_categories = {
     "list_directory_contents": "cli",
     "open_gui_application": "cli",
     "get_prusa_slicer_path": "cli",
+    # Add mappings for Prusa / printer-related tools (used by Prusa Agent)
+    "get_printers": "mcp",
+    "get_printer_status": "mcp",
+    "get_printer_jobs": "mcp",
+    "get_printer_files": "mcp",
+    "get_printer_storages": "mcp",
+    "get_printer_events": "mcp",
+    "list_print_jobs": "mcp",
+    "control_printer": "mcp",
 }
+
+printer_tools = [
+    "get_printers",
+    "get_printer_status",
+    "get_printer_jobs",
+    "get_printer_files",
+    "get_printer_storages",
+    "get_printer_events",
+    "list_print_jobs",
+    "control_printer",
+]
+for t in printer_tools:
+    tool_categories.setdefault(t, "mcp")
 
 # Title
 ax.text(
@@ -246,7 +264,7 @@ agents: list[AgentInfo] = [
         "icon": "",
         "x": 12.8,
         "y": 5.0,
-        "tools": ["TavilySearch"],
+        "tools": ["create_search_tool"],
         "desc": "Web research, information gathering",
     },
 ]
@@ -540,14 +558,18 @@ for i, (label, category) in enumerate(legend_items):
     )
 
 plt.tight_layout()
+assets_dir = Path("assets")
+assets_dir.mkdir(parents=True, exist_ok=True)
+
+out_path = assets_dir / "agent_architecture.png"
 plt.savefig(
-    "outputs/agent_architecture.png",
+    out_path,
     dpi=300,
     bbox_inches="tight",
     facecolor="white",
     edgecolor="none",
 )
-print("✅ Architecture diagram saved to: outputs/agent_architecture.png")
+print(f"✅ Architecture diagram saved to: {out_path}")
 plt.close()
 
 # Create a second diagram showing the workflow
@@ -656,7 +678,7 @@ ax2.add_patch(step4_box)
 ax2.text(
     5,
     3.8,
-    '4. Calls tool: execute_python_expression("1+1")',
+    '4. Calls tool: execute_cli_command("python -c "print(1+1)"")',
     fontsize=11,
     ha="center",
     fontweight="bold",
@@ -713,16 +735,17 @@ ax2.text(
 )
 
 plt.tight_layout()
+out_path2 = assets_dir / "workflow_example.png"
 plt.savefig(
-    "outputs/workflow_example.png",
+    out_path2,
     dpi=300,
     bbox_inches="tight",
     facecolor="white",
     edgecolor="none",
 )
-print("✅ Workflow diagram saved to: outputs/workflow_example.png")
+print(f"✅ Workflow diagram saved to: {out_path2}")
 plt.close()
 
 print("\n📊 Both diagrams generated successfully!")
-print("   1. outputs/agent_architecture.png - System architecture overview")
-print("   2. outputs/workflow_example.png - Example request flow")
+print(f"   1. {out_path} - System architecture overview")
+print(f"   2. {out_path2} - Example request flow")
