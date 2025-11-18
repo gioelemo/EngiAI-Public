@@ -40,8 +40,6 @@ _problem_states: dict[str, dict[str, Any]] = {
     "thermoelastic2d": {"problem_instance": None, "last_design": None},
 }
 
-# Legacy state management (deprecated - kept for backward compatibility)
-
 
 # Unified helper functions for problem management
 def get_problem_class(problem_type: str) -> type:
@@ -86,48 +84,6 @@ def set_unified_last_design(problem_type: str, design: np.ndarray) -> None:
     """Store the last design for a given problem type."""
     state = get_problem_state(problem_type)
     state["last_design"] = design
-
-
-# Legacy helper functions (deprecated - kept for backward compatibility)
-def get_problem_instance() -> Beams2D:
-    """Get the current problem instance, creating one if needed."""
-    return get_unified_problem_instance("beams2d")
-
-
-def set_problem_instance(problem: Beams2D) -> None:
-    """Set the problem instance."""
-    set_unified_problem_instance("beams2d", problem)
-
-
-def get_last_design() -> np.ndarray | None:
-    """Get the last design that was created or used."""
-    return get_unified_last_design("beams2d")
-
-
-def set_last_design(design: np.ndarray) -> None:
-    """Store the last design for potential reuse."""
-    set_unified_last_design("beams2d", design)
-
-
-# ThermoElastic2D state management functions
-def get_thermoelastic_problem_instance() -> ThermoElastic2D:
-    """Get the current thermoelastic problem instance, creating one if needed."""
-    return get_unified_problem_instance("thermoelastic2d")
-
-
-def set_thermoelastic_problem_instance(problem: ThermoElastic2D) -> None:
-    """Set the thermoelastic problem instance."""
-    set_unified_problem_instance("thermoelastic2d", problem)
-
-
-def get_thermoelastic_last_design() -> np.ndarray | None:
-    """Get the last thermoelastic design that was created or used."""
-    return get_unified_last_design("thermoelastic2d")
-
-
-def set_thermoelastic_last_design(design: np.ndarray) -> None:
-    """Store the last thermoelastic design for potential reuse."""
-    set_unified_last_design("thermoelastic2d", design)
 
 
 # ============================================================================
