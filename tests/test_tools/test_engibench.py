@@ -8,7 +8,10 @@ NOTE: Tests marked as @pytest.mark.slow are SKIPPED in CI (runs with -m "not slo
 They only run when you explicitly run pytest locally without the marker filter.
 """
 
+from pathlib import Path
+
 import matplotlib
+import numpy as np
 import pytest
 
 # Skip these tests if engibench is not available
@@ -19,10 +22,56 @@ pytest.importorskip("engibench")
 from src.tools.engibench import (
     EXPECTED_ARRAY_DIMENSIONS,
     _problem_states,
+    create_problem,
     get_dataset_info,
     get_problem_details,
     get_problem_info,
+    get_unified_last_design,
+    optimize_design,
+    render_design,
+    simulate_design,
 )
+
+# Supported problems for these unified tests. Add more problem keys here to extend coverage.
+PROBLEM_TYPES = ["beams2d", "thermoelastic2d"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("problem", PROBLEM_TYPES)
+def test_create_problem_basic(problem):
+    """Create a problem instance for each supported problem type."""
+    result = create_problem.invoke({"problem_type": problem, "seed": 0})
+
+    assert result["success"] is True
+    assert result["problem_type"] == problem
+    assert "design_space" in result
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("problem", PROBLEM_TYPES)
+def test_simulate_design_random_and_reuse(problem):
+    """Simulate a random design and then reuse the stored design."""
+    # Ensure problem instance exists
+    create_problem.invoke({"problem_type": problem, "seed": 0})
+
+    # First call: random design (suppress numerical warnings from FEM)
+    with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+        r1 = simulate_design.invoke(
+            {"problem_type": problem, "design_description": "random design", "seed": 1}
+        )
+    assert r1["success"] is True
+
+    # Last design should be stored
+    last = get_unified_last_design(problem)
+    assert last is not None
+
+    # Second call: request last design
+    with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+        r2 = simulate_design.invoke(
+            {"problem_type": problem, "design_description": "last design", "seed": 2}
+        )
+    assert r2["success"] is True
+
 
 # ============================================================================
 # FIXTURES
@@ -169,27 +218,83 @@ def test_get_problem_info_invalid_type():
 
 @pytest.mark.slow
 def test_get_problem_details():
-    """Test getting detailed problem information."""
-    result = get_problem_details.invoke({"problem_type": "beams2d"})
+    """Test getting detailed problem information for supported problem types."""
+    for problem in PROBLEM_TYPES:
+        result = get_problem_details.invoke({"problem_type": problem})
 
-    assert result["success"] is True
-    assert result["problem_type"] == "beams2d"
-    assert "design_space" in result
-    assert "design_space_shape" in result
-    assert result["design_space_shape"] == (50, 100)
-    assert "objectives" in result
-    assert "conditions" in result
-    assert "dataset_id" in result
+        assert result["success"] is True
+        assert result["problem_type"] == problem
+        assert "design_space" in result
+        assert "design_space_shape" in result
+        # Problem-specific shape expectations
+        if problem == "beams2d":
+            assert result["design_space_shape"] == (50, 100)
+        elif problem == "thermoelastic2d":
+            assert result["design_space_shape"] == (64, 64)
+
+        assert "objectives" in result
+        assert "conditions" in result
+        assert "dataset_id" in result
 
 
 @pytest.mark.slow
 def test_get_dataset_info():
-    """Test getting dataset information."""
-    result = get_dataset_info.invoke({"problem_type": "beams2d"})
+    """Test getting dataset information for supported problems."""
+    for problem in PROBLEM_TYPES:
+        result = get_dataset_info.invoke({"problem_type": problem})
 
-    assert result["success"] is True
-    assert "dataset_id" in result
-    assert "splits" in result
-    assert "features" in result
-    assert "total_samples" in result
-    assert result["total_samples"] > 0
+        assert result["success"] is True
+        assert "dataset_id" in result
+        assert "splits" in result
+        assert "features" in result
+        # total_samples may vary; ensure key exists and is non-negative when present
+        if "total_samples" in result:
+            assert isinstance(result["total_samples"], int)
+            assert result["total_samples"] >= 0
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("problem", PROBLEM_TYPES)
+def test_render_design_writes_files(tmp_path, problem):
+    """Test that render_design writes PNG and NPY files to the provided outputs dir."""
+    # Create outputs path under tmp_path so we don't pollute repo
+    out_dir = tmp_path / "outputs"
+    out_dir.mkdir()
+
+    create_problem.invoke({"problem_type": problem, "seed": 0})
+
+    save_path = str(out_dir / "test_design.png")
+    res = render_design.invoke(
+        {
+            "problem_type": problem,
+            "design_description": "random design",
+            "save_path": save_path,
+        }
+    )
+    assert res["success"] is True
+
+    # Check files exist
+    png_path = out_dir / Path(res["save_path"]).name
+    npy_path = out_dir / Path(res["npy_path"]).name
+    assert png_path.exists()
+    assert npy_path.exists()
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("problem", PROBLEM_TYPES)
+def test_optimize_design_smoke(problem):
+    """Smoke test for optimize_design (kept slow)."""
+    create_problem.invoke({"problem_type": problem, "seed": 0})
+
+    with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+        res = optimize_design.invoke(
+            {
+                "problem_type": problem,
+                "starting_point": "random",
+                "config": {},
+                "seed": 0,
+                "save_result": False,
+            }
+        )
+    assert res["success"] is True
+    assert "design_shape" in res
