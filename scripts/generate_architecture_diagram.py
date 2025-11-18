@@ -49,12 +49,12 @@ tool_colors = {
 
 # Tool category mapping
 tool_categories = {
-    # EngiBench tools
-    "create_beam_problem": "engibench",
-    "optimize_beam_design": "engibench",
-    "simulate_beam_design": "engibench",
-    "render_beam_design": "engibench",
-    "check_beam_constraints": "engibench",
+    # EngiBench tools (unified)
+    "create_problem": "engibench",
+    "optimize_design": "engibench",
+    "simulate_design": "engibench",
+    "render_design": "engibench",
+    "check_constraints": "engibench",
     "get_problem_info": "engibench",
     "get_problem_details": "engibench",
     "get_dataset_info": "engibench",
@@ -187,12 +187,12 @@ agents: list[AgentInfo] = [
         "x": 3.3,
         "y": 2.0,
         "tools": [
-            # EngiBench tools (red)
-            "create_beam_problem",
-            "optimize_beam_design",
-            "simulate_beam_design",
-            "render_beam_design",
-            "check_beam_constraints",
+            # EngiBench tools (red, unified)
+            "create_problem",
+            "optimize_design",
+            "simulate_design",
+            "render_design",
+            "check_constraints",
             "get_problem_info",
             "get_problem_details",
             "get_dataset_info",
