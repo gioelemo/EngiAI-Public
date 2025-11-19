@@ -23,11 +23,14 @@ Usage:
     print(status)
 """
 
+import logging
 import re
 import sys
 from pathlib import Path
 
 from fabric import Connection
+
+logger = logging.getLogger(__name__)
 
 
 class HPCConnection:
@@ -141,12 +144,12 @@ class HPCConnection:
 
         # Copy file to remote using SFTP
         remote_path = f"{remote_dir}/{filename}"
-        print(f"📤 Copying {filename} to {self.host_alias}:{remote_path}...")
+        logger.info(f"Copying {filename} to {self.host_alias}:{remote_path}")
         self.put_file(slurm_file, remote_path)
-        print("✅ File transferred successfully")
+        logger.info("File transferred successfully")
 
         # Submit job
-        print("📋 Submitting SLURM job...")
+        logger.info("Submitting SLURM job...")
         sbatch_cmd = f"cd {remote_dir} && sbatch {filename}"
         output = self.run_command(sbatch_cmd)
 
@@ -158,7 +161,7 @@ class HPCConnection:
             raise RuntimeError(msg)
 
         job_id = match.group(1)
-        print(f"✅ Job submitted with ID: {job_id}")
+        logger.info(f"Job submitted with ID: {job_id}")
         return job_id
 
     def get_job_status(self, job_id: str) -> str:
@@ -187,9 +190,9 @@ class HPCConnection:
         Args:
             job_id: SLURM job ID
         """
-        print(f"🛑 Cancelling job {job_id}...")
+        logger.info(f"Cancelling job {job_id}")
         self.run_command(f"scancel {job_id}")
-        print(f"✅ Job {job_id} cancelled")
+        logger.info(f"Job {job_id} cancelled")
 
     def get_job_output(
         self,
@@ -217,7 +220,7 @@ class HPCConnection:
             try:
                 file_list_output = self.run_command(list_cmd)
                 if not file_list_output:
-                    print(f"⚠️  No .{file_type} files found for job {job_id}")
+                    logger.warning(f"No .{file_type} files found for job {job_id}")
                     continue
 
                 # Download each file
@@ -225,10 +228,12 @@ class HPCConnection:
                     if remote_file.strip():
                         local_dest = str(local_path / Path(remote_file).name)
                         self.get_file(remote_file, local_dest)
-                        print(f"✅ Downloaded {Path(remote_file).name} to {local_dir}/")
+                        logger.info(
+                            f"Downloaded {Path(remote_file).name} to {local_dir}/"
+                        )
             except RuntimeError as e:
                 if "No such file" not in str(e):
-                    print(f"⚠️  Warning downloading .{file_type} files: {e}")
+                    logger.warning(f"Warning downloading .{file_type} files: {e}")
 
 
 if __name__ == "__main__":

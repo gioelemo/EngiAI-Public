@@ -57,11 +57,10 @@ class MultimodalDocumentProcessor:
             List containing single Document with entire PDF content
         """
         logger.info(f"Processing PDF: {file_path}")
-        print(f"\n🔍 DEBUG: Processing PDF: {file_path}")
 
         # Use MathpixPDFLoader - returns single document with all content
         try:
-            print("🔍 DEBUG: Using MathpixPDFLoader...")
+            logger.debug("Using MathpixPDFLoader...")
             loader = MathpixPDFLoader(file_path)
             docs = loader.load()  # Returns [1 Document with all pages combined]
 
@@ -74,15 +73,14 @@ class MultimodalDocumentProcessor:
                     }
                 )
 
-            print(f"✅ DEBUG: Mathpix extracted {len(docs)} document from PDF")
-            logger.info(f"✓ Mathpix extracted {len(docs)} document(s) from PDF")
+            logger.debug(f"Mathpix extracted {len(docs)} document from PDF")
+            logger.info(f"Mathpix extracted {len(docs)} document(s) from PDF")
 
-        except Exception as mathpix_error:
-            print(f"❌ DEBUG: Mathpix failed: {mathpix_error}")
-            logger.exception("PDF extraction failed")
+        except Exception as e:
+            logger.exception("Mathpix PDF extraction failed")
             raise ValueError(  # noqa: TRY003
-                f"Failed to extract text from PDF: {mathpix_error}"
-            ) from mathpix_error
+                f"Failed to extract text from PDF: {e}"
+            ) from e
 
         else:
             return docs
