@@ -1583,8 +1583,10 @@ def _build_slurm_script(
         "wandb_api_key": os.getenv("WANDB_API_KEY", ""),
         "wandb_entity": os.getenv("WANDB_ENTITY", ""),
         "wandb_project": os.getenv("WANDB_PROJECT", ""),
-        "hf_home": os.getenv("HF_HOME_REMOTE", "$SCRATCH/models"),
-        "hf_datasets": os.getenv("HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"),
+        "hf_home": os.getenv("HF_HOME_REMOTE", "/cluster/scratch/gioelemo/models"),
+        "hf_datasets": os.getenv(
+            "HF_DATASETS_CACHE_REMOTE", "/cluster/scratch/gioelemo/datasets"
+        ),
         "hf_token": os.getenv("HF_TOKEN", ""),
     }
 
@@ -1600,7 +1602,7 @@ def _build_slurm_script(
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user={slurm["email_user"]}
 
-mkdir -p "$SCRATCH/logs" "$SCRATCH/datasets" "$SCRATCH/models"
+mkdir -p "/cluster/scratch/gioelemo/logs" "/cluster/scratch/gioelemo/datasets" "/cluster/scratch/gioelemo/models"
 
 module purge
 module load {modules["stack"]} {modules["gcc"]} {modules["python"]} {modules["cuda"]} eth_proxy
