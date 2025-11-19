@@ -52,6 +52,8 @@ def _serialize_messages(messages: list[BaseMessage]) -> list[dict]:
             msg_dict["id"] = msg.id  # type: ignore[assignment]
         if hasattr(msg, "tool_calls") and msg.tool_calls:
             msg_dict["tool_calls"] = msg.tool_calls
+        if hasattr(msg, "tool_call_id") and msg.tool_call_id:
+            msg_dict["tool_call_id"] = msg.tool_call_id
         if hasattr(msg, "name") and msg.name:
             msg_dict["name"] = msg.name
 
