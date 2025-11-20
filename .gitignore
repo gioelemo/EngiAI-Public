@@ -213,3 +213,8 @@ data/connect_state.json
 # External prusa-mcp folder (mounted from ~/Desktop/prusa-mcp)
 prusa-mcp/
 *.zip
+assets/agent_architecture.png
+assets/docker_mcp_architecture.pdf
+assets/workflow_example.png
+.gitignore
+assets/docker_mcp_architecture.png
