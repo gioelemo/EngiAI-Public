@@ -241,6 +241,7 @@ exclude = [
 [[tool.mypy.overrides]]
 module = [
   "arxiv",
+  "cryptography.*",
   "diffusers",
   "dotenv",
   "engibench.*",
