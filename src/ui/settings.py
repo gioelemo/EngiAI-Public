@@ -3,6 +3,7 @@
 import os
 import secrets
 import sys
+import time
 from pathlib import Path
 
 import streamlit as st
@@ -32,6 +33,7 @@ from src.utils.api_usage import (  # noqa: E402
 
 # Constants
 SECONDS_PER_HOUR = 3600
+SESSION_WARNING_AGE_HOURS = 24
 
 
 def _init_db() -> DatabaseManager:
@@ -228,6 +230,95 @@ def _delete_output_folder_contents(output_dir: Path) -> int:
     return deleted_count
 
 
+def _get_file_age_hours(file_path: Path) -> float:
+    """Get the age of a file in hours.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        Age of the file in hours, or 0 if file doesn't exist
+    """
+    if not file_path.exists():
+        return 0.0
+    try:
+        file_mtime = file_path.stat().st_mtime
+        current_time = time.time()
+        age_seconds = current_time - file_mtime
+        return age_seconds / 3600  # Convert to hours
+    except Exception:
+        return 0.0
+
+
+def _cleanup_old_connect_state(
+    max_age_hours: int = SESSION_WARNING_AGE_HOURS,
+) -> tuple[bool, str]:
+    """Clean up connect_state.json if it's older than max_age_hours.
+
+    Args:
+        max_age_hours: Maximum age in hours before cleanup (default: 24)
+
+    Returns:
+        Tuple of (was_deleted, message)
+    """
+    connect_state_path = project_root / "data" / "connect_state.json"
+
+    if not connect_state_path.exists():
+        return False, "File doesn't exist"
+
+    file_age = _get_file_age_hours(connect_state_path)
+
+    if file_age > max_age_hours:
+        try:
+            connect_state_path.unlink()
+        except Exception as e:
+            return False, f"Failed to delete: {e}"
+        else:
+            return True, f"Deleted session file (was {file_age:.1f} hours old)"
+    else:
+        return (
+            False,
+            f"File is {file_age:.1f} hours old (keeping until {max_age_hours}h)",
+        )
+
+
+def _render_prusa_session_management() -> None:
+    """Render Prusa Connect session management section."""
+    st.markdown("### 🔌 Prusa Connect Session")
+
+    connect_state_path = project_root / "data" / "connect_state.json"
+
+    # Check if file exists and get age
+    if connect_state_path.exists():
+        file_age = _get_file_age_hours(connect_state_path)
+        st.info(
+            f"📁 Session file: `{connect_state_path}`\n\n"
+            f"⏰ Age: {file_age:.1f} hours\n\n"
+            f"💡 This file stores your Prusa Connect login cookies to avoid re-authentication."
+        )
+
+        # Show warning if file is old
+        if file_age > SESSION_WARNING_AGE_HOURS:
+            st.warning(
+                f"⚠️ Session file is {file_age:.1f} hours old. "
+                "Cookies may have expired. Consider clearing it to force re-login."
+            )
+
+        # Manual cleanup button
+        if st.button("🗑️ Clear Session File", width="stretch", type="secondary"):
+            try:
+                connect_state_path.unlink()
+                st.success("✅ Session file deleted! You'll need to log in again.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error deleting session file: {e}")
+    else:
+        st.info(
+            "📁 No active Prusa Connect session found.\n\n"
+            "💡 The session file is created when you first log in via the Prusa Agent."
+        )
+
+
 def _render_output_folder_management() -> None:
     """Render output folder management section."""
     st.markdown("### 🗂️ Output Folder Management")
@@ -287,6 +378,11 @@ def _render_chat_settings() -> None:
     if st.session_state.get("messages"):
         num_messages = len(st.session_state.messages)
         st.info(f"📊 Current conversation has {num_messages} messages")
+
+    st.markdown("---")
+
+    # Prusa Connect session management
+    _render_prusa_session_management()
 
     st.markdown("---")
 
@@ -760,6 +856,15 @@ def render() -> None:
     """Render the settings page."""
     # Load settings from database on first render
     _load_settings_from_db()
+
+    # Auto-cleanup old Prusa Connect session on page load (runs once per session)
+    if "session_cleanup_done" not in st.session_state:
+        was_deleted, message = _cleanup_old_connect_state(
+            max_age_hours=SESSION_WARNING_AGE_HOURS
+        )
+        if was_deleted:
+            st.toast(f"🔄 {message}", icon="🔄")
+        st.session_state.session_cleanup_done = True
 
     st.markdown("# ⚙️ Settings")
     st.markdown("Configure your preferences and application settings.")

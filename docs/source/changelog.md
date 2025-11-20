@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Weight parameter to control structural vs thermal optimization emphasis
 - SSH authentication also via username and password
 - Move supported problems in constant.py to avoid name duplicate
+- Add button to remove all files in the outputs folder
+- Improve connection state managment for Prusa
 
 ### Changed
 - Updated engineering agent system prompts with ThermoElastic2D workflow guidance
