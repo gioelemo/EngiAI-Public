@@ -184,6 +184,95 @@ def _render_stl_viewer_settings() -> None:
             _save_setting_to_db("stl_auto_rotate", stl_auto_rotate)
 
 
+def _count_files_in_directory(directory: Path) -> int:
+    """Count files in a directory recursively.
+
+    Args:
+        directory: Directory path to count files in
+
+    Returns:
+        Number of files in the directory
+    """
+    if not directory.exists():
+        return 0
+    try:
+        return sum(1 for item in directory.rglob("*") if item.is_file())
+    except Exception:
+        return 0
+
+
+def _delete_output_folder_contents(output_dir: Path) -> int:
+    """Delete all contents of the output folder.
+
+    Args:
+        output_dir: Directory to clear
+
+    Returns:
+        Number of files deleted
+    """
+    deleted_count = 0
+    if not output_dir.exists():
+        return deleted_count
+
+    # Delete all files and subdirectories
+    for item in output_dir.rglob("*"):
+        if item.is_file():
+            item.unlink()
+            deleted_count += 1
+
+    # Remove empty subdirectories
+    for item in sorted(output_dir.rglob("*"), reverse=True):
+        if item.is_dir() and not any(item.iterdir()):
+            item.rmdir()
+
+    return deleted_count
+
+
+def _render_output_folder_management() -> None:
+    """Render output folder management section."""
+    st.markdown("### 🗂️ Output Folder Management")
+
+    output_dir = Path(st.session_state.media_save_dir)
+    file_count = _count_files_in_directory(output_dir)
+
+    st.info(f"📁 Output folder: `{output_dir}`\n\n📄 Contains {file_count} file(s)")
+
+    # Initialize confirmation state
+    if "confirm_clear_output" not in st.session_state:
+        st.session_state.confirm_clear_output = False
+
+    if not st.session_state.confirm_clear_output:
+        # First click: ask for confirmation
+        if st.button("🗑️ Clear Output Folder", width="stretch", type="secondary"):
+            if file_count == 0:
+                st.warning("⚠️ Output folder is already empty!")
+            else:
+                st.session_state.confirm_clear_output = True
+                st.rerun()
+    else:
+        # Second click: show confirmation
+        st.warning(f"⚠️ Are you sure you want to delete {file_count} file(s)?")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("✅ Yes, Delete All", width="stretch", type="primary"):
+                try:
+                    deleted_count = _delete_output_folder_contents(output_dir)
+                    st.session_state.confirm_clear_output = False
+                    st.success(f"✅ Successfully deleted {deleted_count} file(s)!")
+                    st.rerun()
+                except Exception as e:
+                    st.session_state.confirm_clear_output = False
+                    st.error(f"❌ Error clearing output folder: {e}")
+                    st.rerun()
+
+        with col2:
+            if st.button("❌ Cancel", width="stretch", type="secondary"):
+                st.session_state.confirm_clear_output = False
+                st.rerun()
+
+
 def _render_chat_settings() -> None:
     """Render chat settings section."""
     st.markdown("## 💬 Chat Settings")
@@ -198,6 +287,11 @@ def _render_chat_settings() -> None:
     if st.session_state.get("messages"):
         num_messages = len(st.session_state.messages)
         st.info(f"📊 Current conversation has {num_messages} messages")
+
+    st.markdown("---")
+
+    # Clear output folder button
+    _render_output_folder_management()
 
 
 def _render_paper_import_settings() -> None:
