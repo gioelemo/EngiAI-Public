@@ -7,14 +7,13 @@ problems using the EngiBench library.
 
 from src.agents.base_agent import BaseAgent
 from src.tools.engibench import (
-    check_beam_constraints,
-    create_beam_problem,
+    create_problem,
     get_dataset_info,
     get_problem_details,
     get_problem_info,
-    optimize_beam_design,
-    render_beam_design,
-    simulate_beam_design,
+    optimize_design,
+    render_design,
+    simulate_design,
 )
 from src.tools.engiopt import (
     download_wandb_model,
@@ -46,12 +45,11 @@ class EngineeringAgent(BaseAgent):
             List of LangChain tools for engineering tasks
         """
         return [
-            # EngiBench tools
-            check_beam_constraints,
-            create_beam_problem,
-            simulate_beam_design,
-            optimize_beam_design,
-            render_beam_design,
+            # Unified EngiBench tools
+            create_problem,
+            simulate_design,
+            optimize_design,
+            render_design,
             get_problem_info,
             get_problem_details,
             get_dataset_info,

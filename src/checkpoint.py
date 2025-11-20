@@ -64,7 +64,19 @@ def get_checkpointer() -> MemorySaver:
 
                 # Initialize database tables on first use
                 if not _initialized:
-                    _checkpointer.setup()
+                    try:
+                        _checkpointer.setup()
+                    except Exception as setup_error:
+                        # Handle case where migrations have already been applied
+                        # (e.g., "column already exists" errors)
+                        error_msg = str(setup_error).lower()
+                        if "already exists" in error_msg:
+                            logger.info(
+                                "Database schema already initialized, skipping setup"
+                            )
+                        else:
+                            # Re-raise if it's a different error
+                            raise
                     _initialized = True
                     logger.info(
                         "PostgreSQL checkpointer initialized (persistent across restarts)"

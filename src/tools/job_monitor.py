@@ -8,6 +8,7 @@ when jobs complete. It supports:
 3. Background monitoring for long-running jobs
 """
 
+import logging
 import time
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +19,8 @@ from langchain_core.tools import tool
 from config import config
 from src.tools.connection import HPCConnection
 from src.tools.hpc import download_job_outputs
+
+logger = logging.getLogger(__name__)
 
 # Global job status cache for tracking changes
 _job_status_cache: dict[str, dict[str, Any]] = {}
@@ -56,8 +59,8 @@ def monitor_job_until_complete(
         start_time = datetime.now()
         checks_performed = 0
 
-        print(f"🔍 Starting to monitor job {job_id}")
-        print(f"   Check interval: {check_interval}s, Max checks: {max_checks}")
+        logger.info(f"Starting to monitor job {job_id}")
+        logger.debug(f"Check interval: {check_interval}s, Max checks: {max_checks}")
 
         while checks_performed < max_checks:
             checks_performed += 1
@@ -90,9 +93,9 @@ def monitor_job_until_complete(
                     is_completed = True
 
             if is_completed:
-                print(f"✅ Job {job_id} has completed!")
-                print(
-                    f"   Total monitoring time: {elapsed:.0f}s ({checks_performed} checks)"
+                logger.info(f"Job {job_id} has completed!")
+                logger.debug(
+                    f"Total monitoring time: {elapsed:.0f}s ({checks_performed} checks)"
                 )
 
                 result = {
@@ -105,7 +108,7 @@ def monitor_job_until_complete(
 
                 # Auto-download outputs if requested
                 if auto_download:
-                    print("📥 Auto-downloading job outputs...")
+                    logger.info("Auto-downloading job outputs...")
                     download_result = download_job_outputs.invoke(
                         {
                             "job_id": job_id,
@@ -128,8 +131,8 @@ def monitor_job_until_complete(
                 if len(parts) > squeue_state_column_index:
                     job_state = parts[squeue_state_column_index]
 
-            print(
-                f"⏳ Check {checks_performed}/{max_checks}: Job {job_state} (elapsed: {elapsed:.0f}s)"
+            logger.debug(
+                f"Check {checks_performed}/{max_checks}: Job {job_state} (elapsed: {elapsed:.0f}s)"
             )
 
             # Wait before next check (unless it's the last check)
@@ -317,7 +320,7 @@ def generate_slurm_script_with_notifications(
 
     # Check if notifications already configured
     if "#SBATCH --mail-user" in script:
-        print("⚠️  Email notifications already configured in script")
+        logger.warning("Email notifications already configured in script")
         return script
 
     # Find where to insert (after other #SBATCH directives)
@@ -337,8 +340,7 @@ def generate_slurm_script_with_notifications(
     lines[insert_pos:insert_pos] = notification_lines
     modified_script = "\n".join(lines)
 
-    print("✅ Added email notifications to script:")
-    print(f"   Email: {email}")
-    print(f"   Notify on: {notify_on}")
+    logger.info("Added email notifications to script")
+    logger.debug(f"Email: {email}, Notify on: {notify_on}")
 
     return modified_script

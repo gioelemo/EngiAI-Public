@@ -1,5 +1,6 @@
 """Database module for managing chat conversations with PostgreSQL."""
 
+import logging
 import os
 import uuid
 from datetime import datetime
@@ -18,6 +19,8 @@ from sqlalchemy import (
     create_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -52,6 +55,8 @@ def _serialize_messages(messages: list[BaseMessage]) -> list[dict]:
             msg_dict["id"] = msg.id  # type: ignore[assignment]
         if hasattr(msg, "tool_calls") and msg.tool_calls:
             msg_dict["tool_calls"] = msg.tool_calls
+        if hasattr(msg, "tool_call_id") and msg.tool_call_id:
+            msg_dict["tool_call_id"] = msg.tool_call_id
         if hasattr(msg, "name") and msg.name:
             msg_dict["name"] = msg.name
 
@@ -181,8 +186,8 @@ class DatabaseManager:
             Base.metadata.create_all(self.engine)
         except Exception as e:
             # If PostgreSQL fails (permissions, connection, etc), fall back to SQLite
-            print(
-                f"Warning: Could not connect to database ({e}). Falling back to SQLite."
+            logger.warning(
+                f"Could not connect to database ({e}). Falling back to SQLite."
             )
             sqlite_url = "sqlite:///data/conversations.db"
             self.engine = create_engine(sqlite_url, echo=False)

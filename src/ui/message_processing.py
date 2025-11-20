@@ -9,7 +9,7 @@ import re
 from typing import Any
 
 import streamlit as st
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 from src.ui.media_display import (
     display_image,
@@ -391,37 +391,94 @@ def format_ai_message(message: AIMessage | ToolMessage) -> str:
 def format_and_display_messages(new_messages: list) -> tuple[str, list[str]]:
     """Format and display new messages from the agent.
 
+    Displays the final AI response and any relevant tool outputs (like CLI command results).
+    This keeps the UI clean while showing important execution results.
+
     Args:
         new_messages: List of new messages to display
 
     Returns:
         Tuple of (formatted response string, list of suggested prompts)
     """
-    response_parts = []
+    # Find the last AIMessage that has content and no tool_calls (the final response)
+    # Also collect all tool outputs from the messages
+    final_message = None
+    tool_outputs = []
+
     for message in new_messages:
-        if isinstance(message, HumanMessage):
-            continue
-        formatted = format_ai_message(message)
-        if formatted:
-            response_parts.append(formatted)
+        if isinstance(message, ToolMessage):
+            # Collect all tool outputs
+            tool_outputs.append(message)
+        elif isinstance(message, AIMessage):
+            # Check if this is a final response (has content, no tool_calls)
+            has_content = message.content and str(message.content).strip()
+            has_tool_calls = hasattr(message, "tool_calls") and message.tool_calls
+            if has_content and not has_tool_calls:
+                final_message = message
 
-    full_response = "\n\n".join(response_parts)
     suggested_prompts: list[str] = []
+    response_parts = []
 
-    if full_response:
+    # Only show raw CLI command outputs (shell commands like pip list, ls, etc.)
+    # Skip tool outputs from agents that format their own responses (Prusa, engineering, etc.)
+    # The AI will provide a formatted summary for those
+    if tool_outputs:
+        for tool_msg in tool_outputs:
+            content = str(tool_msg.content)
+            # Only show outputs that look like raw shell command output:
+            # - Has multiple lines
+            # - Looks like package list, file listing, or similar tabular data
+            # - Doesn't contain structured data patterns
+            is_shell_output = (
+                "\n" in content
+                and not content.strip().startswith("{")
+                and "array([" not in content
+                and "'problem_id':" not in content
+                and "'success':" not in content
+                # Skip Prusa/printer outputs (formatted by the agent)
+                and "Printer Name:" not in content
+                and "Printer UUID:" not in content
+                and "Temperature (Nozzle)" not in content
+                # Skip JSON responses (API outputs)
+                and '"id":' not in content
+                and '"state":' not in content
+                and '"command":' not in content
+                # Skip other agent-formatted outputs
+                and "---" not in content[:100]  # Separators indicate formatted output
+            )
+            if is_shell_output:
+                # Truncate very long outputs
+                max_content_length = 3000
+                if len(content) > max_content_length:
+                    content = (
+                        content[:max_content_length] + "\n\n... (output truncated)"
+                    )
+                response_parts.append(f"```\n{content}\n```")
+
+    if final_message:
+        full_response = str(final_message.content)
+
         # Extract suggested prompts first
         cleaned_response, suggested_prompts = extract_suggested_prompts(full_response)
 
         # Extract and display validation warnings as separate Streamlit components
         cleaned_response = extract_and_display_validation_warnings(cleaned_response)
 
-        # Display the cleaned response (without validation block and suggestions)
-        st.markdown(cleaned_response)
+        response_parts.append(cleaned_response)
+
+    # Combine all parts
+    combined_response = "\n\n".join(response_parts)
+
+    if combined_response:
+        # Display the combined response
+        st.markdown(combined_response)
 
         # Display media files
-        display_response_media(cleaned_response)
+        display_response_media(combined_response)
 
-    return full_response, suggested_prompts
+        return combined_response, suggested_prompts
+
+    return "", suggested_prompts
 
 
 def _display_uploaded_files(message: dict, message_idx: int) -> None:

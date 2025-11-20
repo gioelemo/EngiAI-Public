@@ -273,8 +273,8 @@ def test_supervisor_handles_very_long_message():
 
 
 @pytest.mark.unit
-def test_supervisor_preserves_message_history():
-    """Test supervisor maintains message history through routing."""
+def test_supervisor_returns_empty_messages_with_routing():
+    """Test supervisor returns empty messages list (state is managed by add_messages reducer)."""
     fake_llm = GenericFakeChatModel(
         messages=iter([AIMessage(content="engineering_agent")])
     )
@@ -295,8 +295,11 @@ def test_supervisor_preserves_message_history():
 
         result = agent._supervisor_node(state)
 
-        # Should preserve all previous messages
-        assert len(result.get("messages", [])) >= len(initial_messages)
+        # Supervisor node returns empty messages to avoid duplicates
+        # (add_messages reducer handles state preservation)
+        assert result.get("messages", []) == []
+        # Should still return correct routing decision
+        assert result.get("next") == "engineering_agent"
 
 
 @pytest.mark.unit

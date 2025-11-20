@@ -142,8 +142,9 @@ class PrusaAgent:
             # Create a wrapper function for this specific tool
             def make_tool_func(tool_name):
                 def call_tool(**kwargs):
-                    print(
-                        f"DEBUG: call_tool wrapper called for '{tool_name}' with kwargs: {kwargs}"
+                    logger = logging.getLogger(__name__)
+                    logger.debug(
+                        f"call_tool wrapper called for '{tool_name}' with kwargs: {kwargs}"
                     )
                     return self._call_mcp_tool_sync(tool_name, **kwargs)
 
@@ -262,15 +263,9 @@ class PrusaAgent:
 
             try:
                 logger = logging.getLogger(__name__)
-                print(
-                    f"DEBUG _tool_node: Invoking tool '{tool_name}' with args: {tool_args}"
-                )
-                logger.info(f"Invoking tool '{tool_name}' with args: {tool_args}")
+                logger.debug(f"Invoking tool '{tool_name}' with args: {tool_args}")
                 result = tool.invoke(tool_args)
-                print(
-                    f"DEBUG _tool_node: Tool '{tool_name}' result: {result[:100] if result else '(empty)'}"
-                )
-                logger.info(
+                logger.debug(
                     f"Tool '{tool_name}' result: {result[:200] if result else '(empty)'}"
                 )
                 outputs.append(

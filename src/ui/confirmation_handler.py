@@ -4,10 +4,12 @@ CLI command confirmation handling for the Streamlit UI.
 Handles the confirmation flow when the agent wants to execute CLI commands.
 """
 
+import uuid
 from typing import cast
 
 import streamlit as st
 
+from src.agents.cli_agent import CLIAgent
 from src.models.state import MessagesState
 from src.ui.message_processing import format_and_display_messages
 
@@ -51,12 +53,17 @@ def check_streamlit_interrupt() -> tuple[bool, str]:
 def extract_command_info() -> str:
     """Extract command information from pending CLI tool calls.
 
+    Since we interrupt at the supervisor level before cli_agent node,
+    we do a dry-run of the CLI agent to see what command it will execute.
+    We use a temporary CLI agent with require_confirmation=True so it
+    will be interrupted before actually executing the command.
+
     Returns:
         Formatted string with command details, or empty string if none found
     """
     try:
         # Get the snapshot to access state
-        snapshot = st.session_state.agent.graph.get_state(st.session_state.config)  # type: ignore[attr-defined]
+        snapshot = st.session_state.agent.graph.get_state(st.session_state.config)
 
         # Check if CLI agent is about to run
         if (
@@ -68,23 +75,33 @@ def extract_command_info() -> str:
         ):
             messages = snapshot.values["messages"]
 
-            # Temporarily invoke the CLI agent to get its plan
-            # Use a separate thread ID so we don't affect the main conversation
+            # Create a temporary CLI agent with confirmation enabled
+            # This will interrupt before tool execution
             try:
-                # Check if agent has cli_agent attribute (SupervisorAgent)
                 if hasattr(st.session_state.agent, "cli_agent"):
-                    cli_agent = st.session_state.agent.cli_agent  # type: ignore[attr-defined]
-                    # Invoke CLI agent to get the plan (will be interrupted at tool_node)
+                    # Get model config from existing agent
+                    existing_cli = st.session_state.agent.cli_agent
+
+                    # Create preview agent with confirmation enabled
+                    preview_agent = CLIAgent(
+                        model_name=existing_cli.model_name,
+                        require_confirmation=True,  # This causes interrupt before tools
+                        temperature=existing_cli.temperature,
+                    )
+
                     cli_agent_state = cast(MessagesState, {"messages": messages})
+                    # Use unique thread_id to avoid checkpoint conflicts
                     cli_config = {
-                        "configurable": {"thread_id": "cli_preview_streamlit"}
+                        "configurable": {
+                            "thread_id": f"cli_preview_{uuid.uuid4().hex[:8]}"
+                        }
                     }
 
-                    # Invoke once - it will be interrupted before tool execution
-                    _ = cli_agent.invoke(cli_agent_state, cli_config)
+                    # Invoke - it will be interrupted before tool execution
+                    _ = preview_agent.invoke(cli_agent_state, cli_config)
 
-                    # Check the CLI agent's state for tool calls
-                    cli_snapshot = cli_agent.agent.get_state(cli_config)  # type: ignore[union-attr]
+                    # Check the preview agent's state for tool calls
+                    cli_snapshot = preview_agent.agent.get_state(cli_config)
 
                     if (
                         hasattr(cli_snapshot, "values")
@@ -98,11 +115,19 @@ def extract_command_info() -> str:
                                 return format_tool_calls_for_display(msg.tool_calls)
 
             except Exception:
-                # Silently fail and fall back to checking main state
+                # Silently fail and fall back to showing user request
                 pass
 
-        # Fallback: Look for tool calls in main state messages
-        for msg in reversed(st.session_state.agent_state.get("messages", [])):
+        # Fallback: Show the user's request
+        messages = st.session_state.agent_state.get("messages", [])
+        for msg in reversed(messages):
+            if hasattr(msg, "type") and msg.type == "human":
+                user_request = str(msg.content) if hasattr(msg, "content") else ""
+                if user_request:
+                    return f"**Command request:**\n> {user_request}"
+
+        # Check for tool calls in existing messages
+        for msg in reversed(messages):
             if hasattr(msg, "tool_calls") and msg.tool_calls:
                 return format_tool_calls_for_display(msg.tool_calls)
 

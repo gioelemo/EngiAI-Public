@@ -159,19 +159,24 @@ def _create_stl_from_heatmap_extruded(
 
 
 @tool
-def convert_design_to_stl(
+def convert_design_to_stl(  # noqa: PLR0913, PLR0912
     npy_file_path: str,
     stl_file_path: str | None = None,
     scale_xy: float = 1.0,
     scale_z: float = 10.0,
     mirror_y: bool = False,
+    problem_type: str = "beams2d",
+    threshold: float = 0.5,
 ) -> dict[str, Any]:
     """
-    Convert a 2D beam design array (.npy file) to a 3D STL file for 3D printing or CAD.
+    Convert a 2D topology optimization design (.npy file) to a 3D STL file for 3D printing or CAD.
 
     This tool takes a numpy array file containing a 2D topology design
-    and converts it into a 3D mesh (STL format) using extrusion. Each cell with
-    a non-zero value becomes a solid block (cube) with height determined by scale_z.
+    and converts it into a 3D mesh (STL format) using extrusion.
+
+    For discrete designs (beams2d): Rounds values to binary (0 or 1) and extrudes solid cells.
+    For continuous designs (thermoelastic2d): Uses threshold to determine solid regions,
+    preserving the continuous density distribution in the Z-height.
 
     All STL files are automatically saved to the 'outputs/' directory.
     If the output file already exists, a version number is automatically added
@@ -183,9 +188,13 @@ def convert_design_to_stl(
             Default: same name as npy with .stl extension
             Note: If file exists, version number will be auto-added to preserve history
         scale_xy: Scaling factor for X and Y dimensions (default: 1.0)
-        scale_z: Extrusion height for non-zero cells (default: 10.0)
-        mirror_y: If True, mirror the design along Y-axis to create full symmetric beam
-            from half-beam simulation (default: False)
+        scale_z: Extrusion height for cells (default: 10.0)
+        mirror_y: If True, mirror the design along Y-axis to create full symmetric structure
+            from half-structure simulation (default: False)
+        problem_type: Type of problem ("beams2d" or "thermoelastic2d", default: "beams2d")
+            Determines whether to use binary rounding or continuous density
+        threshold: For continuous problems, density threshold for solid vs void (default: 0.5)
+            Only cells with density >= threshold will be included in the STL
 
     Returns:
         dict with conversion results:
@@ -200,9 +209,17 @@ def convert_design_to_stl(
         >>> result = convert_design_to_stl("beam_design.npy")
         >>> print(result['message'])
 
+        To convert a thermoelastic design (continuous densities):
+        >>> result = convert_design_to_stl(
+        ...     npy_file_path="thermoelastic_design.npy",
+        ...     problem_type="thermoelastic2d",
+        ...     threshold=0.3
+        ... )
+
         To convert a half-beam and mirror it to create a full beam:
         >>> result = convert_design_to_stl(
         ...     npy_file_path="half_beam.npy",
+        ...     problem_type="beams2d",
         ...     mirror_y=True
         ... )
 
@@ -253,12 +270,22 @@ def convert_design_to_stl(
 
         height, width = data.shape
 
-        # Round values to binary if needed
-        data = np.round(data)
+        # Apply problem-specific processing
+        if problem_type.lower() == "beams2d":
+            # For beams: round to binary (0 or 1)
+            data = np.round(data)
+        else:
+            # For continuous problems (thermoelastic2d): threshold densities
+            # Keep cells above threshold, zero out below threshold
+            data = np.where(data >= threshold, data, 0.0)
 
-        # Mirror along Y-axis if requested (for half-beam to full-beam conversion)
+        # Mirror along Y-axis if requested (for half-structure to full-structure conversion)
         if mirror_y:
-            data = _mirror_beam_along_y(data)
+            if problem_type.lower() == "beams2d":
+                data = _mirror_beam_along_y(data)
+            else:
+                # For non-beam problems, use generic mirroring
+                data = np.concatenate([data, np.fliplr(data)], axis=1)
             height, width = data.shape
 
         # Count non-zero cells

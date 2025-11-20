@@ -12,14 +12,14 @@ from src.tools.arxiv_tools import (
 )
 from src.tools.document_processor import MultimodalDocumentProcessor
 from src.tools.engibench import (
-    check_beam_constraints,
-    create_beam_problem,
+    # Unified tools (recommended - use these!)
+    create_problem,
     get_dataset_info,
     get_problem_details,
     get_problem_info,
-    optimize_beam_design,
-    render_beam_design,
-    simulate_beam_design,
+    optimize_design,
+    render_design,
+    simulate_design,
 )
 from src.tools.engiopt import (
     download_wandb_model,
@@ -36,10 +36,9 @@ __all__ = [
     "EngineerRAGStore",
     "EngineeringRAGChain",
     "MultimodalDocumentProcessor",
-    "check_beam_constraints",
     "convert_design_to_stl",
     "create_arxiv_tools",
-    "create_beam_problem",
+    "create_problem",
     "create_search_tool",
     "download_arxiv_paper",
     "download_wandb_model",
@@ -49,9 +48,9 @@ __all__ = [
     "get_problem_info",
     "list_available_algorithms",
     "load_wandb_model",
-    "optimize_beam_design",
-    "render_beam_design",
+    "optimize_design",
+    "render_design",
     "sample_designs_from_model",
     "search_arxiv",
-    "simulate_beam_design",
+    "simulate_design",
 ]
