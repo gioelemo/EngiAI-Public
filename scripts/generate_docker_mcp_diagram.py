@@ -5,6 +5,7 @@ This diagram shows how the Prusa MCP server runs as a separate container
 and communicates with the main chatbot application via HTTP/SSE.
 """
 
+from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -634,13 +635,16 @@ for i, symbol_item in enumerate(symbol_items):
     ax.text(x_pos, y_pos, symbol_item["symbol"], fontsize=12, va="center", ha="center")
     ax.text(x_pos + 0.3, y_pos, symbol_item["label"], fontsize=8, va="center")
 
-# Save the diagram
-output_path = "outputs/docker_mcp_architecture.png"
+# Ensure assets directory exists and save the diagram there
+assets_dir = Path("assets")
+assets_dir.mkdir(parents=True, exist_ok=True)
+
+output_path = assets_dir / "docker_mcp_architecture.png"
 plt.tight_layout()
 plt.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
 print(f"[OK] Docker MCP architecture diagram saved to: {output_path}")
 
 # Also save as PDF for better quality
-output_path_pdf = "outputs/docker_mcp_architecture.pdf"
+output_path_pdf = assets_dir / "docker_mcp_architecture.pdf"
 plt.savefig(output_path_pdf, format="pdf", bbox_inches="tight", facecolor="white")
 print(f"[OK] Docker MCP architecture diagram (PDF) saved to: {output_path_pdf}")

@@ -99,8 +99,8 @@ services:
       - SLURM_MAX_CPUS=${SLURM_MAX_CPUS:-16}
       - SLURM_MAX_MEM_PER_CPU_GB=${SLURM_MAX_MEM_PER_CPU_GB:-16}
       # Hugging Face Configuration
-      - HF_HOME_REMOTE=${HF_HOME_REMOTE:-$$SCRATCH/models}
-      - HF_DATASETS_CACHE_REMOTE=${HF_DATASETS_CACHE_REMOTE:-$$SCRATCH/datasets}
+      - HF_HOME_REMOTE=${HF_HOME_REMOTE:-/cluster/scratch/gioelemo/models}
+      - HF_DATASETS_CACHE_REMOTE=${HF_DATASETS_CACHE_REMOTE:-/cluster/scratch/gioelemo/datasets}
       - HF_TOKEN=${HF_TOKEN:-}
       # W&B Configuration
       - USE_WANDB=${USE_WANDB:-True}

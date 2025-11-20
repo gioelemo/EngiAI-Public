@@ -29,12 +29,17 @@ tests/
 
 ## Writing New Tests
 
-### 1. Use fixtures from conftest.py
+### 1. Create mock LLMs for testing
 
 ```python
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage
+
 @pytest.mark.unit
-def test_something(fake_llm):
+def test_something():
     """Test using GenericFakeChatModel."""
+    fake_llm = GenericFakeChatModel(messages=iter([AIMessage(content="test response")]))
+
     # Patch where init_chat_model is IMPORTED, not where it's defined
     with patch("src.agents.your_agent.init_chat_model", return_value=fake_llm):
         # Your test here
@@ -43,16 +48,7 @@ def test_something(fake_llm):
 
 **Important:** Patch `init_chat_model` where it's imported in your module!
 
-### 2. Available fixtures
-
-- `fake_llm` - Generic fake LLM
-- `fake_llm_routing_engineering` - Routes to engineering agent
-- `fake_llm_routing_search` - Routes to search agent
-- `fake_llm_routing_hpc` - Routes to HPC agent
-- `fake_llm_routing_cli` - Routes to CLI agent
-- `fake_llm_routing_finish` - Direct response (FINISH)
-
-### 3. Mark slow tests
+### 2. Mark slow tests
 
 ```python
 @pytest.mark.slow

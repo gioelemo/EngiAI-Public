@@ -7,6 +7,7 @@ This provides a web-based chat interface for interacting with the multi-agent sy
 import base64
 import datetime
 import logging
+import secrets
 import sys
 import tempfile
 import warnings
@@ -25,6 +26,7 @@ if str(project_root) not in sys.path:
 
 from config import config  # noqa: E402
 from src.tools import EngineerRAGStore, MultimodalDocumentProcessor  # noqa: E402
+from src.tools.hpc import set_current_session_id  # noqa: E402
 from src.ui import chat, home, settings, wandb_report  # noqa: E402
 from src.ui.chat_management import (  # noqa: E402
     create_new_chat,
@@ -105,6 +107,13 @@ def initialize_session_state() -> None:
     # Page navigation
     if "current_page" not in st.session_state:
         st.session_state.current_page = "chat"
+
+    # Initialize session ID for SSH credential isolation
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = secrets.token_hex(16)
+
+    # Set session ID for HPC tools
+    set_current_session_id(st.session_state.session_id)
 
     # Initialize STL viewer settings
     _initialize_stl_settings()

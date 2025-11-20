@@ -6,10 +6,11 @@ sub-agents (Engineering, Search, etc.) rather than having all tools directly.
 """
 
 import logging
+import uuid
 from typing import Annotated, cast
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage, AnyMessage
+from langchain_core.messages import AIMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
@@ -83,7 +84,7 @@ class SupervisorAgent:
         self.prusa_agent = PrusaAgent(
             model_name=self.model_name, temperature=self.temperature
         )
-        # Disable CLI agent's internal confirmation - supervisor handles interrupts at its level
+        # CLI confirmation is handled by supervisor-level interrupt, not internally
         self.cli_agent = CLIAgent(
             model_name=self.model_name,
             require_confirmation=False,
@@ -148,12 +149,13 @@ class SupervisorAgent:
             + "- Any mention of 'wandb', 'models', 'pretrained', 'download model', 'GAN', 'diffusion', "
             + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint', 'training', 'train', "
             + "'generate script', 'generate SLURM', 'slurm', 'model training' → use engineering_agent\n"
+            + "- CONVERTING design to STL: 'convert to STL', 'export to STL', 'create STL', 'generate STL from design', 'make STL file' → use engineering_agent\n"
             + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information ONLINE → use search_agent\n"
             + "- Questions about UPLOADED documents, papers, PDFs: 'what does the paper say', 'explain this document', 'summarize the research', 'what are the findings' → use rag_agent\n"
             + "- ArXiv paper search and analysis: 'find papers on ArXiv', 'search ArXiv for', 'download ArXiv paper', 'analyze paper 1605.08386', 'what papers are available on', 'ArXiv ID', 'arxiv.org' → use arxiv_agent\n"
             + "- Prusa printer management: 'printer status', 'print jobs', 'pause print', 'resume print', 'stop print', 'start print', 'Prusa Connect', 'printer', '3D printer' → use prusa_agent\n"
-            + "- OPEN GUI applications or EXECUTE CLI commands: 'open PrusaSlicer', 'open Terminal', 'open Mail', 'slice file.stl', 'convert file', 'execute pwd' → use cli_agent\n"
+            + "- SLICING STL to G-code or OPENING GUI applications or EXECUTING CLI commands: 'open PrusaSlicer', 'open Terminal', 'open Mail', 'slice file.stl to gcode', 'execute pwd' → use cli_agent\n"
             + "\n"
             + "Respond with ONLY ONE WORD: "
             + ", ".join(agent_names[:-1])
@@ -170,7 +172,7 @@ class SupervisorAgent:
             # Already routed, finish
             return {
                 "next": "FINISH",
-                "messages": state["messages"],
+                "messages": [],  # Don't return messages - add_messages will handle state
             }
 
         # Check user message directly for "open" commands - route to CLI immediately
@@ -197,7 +199,7 @@ class SupervisorAgent:
             )
             return {
                 "next": "cli_agent",
-                "messages": state["messages"],
+                "messages": [],  # Don't return messages - add_messages will handle state
             }
 
         messages = [
@@ -260,7 +262,7 @@ class SupervisorAgent:
         logger.info(f"[SUPERVISOR ROUTING DEBUG] LLM routing decision: '{next_agent}'")
         return {
             "next": next_agent,
-            "messages": state["messages"],
+            "messages": [],  # Don't return messages - add_messages will handle state
         }
 
     def _supervisor_response_node(self, state: SupervisorState):
@@ -278,9 +280,7 @@ The system has the following capabilities:
 - Access to pre-trained models from WandB
 - Generative models (GANs, Diffusion)
 
-**Code Execution:**
-- Python code execution and calculations
-- Data analysis and quick evaluations
+
 
 **CLI Command Execution:**
 - Execute any local command-line tool
@@ -339,154 +339,102 @@ For capability questions, suggest specific actions the user might want to try wi
 
     def _engineering_node(self, state: SupervisorState):
         """Delegate to engineering agent."""
+
         agent_state = cast(MessagesState, {"messages": state["messages"]})
+        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.engineering_agent.invoke(
             agent_state,
-            {"configurable": {"thread_id": "engineering"}},
+            {"configurable": {"thread_id": f"engineering_{uuid.uuid4().hex[:8]}"}},
         )
-        # Extract only the LAST final AI response, excluding intermediate tool calls/responses
-        # Sub-agents may loop through multiple tool calls, we only want the final answer
+        # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        final_messages: list[AnyMessage] = [
-            msg
-            for msg in new_messages
-            if isinstance(msg, AIMessage) and not msg.tool_calls
-        ]
-        # Keep only the last final message (the actual answer to the user)
-        if final_messages:
-            return {"messages": [final_messages[-1]], "next": "FINISH"}
-        elif new_messages:
-            return {"messages": [new_messages[-1]], "next": "FINISH"}
-        return {"messages": [], "next": "FINISH"}
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _hpc_node(self, state: SupervisorState):
         """Delegate to HPC agent."""
+
         agent_state = cast(MessagesState, {"messages": state["messages"]})
+        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.hpc_agent.invoke(
             agent_state,
-            {"configurable": {"thread_id": "hpc"}},
+            {"configurable": {"thread_id": f"hpc_{uuid.uuid4().hex[:8]}"}},
         )
-        # Extract only the LAST final AI response, excluding intermediate tool calls/responses
+        # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        final_messages: list[AnyMessage] = [
-            msg
-            for msg in new_messages
-            if isinstance(msg, AIMessage) and not msg.tool_calls
-        ]
-        if final_messages:
-            return {"messages": [final_messages[-1]], "next": "FINISH"}
-        elif new_messages:
-            return {"messages": [new_messages[-1]], "next": "FINISH"}
-        return {"messages": [], "next": "FINISH"}
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _search_node(self, state: SupervisorState):
         """Delegate to search agent."""
+
         agent_state = cast(MessagesState, {"messages": state["messages"]})
+        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.search_agent.invoke(
             agent_state,
-            {"configurable": {"thread_id": "search"}},
+            {"configurable": {"thread_id": f"search_{uuid.uuid4().hex[:8]}"}},
         )
-        # Extract only the LAST final AI response, excluding intermediate tool calls/responses
+        # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        final_messages: list[AnyMessage] = [
-            msg
-            for msg in new_messages
-            if isinstance(msg, AIMessage) and not msg.tool_calls
-        ]
-        if final_messages:
-            return {"messages": [final_messages[-1]], "next": "FINISH"}
-        elif new_messages:
-            return {"messages": [new_messages[-1]], "next": "FINISH"}
-        return {"messages": [], "next": "FINISH"}
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _rag_node(self, state: SupervisorState):
         """Delegate to RAG agent for document Q&A."""
+
         agent_state = cast(MessagesState, {"messages": state["messages"]})
+        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.rag_agent.invoke(
             agent_state,
-            {"configurable": {"thread_id": "rag"}},
+            {"configurable": {"thread_id": f"rag_{uuid.uuid4().hex[:8]}"}},
         )
-        # Extract only the LAST final AI response, excluding intermediate tool calls/responses
+        # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        final_messages: list[AnyMessage] = [
-            msg
-            for msg in new_messages
-            if isinstance(msg, AIMessage) and not msg.tool_calls
-        ]
-        if final_messages:
-            return {"messages": [final_messages[-1]], "next": "FINISH"}
-        elif new_messages:
-            return {"messages": [new_messages[-1]], "next": "FINISH"}
-        return {"messages": [], "next": "FINISH"}
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _arxiv_node(self, state: SupervisorState):
         """Delegate to ArXiv agent for paper search and analysis."""
+
         agent_state = cast(MessagesState, {"messages": state["messages"]})
+        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.arxiv_agent.invoke(
             agent_state,
-            {"configurable": {"thread_id": "arxiv"}},
+            {"configurable": {"thread_id": f"arxiv_{uuid.uuid4().hex[:8]}"}},
         )
-        # Extract only the LAST final AI response, excluding intermediate tool calls/responses
+        # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        final_messages: list[AnyMessage] = [
-            msg
-            for msg in new_messages
-            if isinstance(msg, AIMessage) and not msg.tool_calls
-        ]
-        if final_messages:
-            return {"messages": [final_messages[-1]], "next": "FINISH"}
-        elif new_messages:
-            return {"messages": [new_messages[-1]], "next": "FINISH"}
-        return {"messages": [], "next": "FINISH"}
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _prusa_node(self, state: SupervisorState):
         """Delegate to Prusa agent."""
+
         agent_state = cast(MessagesState, {"messages": state["messages"]})
+        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.prusa_agent.invoke(
             agent_state,
-            {"configurable": {"thread_id": "prusa"}},
+            {"configurable": {"thread_id": f"prusa_{uuid.uuid4().hex[:8]}"}},
         )
-        # Extract only the LAST final AI response, excluding intermediate tool calls/responses
+        # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        final_messages: list[AnyMessage] = [
-            msg
-            for msg in new_messages
-            if isinstance(msg, AIMessage) and not msg.tool_calls
-        ]
-        if final_messages:
-            return {"messages": [final_messages[-1]], "next": "FINISH"}
-        elif new_messages:
-            return {"messages": [new_messages[-1]], "next": "FINISH"}
-        return {"messages": [], "next": "FINISH"}
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _cli_node(self, state: SupervisorState):
         """Delegate to CLI agent."""
         logger.info("[SUPERVISOR] _cli_node invoked - delegating to CLI agent")
         agent_state = cast(MessagesState, {"messages": state["messages"]})
+        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.cli_agent.invoke(
             agent_state,
-            {"configurable": {"thread_id": "cli"}},
+            {"configurable": {"thread_id": f"cli_{uuid.uuid4().hex[:8]}"}},
         )
         logger.info("[SUPERVISOR] CLI agent returned result")
-        # Extract only the LAST final AI response, excluding intermediate tool calls/responses
+        # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        final_messages: list[AnyMessage] = [
-            msg
-            for msg in new_messages
-            if isinstance(msg, AIMessage) and not msg.tool_calls
-        ]
-        if final_messages:
-            return {"messages": [final_messages[-1]], "next": "FINISH"}
-        elif new_messages:
-            return {"messages": [new_messages[-1]], "next": "FINISH"}
-        return {"messages": [], "next": "FINISH"}
+        return {"messages": new_messages, "next": "FINISH"}
 
     def _build_graph(self):
         """Build the supervisor workflow graph with agent routing."""
@@ -540,8 +488,11 @@ For capability questions, suggest specific actions the user might want to try wi
 
         # Compile with persistent checkpointer
         checkpointer = get_checkpointer()
-        # No interrupts - CLI agent handles confirmation internally if needed
-        return workflow.compile(checkpointer=checkpointer)
+        # Interrupt before cli_agent for user confirmation of commands
+        return workflow.compile(
+            checkpointer=checkpointer,
+            interrupt_before=["cli_agent"],
+        )
 
     def invoke(self, state, config):
         """Invoke the supervisor agent.
