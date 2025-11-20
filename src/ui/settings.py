@@ -1,6 +1,7 @@
 """Settings page for the Engineer Assistant Streamlit app."""
 
 import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -13,6 +14,14 @@ if str(project_root) not in sys.path:
 
 from config import config  # noqa: E402
 from scripts.import_local_papers import LocalPaperImporter  # noqa: E402
+from src.tools.connection import HPCConnection  # noqa: E402
+from src.tools.hpc import (  # noqa: E402
+    CREDENTIAL_EXPIRATION_SECONDS,
+    clear_ssh_credentials,
+    get_ssh_credentials,
+    set_current_session_id,
+    set_ssh_credentials,
+)
 from src.ui.database import DatabaseManager  # noqa: E402
 from src.utils.api_usage import (  # noqa: E402
     USAGE_THRESHOLD_CRITICAL,
@@ -20,6 +29,9 @@ from src.utils.api_usage import (  # noqa: E402
     get_mathpix_usage,
     get_tavily_usage,
 )
+
+# Constants
+SECONDS_PER_HOUR = 3600
 
 
 def _init_db() -> DatabaseManager:
@@ -423,6 +435,202 @@ def _render_mathpix_usage() -> None:
     )
 
 
+def _render_ssh_credentials_section() -> None:  # noqa: PLR0912, PLR0915
+    """Render SSH/HPC credentials section."""
+    st.markdown("## 🔐 HPC Connection")
+    st.markdown(
+        "Configure SSH credentials for connecting to HPC clusters. "
+        "You can use either password authentication or your existing SSH config."
+    )
+
+    # Ensure we have a session ID for credential isolation
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = secrets.token_hex(16)
+
+    # Set the current session ID for the HPC module
+    set_current_session_id(st.session_state.session_id)
+
+    # Check current status
+    current_creds = get_ssh_credentials(st.session_state.session_id)
+
+    if current_creds:
+        expiry_minutes = CREDENTIAL_EXPIRATION_SECONDS // 60
+        st.success(
+            f"✅ Password authentication configured for **{current_creds['user']}@{current_creds['host']}**\n\n"
+            f"Credentials expire in {expiry_minutes} minutes from when they were set."
+        )
+        if st.button("🗑️ Clear Credentials", key="clear_ssh_creds"):
+            clear_ssh_credentials(st.session_state.session_id)
+            st.success("Credentials cleared. Will use SSH config for authentication.")
+            st.rerun()
+    else:
+        st.info(
+            "Currently using SSH config (`~/.ssh/config`). "
+            "Configure password authentication below if SSH config is not available."
+        )
+
+    # Auth mode selector
+    auth_mode = st.radio(
+        "Authentication Mode",
+        options=["SSH Config (default)", "Password Authentication"],
+        index=0 if not current_creds else 1,
+        help="SSH Config uses your ~/.ssh/config file with SSH keys. "
+        "Password Authentication uses username/password directly.",
+        key="ssh_auth_mode",
+    )
+
+    if auth_mode == "Password Authentication":
+        st.markdown("### Enter Credentials")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            ssh_host = st.text_input(
+                "Hostname",
+                value=current_creds["host"] if current_creds else "euler.ethz.ch",
+                placeholder="euler.ethz.ch",
+                help="Full hostname of the HPC cluster",
+                key="ssh_host_input",
+            )
+
+            ssh_user = st.text_input(
+                "Username",
+                value=current_creds["user"] if current_creds else "",
+                placeholder="your_username",
+                help="Your HPC cluster username",
+                key="ssh_user_input",
+            )
+
+        with col2:
+            ssh_port = st.number_input(
+                "Port",
+                min_value=1,
+                max_value=65535,
+                value=current_creds["port"] if current_creds else 22,
+                help="SSH port (usually 22)",
+                key="ssh_port_input",
+            )
+
+            ssh_password = st.text_input(
+                "Password",
+                type="password",
+                value="",
+                placeholder="Enter password",
+                help="Your HPC cluster password (stored in memory only)",
+                key="ssh_password_input",
+            )
+
+        col_save, col_test = st.columns(2)
+
+        with col_save:
+            if st.button(
+                "💾 Save Credentials", type="primary", use_container_width=True
+            ):
+                if ssh_host and ssh_user and ssh_password:
+                    success, message = set_ssh_credentials(
+                        host=ssh_host,
+                        user=ssh_user,
+                        password=ssh_password,
+                        port=int(ssh_port),
+                        session_id=st.session_state.session_id,
+                    )
+                    if success:
+                        st.success(f"✅ {message}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+                else:
+                    st.error("Please fill in all fields (host, username, and password)")
+
+        with col_test:
+            if st.button("🔌 Test Connection", use_container_width=True):
+                if ssh_host and ssh_user and ssh_password:
+                    with st.spinner("Testing connection..."):
+                        try:
+                            # Validate and set credentials for test
+                            success, message = set_ssh_credentials(
+                                host=ssh_host,
+                                user=ssh_user,
+                                password=ssh_password,
+                                port=int(ssh_port),
+                                session_id=st.session_state.session_id,
+                            )
+
+                            if not success:
+                                st.error(f"❌ {message}")
+                            else:
+                                # Try to connect
+                                hpc = HPCConnection(
+                                    host=ssh_host,
+                                    user=ssh_user,
+                                    password=ssh_password,
+                                    port=int(ssh_port),
+                                )
+                                result = hpc.run_command("pwd")
+                                st.success(
+                                    f"✅ Connection successful! Remote directory: `{result}`"
+                                )
+                        except Exception as e:
+                            # Sanitize error message - don't expose full details
+                            error_str = str(e)
+                            if "Authentication failed" in error_str:
+                                st.error(
+                                    "❌ Authentication failed. Check username and password."
+                                )
+                            elif "timed out" in error_str.lower():
+                                st.error(
+                                    "❌ Connection timed out. Check hostname and network."
+                                )
+                            elif "refused" in error_str.lower():
+                                st.error(
+                                    "❌ Connection refused. Check hostname and port."
+                                )
+                            else:
+                                st.error(
+                                    "❌ Connection failed. Check your credentials and network."
+                                )
+                else:
+                    st.error("Please fill in all fields before testing")
+
+        # Format expiration time appropriately
+        if CREDENTIAL_EXPIRATION_SECONDS >= SECONDS_PER_HOUR:
+            expiry_time = f"{CREDENTIAL_EXPIRATION_SECONDS // SECONDS_PER_HOUR} hour(s)"
+        else:
+            expiry_time = f"{CREDENTIAL_EXPIRATION_SECONDS // 60} minutes"
+
+        st.warning(
+            f"⚠️ **Security Note:** Credentials are stored in session memory only and will be "
+            f"cleared when you close the browser or after {expiry_time}. They are not saved to disk."
+        )
+
+    else:
+        # SSH Config mode
+        st.markdown("### SSH Config Mode")
+        st.markdown(
+            f"Using host alias: **{config.hpc_host_alias}** (from `HPC_HOST_ALIAS` in `.env`)"
+        )
+
+        if st.button("🔌 Test SSH Config Connection", use_container_width=True):
+            with st.spinner("Testing connection..."):
+                try:
+                    # Clear any password credentials to use SSH config
+                    clear_ssh_credentials()
+
+                    hpc = HPCConnection(host_alias=config.hpc_host_alias)
+                    result = hpc.run_command("pwd")
+                    st.success(
+                        f"✅ Connection successful! Remote directory: `{result}`"
+                    )
+                except Exception as e:
+                    st.error(f"❌ Connection failed: {e}")
+                    st.info(
+                        "Make sure:\n"
+                        f"1. Host `{config.hpc_host_alias}` is configured in `~/.ssh/config`\n"
+                        "2. SSH key is set up correctly\n"
+                        "3. SSH agent is running (if using Docker, mount `SSH_AUTH_SOCK`)"
+                    )
+
+
 def _render_api_usage_section() -> None:
     """Render API usage monitoring section."""
     st.markdown("## 📊 API Usage")
@@ -442,7 +650,7 @@ def _render_about_section() -> None:
         """
         **EngiAI - Engineering Design Assistant**
 
-        Version: 0.0.1
+        Version: 1.0.0
 
         This application uses:
         - Multi-agent AI system for specialized tasks
@@ -470,6 +678,9 @@ def render() -> None:
 
     st.markdown("---")
     _render_chat_settings()
+
+    st.markdown("---")
+    _render_ssh_credentials_section()
 
     st.markdown("---")
     _render_paper_import_settings()

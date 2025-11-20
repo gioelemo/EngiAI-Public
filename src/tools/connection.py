@@ -36,29 +36,70 @@ logger = logging.getLogger(__name__)
 class HPCConnection:
     """SSH connection to HPC cluster for job submission using Fabric."""
 
-    def __init__(self, host_alias: str = "euler") -> None:
+    def __init__(
+        self,
+        host_alias: str = "euler",
+        host: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
+        port: int = 22,
+    ) -> None:
         """
-        Initialize HPC connection using SSH config.
+        Initialize HPC connection.
 
-        Fabric will automatically use system SSH config and handle key authentication.
-        This leverages your ~/.ssh/config for all connection details.
+        Supports two authentication modes:
+        1. SSH config mode (default): Uses ~/.ssh/config with SSH keys
+        2. Password mode: Uses explicit username/password credentials
 
         Args:
             host_alias: Host alias from ~/.ssh/config (e.g., "euler")
+            host: Explicit hostname (e.g., "euler.ethz.ch"). If provided, uses password auth.
+            user: Username for password authentication
+            password: Password for authentication
+            port: SSH port (default: 22)
         """
-        # Fabric automatically uses ~/.ssh/config for connection details
-        # Just pass the host alias and Fabric handles everything
-        try:
-            self.connection = Connection(host_alias)
-        except Exception as e:
-            msg = f"Failed to connect to '{host_alias}': {e}\n"
-            msg += "Make sure:\n"
-            msg += "  1. Host is configured in ~/.ssh/config\n"
-            msg += "  2. SSH key is set up correctly\n"
-            msg += "  3. You can connect: ssh " + host_alias
-            raise RuntimeError(msg) from e
-
         self.host_alias = host_alias
+
+        # Determine authentication mode
+        if host and user and password:
+            # Password authentication mode (don't log credentials for security)
+            logger.info("Establishing SSH connection (password auth)")
+            try:
+                self.connection = Connection(
+                    host=host,
+                    user=user,
+                    port=port,
+                    connect_kwargs={
+                        "password": password,
+                        "look_for_keys": False,
+                        "allow_agent": False,
+                    },
+                )
+                self.host_alias = host
+            except Exception as e:
+                # Don't expose credentials in error messages
+                msg = "SSH connection failed. Please verify:\n"
+                msg += "  1. Hostname is correct\n"
+                msg += "  2. Username and password are correct\n"
+                msg += "  3. SSH access is enabled on the server\n"
+                msg += "  4. Network connectivity to the host"
+                logger.exception(f"SSH connection failed: {type(e).__name__}")
+                raise RuntimeError(msg) from e
+        else:
+            # SSH config mode (original behavior)
+            # Fabric automatically uses ~/.ssh/config for connection details
+            logger.info(f"Connecting to {host_alias} (SSH config mode)")
+            try:
+                self.connection = Connection(host_alias)
+                logger.info(f"SSH config connection established for {host_alias}")
+            except Exception as e:
+                logger.exception(f"SSH config connection failed for {host_alias}")
+                msg = f"Failed to connect to '{host_alias}': {e}\n"
+                msg += "Make sure:\n"
+                msg += "  1. Host is configured in ~/.ssh/config\n"
+                msg += "  2. SSH key is set up correctly\n"
+                msg += "  3. You can connect: ssh " + host_alias
+                raise RuntimeError(msg) from e
 
     def run_command(self, command: str) -> str:
         """
