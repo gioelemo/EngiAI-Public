@@ -1,44 +1,101 @@
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: engineer-assistant-postgres
+    environment:
+      - POSTGRES_DB=engineer_assistant
+      - POSTGRES_USER=engiai_user
+      - POSTGRES_PASSWORD=engineer_ai_2025
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engiai_user -d engineer_assistant"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - engineer-assistant
+
+  # Main chatbot application
   chatbot:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: engineer-assistant-chatbot
     ports:
       - "8501:8501"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # For Linux support
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - MATHPIX_API_ID=${MATHPIX_API_ID:-}
       - MATHPIX_API_KEY=${MATHPIX_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-openai:gpt-4o}
-      - EMBEDDINGS_MODEL=${EMBEDDINGS_MODEL:-text-embedding-3-small}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/conversations.db}
+      - SKIP_MCP=${SKIP_MCP:-true}  # Disable MCP by default
       - LANGCHAIN_TRACING=${LANGCHAIN_TRACING:-false}
       - LANGCHAIN_ENDPOINT=${LANGCHAIN_ENDPOINT:-https://api.smith.langchain.com}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-}
       - WANDB_ENTITY=${WANDB_ENTITY:-}
       - WANDB_REPORT_URL=${WANDB_REPORT_URL:-}
-      - SKIP_MCP=${SKIP_MCP:-true}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant}
       - SSH_AUTH_SOCK=/ssh-agent
       - PAPERS_SOURCE_DIR=/app/papers
       - PAPERS_SOURCE_DIR_HOST=${PAPERS_SOURCE_DIR:-Not configured}
       - PAPERS_STATE_FILE=${PAPERS_STATE_FILE:-data/local_import_state.json}
       - PAPERS_COLLECTION=${PAPERS_COLLECTION:-engineer_docs}
+      - HOST_SERVICE_PORT=${HOST_SERVICE_PORT:-9999}  # Port for host service
+      # HPC/SLURM Configuration
+      - HPC_HOST_ALIAS=${HPC_HOST_ALIAS:-euler}
+      - SLURM_VENV_PATH=${SLURM_VENV_PATH:-~/venvs/engineer_assistant}
+      - SLURM_PROJECT_PATH=${SLURM_PROJECT_PATH:-$HOME/EngiOpt}
+      - SLURM_TIME=${SLURM_TIME:-00:45:00}
+      - SLURM_NTASKS=${SLURM_NTASKS:-1}
+      - SLURM_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK:-4}
+      - SLURM_MEM_PER_CPU=${SLURM_MEM_PER_CPU:-7GB}
+      - SLURM_GPUS=${SLURM_GPUS:-rtx_4090:1}
+      - SLURM_EMAIL_USER=${SLURM_EMAIL_USER:-}
+      - SLURM_STACK_MODULE=${SLURM_STACK_MODULE:-stack/2024-06}
+      - SLURM_GCC_MODULE=${SLURM_GCC_MODULE:-gcc/12.2.0}
+      - SLURM_PYTHON_MODULE=${SLURM_PYTHON_MODULE:-python_cuda/3.11.6}
+      - SLURM_CUDA_MODULE=${SLURM_CUDA_MODULE:-cuda/12.8.0}
+      - SLURM_MAX_GPUS=${SLURM_MAX_GPUS:-4}
+      - SLURM_MAX_TIME_HOURS=${SLURM_MAX_TIME_HOURS:-24}
+      - SLURM_MAX_CPUS=${SLURM_MAX_CPUS:-16}
+      - SLURM_MAX_MEM_PER_CPU_GB=${SLURM_MAX_MEM_PER_CPU_GB:-16}
+      # Hugging Face Configuration
+      - HF_HOME_REMOTE=${HF_HOME_REMOTE:-/cluster/scratch/gioelemo/models}
+      - HF_DATASETS_CACHE_REMOTE=${HF_DATASETS_CACHE_REMOTE:-/cluster/scratch/gioelemo/datasets}
+      - HF_TOKEN=${HF_TOKEN:-}
+      # W&B Configuration
+      - USE_WANDB=${USE_WANDB:-True}
+      - WANDB_API_KEY=${WANDB_API_KEY:-}
+      - WANDB_PROJECT=${WANDB_PROJECT:-engiopt}
+      - WANDB_PERSONAL_PROJECT=${WANDB_PERSONAL_PROJECT:-}
+      - WANDB_OFFICIAL_PROJECT=${WANDB_OFFICIAL_PROJECT:-}
     volumes:
-      # Mount data directory for persistent storage
       - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./artifacts:/app/artifacts
+      - ~/.ssh:/root/.ssh-host:ro
+      - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
       # Mount papers directory for bulk import (host path configurable via PAPERS_SOURCE_DIR in .env)
       # Inside container, papers are always at /app/papers
       - ${PAPERS_SOURCE_DIR:-./papers}:/app/papers:ro
-      # Mount SSH configuration for HPC cluster access
-      # Mounted to temporary location, entrypoint script will copy with proper permissions
-      - ${HOME}/.ssh:/root/.ssh-host:ro
-      # Mount SSH agent socket for passphrase-protected keys (Mac/Linux)
-      # This allows the container to use your host's SSH agent
-      - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    networks:
+      - engineer-assistant
+
+networks:
+  engineer-assistant:
+    driver: bridge
+
+volumes:
+  postgres_data:
