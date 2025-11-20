@@ -19,6 +19,7 @@ pytest.importorskip("scipy")
 pytest.importorskip("cvxopt")
 pytest.importorskip("engibench")
 
+from src.tools.constants import SUPPORTED_PROBLEMS
 from src.tools.engibench import (
     EXPECTED_ARRAY_DIMENSIONS,
     _problem_states,
@@ -33,7 +34,7 @@ from src.tools.engibench import (
 )
 
 # Supported problems for these unified tests. Add more problem keys here to extend coverage.
-PROBLEM_TYPES = ["beams2d", "thermoelastic2d"]
+PROBLEM_TYPES = SUPPORTED_PROBLEMS
 
 
 @pytest.mark.unit

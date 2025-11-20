@@ -13,6 +13,7 @@ from typing import Any, Literal
 from dataclasses import dataclass
 
 from langchain_core.tools import tool
+from src.tools.constants import SUPPORTED_PROBLEMS, ProblemId
 
 # Check for optional dependencies
 TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
@@ -70,7 +71,7 @@ class TrainingConfig:
     epochs: int = 200
     seed: int = 1
     wandb_entity: str | None = None
-    problem_id: Literal["beams2d"] = "beams2d"
+    problem_id: ProblemId = "beams2d"
     gpus: int | None = None
     time_hours: float | None = None
 
@@ -106,7 +107,7 @@ def _get_artifact_info(
 
 @tool
 def download_wandb_model(  # noqa: PLR0913
-    problem_id: Literal["beams2d"] = "beams2d",
+    problem_id: ProblemId = "beams2d",
     algorithm: str = "cgan_cnn_2d",
     seed: int = 1,
     model_type: Literal["discriminator", "generator"] = "generator",
@@ -124,7 +125,7 @@ def download_wandb_model(  # noqa: PLR0913
     then falls back to official benchmark models. No project specification needed!
 
     Args:
-        problem_id: Engineering problem identifier. Currently only "beams2d" is supported.
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
         algorithm: Model architecture to download. Options:
             - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
             - diffusion_2d_cond: Conditional Diffusion (2D)
@@ -279,11 +280,11 @@ def _validate_download_inputs(problem_id: str, algorithm: str) -> dict[str, Any]
             "error": f"Unsupported algorithm '{algorithm}'. Supported algorithms: {', '.join(SUPPORTED_ALGORITHMS.keys())}",
         }
 
-    # Validate problem_id (currently only beams2d is supported)
-    if problem_id != "beams2d":
+    # Validate problem_id
+    if problem_id not in SUPPORTED_PROBLEMS:
         return {
             "success": False,
-            "error": f"Unsupported problem_id '{problem_id}'. Currently only 'beams2d' is supported.",
+            "error": f"Unsupported problem_id '{problem_id}'. Supported problems: {', '.join(SUPPORTED_PROBLEMS)}",
         }
 
     return None
@@ -517,7 +518,7 @@ def list_available_algorithms() -> dict[str, Any]:
 @tool
 def load_wandb_model(  # noqa: PLR0913
     checkpoint_path: str,
-    problem_id: Literal["beams2d"] = "beams2d",
+    problem_id: ProblemId = "beams2d",
     algorithm: str = "cgan_cnn_2d",
     model_type: Literal["discriminator", "generator"] = "discriminator",
     run_config: dict[str, Any] | None = None,
@@ -532,7 +533,7 @@ def load_wandb_model(  # noqa: PLR0913
     Args:
         checkpoint_path: Path to the model checkpoint file
             (e.g., discriminator.pth, generator.pth, or model.pth for diffusion)
-        problem_id: Engineering problem identifier (default: "beams2d")
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         model_type: Type of model to load:
             - discriminator: Load discriminator model [default] (for GANs)
@@ -685,10 +686,10 @@ def _validate_sampling_inputs(
         }
 
     # Validate problem_id
-    if problem_id != "beams2d":
+    if problem_id not in SUPPORTED_PROBLEMS:
         return {
             "success": False,
-            "error": f"Unsupported problem_id '{problem_id}'. Currently only 'beams2d' is supported.",
+            "error": f"Unsupported problem_id '{problem_id}'. Supported problems: {', '.join(SUPPORTED_PROBLEMS)}",
         }
 
     # Validate conditions
@@ -1235,7 +1236,7 @@ def _find_or_download_model(
 @tool
 def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     checkpoint_path: str | None = None,
-    problem_id: Literal["beams2d"] = "beams2d",
+    problem_id: ProblemId = "beams2d",
     algorithm: str = "cgan_cnn_2d",
     conditions: list[dict[str, float]] | None = None,
     n_samples: int = 3,
@@ -1259,7 +1260,7 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     Args:
         checkpoint_path: Path to the generator.pth checkpoint file. If None, will auto-select
             or download a model (default: None)
-        problem_id: Engineering problem identifier (default: "beams2d")
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         conditions: List of condition dictionaries for conditional models. Each dict should have:
             - volfrac: Volume fraction (0-1)
@@ -1378,15 +1379,27 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         # Import required libraries
         try:
             import numpy as np
-            from engibench.problems.beams2d.v0 import Beams2D
+
+            if problem_id == "beams2d":
+                from engibench.problems.beams2d.v0 import Beams2D
+
+                problem = Beams2D()
+            elif problem_id == "thermoelastic2d":
+                from engibench.problems.thermoelastic2d.v0 import Thermoelastic2D
+
+                problem = Thermoelastic2D()
+            else:
+                return {
+                    "success": False,
+                    "error": f"Unsupported problem_id: {problem_id}",
+                }
         except ImportError as e:
             return {
                 "success": False,
                 "error": f"Required library not installed: {e}. Install with: pip install engibench numpy",
             }
 
-        # Create problem instance
-        problem = Beams2D()
+        # Reset problem instance
         problem.reset(seed=0)
 
         # Branch based on algorithm type

@@ -13,7 +13,7 @@ dependencies = [
     "chromadb==1.3.3",
     "cryptography==46.0.3",
     "cvxopt",
-    "engibench",
+    "engibench==0.0.1",
     "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git",
     "fabric==3.2.2",
     "flask>=3.0.0",

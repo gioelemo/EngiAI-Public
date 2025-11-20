@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Rendering and constraints: `render_design`, `check_constraints`
   - Problem metadata: `get_problem_details`, `get_dataset_info`
   - Weight parameter to control structural vs thermal optimization emphasis
+- SSH authentication also via username and password
+- Move supported problems in constant.py to avoid name duplicate
 
 ### Changed
 - Updated engineering agent system prompts with ThermoElastic2D workflow guidance
