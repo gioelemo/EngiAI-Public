@@ -445,6 +445,9 @@ def format_and_display_messages(new_messages: list) -> tuple[str, list[str]]:
                 and '"command":' not in content
                 # Skip other agent-formatted outputs
                 and "---" not in content[:100]  # Separators indicate formatted output
+                # Skip printer file listings
+                and "PRINT_FILE" not in content
+                and ".bgcode" not in content
             )
             if is_shell_output:
                 # Truncate very long outputs
