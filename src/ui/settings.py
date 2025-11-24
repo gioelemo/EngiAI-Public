@@ -58,6 +58,7 @@ def _load_settings_from_db() -> None:
         "stl_height": 400,
         "stl_shininess": 100,
         "stl_auto_rotate": True,
+        "enable_streaming": True,
     }
 
     # Load settings from database or use defaults
@@ -367,6 +368,18 @@ def _render_output_folder_management() -> None:
 def _render_chat_settings() -> None:
     """Render chat settings section."""
     st.markdown("## 💬 Chat Settings")
+
+    # Streaming text toggle
+    enable_streaming = st.checkbox(
+        "Enable streaming text display",
+        value=st.session_state.get("enable_streaming", True),
+        help="Display AI responses with a typewriter effect. Disable for instant display.",
+        key="enable_streaming_widget",
+    )
+    if enable_streaming != st.session_state.get("enable_streaming"):
+        _save_setting_to_db("enable_streaming", enable_streaming)
+
+    st.markdown("---")
 
     if st.button("🗑️ Clear Conversation", width="stretch", type="primary"):
         st.session_state.messages = []

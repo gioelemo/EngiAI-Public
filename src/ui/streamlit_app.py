@@ -82,6 +82,7 @@ def _initialize_stl_settings() -> None:
         "stl_shininess": 100,
         "media_save_dir": str(Path(__file__).parent.parent.parent / "outputs"),
         "media_auto_save": False,
+        "enable_streaming": True,
     }
 
     # Load from database or use defaults
@@ -329,9 +330,12 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             # Update agent state
             st.session_state.agent_state = result
 
-            # Get and display new messages
+            # Get and display new messages with streaming (based on user preference)
             new_messages = st.session_state.agent_state["messages"][messages_before:]
-            full_response, suggested_prompts = format_and_display_messages(new_messages)
+            use_streaming = st.session_state.get("enable_streaming", True)
+            full_response, suggested_prompts = format_and_display_messages(
+                new_messages, use_streaming=use_streaming
+            )
 
             if full_response:
                 # Save to display history

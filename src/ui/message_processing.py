@@ -22,6 +22,7 @@ from src.ui.media_display import (
     find_slurm_files_in_text,
     find_stl_files_in_text,
 )
+from src.ui.streaming import stream_text
 
 
 def fix_latex_delimiters(text: str) -> str:
@@ -388,7 +389,9 @@ def format_ai_message(message: AIMessage | ToolMessage) -> str:
     return content
 
 
-def format_and_display_messages(new_messages: list) -> tuple[str, list[str]]:
+def format_and_display_messages(
+    new_messages: list, use_streaming: bool = False
+) -> tuple[str, list[str]]:
     """Format and display new messages from the agent.
 
     Displays the final AI response and any relevant tool outputs (like CLI command results).
@@ -396,6 +399,7 @@ def format_and_display_messages(new_messages: list) -> tuple[str, list[str]]:
 
     Args:
         new_messages: List of new messages to display
+        use_streaming: Whether to use streaming display for text responses (default: False)
 
     Returns:
         Tuple of (formatted response string, list of suggested prompts)
@@ -473,8 +477,11 @@ def format_and_display_messages(new_messages: list) -> tuple[str, list[str]]:
     combined_response = "\n\n".join(response_parts)
 
     if combined_response:
-        # Display the combined response
-        st.markdown(combined_response)
+        # Display the combined response with or without streaming
+        if use_streaming:
+            st.write_stream(stream_text(combined_response))
+        else:
+            st.markdown(combined_response)
 
         # Display media files
         display_response_media(combined_response)
