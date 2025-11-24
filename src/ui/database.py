@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.messages.base import BaseMessage
 from sqlalchemy import (
     JSON,
+    Boolean,
     Column,
     DateTime,
     Integer,
@@ -120,6 +121,7 @@ class Conversation(Base):  # type: ignore[valid-type,misc]
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     message_count = Column(Integer, default=0)
+    pinned = Column(Boolean, default=False)
 
 
 class Message(Base):  # type: ignore[valid-type,misc]
@@ -231,7 +233,7 @@ class DatabaseManager:
         return session_id
 
     def get_all_conversations(self) -> list[dict[str, Any]]:
-        """Get all conversations ordered by updated time (newest first).
+        """Get all conversations ordered by pinned first, then by updated time (newest first).
 
         Returns:
             List of conversation dictionaries
@@ -239,7 +241,7 @@ class DatabaseManager:
         with self.get_session() as session:
             conversations = (
                 session.query(Conversation)
-                .order_by(Conversation.updated_at.desc())
+                .order_by(Conversation.pinned.desc(), Conversation.updated_at.desc())
                 .all()
             )
 
@@ -250,6 +252,7 @@ class DatabaseManager:
                     "created_at": conv.created_at,
                     "updated_at": conv.updated_at,
                     "message_count": conv.message_count,
+                    "pinned": conv.pinned,
                 }
                 for conv in conversations
             ]
@@ -272,6 +275,7 @@ class DatabaseManager:
                     "created_at": conv.created_at,
                     "updated_at": conv.updated_at,
                     "message_count": conv.message_count,
+                    "pinned": conv.pinned,
                 }
         return None
 
@@ -505,3 +509,45 @@ class DatabaseManager:
         with self.get_session() as session:
             session.query(Settings).filter_by(key=key).delete()
             session.commit()
+
+    def pin_conversation(self, conversation_id: str) -> None:
+        """Pin a conversation to the top of the list.
+
+        Args:
+            conversation_id: The conversation UUID
+        """
+        with self.get_session() as session:
+            conv = session.query(Conversation).filter_by(id=conversation_id).first()
+            if conv:
+                conv.pinned = True  # type: ignore[assignment]
+                session.commit()
+
+    def unpin_conversation(self, conversation_id: str) -> None:
+        """Unpin a conversation.
+
+        Args:
+            conversation_id: The conversation UUID
+        """
+        with self.get_session() as session:
+            conv = session.query(Conversation).filter_by(id=conversation_id).first()
+            if conv:
+                conv.pinned = False  # type: ignore[assignment]
+                session.commit()
+
+    def toggle_pin_conversation(self, conversation_id: str) -> bool:
+        """Toggle the pinned status of a conversation.
+
+        Args:
+            conversation_id: The conversation UUID
+
+        Returns:
+            The new pinned status (True if now pinned, False if now unpinned)
+        """
+        with self.get_session() as session:
+            conv = session.query(Conversation).filter_by(id=conversation_id).first()
+            if conv:
+                new_status = not conv.pinned
+                conv.pinned = new_status  # type: ignore[assignment]
+                session.commit()
+                return new_status
+        return False

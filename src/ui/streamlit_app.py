@@ -36,6 +36,7 @@ from src.ui.chat_management import (  # noqa: E402
     load_chats_from_database,
     save_active_chat_to_storage,
     switch_to_chat,
+    toggle_pin_chat,
 )
 from src.ui.confirmation_handler import (  # noqa: E402
     check_streamlit_interrupt,
@@ -532,27 +533,46 @@ def render_sidebar() -> None:
         or chat_id == st.session_state.active_chat_id
     }
 
-    # Sort chats by created time (newest first)
+    # Sort chats: pinned first (by created_at desc), then unpinned (by created_at desc)
     sorted_chats = sorted(
         chats_with_messages.items(),
-        key=lambda x: x[1].get("created_at", datetime.datetime.now()),
-        reverse=True,
+        key=lambda x: (
+            not x[1].get(
+                "pinned", False
+            ),  # Pinned first (False < True, so not reverses it)
+            -(
+                x[1].get("created_at", datetime.datetime.now()).timestamp()
+            ),  # Then by time desc
+        ),
     )
 
     # Display each chat as a clickable item
     for chat_id, chat_data in sorted_chats:
         title = chat_data["title"]
         is_active = chat_id == st.session_state.active_chat_id
+        is_pinned = chat_data.get("pinned", False)
 
         # Truncate title if too long
         display_title = title
         if len(title) > max_title_length:
             display_title = f"{title[:truncated_title_length]}..."
 
-        # Create a container for each chat item
-        col1, col2 = st.columns([9, 1])
+        # Create a container for each chat item with pin, title, and delete buttons
+        col1, col2, col3 = st.columns([1, 7, 1])
 
         with col1:
+            # Pin button (star icon when pinned, outline when not)
+            pin_icon = "⭐" if is_pinned else "☆"
+            if st.button(
+                pin_icon,
+                key=f"pin_{chat_id}",
+                help="Pin/Unpin conversation",
+                type="secondary",
+            ):
+                toggle_pin_chat(chat_id)
+                st.rerun()
+
+        with col2:
             # All chats show as buttons for consistent positioning
             button_clicked = st.button(
                 display_title,
@@ -572,7 +592,7 @@ def render_sidebar() -> None:
                     st.session_state._switch_to_chat_page = True
                     st.rerun()
 
-        with col2:
+        with col3:
             # Simple x button for delete
             if st.button(
                 "x",

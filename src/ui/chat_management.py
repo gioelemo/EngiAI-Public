@@ -134,6 +134,7 @@ def create_new_chat(name: str | None = None) -> str:
         "config": {"configurable": {"thread_id": session_id}},
         "waiting_for_confirmation": False,
         "saved_to_db": False,  # Track if this chat has been saved to DB yet
+        "pinned": False,
     }
 
     # Set as active chat and sync (this will clear the display)
@@ -304,6 +305,7 @@ def load_chats_from_database() -> None:
                 "config": config,
                 "waiting_for_confirmation": waiting_for_confirmation,
                 "saved_to_db": True,  # Already in database
+                "pinned": conv.get("pinned", False),
             }
 
         # Set the most recently updated as active
@@ -314,6 +316,25 @@ def load_chats_from_database() -> None:
     except Exception:
         # Silently fail - if loading fails, start fresh
         pass
+
+
+def toggle_pin_chat(chat_id: str) -> None:
+    """Toggle the pinned status of a chat.
+
+    Args:
+        chat_id: The ID of the chat to pin/unpin
+    """
+    if chat_id in st.session_state.chats:
+        # Toggle pinned status in database
+        db = get_db()
+        new_status = db.toggle_pin_conversation(chat_id)
+
+        # Update session state
+        st.session_state.chats[chat_id]["pinned"] = new_status
+
+        # Reload chats to update order
+        load_chats_from_database()
+        sync_active_chat_to_session()
 
 
 def initialize_chat_state() -> None:
