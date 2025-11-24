@@ -1546,11 +1546,18 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 
 def _resolve_slurm_config(cfg: TrainingConfig) -> dict[str, str]:
     """Load and normalize SLURM settings, applying overrides."""
+    from config import get_setting_from_db
+
+    # Get email from settings database (fresh read)
+    slurm_email = get_setting_from_db(
+        "slurm_email_user", os.getenv("SLURM_EMAIL_USER", "alpha@gmail.com")
+    )
+
     slurm = {
         "ntasks": os.getenv("SLURM_NTASKS", "1"),
         "cpus_per_task": os.getenv("SLURM_CPUS_PER_TASK", "4"),
         "mem_per_cpu": os.getenv("SLURM_MEM_PER_CPU", "7GB"),
-        "email_user": os.getenv("SLURM_EMAIL_USER", "alpha@gmail.com"),
+        "email_user": slurm_email or "alpha@gmail.com",
     }
 
     # GPUs
@@ -1580,6 +1587,8 @@ def _build_slurm_script(
     cfg: TrainingConfig, slurm: dict[str, str], command: str
 ) -> str:
     """Return formatted SLURM script for the given command."""
+    from config import get_setting_from_db
+
     modules = {
         "stack": os.getenv("SLURM_STACK_MODULE", "stack/2024-06"),
         "gcc": os.getenv("SLURM_GCC_MODULE", "gcc/12.2.0"),
@@ -1587,21 +1596,39 @@ def _build_slurm_script(
         "cuda": os.getenv("SLURM_CUDA_MODULE", "cuda/12.4.1"),
     }
 
+    # Get fresh values from database at time of use
     paths = {
-        "venv": os.getenv("SLURM_VENV_PATH", "/path/to/venv"),
-        "project": os.getenv("SLURM_PROJECT_PATH", "/path/to/engiopt"),
+        "venv": get_setting_from_db(
+            "slurm_venv_path",
+            os.getenv("SLURM_VENV_PATH", "~/venvs/engineer_assistant"),
+        ),
+        "project": get_setting_from_db(
+            "slurm_project_path", os.getenv("SLURM_PROJECT_PATH", "$HOME/EngiOpt")
+        ),
     }
 
     keys = {
         "wandb_api_key": os.getenv("WANDB_API_KEY", ""),
-        "wandb_entity": os.getenv("WANDB_ENTITY", ""),
-        "wandb_project": os.getenv("WANDB_PROJECT", ""),
-        "hf_home": os.getenv("HF_HOME_REMOTE", "/cluster/scratch/gioelemo/models"),
-        "hf_datasets": os.getenv(
-            "HF_DATASETS_CACHE_REMOTE", "/cluster/scratch/gioelemo/datasets"
+        "wandb_entity": get_setting_from_db(
+            "slurm_wandb_entity", os.getenv("WANDB_ENTITY", "")
+        ),
+        "wandb_project": get_setting_from_db(
+            "slurm_wandb_project", os.getenv("WANDB_PROJECT", "engiopt")
+        ),
+        "hf_home": get_setting_from_db(
+            "hf_home_remote", os.getenv("HF_HOME_REMOTE", "$SCRATCH/models")
+        ),
+        "hf_datasets": get_setting_from_db(
+            "hf_datasets_cache_remote",
+            os.getenv("HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"),
         ),
         "hf_token": os.getenv("HF_TOKEN", ""),
     }
+
+    # Get logs directory from settings
+    logs_dir = get_setting_from_db(
+        "slurm_logs_dir", os.getenv("SLURM_LOGS_DIR", "$SCRATCH/logs")
+    )
 
     return f"""#!/bin/bash
 #SBATCH --job-name={cfg.algorithm}_{cfg.problem_id}
@@ -1615,7 +1642,7 @@ def _build_slurm_script(
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user={slurm["email_user"]}
 
-mkdir -p "/cluster/scratch/gioelemo/logs" "/cluster/scratch/gioelemo/datasets" "/cluster/scratch/gioelemo/models"
+mkdir -p "{logs_dir}" "{keys["hf_datasets"]}" "{keys["hf_home"]}"
 
 module purge
 module load {modules["stack"]} {modules["gcc"]} {modules["python"]} {modules["cuda"]} eth_proxy

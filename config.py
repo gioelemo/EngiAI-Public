@@ -5,10 +5,36 @@ Handles loading of environment variables and configuration settings.
 
 import logging
 import os
+from typing import TYPE_CHECKING, Any
 
 from dotenv import load_dotenv
 
+if TYPE_CHECKING:
+    pass
+
 logger = logging.getLogger(__name__)
+
+
+def get_setting_from_db(key: str, default: Any = None) -> Any:
+    """
+    Get a setting value from the database.
+
+    Args:
+        key: Setting key
+        default: Default value if setting not found
+
+    Returns:
+        Setting value or default
+    """
+    try:
+        # Import here to avoid circular dependency at runtime
+        from src.ui.database import DatabaseManager  # noqa: PLC0415
+
+        db = DatabaseManager()
+        return db.get_setting(key, default)
+    except Exception as e:
+        logger.warning(f"Could not retrieve setting '{key}' from database: {e}")
+        return default
 
 
 class Config:
@@ -47,7 +73,25 @@ class Config:
         self.hpc_host_alias: str = os.getenv("HPC_HOST_ALIAS", "euler")
         self.euler_hostname: str = os.getenv("EULER_HOSTNAME", "euler.ethz.ch")
         self.euler_username: str = os.getenv("EULER_USERNAME", "")
-        self.slurm_email_user: str = os.getenv("SLURM_EMAIL_USER", "")
+        # Try to get SLURM settings from database first, then fall back to env vars
+        self.slurm_email_user: str = get_setting_from_db(
+            "slurm_email_user", os.getenv("SLURM_EMAIL_USER", "")
+        )
+        self.slurm_venv_path: str = get_setting_from_db(
+            "slurm_venv_path",
+            os.getenv("SLURM_VENV_PATH", "~/venvs/engineer_assistant"),
+        )
+        self.slurm_project_path: str = get_setting_from_db(
+            "slurm_project_path", os.getenv("SLURM_PROJECT_PATH", "$HOME/EngiOpt")
+        )
+        self.hf_home_remote: str = get_setting_from_db(
+            "hf_home_remote",
+            os.getenv("HF_HOME_REMOTE", "$SCRATCH/models"),
+        )
+        self.hf_datasets_cache_remote: str = get_setting_from_db(
+            "hf_datasets_cache_remote",
+            os.getenv("HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"),
+        )
 
         # Weights & Biases configuration
         self.wandb_entity: str = os.getenv("WANDB_ENTITY", "")

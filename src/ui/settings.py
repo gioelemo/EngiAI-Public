@@ -107,6 +107,15 @@ def _load_settings_from_db() -> None:
         "stl_shininess": 100,
         "stl_auto_rotate": True,
         "enable_streaming": True,
+        # SLURM/HPC configuration
+        "slurm_venv_path": "~/venvs/engineer_assistant",
+        "slurm_project_path": "$HOME/EngiOpt",
+        "slurm_email_user": "",
+        "slurm_logs_dir": "$SCRATCH/logs",
+        "slurm_wandb_entity": "",
+        "slurm_wandb_project": "engiopt",
+        "hf_home_remote": "$SCRATCH/models",
+        "hf_datasets_cache_remote": "$SCRATCH/datasets",
     }
 
     # Load settings from database or use defaults
@@ -1068,6 +1077,113 @@ def _render_ssh_credentials_section() -> None:  # noqa: PLR0912, PLR0915
                     )
 
 
+def _render_slurm_config_section() -> None:
+    """Render SLURM/HPC cluster configuration section."""
+    st.markdown("## ⚙️ SLURM Cluster Configuration")
+    st.markdown(
+        "Configure paths and settings for SLURM job submission on HPC clusters. "
+        "These settings are used when generating training jobs."
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Virtual environment path
+        slurm_venv_path = st.text_input(
+            "Virtual Environment Path",
+            value=st.session_state.get("slurm_venv_path", "~/venvs/engineer_assistant"),
+            placeholder="~/venvs/engineer_assistant",
+            help="Path to Python virtual environment on the HPC cluster",
+            key="slurm_venv_path_widget",
+        )
+        if slurm_venv_path != st.session_state.get("slurm_venv_path"):
+            _save_setting_to_db("slurm_venv_path", slurm_venv_path)
+
+        # EngiOpt path
+        slurm_project_path = st.text_input(
+            "EngiOpt Path",
+            value=st.session_state.get("slurm_project_path", "$HOME/EngiOpt"),
+            placeholder="$HOME/EngiOpt",
+            help="Path to EngiOpt project directory on the HPC cluster",
+            key="slurm_project_path_widget",
+        )
+        if slurm_project_path != st.session_state.get("slurm_project_path"):
+            _save_setting_to_db("slurm_project_path", slurm_project_path)
+
+        # Email user
+        slurm_email_user = st.text_input(
+            "Email for Job Notifications",
+            value=st.session_state.get("slurm_email_user", ""),
+            placeholder="username@ethz.ch",
+            help="Email address for SLURM job notifications (start, end, fail)",
+            key="slurm_email_user_widget",
+        )
+        if slurm_email_user != st.session_state.get("slurm_email_user"):
+            _save_setting_to_db("slurm_email_user", slurm_email_user)
+
+        # WandB Entity
+        slurm_wandb_entity = st.text_input(
+            "WandB Entity",
+            value=st.session_state.get("slurm_wandb_entity", ""),
+            placeholder="your-wandb-entity",
+            help="WandB entity/username for training job tracking",
+            key="slurm_wandb_entity_widget",
+        )
+        if slurm_wandb_entity != st.session_state.get("slurm_wandb_entity"):
+            _save_setting_to_db("slurm_wandb_entity", slurm_wandb_entity)
+
+        # WandB Project
+        slurm_wandb_project = st.text_input(
+            "WandB Project",
+            value=st.session_state.get("slurm_wandb_project", "engiopt"),
+            placeholder="engiopt",
+            help="WandB project name for training job tracking",
+            key="slurm_wandb_project_widget",
+        )
+        if slurm_wandb_project != st.session_state.get("slurm_wandb_project"):
+            _save_setting_to_db("slurm_wandb_project", slurm_wandb_project)
+
+    with col2:
+        # Logs directory
+        slurm_logs_dir = st.text_input(
+            "Logs Directory",
+            value=st.session_state.get("slurm_logs_dir", "$SCRATCH/logs"),
+            placeholder="$SCRATCH/logs",
+            help="Path to directory for SLURM job logs on HPC cluster ($SCRATCH will be expanded)",
+            key="slurm_logs_dir_widget",
+        )
+        if slurm_logs_dir != st.session_state.get("slurm_logs_dir"):
+            _save_setting_to_db("slurm_logs_dir", slurm_logs_dir)
+
+        # HuggingFace home remote
+        hf_home_remote = st.text_input(
+            "HuggingFace Cache (Remote)",
+            value=st.session_state.get("hf_home_remote", "$SCRATCH/models"),
+            placeholder="$SCRATCH/models",
+            help="Path to HuggingFace model cache on HPC cluster ($SCRATCH will be expanded)",
+            key="hf_home_remote_widget",
+        )
+        if hf_home_remote != st.session_state.get("hf_home_remote"):
+            _save_setting_to_db("hf_home_remote", hf_home_remote)
+
+        # HuggingFace datasets cache remote
+        hf_datasets_cache_remote = st.text_input(
+            "HuggingFace Datasets Cache (Remote)",
+            value=st.session_state.get("hf_datasets_cache_remote", "$SCRATCH/datasets"),
+            placeholder="$SCRATCH/datasets",
+            help="Path to HuggingFace datasets cache on HPC cluster ($SCRATCH will be expanded)",
+            key="hf_datasets_cache_remote_widget",
+        )
+        if hf_datasets_cache_remote != st.session_state.get("hf_datasets_cache_remote"):
+            _save_setting_to_db("hf_datasets_cache_remote", hf_datasets_cache_remote)
+
+    st.info(
+        "💡 **Note:** These paths are used when generating SLURM batch scripts. "
+        "Shell variables like `$HOME`, `$SCRATCH` will be expanded on the cluster. "
+        "Use `~` for home directory references."
+    )
+
+
 def _render_api_usage_section() -> None:
     """Render API usage monitoring section."""
     st.markdown("## 📊 API Usage")
@@ -1169,6 +1285,11 @@ def render() -> None:
 
     # === HPC CONNECTION (full width) ===
     _render_ssh_credentials_section()
+
+    st.markdown("---")
+
+    # === SLURM CLUSTER CONFIGURATION (full width) ===
+    _render_slurm_config_section()
 
     st.markdown("---")
 
