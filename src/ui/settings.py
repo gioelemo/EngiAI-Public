@@ -36,6 +36,54 @@ SECONDS_PER_HOUR = 3600
 SESSION_WARNING_AGE_HOURS = 24
 
 
+def _inject_custom_css() -> None:
+    """Inject custom CSS for card-based layout."""
+    st.markdown(
+        """
+        <style>
+            /* Card container styling */
+            .settings-card {
+                background-color: rgba(255, 255, 255, 0.02);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 10px;
+                padding: 1.5rem;
+                margin-bottom: 1rem;
+                transition: all 0.3s ease;
+            }
+
+            .settings-card:hover {
+                border-color: rgba(255, 255, 255, 0.2);
+                background-color: rgba(255, 255, 255, 0.03);
+            }
+
+            /* Card title styling */
+            .card-title {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 1rem;
+                padding-bottom: 0.5rem;
+                border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            }
+
+            /* Compact spacing for cards */
+            .settings-card .stCheckbox {
+                margin-top: 0.5rem;
+            }
+
+            .settings-card .stButton {
+                margin-top: 0.5rem;
+            }
+
+            /* Remove excessive padding */
+            .settings-card > div > div {
+                gap: 0.5rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _init_db() -> DatabaseManager:
     """Initialize database manager."""
     if "db_manager" not in st.session_state:
@@ -401,6 +449,192 @@ def _render_chat_settings() -> None:
 
     # Clear output folder button
     _render_output_folder_management()
+
+
+def _render_chat_quick_settings() -> None:
+    """Render compact chat settings for card layout."""
+    # Streaming text toggle
+    enable_streaming = st.checkbox(
+        "Enable streaming text display",
+        value=st.session_state.get("enable_streaming", True),
+        help="Display AI responses with a typewriter effect. Disable for instant display.",
+        key="enable_streaming_card_widget",
+    )
+    if enable_streaming != st.session_state.get("enable_streaming"):
+        _save_setting_to_db("enable_streaming", enable_streaming)
+
+    # Display current conversation stats
+    if st.session_state.get("messages"):
+        num_messages = len(st.session_state.messages)
+        st.caption(f"📊 Current: {num_messages} messages")
+
+    st.markdown("")  # Spacing
+
+    if st.button("🗑️ Clear Conversation", width="stretch", type="secondary"):
+        st.session_state.messages = []
+        st.session_state.agent_state = {"messages": []}
+        st.success("✅ Conversation cleared!")
+        st.rerun()
+
+
+def _render_stl_quick_settings() -> None:
+    """Render compact 3D viewer settings for card layout."""
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Color picker
+        stl_color = st.color_picker(
+            "Color",
+            value=st.session_state.stl_color,
+            help="Choose a color for your 3D models",
+            key="color_picker_card_widget",
+        )
+        if stl_color != st.session_state.stl_color:
+            _save_setting_to_db("stl_color", stl_color)
+
+        # Opacity slider
+        stl_opacity = st.slider(
+            "Opacity",
+            min_value=0.0,
+            max_value=1.0,
+            value=st.session_state.stl_opacity,
+            step=0.1,
+            key="opacity_slider_card_widget",
+        )
+        if stl_opacity != st.session_state.stl_opacity:
+            _save_setting_to_db("stl_opacity", stl_opacity)
+
+    with col2:
+        # Material selector
+        material_options = ["material", "flat", "wireframe"]
+        material_index = material_options.index(st.session_state.stl_material)
+        stl_material = st.selectbox(
+            "Material",
+            options=material_options,
+            index=material_index,
+            key="material_selector_card_widget",
+        )
+        if stl_material != st.session_state.stl_material:
+            _save_setting_to_db("stl_material", stl_material)
+
+        # Auto-rotate toggle
+        stl_auto_rotate = st.checkbox(
+            "Auto-rotate",
+            value=st.session_state.stl_auto_rotate,
+            key="auto_rotate_checkbox_card_widget",
+        )
+        if stl_auto_rotate != st.session_state.stl_auto_rotate:
+            _save_setting_to_db("stl_auto_rotate", stl_auto_rotate)
+
+
+def _render_media_quick_settings() -> None:
+    """Render compact media settings for card layout."""
+    # Media save directory input
+    media_save_dir = st.text_input(
+        "Save directory",
+        value=st.session_state.media_save_dir,
+        help="Where displayed media will be saved on the server",
+        key="media_save_dir_card_widget",
+    )
+    if media_save_dir != st.session_state.media_save_dir:
+        _save_setting_to_db("media_save_dir", media_save_dir)
+
+    # Media auto-save checkbox
+    media_auto_save = st.checkbox(
+        "Auto-save displayed media",
+        value=st.session_state.media_auto_save,
+        help="Automatically save images and STL files to the save directory",
+        key="media_auto_save_card_widget",
+    )
+    if media_auto_save != st.session_state.media_auto_save:
+        _save_setting_to_db("media_auto_save", media_auto_save)
+
+
+def _render_output_folder_clear() -> None:
+    """Render output folder clearing UI with confirmation."""
+    output_dir = Path(st.session_state.media_save_dir)
+    file_count = _count_files_in_directory(output_dir)
+
+    st.caption(f"📁 Output folder: {file_count} file(s)")
+
+    # Initialize confirmation state
+    if "confirm_clear_output_card" not in st.session_state:
+        st.session_state.confirm_clear_output_card = False
+
+    if not st.session_state.confirm_clear_output_card:
+        _render_clear_button(file_count)
+    else:
+        _render_confirmation_dialog(output_dir, file_count)
+
+
+def _render_clear_button(file_count: int) -> None:
+    """Render the initial clear folder button."""
+    if st.button("🗑️ Clear Output Folder", width="stretch", type="secondary"):
+        if file_count == 0:
+            st.warning("⚠️ Folder is empty!")
+        else:
+            st.session_state.confirm_clear_output_card = True
+            st.rerun()
+
+
+def _render_confirmation_dialog(output_dir: Path, file_count: int) -> None:
+    """Render the confirmation dialog for clearing folder."""
+    st.warning(f"Delete {file_count} file(s)?")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("✅ Yes", width="stretch", type="primary"):
+            _handle_folder_deletion(output_dir)
+
+    with col2:
+        if st.button("❌ No", width="stretch", type="secondary"):
+            st.session_state.confirm_clear_output_card = False
+            st.rerun()
+
+
+def _handle_folder_deletion(output_dir: Path) -> None:
+    """Handle the folder deletion operation."""
+    try:
+        deleted_count = _delete_output_folder_contents(output_dir)
+        st.session_state.confirm_clear_output_card = False
+        st.success(f"✅ Deleted {deleted_count} file(s)!")
+        st.rerun()
+    except Exception as e:
+        st.session_state.confirm_clear_output_card = False
+        st.error(f"❌ Error: {e}")
+        st.rerun()
+
+
+def _render_prusa_session_compact() -> None:
+    """Render compact Prusa Connect session info."""
+    connect_state_path = project_root / "data" / "connect_state.json"
+
+    if connect_state_path.exists():
+        file_age = _get_file_age_hours(connect_state_path)
+        st.caption(f"🔌 Prusa session: {file_age:.1f}h old")
+        if st.button(
+            "🗑️ Clear Session", width="stretch", type="secondary", key="clear_prusa_card"
+        ):
+            _handle_prusa_session_clear(connect_state_path)
+    else:
+        st.caption("🔌 No Prusa session")
+
+
+def _handle_prusa_session_clear(connect_state_path: Path) -> None:
+    """Handle Prusa Connect session clearing."""
+    try:
+        connect_state_path.unlink()
+        st.success("✅ Session cleared!")
+        st.rerun()
+    except Exception as e:
+        st.error(f"❌ Error: {e}")
+
+
+def _render_file_management_card() -> None:
+    """Render compact file management for card layout."""
+    _render_output_folder_clear()
+    st.markdown("")  # Spacing
+    _render_prusa_session_compact()
 
 
 def _render_paper_import_settings() -> None:
@@ -846,6 +1080,17 @@ def _render_api_usage_section() -> None:
     _render_mathpix_usage()
 
 
+def _render_api_usage_tabs() -> None:
+    """Render API usage with tabbed interface."""
+    tab1, tab2 = st.tabs(["🔍 Tavily Search", "📐 Mathpix OCR"])
+
+    with tab1:
+        _render_tavily_usage()
+
+    with tab2:
+        _render_mathpix_usage()
+
+
 def _render_about_section() -> None:
     """Render about section."""
     st.markdown("## About")
@@ -866,9 +1111,12 @@ def _render_about_section() -> None:
 
 
 def render() -> None:
-    """Render the settings page."""
+    """Render the settings page with card-based layout."""
     # Load settings from database on first render
     _load_settings_from_db()
+
+    # Inject custom CSS
+    _inject_custom_css()
 
     # Auto-cleanup old Prusa Connect session on page load (runs once per session)
     if "session_cleanup_done" not in st.session_state:
@@ -881,28 +1129,62 @@ def render() -> None:
 
     st.markdown("# ⚙️ Settings")
     st.markdown("Configure your preferences and application settings.")
+    st.markdown("---")
+
+    # === QUICK SETTINGS (2-column cards) ===
+    st.markdown("### ⚡ Quick Settings")
+    col1, col2 = st.columns(2, gap="medium")
+
+    with col1, st.container():
+        st.markdown(
+            '<div class="card-title">💬 Chat & UI</div>', unsafe_allow_html=True
+        )
+        _render_chat_quick_settings()
+
+    with col2, st.container():
+        st.markdown(
+            '<div class="card-title">🎨 3D Viewer</div>', unsafe_allow_html=True
+        )
+        _render_stl_quick_settings()
+
+    st.markdown("")  # Spacing
+
+    # === MEDIA & FILE MANAGEMENT (2-column cards) ===
+    col3, col4 = st.columns(2, gap="medium")
+
+    with col3, st.container():
+        st.markdown(
+            '<div class="card-title">💾 Media Saving</div>', unsafe_allow_html=True
+        )
+        _render_media_quick_settings()
+
+    with col4, st.container():
+        st.markdown(
+            '<div class="card-title">🗂️ File Management</div>',
+            unsafe_allow_html=True,
+        )
+        _render_file_management_card()
 
     st.markdown("---")
-    _render_media_settings()
 
-    st.markdown("---")
-    _render_stl_viewer_settings()
-
-    st.markdown("---")
-    _render_chat_settings()
-
-    st.markdown("---")
+    # === HPC CONNECTION (full width) ===
     _render_ssh_credentials_section()
 
     st.markdown("---")
-    _render_paper_import_settings()
+
+    # === API USAGE (full width, tabbed) ===
+    st.markdown("## 📊 API Usage Monitor")
+    st.markdown("Track your external API usage and limits.")
+    _render_api_usage_tabs()
 
     st.markdown("---")
-    _render_api_usage_section()
 
-    st.markdown("---")
-    _render_about_section()
+    # === ADVANCED SETTINGS (collapsible) ===
+    with st.expander("📚 Paper Import (Advanced)", expanded=False):
+        _render_paper_import_settings()
 
+    with st.expander("About", expanded=False):
+        _render_about_section()
 
 if __name__ == "__main__":
     render()
