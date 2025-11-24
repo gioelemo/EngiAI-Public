@@ -152,10 +152,9 @@ See `.env.example` in the project root for all available configuration options.
 The application includes optional integration with Prusa Connect via an MCP (Model Context Protocol) server for 3D printer management. For most deployments, this is not needed and should be disabled by setting `SKIP_MCP=true`.
 
 **To enable Prusa integration** (advanced):
-1. Install `uv` package manager in the container
-2. Set up the Prusa MCP server at the path specified in `PRUSA_MCP_PATH`
-3. Set `SKIP_MCP=false` in your `.env` file
-4. Configure `UV_PATH` and `PRUSA_MCP_PATH` environment variables
+1. Set up the Prusa MCP server at the path specified in `PRUSA_MCP_PATH`
+2. Set `SKIP_MCP=false` in your `.env` file
+3. Configure `PRUSA_MCP_PATH` environment variable in your `.env` file
 
 For basic chatbot functionality, keep `SKIP_MCP=true` (the default).
 
