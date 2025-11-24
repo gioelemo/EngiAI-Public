@@ -10,7 +10,7 @@ import importlib.util
 import os
 from pathlib import Path
 from typing import Any, Literal
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 from langchain_core.tools import tool
 from src.tools.constants import SUPPORTED_PROBLEMS, ProblemId
@@ -798,7 +798,7 @@ def _load_diffusion_model(
             ),
             layers_per_block=layers_per_block,
             transformer_layers_per_block=1,
-            encoder_hid_dim=len(problem.conditions),
+            encoder_hid_dim=len(fields(problem.conditions)),
             only_cross_attention=True,
         ).to(device)  # type: ignore[attr-defined]
 
@@ -1454,13 +1454,13 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
                 logger.info("GAN Model Parameters (using defaults):")
                 logger.info("=" * 60)
                 logger.info(f"  latent_dim: {latent_dim}")
-                logger.info(f"  n_conds: {len(problem.conditions)}")
+                logger.info(f"  n_conds: {len(fields(problem.conditions))}")
                 logger.info(f"  design_shape: {problem.design_space.shape}")
                 logger.info("=" * 60)
 
             # Initialize the model
             is_conditional = SUPPORTED_ALGORITHMS[algorithm]["conditional"]
-            n_conds = len(problem.conditions) if is_conditional else 0
+            n_conds = len(fields(problem.conditions)) if is_conditional else 0
 
             model = generator_class(
                 latent_dim=latent_dim,

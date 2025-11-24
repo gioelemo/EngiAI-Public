@@ -13,8 +13,8 @@ dependencies = [
     "chromadb==1.3.3",
     "cryptography==46.0.3",
     "cvxopt",
-    "engibench==0.0.1",
-    "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git@92a08be8cd84cd2a2d7010c88be3bbfe2fb4f54a",
+    "engibench==0.1.0",
+    "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git@2d62cd484689058fe26de9230048b49c5a548ecf",
     "fabric==3.2.2",
     "flask>=3.0.0",
     "langchain==1.0.2",
@@ -41,7 +41,7 @@ dependencies = [
     "torch==2.8.0",
     "torchaudio==2.8.0",
     "torchvision==0.23.0",
-    "wandb==0.23.0",
+    "wandb==0.22.0",
     "watchdog==6.0.0",
 ]
 

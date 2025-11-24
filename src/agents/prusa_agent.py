@@ -26,7 +26,7 @@ from src.utils.prompts import PRUSA_AGENT_SYSTEM_PROMPT
 
 # Try to import nest_asyncio for better async compatibility
 try:
-    import nest_asyncio  # type: ignore[import-not-found]
+    import nest_asyncio  # type: ignore[import-untyped]
 
     NEST_ASYNCIO_AVAILABLE = True
 except ImportError:
