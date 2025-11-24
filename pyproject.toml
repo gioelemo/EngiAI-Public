@@ -262,6 +262,7 @@ module = [
   "matplotlib.*",
   "mcp",
   "mcp.*",
+  "nest_asyncio",
   "PIL",
   "pillow",
   "pydantic",
