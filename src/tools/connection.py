@@ -89,16 +89,29 @@ class HPCConnection:
             # SSH config mode (original behavior)
             # Fabric automatically uses ~/.ssh/config for connection details
             logger.info(f"Connecting to {host_alias} (SSH config mode)")
+            logger.info(
+                "Using host alias: %s (from HPC_HOST_ALIAS in .env)", host_alias
+            )
             try:
-                self.connection = Connection(host_alias)
+                # Enable SSH agent to handle encrypted private keys
+                self.connection = Connection(
+                    host_alias,
+                    connect_kwargs={
+                        "allow_agent": True,  # Use SSH agent for encrypted keys
+                        "look_for_keys": True,  # Look for keys in standard locations
+                    },
+                )
                 logger.info(f"SSH config connection established for {host_alias}")
             except Exception as e:
                 logger.exception(f"SSH config connection failed for {host_alias}")
                 msg = f"Failed to connect to '{host_alias}': {e}\n"
                 msg += "Make sure:\n"
-                msg += "  1. Host is configured in ~/.ssh/config\n"
+                msg += f"  1. Host {host_alias} is configured in ~/.ssh/config\n"
                 msg += "  2. SSH key is set up correctly\n"
-                msg += "  3. You can connect: ssh " + host_alias
+                msg += (
+                    "  3. SSH agent is running (if using Docker, mount SSH_AUTH_SOCK)\n"
+                )
+                msg += f"  4. Test manually: ssh {host_alias}"
                 raise RuntimeError(msg) from e
 
     def run_command(self, command: str) -> str:
