@@ -1186,5 +1186,6 @@ def render() -> None:
     with st.expander("About", expanded=False):
         _render_about_section()
 
+
 if __name__ == "__main__":
     render()
