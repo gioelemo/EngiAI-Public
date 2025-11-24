@@ -203,6 +203,7 @@ markers = [
     "integration: Integration tests (multiple components)",
     "slow: Slow tests (skip with -m 'not slow')",
     "requires_api: Tests requiring real API keys",
+    "asyncio: Async tests",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:pydantic.*:",

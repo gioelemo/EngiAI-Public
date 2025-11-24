@@ -13,6 +13,9 @@ from unittest.mock import Mock, patch
 import pytest
 
 from src.tools.cli import (
+    _get_host_service_url,
+    _is_running_in_docker,
+    _open_via_host_service,
     check_cli_tool_available,
     execute_cli_command,
     get_prusa_slicer_path,
@@ -711,3 +714,205 @@ def test_list_directory_contents_patterns(pattern, expected_files):
 
         for expected in expected_files:
             assert expected in result
+
+
+# ============================================================================
+# DOCKER DETECTION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_is_running_in_docker_with_dockerenv():
+    """Test Docker detection via .dockerenv file."""
+    with patch("pathlib.Path.exists", return_value=True):
+        result = _is_running_in_docker()
+        assert result is True
+
+
+@pytest.mark.unit
+def test_is_running_in_docker_via_cgroup():
+    """Test Docker detection via cgroup."""
+    mock_cgroup_content = "12:devices:/docker/abc123\n"
+
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        patch("pathlib.Path.open", mock_open_func(mock_cgroup_content)),
+    ):
+        result = _is_running_in_docker()
+        assert result is True
+
+
+@pytest.mark.unit
+def test_is_running_in_docker_not_in_docker():
+    """Test detection when not in Docker."""
+    mock_cgroup_content = "12:devices:/\n"
+
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        patch("pathlib.Path.open", mock_open_func(mock_cgroup_content)),
+    ):
+        result = _is_running_in_docker()
+        assert result is False
+
+
+@pytest.mark.unit
+def test_is_running_in_docker_exception():
+    """Test Docker detection when cgroup read fails."""
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        patch("pathlib.Path.open", side_effect=PermissionError),
+    ):
+        result = _is_running_in_docker()
+        assert result is False
+
+
+# ============================================================================
+# HOST SERVICE URL TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_get_host_service_url_default():
+    """Test default host service URL."""
+    with patch.dict("os.environ", {}, clear=True):
+        result = _get_host_service_url()
+        assert "host.docker.internal" in result
+        assert ":9999" in result
+
+
+@pytest.mark.unit
+def test_get_host_service_url_custom_port():
+    """Test host service URL with custom port."""
+    with patch.dict("os.environ", {"HOST_SERVICE_PORT": "8888"}):
+        result = _get_host_service_url()
+        assert ":8888" in result
+
+
+@pytest.mark.unit
+def test_get_host_service_url_linux():
+    """Test host service URL on Linux platform."""
+    with patch("src.tools.cli.platform.system", return_value="Linux"):
+        result = _get_host_service_url()
+        assert "host.docker.internal" in result
+
+
+# ============================================================================
+# HOST SERVICE OPEN TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_open_via_host_service_success():
+    """Test successful opening via host service."""
+    mock_health_response = Mock()
+    mock_health_response.status_code = 200
+
+    mock_open_response = Mock()
+    mock_open_response.json.return_value = {
+        "success": True,
+        "message": "Opened successfully",
+    }
+
+    with (
+        patch("src.tools.cli.requests.get", return_value=mock_health_response),
+        patch("src.tools.cli.requests.post", return_value=mock_open_response),
+    ):
+        result = _open_via_host_service("TestApp")
+        assert "successfully" in result
+
+
+@pytest.mark.unit
+def test_open_via_host_service_with_file():
+    """Test opening with file path via host service."""
+    mock_health_response = Mock()
+    mock_health_response.status_code = 200
+
+    mock_open_response = Mock()
+    mock_open_response.json.return_value = {
+        "success": True,
+        "message": "Opened with file",
+    }
+
+    with (
+        patch("src.tools.cli.requests.get", return_value=mock_health_response),
+        patch(
+            "src.tools.cli.requests.post", return_value=mock_open_response
+        ) as mock_post,
+    ):
+        result = _open_via_host_service("TestApp", "/path/to/file.txt")
+
+        # Verify file_path was passed
+        call_json = mock_post.call_args[1]["json"]
+        assert call_json["file_path"] == "/path/to/file.txt"
+        assert "Opened with file" in result
+
+
+@pytest.mark.unit
+def test_open_via_host_service_health_check_fail():
+    """Test host service when health check fails."""
+    mock_response = Mock()
+    mock_response.status_code = 500
+
+    with patch("src.tools.cli.requests.get", return_value=mock_response):
+        result = _open_via_host_service("TestApp")
+        assert "not responding" in result
+
+
+@pytest.mark.unit
+def test_open_via_host_service_connection_error():
+    """Test host service when connection fails."""
+    import requests
+
+    with patch(
+        "src.tools.cli.requests.get",
+        side_effect=requests.exceptions.ConnectionError("Connection refused"),
+    ):
+        result = _open_via_host_service("TestApp")
+        assert "Cannot connect" in result
+        assert "host_service.py" in result
+
+
+@pytest.mark.unit
+def test_open_via_host_service_open_error():
+    """Test host service when open request fails."""
+    mock_health_response = Mock()
+    mock_health_response.status_code = 200
+
+    mock_open_response = Mock()
+    mock_open_response.json.return_value = {
+        "success": False,
+        "message": "Application not found",
+    }
+
+    with (
+        patch("src.tools.cli.requests.get", return_value=mock_health_response),
+        patch("src.tools.cli.requests.post", return_value=mock_open_response),
+    ):
+        result = _open_via_host_service("NonexistentApp")
+        assert "Error" in result
+        assert "Application not found" in result
+
+
+@pytest.mark.unit
+def test_open_via_host_service_exception():
+    """Test host service with unexpected exception."""
+    with patch("src.tools.cli.requests.get", side_effect=Exception("Unexpected")):
+        result = _open_via_host_service("TestApp")
+        assert "Error" in result
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+
+def mock_open_func(content):
+    """Create a mock for Path.open that returns file content."""
+    from contextlib import contextmanager
+    from io import StringIO
+
+    @contextmanager
+    def mock_open(*_args, **_kwargs):
+        yield StringIO(content)
+
+    return mock_open

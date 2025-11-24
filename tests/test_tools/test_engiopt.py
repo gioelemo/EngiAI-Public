@@ -15,6 +15,8 @@ from src.tools.engiopt import (
     HPCContext,
     HPCInputs,
     TrainingConfig,
+    _api_status_message,
+    _build_slurm_script,
     _check_algorithm_recommendations,
     _check_contextual_recommendations,
     _check_general_recommendations,
@@ -23,9 +25,14 @@ from src.tools.engiopt import (
     _download_from_wandb,
     _get_artifact_info,
     _parse_hpc_inputs,
+    _resolve_slurm_config,
     _validate_download_inputs,
+    _validate_hpc_resources,
+    _validate_sampling_inputs,
     download_wandb_model,
+    generate_training_command,
     list_available_algorithms,
+    load_wandb_model,
 )
 
 # ============================================================================
@@ -997,3 +1004,392 @@ def test_hpc_context_numeric_types():
     assert isinstance(context.total_hours, float)
     assert isinstance(context.cpu_count, int)
     assert isinstance(context.mem_value, float)
+
+
+# ============================================================================
+# ADDITIONAL TESTS FOR UNCOVERED FUNCTIONS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_validate_hpc_resources_valid(monkeypatch):
+    """Test _validate_hpc_resources with valid inputs."""
+    monkeypatch.setenv("SLURM_MAX_GPUS", "4")
+    monkeypatch.setenv("SLURM_MAX_TIME_HOURS", "24")
+    monkeypatch.setenv("SLURM_MAX_CPUS", "16")
+    monkeypatch.setenv("SLURM_MAX_MEM_PER_CPU_GB", "16")
+
+    cfg = HPCInputs(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        epochs=200,
+        slurm_gpus="1",
+        slurm_time="04:00:00",
+        slurm_cpus_per_task="4",
+        slurm_mem_per_cpu="4G",
+    )
+
+    result = _validate_hpc_resources(cfg)
+
+    assert "has_errors" in result
+    assert "has_warnings" in result
+    assert "errors" in result
+    assert "warnings" in result
+    assert "recommendations" in result
+
+
+@pytest.mark.unit
+def test_validate_hpc_resources_with_errors(monkeypatch):
+    """Test _validate_hpc_resources with resources exceeding limits."""
+    monkeypatch.setenv("SLURM_MAX_GPUS", "2")
+    monkeypatch.setenv("SLURM_MAX_TIME_HOURS", "8")
+    monkeypatch.setenv("SLURM_MAX_CPUS", "8")
+    monkeypatch.setenv("SLURM_MAX_MEM_PER_CPU_GB", "8")
+
+    cfg = HPCInputs(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        epochs=200,
+        slurm_gpus="4",  # Exceeds limit
+        slurm_time="24:00:00",  # Exceeds limit
+        slurm_cpus_per_task="16",  # Exceeds limit
+        slurm_mem_per_cpu="16G",  # Exceeds limit
+    )
+
+    result = _validate_hpc_resources(cfg)
+
+    assert result["has_errors"] is True
+    assert len(result["errors"]) > 0
+
+
+@pytest.mark.unit
+def test_resolve_slurm_config_defaults():
+    """Test _resolve_slurm_config with default values."""
+    cfg = TrainingConfig()
+
+    result = _resolve_slurm_config(cfg)
+
+    assert "ntasks" in result
+    assert "cpus_per_task" in result
+    assert "mem_per_cpu" in result
+    assert "gpus" in result
+    assert "time" in result
+
+
+@pytest.mark.unit
+def test_resolve_slurm_config_custom_gpus():
+    """Test _resolve_slurm_config with custom GPU count."""
+    cfg = TrainingConfig(gpus=2)
+
+    result = _resolve_slurm_config(cfg)
+
+    assert ":2" in result["gpus"]
+
+
+@pytest.mark.unit
+def test_resolve_slurm_config_custom_time():
+    """Test _resolve_slurm_config with custom time."""
+    cfg = TrainingConfig(time_hours=4.5)
+
+    result = _resolve_slurm_config(cfg)
+
+    assert result["time"] == "04:30:00"
+
+
+@pytest.mark.unit
+def test_build_slurm_script():
+    """Test _build_slurm_script generates valid script."""
+    cfg = TrainingConfig(algorithm="cgan_cnn_2d", problem_id="beams2d", seed=42)
+    slurm = {
+        "ntasks": "1",
+        "cpus_per_task": "4",
+        "mem_per_cpu": "7GB",
+        "gpus": "rtx_4090:1",
+        "time": "04:00:00",
+        "email_user": "test@test.com",
+    }
+    command = "python train.py"
+
+    result = _build_slurm_script(cfg, slurm, command)
+
+    assert "#!/bin/bash" in result
+    assert "#SBATCH --job-name=" in result
+    assert "cgan_cnn_2d" in result
+    assert "beams2d" in result
+    assert "python train.py" in result
+    assert "#SBATCH --gpus=" in result
+
+
+@pytest.mark.unit
+def test_api_status_message_with_keys():
+    """Test _api_status_message with API keys present."""
+    result = _api_status_message("wandb_key_12345", "hf_token_67890")
+
+    assert "WandB" in result
+    assert "2345" in result  # Last 4 chars
+    assert "HuggingFace" in result
+    assert "7890" in result
+
+
+@pytest.mark.unit
+def test_api_status_message_without_keys():
+    """Test _api_status_message without API keys."""
+    result = _api_status_message("", "")
+
+    assert "not found" in result.lower()
+
+
+@pytest.mark.unit
+def test_validate_sampling_inputs_valid():
+    """Test _validate_sampling_inputs with valid inputs."""
+    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
+        result = _validate_sampling_inputs(
+            algorithm="cgan_cnn_2d",
+            problem_id="beams2d",
+            conditions=[{"volfrac": 0.5}],
+            n_samples=1,
+        )
+
+    assert result is None  # None means valid
+
+
+@pytest.mark.unit
+def test_validate_sampling_inputs_invalid_algorithm():
+    """Test _validate_sampling_inputs with invalid algorithm."""
+    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
+        result = _validate_sampling_inputs(
+            algorithm="invalid",
+            problem_id="beams2d",
+            conditions=None,
+            n_samples=1,
+        )
+
+    assert result is not None
+    assert result["success"] is False
+    assert "unsupported algorithm" in result["error"].lower()
+
+
+@pytest.mark.unit
+def test_validate_sampling_inputs_invalid_problem():
+    """Test _validate_sampling_inputs with invalid problem."""
+    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
+        result = _validate_sampling_inputs(
+            algorithm="cgan_cnn_2d",
+            problem_id="invalid",
+            conditions=None,
+            n_samples=1,
+        )
+
+    assert result is not None
+    assert result["success"] is False
+    assert "unsupported problem_id" in result["error"].lower()
+
+
+@pytest.mark.unit
+def test_validate_sampling_inputs_conditions_mismatch():
+    """Test _validate_sampling_inputs with mismatched conditions count."""
+    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
+        result = _validate_sampling_inputs(
+            algorithm="cgan_cnn_2d",
+            problem_id="beams2d",
+            conditions=[{"volfrac": 0.5}],  # 1 condition
+            n_samples=3,  # 3 samples
+        )
+
+    assert result is not None
+    assert result["success"] is False
+    assert "must match" in result["error"].lower()
+
+
+@pytest.mark.unit
+@patch("src.tools.engiopt.TORCH_AVAILABLE", False)
+def test_validate_sampling_inputs_no_torch():
+    """Test _validate_sampling_inputs without PyTorch."""
+    result = _validate_sampling_inputs(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        conditions=None,
+        n_samples=1,
+    )
+
+    assert result is not None
+    assert result["success"] is False
+    assert "torch" in result["error"].lower() or "pytorch" in result["error"].lower()
+
+
+@pytest.mark.unit
+def test_generate_training_command_success(monkeypatch, tmp_path):
+    """Test generate_training_command with valid config."""
+    monkeypatch.setenv("USE_WANDB", "True")
+    monkeypatch.chdir(tmp_path)
+
+    cfg = TrainingConfig(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        epochs=100,
+        seed=42,
+    )
+
+    result = generate_training_command.invoke({"cfg": cfg})
+
+    assert result["success"] is True
+    assert "command" in result
+    assert "slurm_script" in result
+    assert "slurm_file" in result
+    assert "cgan_cnn_2d" in result["command"]
+    assert "beams2d" in result["command"]
+
+
+@pytest.mark.unit
+def test_generate_training_command_invalid_algorithm():
+    """Test generate_training_command with invalid algorithm."""
+    cfg = TrainingConfig(algorithm="invalid_algo")
+
+    result = generate_training_command.invoke({"cfg": cfg})
+
+    assert result["success"] is False
+    assert "unsupported algorithm" in result["error"].lower()
+
+
+@pytest.mark.unit
+@patch("src.tools.engiopt.TORCH_AVAILABLE", False)
+def test_load_wandb_model_no_torch():
+    """Test load_wandb_model without PyTorch."""
+    result = load_wandb_model.invoke(
+        {
+            "checkpoint_path": "/fake/path.pth",
+            "problem_id": "beams2d",
+            "algorithm": "cgan_cnn_2d",
+        }
+    )
+
+    assert result["success"] is False
+    assert "torch" in result["error"].lower() or "pytorch" in result["error"].lower()
+
+
+@pytest.mark.unit
+def test_load_wandb_model_missing_file():
+    """Test load_wandb_model with missing checkpoint file."""
+    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
+        result = load_wandb_model.invoke(
+            {
+                "checkpoint_path": "/nonexistent/path.pth",
+                "problem_id": "beams2d",
+                "algorithm": "cgan_cnn_2d",
+            }
+        )
+
+    assert result["success"] is False
+    assert "not found" in result["error"].lower()
+
+
+@pytest.mark.unit
+def test_load_wandb_model_invalid_algorithm(tmp_path):
+    """Test load_wandb_model with invalid algorithm."""
+    # Create a fake checkpoint file so file check passes
+    fake_checkpoint = tmp_path / "fake.pth"
+    fake_checkpoint.touch()
+
+    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
+        result = load_wandb_model.invoke(
+            {
+                "checkpoint_path": str(fake_checkpoint),
+                "problem_id": "beams2d",
+                "algorithm": "invalid_algo",
+            }
+        )
+
+    assert result["success"] is False
+    assert "unsupported algorithm" in result["error"].lower()
+
+
+@pytest.mark.unit
+def test_check_algorithm_recommendations_cgan_beams2d_many_gpus():
+    """Test recommendations for cGAN with too many GPUs."""
+    ctx = HPCContext(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        epochs=200,
+        gpu_count=4,  # Too many
+        total_hours=2.0,
+        cpu_count=4,
+        mem_value=4.0,
+    )
+
+    warnings, _recommendations = _check_algorithm_recommendations(ctx)
+
+    assert len(warnings) > 0
+    assert any("gpu" in w.lower() for w in warnings)
+
+
+@pytest.mark.unit
+def test_check_algorithm_recommendations_cgan_beams2d_long_time():
+    """Test recommendations for cGAN with too much time."""
+    ctx = HPCContext(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        epochs=200,
+        gpu_count=1,
+        total_hours=8.0,  # Too long
+        cpu_count=4,
+        mem_value=4.0,
+    )
+
+    warnings, _recommendations = _check_algorithm_recommendations(ctx)
+
+    assert len(warnings) > 0
+
+
+@pytest.mark.unit
+def test_check_algorithm_recommendations_cgan_beams2d_short_time():
+    """Test recommendations for cGAN with very short time."""
+    ctx = HPCContext(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        epochs=200,
+        gpu_count=1,
+        total_hours=0.25,  # Very short
+        cpu_count=4,
+        mem_value=4.0,
+    )
+
+    warnings, _recommendations = _check_algorithm_recommendations(ctx)
+
+    assert len(warnings) > 0
+
+
+@pytest.mark.unit
+def test_check_algorithm_recommendations_diffusion_beams2d():
+    """Test recommendations for diffusion model."""
+    ctx = HPCContext(
+        algorithm="diffusion_2d_cond",
+        problem_id="beams2d",
+        epochs=200,
+        gpu_count=4,  # Too many for diffusion
+        total_hours=1.0,  # Too short
+        cpu_count=4,
+        mem_value=4.0,
+    )
+
+    warnings, _recommendations = _check_algorithm_recommendations(ctx)
+
+    # Should have warnings for both GPU count and time
+    assert len(warnings) >= 1
+
+
+@pytest.mark.unit
+def test_check_general_recommendations_high_cpu():
+    """Test recommendations for high CPU count."""
+    ctx = HPCContext(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        epochs=200,
+        gpu_count=1,
+        total_hours=4.0,
+        cpu_count=16,  # High
+        mem_value=4.0,
+    )
+
+    warnings, _recommendations = _check_general_recommendations(ctx)
+
+    assert any("cpu" in w.lower() for w in warnings)

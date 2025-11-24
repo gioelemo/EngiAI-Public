@@ -34,6 +34,12 @@ def pytest_configure(config):
         "smoke: marks tests as smoke tests (quick sanity checks)",
     )
 
+    # Filter known warnings from async test mocking
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore:coroutine.*was never awaited:RuntimeWarning",
+    )
+
 
 def pytest_collection_modifyitems(items):
     """Modify test collection to add markers automatically."""
