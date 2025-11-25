@@ -1035,11 +1035,7 @@ def main() -> None:
     st.markdown(
         """
         <style>
-        /* Set sidebar width for chat management */
-        [data-testid="stSidebar"] {
-            min-width: 300px;
-            max-width: 300px;
-        }
+        /* Set sidebar width for chat management - only when expanded */
         [data-testid="stSidebar"][aria-expanded="true"] {
             min-width: 300px;
             max-width: 300px;
