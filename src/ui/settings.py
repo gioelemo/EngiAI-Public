@@ -234,88 +234,6 @@ def _cleanup_old_connect_state(
         )
 
 
-def _render_prusa_session_management() -> None:
-    """Render Prusa Connect session management section."""
-    st.markdown("### 🔌 Prusa Connect Session")
-
-    connect_state_path = project_root / "data" / "connect_state.json"
-
-    # Check if file exists and get age
-    if connect_state_path.exists():
-        file_age = _get_file_age_hours(connect_state_path)
-        st.info(
-            f"📁 Session file: `{connect_state_path}`\n\n"
-            f"⏰ Age: {file_age:.1f} hours\n\n"
-            f"💡 This file stores your Prusa Connect login cookies to avoid re-authentication."
-        )
-
-        # Show warning if file is old
-        if file_age > SESSION_WARNING_AGE_HOURS:
-            st.warning(
-                f"⚠️ Session file is {file_age:.1f} hours old. "
-                "Cookies may have expired. Consider clearing it to force re-login."
-            )
-
-        # Manual cleanup button
-        if st.button("🗑️ Clear Session File", width="stretch", type="secondary"):
-            try:
-                connect_state_path.unlink()
-                st.success("✅ Session file deleted! You'll need to log in again.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error deleting session file: {e}")
-    else:
-        st.info(
-            "📁 No active Prusa Connect session found.\n\n"
-            "💡 The session file is created when you first log in via the Prusa Agent."
-        )
-
-
-def _render_output_folder_management() -> None:
-    """Render output folder management section."""
-    st.markdown("### 🗂️ Output Folder Management")
-
-    output_dir = Path(st.session_state.media_save_dir)
-    file_count = _count_files_in_directory(output_dir)
-
-    st.info(f"📁 Output folder: `{output_dir}`\n\n📄 Contains {file_count} file(s)")
-
-    # Initialize confirmation state
-    if "confirm_clear_output" not in st.session_state:
-        st.session_state.confirm_clear_output = False
-
-    if not st.session_state.confirm_clear_output:
-        # First click: ask for confirmation
-        if st.button("🗑️ Clear Output Folder", width="stretch", type="secondary"):
-            if file_count == 0:
-                st.warning("⚠️ Output folder is already empty!")
-            else:
-                st.session_state.confirm_clear_output = True
-                st.rerun()
-    else:
-        # Second click: show confirmation
-        st.warning(f"⚠️ Are you sure you want to delete {file_count} file(s)?")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("✅ Yes, Delete All", width="stretch", type="primary"):
-                try:
-                    deleted_count = _delete_output_folder_contents(output_dir)
-                    st.session_state.confirm_clear_output = False
-                    st.success(f"✅ Successfully deleted {deleted_count} file(s)!")
-                    st.rerun()
-                except Exception as e:
-                    st.session_state.confirm_clear_output = False
-                    st.error(f"❌ Error clearing output folder: {e}")
-                    st.rerun()
-
-        with col2:
-            if st.button("❌ Cancel", width="stretch", type="secondary"):
-                st.session_state.confirm_clear_output = False
-                st.rerun()
-
-
 def _render_chat_quick_settings() -> None:
     """Render compact chat settings for card layout."""
     # Streaming text toggle
@@ -1061,18 +979,6 @@ def _render_slurm_config_section() -> None:
         "Shell variables like `$HOME`, `$SCRATCH` will be expanded on the cluster. "
         "Use `~` for home directory references."
     )
-
-
-def _render_api_usage_section() -> None:
-    """Render API usage monitoring section."""
-    st.markdown("## 📊 API Usage")
-    st.markdown("Monitor your external API usage and limits.")
-
-    # Render Tavily usage
-    _render_tavily_usage()
-
-    # Render Mathpix usage
-    _render_mathpix_usage()
 
 
 def _render_api_usage_tabs() -> None:
