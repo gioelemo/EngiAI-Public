@@ -7,9 +7,11 @@ This provides a web-based chat interface for interacting with the multi-agent sy
 import base64
 import datetime
 import logging
+import re
 import secrets
 import sys
 import tempfile
+import time
 import warnings
 from pathlib import Path
 from typing import Any, cast
@@ -84,6 +86,8 @@ def _initialize_stl_settings() -> None:
         "media_save_dir": str(Path(__file__).parent.parent.parent / "outputs"),
         "media_auto_save": False,
         "enable_streaming": True,
+        "job_monitor_refresh_interval": 60,  # seconds
+        "job_monitor_auto_add": False,  # Ask before monitoring by default
     }
 
     # Load from database or use defaults
@@ -323,6 +327,25 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                 with hpc_status_placeholder.container():
                     st.info("\n\n".join(hpc_progress_messages))
 
+                # If job was submitted, handle monitoring based on user preference
+                if step == "complete" and "Job ID:" in message:
+                    job_id = extract_job_id_from_response(message)
+                    if job_id:
+                        # Check if auto-add is enabled
+                        auto_add = st.session_state.get("job_monitor_auto_add", False)
+                        if auto_add:
+                            # Automatically add to monitor
+                            add_job_to_monitor(job_id, "SUBMITTED")
+                            logger.info(f"Job {job_id} automatically added to monitor")
+                        else:
+                            # Store the job ID temporarily for the prompt
+                            if "pending_job_monitor" not in st.session_state:
+                                st.session_state.pending_job_monitor = []
+                            st.session_state.pending_job_monitor.append(job_id)
+                            logger.info(
+                                f"Job {job_id} submitted, will prompt user to monitor"
+                            )
+
             # Set progress callback for HPC operations
             set_progress_callback(hpc_progress_callback)
 
@@ -524,6 +547,359 @@ def render_mathpix_usage_widget() -> None:
     except Exception as e:
         logger.debug(f"Failed to fetch Mathpix usage for sidebar: {e}")
         # Silently fail - don't show error in sidebar
+
+
+def extract_job_id_from_response(response: str) -> str | None:
+    """Extract SLURM job ID from agent response text."""
+    # Look for patterns like "Job ID: 12345678" or "job_id: 12345678"
+    match = re.search(r"[Jj]ob\s*[Ii][Dd][:\s]+(\d+)", response)
+    if match:
+        return match.group(1)
+    # Also look for standalone numbers that might be job IDs (8-10 digits)
+    match = re.search(r"\b(\d{7,10})\b", response)
+    if match:
+        return match.group(1)
+    return None
+
+
+def get_or_create_hpc_connection(host_alias: str = "euler"):
+    """Get or create a persistent HPC connection for job monitoring.
+
+    This maintains a single SSH connection in session state to avoid
+    reconnecting for every status check. Without connection reuse,
+    each job status check would create a new SSH connection, leading
+    to inefficient reconnections every ~12 seconds.
+
+    Args:
+        host_alias: Host alias from ~/.ssh/config
+
+    Returns:
+        HPCConnection instance (reused across multiple status checks)
+    """
+    from src.tools.connection import HPCConnection  # noqa: PLC0415
+
+    # Initialize connections dict if it doesn't exist
+    if "hpc_connections" not in st.session_state:
+        st.session_state.hpc_connections = {}
+
+    # Create connection if it doesn't exist for this host
+    if host_alias not in st.session_state.hpc_connections:
+        logger.info(f"Creating persistent HPC connection for {host_alias}")
+        st.session_state.hpc_connections[host_alias] = HPCConnection(
+            host_alias=host_alias
+        )
+    else:
+        logger.debug(f"Reusing existing HPC connection for {host_alias}")
+
+    return st.session_state.hpc_connections[host_alias]
+
+
+def get_job_status_display(job_id: str, host_alias: str = "euler") -> dict[str, Any]:
+    """Get formatted job status for display."""
+    try:
+        # Use persistent connection instead of creating a new one each time
+        hpc = get_or_create_hpc_connection(host_alias)
+        status_output = hpc.get_job_status(job_id)
+
+        # Parse status output to extract key info
+        is_completed = False
+        job_state = "UNKNOWN"
+
+        if "not found" in status_output.lower() or "completed" in status_output.lower():
+            is_completed = True
+            job_state = "COMPLETED"
+        else:
+            # Parse squeue output
+            lines = [
+                line.strip()
+                for line in status_output.strip().split("\n")
+                if line.strip()
+            ]
+            if len(lines) <= 1:
+                is_completed = True
+                job_state = "COMPLETED"
+            elif len(lines) > 1:
+                # Extract state from output (typically 5th column)
+                parts = lines[1].split()
+                state_column_index = 4
+                if len(parts) > state_column_index:
+                    job_state = parts[state_column_index]
+
+    except Exception as e:
+        return {
+            "job_id": job_id,
+            "state": "ERROR",
+            "is_completed": False,
+            "error": str(e),
+            "success": False,
+        }
+    else:
+        return {
+            "job_id": job_id,
+            "state": job_state,
+            "is_completed": is_completed,
+            "raw_output": status_output,
+            "success": True,
+        }
+
+
+def _render_job_monitor_header() -> None:
+    """Render job monitor header with add and refresh buttons."""
+    col1, col2, col3 = st.columns([6, 1, 1])
+    with col1:
+        st.markdown("## 🚀 SLURM Job Monitor")
+    with col2:
+        if st.button("+", key="add_job_btn", help="Add job to monitor"):
+            st.session_state.show_add_job_form = True
+    with col3:
+        if st.button("🔄", key="refresh_jobs_btn", help="Refresh all jobs"):
+            st.rerun()
+
+
+def _render_add_job_form(form_key: str) -> None:
+    """Render form to add a new job to monitor."""
+    with st.form(form_key):
+        st.markdown("**Add Job to Monitor**")
+        job_id_input = st.text_input(
+            "Job ID", placeholder="Enter SLURM job ID (e.g., 12345678)"
+        )
+        col_submit, col_cancel = st.columns(2)
+        with col_submit:
+            submitted = st.form_submit_button(
+                "✓ Add", type="primary", use_container_width=True
+            )
+        with col_cancel:
+            cancelled = st.form_submit_button("✕ Cancel", use_container_width=True)
+
+        if submitted and job_id_input:
+            add_job_to_monitor(job_id_input.strip())
+            st.session_state[f"show_{form_key}"] = False
+            st.rerun()
+        elif cancelled:
+            st.session_state[f"show_{form_key}"] = False
+            st.rerun()
+
+
+def _display_job_status_widget(
+    job_id: str, status: dict[str, Any], key_prefix: str
+) -> None:
+    """Display a single job's status in a widget."""
+    if not status["success"]:
+        st.markdown(f"**Job ID: `{job_id}`**")
+        st.error(f"❌ Error: {status.get('error', 'Unknown error')}")
+        if st.button(
+            "🗑️ Remove",
+            key=f"{key_prefix}_error_{job_id}",
+            type="secondary",
+            use_container_width=True,
+        ):
+            del st.session_state.monitored_jobs[job_id]
+            st.rerun()
+        return
+
+    state = status["state"]
+    is_completed = status["is_completed"]
+
+    # Update job info
+    st.session_state.monitored_jobs[job_id]["state"] = state
+    st.session_state.monitored_jobs[job_id]["is_completed"] = is_completed
+    st.session_state.monitored_jobs[job_id]["last_check"] = time.time()
+
+    st.markdown(f"**Job ID: `{job_id}`**")
+
+    # Display status with color coding
+    if is_completed:
+        st.success(f"✅ **{state}**")
+    elif state in {"R", "RUNNING"}:
+        st.info(f"▶️ **{state}** (Running)")
+    elif state in {"PD", "PENDING"}:
+        st.warning(f"⏳ **{state}** (Pending)")
+    else:
+        st.info(f"⚙️ **{state}**")
+
+    # Show raw output in expander
+    with st.expander("📊 View squeue output"):
+        st.code(status["raw_output"], language="text")
+
+    # Remove button
+    if st.button(
+        "🗑️ Remove",
+        key=f"{key_prefix}_{job_id}",
+        type="secondary",
+        use_container_width=True,
+    ):
+        del st.session_state.monitored_jobs[job_id]
+        st.rerun()
+
+
+def _render_auto_refresh_status() -> None:
+    """Render auto-refresh status message."""
+    if not st.session_state.monitored_jobs:
+        return
+
+    has_active_jobs = any(
+        not job_info.get("is_completed", False)
+        for job_info in st.session_state.monitored_jobs.values()
+    )
+
+    local_time = time.strftime("%H:%M:%S", time.localtime())
+
+    if has_active_jobs:
+        refresh_interval = st.session_state.get("job_monitor_refresh_interval", 60)
+        st.markdown(
+            f"*Auto-refreshing every {refresh_interval}s... (Last update: {local_time})*"
+        )
+        time.sleep(refresh_interval)
+        st.rerun()
+    else:
+        st.markdown(
+            f"*All jobs completed. Auto-refresh stopped. (Last update: {local_time})*"
+        )
+
+
+def render_job_monitor() -> None:
+    """Render live job monitoring widget in main chat area."""
+    # Initialize monitoring state if not exists
+    if "monitored_jobs" not in st.session_state:
+        st.session_state.monitored_jobs = {}
+    if "job_monitor_enabled" not in st.session_state:
+        st.session_state.job_monitor_enabled = False
+
+    _render_job_monitor_header()
+
+    # Show add job form if requested
+    if st.session_state.get("show_add_job_form", False):
+        _render_add_job_form("add_job_form")
+
+    # Check if there are any jobs to monitor
+    if not st.session_state.monitored_jobs:
+        if not st.session_state.get("show_add_job_form", False):
+            st.info(
+                "💡 No jobs being monitored. Jobs will be automatically added when you submit them, or you can add them manually using the '+' button."
+            )
+        return
+
+    # Display jobs in a grid layout
+    num_jobs = len(st.session_state.monitored_jobs)
+    cols_per_row = min(2, num_jobs)
+
+    job_items = list(st.session_state.monitored_jobs.items())
+    for i in range(0, len(job_items), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for col_idx, (job_id, _job_info) in enumerate(job_items[i : i + cols_per_row]):
+            with cols[col_idx]:
+                status = get_job_status_display(job_id)
+                with st.container(border=True):
+                    _display_job_status_widget(job_id, status, "remove")
+
+    _render_auto_refresh_status()
+
+
+def add_job_to_monitor(job_id: str, initial_state: str = "SUBMITTED") -> None:
+    """Add a job to the monitoring list."""
+    if "monitored_jobs" not in st.session_state:
+        st.session_state.monitored_jobs = {}
+
+    st.session_state.monitored_jobs[job_id] = {
+        "job_id": job_id,
+        "state": initial_state,
+        "is_completed": False,
+        "last_check": time.time(),
+        "added_at": time.time(),
+    }
+
+
+def _display_compact_job_row(job_id: str, status: dict[str, Any]) -> None:
+    """Display a single job row in compact format."""
+    if not status["success"]:
+        col1, col2, col3 = st.columns([2, 3, 1])
+        with col1:
+            st.code(job_id, language="text")
+        with col2:
+            st.error(f"❌ Error: {status.get('error', 'Unknown')}")
+        with col3:
+            if st.button("🗑️", key=f"remove_error_compact_{job_id}", help="Remove"):
+                del st.session_state.monitored_jobs[job_id]
+                st.rerun()
+        return
+
+    state = status["state"]
+    is_completed = status["is_completed"]
+
+    # Update job info
+    st.session_state.monitored_jobs[job_id]["state"] = state
+    st.session_state.monitored_jobs[job_id]["is_completed"] = is_completed
+    st.session_state.monitored_jobs[job_id]["last_check"] = time.time()
+
+    # Compact display
+    col1, col2, col3 = st.columns([2, 3, 1])
+    with col1:
+        st.code(job_id, language="text")
+    with col2:
+        if is_completed:
+            st.success(state, icon="✅")
+        elif state in {"R", "RUNNING"}:
+            st.info(f"{state} (Running)", icon="▶️")
+        elif state in {"PD", "PENDING"}:
+            st.warning(f"{state} (Pending)", icon="⏳")
+        else:
+            st.info(state, icon="⚙️")
+    with col3:
+        if st.button("🗑️", key=f"remove_compact_{job_id}", help="Remove"):
+            del st.session_state.monitored_jobs[job_id]
+            st.rerun()
+
+    # Show details in sub-expander
+    with st.expander(f"Details for {job_id}", expanded=False):
+        st.code(status["raw_output"], language="text")
+
+
+def render_job_monitor_compact() -> None:
+    """Render compact job monitoring widget at bottom of chat."""
+    # Initialize monitoring state if not exists
+    if "monitored_jobs" not in st.session_state:
+        st.session_state.monitored_jobs = {}
+
+    if not st.session_state.monitored_jobs:
+        return
+
+    # Collapsible section for job monitor
+    with st.expander(
+        f"🚀 SLURM Job Monitor ({len(st.session_state.monitored_jobs)} jobs)",
+        expanded=False,
+    ):
+        # Buttons row
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            refresh_interval = st.session_state.get("job_monitor_refresh_interval", 60)
+            local_time = time.strftime("%H:%M:%S", time.localtime())
+            st.caption(
+                f"*Auto-refreshing every {refresh_interval}s... (Last update: {local_time})*"
+            )
+        with col2:
+            if st.button("+", key="add_job_btn_compact", help="Add job to monitor"):
+                st.session_state.show_add_job_form_compact = True
+
+        # Show add job form if requested
+        if st.session_state.get("show_add_job_form_compact", False):
+            _render_add_job_form("add_job_form_compact")
+
+        # Display jobs in a table-like format
+        for job_id, _job_info in list(st.session_state.monitored_jobs.items()):
+            status = get_job_status_display(job_id)
+            _display_compact_job_row(job_id, status)
+
+    # Auto-refresh based on configured interval - only if there are active jobs
+    if st.session_state.monitored_jobs:
+        has_active_jobs = any(
+            not job_info.get("is_completed", False)
+            for job_info in st.session_state.monitored_jobs.values()
+        )
+
+        if has_active_jobs:
+            refresh_interval = st.session_state.get("job_monitor_refresh_interval", 60)
+            time.sleep(refresh_interval)
+            st.rerun()
 
 
 def render_sidebar() -> None:

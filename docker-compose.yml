@@ -38,12 +38,16 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant}
       - SSH_AUTH_SOCK=/ssh-agent
       - PAPERS_SOURCE_DIR=/app/papers  # Container path (different from host)
+      - TZ=Europe/Zurich  # Set timezone to match host
     volumes:
       - ./data:/app/data
       - ./outputs:/app/outputs
       - ./artifacts:/app/artifacts
       - ~/.ssh:/root/.ssh-host:ro
       - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
+      # Mount timezone data to ensure correct timezone in container
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
       # Mount papers directory for bulk import (host path configurable via PAPERS_SOURCE_DIR in .env)
       # Inside container, papers are always at /app/papers
       - ${PAPERS_SOURCE_DIR:-./papers}:/app/papers:ro

@@ -107,6 +107,8 @@ def _load_settings_from_db() -> None:
         "stl_shininess": 100,
         "stl_auto_rotate": True,
         "enable_streaming": True,
+        "job_monitor_refresh_interval": 60,  # seconds
+        "job_monitor_auto_add": False,  # Ask before monitoring by default
         # SLURM/HPC configuration
         "slurm_venv_path": "~/venvs/engineer_assistant",
         "slurm_project_path": "$HOME/EngiOpt",
@@ -471,6 +473,29 @@ def _render_chat_quick_settings() -> None:
     )
     if enable_streaming != st.session_state.get("enable_streaming"):
         _save_setting_to_db("enable_streaming", enable_streaming)
+
+    # Job monitor refresh interval
+    refresh_interval = st.number_input(
+        "Job Monitor Refresh (seconds)",
+        min_value=10,
+        max_value=300,
+        value=st.session_state.get("job_monitor_refresh_interval", 60),
+        step=10,
+        help="How often to check SLURM job status (10-300 seconds)",
+        key="job_monitor_refresh_card_widget",
+    )
+    if refresh_interval != st.session_state.get("job_monitor_refresh_interval"):
+        _save_setting_to_db("job_monitor_refresh_interval", int(refresh_interval))
+
+    # Auto-add jobs to monitor
+    auto_add_jobs = st.checkbox(
+        "Automatically monitor submitted jobs",
+        value=st.session_state.get("job_monitor_auto_add", False),
+        help="If enabled, jobs will be automatically added to the monitor without asking. If disabled, you'll be prompted each time.",
+        key="job_monitor_auto_add_card_widget",
+    )
+    if auto_add_jobs != st.session_state.get("job_monitor_auto_add"):
+        _save_setting_to_db("job_monitor_auto_add", auto_add_jobs)
 
     # Display current conversation stats
     if st.session_state.get("messages"):
