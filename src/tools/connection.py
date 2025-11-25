@@ -40,7 +40,7 @@ ProgressCallback = Callable[[str, str], None]
 class HPCConnection:
     """SSH connection to HPC cluster for job submission using Fabric."""
 
-    def __init__( # noqa: PLR0913
+    def __init__(  # noqa: PLR0913
         self,
         host_alias: str = "euler",
         host: str | None = None,

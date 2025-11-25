@@ -73,25 +73,13 @@ class Config:
         self.hpc_host_alias: str = os.getenv("HPC_HOST_ALIAS", "euler")
         self.euler_hostname: str = os.getenv("EULER_HOSTNAME", "euler.ethz.ch")
         self.euler_username: str = os.getenv("EULER_USERNAME", "")
-        # Try to get SLURM settings from database first, then fall back to env vars
-        self.slurm_email_user: str = get_setting_from_db(
-            "slurm_email_user", os.getenv("SLURM_EMAIL_USER", "")
-        )
-        self.slurm_venv_path: str = get_setting_from_db(
-            "slurm_venv_path",
-            os.getenv("SLURM_VENV_PATH", "~/venvs/engineer_assistant"),
-        )
-        self.slurm_project_path: str = get_setting_from_db(
-            "slurm_project_path", os.getenv("SLURM_PROJECT_PATH", "$HOME/EngiOpt")
-        )
-        self.hf_home_remote: str = get_setting_from_db(
-            "hf_home_remote",
-            os.getenv("HF_HOME_REMOTE", "$SCRATCH/models"),
-        )
-        self.hf_datasets_cache_remote: str = get_setting_from_db(
-            "hf_datasets_cache_remote",
-            os.getenv("HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"),
-        )
+
+        # Initialize with env vars - database lookups are deferred to avoid circular imports
+        self._slurm_email_user: str | None = None
+        self._slurm_venv_path: str | None = None
+        self._slurm_project_path: str | None = None
+        self._hf_home_remote: str | None = None
+        self._hf_datasets_cache_remote: str | None = None
 
         # Weights & Biases configuration
         self.wandb_entity: str = os.getenv("WANDB_ENTITY", "")
@@ -145,6 +133,54 @@ class Config:
             os.environ["MATHPIX_API_ID"] = self.mathpix_api_id
         if self.mathpix_api_key:
             os.environ["MATHPIX_API_KEY"] = self.mathpix_api_key
+
+    @property
+    def slurm_email_user(self) -> str:
+        """Get SLURM email user from database or env var."""
+        if self._slurm_email_user is None:
+            self._slurm_email_user = get_setting_from_db(
+                "slurm_email_user", os.getenv("SLURM_EMAIL_USER", "")
+            )
+        return self._slurm_email_user
+
+    @property
+    def slurm_venv_path(self) -> str:
+        """Get SLURM venv path from database or env var."""
+        if self._slurm_venv_path is None:
+            self._slurm_venv_path = get_setting_from_db(
+                "slurm_venv_path",
+                os.getenv("SLURM_VENV_PATH", "~/venvs/engineer_assistant"),
+            )
+        return self._slurm_venv_path
+
+    @property
+    def slurm_project_path(self) -> str:
+        """Get SLURM project path from database or env var."""
+        if self._slurm_project_path is None:
+            self._slurm_project_path = get_setting_from_db(
+                "slurm_project_path", os.getenv("SLURM_PROJECT_PATH", "$HOME/EngiOpt")
+            )
+        return self._slurm_project_path
+
+    @property
+    def hf_home_remote(self) -> str:
+        """Get HuggingFace home remote path from database or env var."""
+        if self._hf_home_remote is None:
+            self._hf_home_remote = get_setting_from_db(
+                "hf_home_remote",
+                os.getenv("HF_HOME_REMOTE", "$SCRATCH/models"),
+            )
+        return self._hf_home_remote
+
+    @property
+    def hf_datasets_cache_remote(self) -> str:
+        """Get HuggingFace datasets cache remote path from database or env var."""
+        if self._hf_datasets_cache_remote is None:
+            self._hf_datasets_cache_remote = get_setting_from_db(
+                "hf_datasets_cache_remote",
+                os.getenv("HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"),
+            )
+        return self._hf_datasets_cache_remote
 
     def setup_langsmith_tracing(self, project_name: str) -> None:
         """
