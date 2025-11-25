@@ -36,6 +36,7 @@ dependencies = [
     "requests>=2.31.0",
     "scipy",
     "sqlalchemy==2.0.36",
+    "st-copy==1.1.2",
     "streamlit==1.50.0",
     "streamlit-stl==0.0.6",
     "torch==2.8.0",

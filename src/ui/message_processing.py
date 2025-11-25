@@ -10,6 +10,7 @@ from typing import Any
 
 import streamlit as st
 from langchain_core.messages import AIMessage, ToolMessage
+from st_copy import copy_button
 
 from src.ui.media_display import (
     display_image,
@@ -602,6 +603,17 @@ def display_message(message: dict, message_idx: int = 0) -> None:
 
         # Display text content
         st.markdown(content)
+
+        # Add copy button after content for assistant messages
+        if message["role"] == "assistant":
+            # Use Streamlit-style copy button
+            copy_button(
+                content,
+                icon="st",  # Use Streamlit's native icon style
+                tooltip="Copy message",
+                copied_label="Copied!",
+                key=f"copy_msg_{message_idx}",
+            )
 
         # Display all file types
         _display_uploaded_files(message, message_idx)
