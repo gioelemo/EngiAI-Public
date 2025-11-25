@@ -103,35 +103,6 @@ The UI will open in your browser at `http://localhost:8501`
 
 ## Try Your First Query
 
-In the chat interface, try these example queries:
-
-### Search for Papers
-```
-Find recent papers on topology optimization
-```
-
-### Optimize a Design
-```
-Create an optimized 2D beam design with 40% material
-```
-
-### Export to STL
-```
-Export the current design to STL format
-```
-
-## Using the CLI (Local Only)
-
-For command-line usage with local development:
-
-```bash
-python -m src.main
-```
-
-Then interact with the assistant in your terminal.
-
-## Common Workflows
-
 ### Research Workflow
 
 1. **Search ArXiv**: "Find papers on generative design"

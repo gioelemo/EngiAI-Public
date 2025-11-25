@@ -1,4 +1,4 @@
-.PHONY: help install test lint format clean run-ui run-cli docs docs-serve docs-clean
+.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean
 
 help:  ## Show this help message
 	@echo "Available commands:"
@@ -35,9 +35,6 @@ clean:  ## Clean cache and build files
 
 run-ui:  ## Start the Streamlit UI
 	streamlit run src/ui/streamlit_app.py
-
-run-cli:  ## Start the CLI chat interface
-	python -m src.cli.chat
 
 run-mcp:  ## Start the standalone Prusa MCP server
 	./prusa_mcp_server/run.sh

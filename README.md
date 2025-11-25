@@ -245,22 +245,7 @@ streamlit run src/ui/streamlit_app.py
 
 **Access:** http://localhost:8501 (or port shown in terminal)
 
-#### b) Command Line Interface
-```bash
-# Start interactive CLI
-python -m src.main
-
-# Or via Makefile
-make run-cli
-```
-
-**Features:**
-- Terminal-based chat
-- Direct command execution
-- Tool confirmation prompts
-- Lightweight and fast
-
-#### c) Standalone Prusa MCP Server
+#### b) Standalone Prusa MCP Server
 ```bash
 # Start external MCP server
 ./prusa_mcp_server/run.sh

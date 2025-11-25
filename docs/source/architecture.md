@@ -9,7 +9,7 @@ The system uses a **supervisor-based multi-agent architecture** where a central 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         User Interface                       │
-│              (Streamlit Web UI / CLI Chat)                   │
+│                   (Streamlit Web UI)                         │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -43,13 +43,6 @@ The system uses a **supervisor-based multi-agent architecture** where a central 
   - Real-time design visualization
   - Settings configuration
   - W&B report embedding
-
-#### CLI Chat
-- **Location**: `src/cli/chat.py`
-- **Features**:
-  - Terminal-based interaction
-  - Tool confirmation prompts
-  - Lightweight and fast
 
 ### 2. Supervisor Agent
 

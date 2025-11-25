@@ -14,8 +14,8 @@ src/
 │   ├── search_agent.py         # Web search capabilities
 │   └── supervisor_agent.py     # Main supervisor coordinating all agents
 │
-├── cli/                        # Command-line interfaces
-│   └── chat.py                 # Interactive chat interface
+├── cli/                        # Command-line interfaces (DEPRECATED)
+│   └── chat.py                 # Interactive chat interface (use Streamlit UI instead)
 │
 ├── models/                     # Data models and state definitions
 │   ├── __init__.py
@@ -42,7 +42,7 @@ src/
 │   └── prompts.py              # System prompts for all agents
 │
 ├── __init__.py
-└── main.py                     # CLI entry point
+└── main.py                     # DEPRECATED: Shows migration message
 ```
 
 ## Module Descriptions
@@ -101,15 +101,9 @@ streamlit run src/ui/streamlit_app.py
 ```
 
 ### `cli/`
-Command-line interfaces for interacting with agents (alternative to web UI).
+⚠️ **DEPRECATED** - Use the Streamlit web UI instead (`src/ui/streamlit_app.py`).
 
-**Current CLIs:**
-- `chat.py`: Interactive terminal-based conversation interface
-
-**Running CLI:**
-```bash
-python -m src.cli.chat
-```
+The CLI interface has been deprecated in favor of the more feature-rich and user-friendly Streamlit web interface. The code is kept for reference but should not be used in production.
 
 ### `utils/`
 Utility functions and constants.
@@ -121,19 +115,13 @@ Utility functions and constants.
 
 ### Running the Application
 
-**Primary Interface (Recommended):**
+**Primary Interface:**
 ```bash
 # Run Streamlit web UI
 make run-ui
 
 # Or directly with streamlit
 streamlit run src/ui/streamlit_app.py
-```
-
-**Alternative CLI Interface:**
-```bash
-# Run terminal-based chat
-python -m src.cli.chat
 ```
 
 ### Web UI Features
