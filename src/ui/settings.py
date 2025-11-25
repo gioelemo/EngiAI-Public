@@ -1,5 +1,6 @@
 """Settings page for the Engineer Assistant Streamlit app."""
 
+import json
 import os
 import secrets
 import sys
@@ -276,11 +277,59 @@ def _render_chat_quick_settings() -> None:
 
     st.markdown("")  # Spacing
 
-    if st.button("🗑️ Clear Conversation", width="stretch", type="secondary"):
-        st.session_state.messages = []
-        st.session_state.agent_state = {"messages": []}
-        st.success("✅ Conversation cleared!")
-        st.rerun()
+    # Conversation management buttons
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.session_state.get("messages"):
+            export_data = json.dumps(st.session_state.messages, indent=2)
+            st.download_button(
+                "📥 Export JSON",
+                export_data,
+                "chat_export.json",
+                mime="application/json",
+                use_container_width=True,
+                type="secondary",
+            )
+        else:
+            st.button(
+                "📥 Export JSON",
+                use_container_width=True,
+                type="secondary",
+                disabled=True,
+            )
+
+    with col2:
+        if st.session_state.get("messages"):
+            # Convert messages to Markdown format
+            md_content = "# Chat Export\n\n"
+            for msg in st.session_state.messages:
+                role = msg.get("role", "unknown").capitalize()
+                content = msg.get("content", "")
+                md_content += f"## {role}\n\n{content}\n\n---\n\n"
+
+            st.download_button(
+                "📄 Export MD",
+                md_content,
+                "chat_export.md",
+                mime="text/markdown",
+                use_container_width=True,
+                type="secondary",
+            )
+        else:
+            st.button(
+                "📄 Export MD",
+                use_container_width=True,
+                type="secondary",
+                disabled=True,
+            )
+
+    with col3:
+        if st.button("🗑️ Clear", use_container_width=True, type="secondary"):
+            st.session_state.messages = []
+            st.session_state.agent_state = {"messages": []}
+            st.success("✅ Conversation cleared!")
+            st.rerun()
 
 
 def _render_stl_quick_settings() -> None:
