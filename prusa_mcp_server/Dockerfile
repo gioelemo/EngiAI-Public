@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy the MCP server wrapper
 COPY prusa_mcp_server /app/prusa_mcp_server
-COPY requirements-mcp.txt /app/
+COPY prusa_mcp_server/requirements-mcp.txt /app/
 
 # Install Python dependencies (prusa-mcp will be mounted at runtime)
 RUN pip install --no-cache-dir -r requirements-mcp.txt
