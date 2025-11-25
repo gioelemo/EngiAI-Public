@@ -29,7 +29,7 @@ url = "app/static/SpaceMono-Regular.ttf"
 style = "normal"
 weight = 400
 
-[theme.light]
+[theme]
 primaryColor = "#cb785c"
 backgroundColor = "#fdfdf8"
 secondaryBackgroundColor = "#ecebe3"
@@ -48,36 +48,36 @@ codeBackgroundColor = "#ecebe4"
 showSidebarBorder = true
 chartCategoricalColors = ["#0ea5e9", "#059669", "#fbbf24"]
 
-[theme.light.sidebar]
+[theme.sidebar]
 backgroundColor = "#f0f0ec"
 secondaryBackgroundColor = "#ecebe3"
 headingFontSizes = ["1.6rem", "1.4rem", "1.2rem"]
 dataframeHeaderBackgroundColor = "#e4e4e0"
 
 
-[theme.dark]
-primaryColor = "#1ed760"
-backgroundColor = "#2a2a2a"
-secondaryBackgroundColor = "#121212"
-codeBackgroundColor = "#121212"
-textColor = "#ffffff"
-linkColor = "#1ed760"
-borderColor = "#7c7c7c"
-showWidgetBorder = true
-baseRadius = "0.75rem"
-buttonRadius = "full"
-font = "SpaceGrotesk"
-headingFontWeights = [600, 500, 500, 500, 500, 500]
-headingFontSizes = ["3rem", "2rem"]
-codeFont = "SpaceMono"
-codeFontSize = ".75rem"
-showSidebarBorder = true
-chartCategoricalColors = ["#ffc862", "#2d46b9", "#b49bc8"]
+# [theme.dark]
+# primaryColor = "#1ed760"
+# backgroundColor = "#2a2a2a"
+# secondaryBackgroundColor = "#121212"
+# codeBackgroundColor = "#121212"
+# textColor = "#ffffff"
+# linkColor = "#1ed760"
+# borderColor = "#7c7c7c"
+# showWidgetBorder = true
+# baseRadius = "0.75rem"
+# buttonRadius = "full"
+# font = "SpaceGrotesk"
+# headingFontWeights = [600, 500, 500, 500, 500, 500]
+# headingFontSizes = ["3rem", "2rem"]
+# codeFont = "SpaceMono"
+# codeFontSize = ".75rem"
+# showSidebarBorder = true
+# chartCategoricalColors = ["#ffc862", "#2d46b9", "#b49bc8"]
 
-[theme.dark.sidebar]
-backgroundColor = "#121212"
-secondaryBackgroundColor = "#000000"
-headingFontSizes = ["1.6rem", "1.4rem", "1.2rem"]
-dataframeHeaderBackgroundColor = "#2a2a2a"  # Add this
-codeBackgroundColor = "#2a2a2a"
-borderColor = "#696969"
+# [theme.dark.sidebar]
+# backgroundColor = "#121212"
+# secondaryBackgroundColor = "#000000"
+# headingFontSizes = ["1.6rem", "1.4rem", "1.2rem"]
+# dataframeHeaderBackgroundColor = "#2a2a2a"
+# codeBackgroundColor = "#2a2a2a"
+# borderColor = "#696969"
