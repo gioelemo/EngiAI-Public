@@ -274,6 +274,7 @@ module = [
   "streamlit",
   "streamlit.components.*",
   "streamlit_stl",
+  "st_copy",
   "torch",
   "uvicorn",
   "wandb",
