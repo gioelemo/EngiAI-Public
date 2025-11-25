@@ -757,44 +757,6 @@ def _render_auto_refresh_status() -> None:
         )
 
 
-def render_job_monitor() -> None:
-    """Render live job monitoring widget in main chat area."""
-    # Initialize monitoring state if not exists
-    if "monitored_jobs" not in st.session_state:
-        st.session_state.monitored_jobs = {}
-    if "job_monitor_enabled" not in st.session_state:
-        st.session_state.job_monitor_enabled = False
-
-    _render_job_monitor_header()
-
-    # Show add job form if requested
-    if st.session_state.get("show_add_job_form", False):
-        _render_add_job_form("add_job_form")
-
-    # Check if there are any jobs to monitor
-    if not st.session_state.monitored_jobs:
-        if not st.session_state.get("show_add_job_form", False):
-            st.info(
-                "💡 No jobs being monitored. Jobs will be automatically added when you submit them, or you can add them manually using the '+' button."
-            )
-        return
-
-    # Display jobs in a grid layout
-    num_jobs = len(st.session_state.monitored_jobs)
-    cols_per_row = min(2, num_jobs)
-
-    job_items = list(st.session_state.monitored_jobs.items())
-    for i in range(0, len(job_items), cols_per_row):
-        cols = st.columns(cols_per_row)
-        for col_idx, (job_id, _job_info) in enumerate(job_items[i : i + cols_per_row]):
-            with cols[col_idx]:
-                status = get_job_status_display(job_id)
-                with st.container(border=True):
-                    _display_job_status_widget(job_id, status, "remove")
-
-    _render_auto_refresh_status()
-
-
 def add_job_to_monitor(job_id: str, initial_state: str = "SUBMITTED") -> None:
     """Add a job to the monitoring list."""
     if "monitored_jobs" not in st.session_state:
