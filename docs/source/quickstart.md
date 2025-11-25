@@ -2,15 +2,65 @@
 
 This guide will get you up and running with Engineer Assistant in 5 minutes.
 
-## 1. Activate Environment
+## 🚀 Fastest Way: Docker (Recommended)
 
-First, make sure your conda environment is activated:
+The easiest and most reliable way to get started:
+
+### 1. Clone and Navigate
 
 ```bash
-conda activate engineer-assistant
+git clone https://github.com/gioelemo/engineer-assistant.git
+cd engineer-assistant
 ```
 
-## 2. Set Up API Keys
+### 2. Configure Environment
+
+```bash
+cp .env.example .env
+# Edit .env with your OpenAI and Tavily API keys
+```
+
+Get API keys from:
+- [OpenAI](https://platform.openai.com/api-keys)
+- [Tavily](https://tavily.com/)
+
+### 3. Start the Application
+
+```bash
+docker-compose up -d
+```
+
+### 4. Access the UI
+
+Open your browser: **http://localhost:8501**
+
+That's it! The complete AI assistant is now running with all dependencies isolated.
+
+**To stop**: `docker-compose down`
+
+---
+
+## 💻 Local Development (Alternative)
+
+For developers who want to modify the code:
+
+### 1. Set Up Environment
+
+If you haven't already, set up the conda environment:
+
+```bash
+# One-command setup (macOS/Linux)
+./setup.sh
+
+# Or manually
+conda env create -f environment.yml
+conda activate engineer-assistant
+pre-commit install
+```
+
+See the [Installation Guide](installation.md) for detailed instructions.
+
+### 2. Set Up API Keys
 
 Create a `.env` file in the project root:
 
@@ -25,17 +75,15 @@ Edit `.env` and add your API keys:
 OPENAI_API_KEY=sk-your-key-here
 TAVILY_API_KEY=tvly-your-key-here
 
+# Database (for local development, use SQLite)
+DATABASE_URL=sqlite:///data/conversations.db
+
 # Optional
 WANDB_API_KEY=your-wandb-key
 HPC_HOST_ALIAS=your-cluster-name
 ```
 
-Get API keys from:
-- [OpenAI](https://platform.openai.com/api-keys)
-- [Tavily](https://tavily.com/)
-- [Weights & Biases](https://wandb.ai/authorize) (optional)
-
-## 3. Start the UI
+### 3. Start the UI
 
 Launch the Streamlit interface:
 
@@ -51,7 +99,9 @@ make run-ui
 
 The UI will open in your browser at `http://localhost:8501`
 
-## 4. Try Your First Query
+---
+
+## Try Your First Query
 
 In the chat interface, try these example queries:
 
@@ -70,12 +120,12 @@ Create an optimized 2D beam design with 40% material
 Export the current design to STL format
 ```
 
-## 5. Using the CLI
+## Using the CLI (Local Only)
 
-For command-line usage:
+For command-line usage with local development:
 
 ```bash
-python -m src.cli.chat
+python -m src.main
 ```
 
 Then interact with the assistant in your terminal.
@@ -100,12 +150,30 @@ Then interact with the assistant in your terminal.
 2. **Submit**: "Submit training job to HPC cluster"
 3. **Monitor**: "Check training status"
 
+## Optional: Host Service for GUI Integration
+
+If you're using Docker and want to open GUI applications (like PrusaSlicer) on your host machine:
+
+```bash
+# In a separate terminal:
+python host_service.py
+```
+
+This allows the containerized assistant to:
+- ✅ Open PrusaSlicer for 3D model slicing
+- ✅ Launch other GUI applications (VS Code, Terminal, etc.)
+- ✅ Execute commands on your host machine
+
+**Note:** Only needed for Docker deployments and only if you want GUI app integration.
+
 ## What's Next?
 
+- [Docker Deployment Guide](docker_deployment.md) - Production deployment
 - [Configuration Guide](configuration.md) - Customize your setup
 - [Agent Documentation](usage/agents.md) - Learn about each agent
 - [Tool Reference](usage/tools.md) - Explore available tools
-- [API Reference](api/agents.rst) - Developer documentation
+- [Architecture Overview](architecture.md) - System design
+- [Troubleshooting](troubleshooting.md) - Common issues
 
 ## Tips
 
@@ -116,6 +184,6 @@ Then interact with the assistant in your terminal.
 
 ## Need Help?
 
-- Documentation: [Full Docs](index.rst)
-- Issues: [GitHub Issues](https://github.com/gioelemo/engineer-assistant/issues)
-- Examples: Check the `scripts/` directory for code examples
+- [Troubleshooting Guide](troubleshooting.md)
+- [GitHub Issues](https://github.com/gioelemo/engineer-assistant/issues)
+- Check the `scripts/` directory for code examples

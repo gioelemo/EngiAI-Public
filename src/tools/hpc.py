@@ -249,9 +249,10 @@ def get_ssh_credentials_secure(
         session_id: Session ID (uses current if not provided)
 
     Yields:
-        Credentials dict or None if not set/expired
+        dict or None: Credentials dict or None if not set/expired
 
-    Example:
+    Example::
+
         with get_ssh_credentials_secure() as creds:
             if creds:
                 connection = HPCConnection(..., password=creds["password"])

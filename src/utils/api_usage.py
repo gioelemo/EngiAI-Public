@@ -85,19 +85,21 @@ def get_tavily_usage(api_key: str) -> TavilyUsageStats | None:
         api_key: Tavily API key
 
     Returns:
-        TavilyUsageStats object or None if request fails
+        TavilyUsageStats or None: Usage statistics object or None if request fails
 
-    Example response from Tavily API:
-    {
-      "key": {"usage": 150, "limit": 1000},
-      "account": {
-        "current_plan": "Bootstrap",
-        "plan_usage": 500,
-        "plan_limit": 15000,
-        "paygo_usage": 25,
-        "paygo_limit": 100
-      }
-    }
+    Example::
+
+        Example response from Tavily API:
+        {
+          "key": {"usage": 150, "limit": 1000},
+          "account": {
+            "current_plan": "Bootstrap",
+            "plan_usage": 500,
+            "plan_limit": 15000,
+            "paygo_usage": 25,
+            "paygo_limit": 100
+          }
+        }
     """
     if not api_key:
         logger.warning("Tavily API key not configured")

@@ -16,7 +16,7 @@ pip install -e ".[docs]"
 ### Build the Documentation
 
 ```bash
-# From project root
+# From project root - auto-generates API docs and builds
 make docs
 
 # Or from docs directory
@@ -24,14 +24,28 @@ cd docs
 make dirhtml
 ```
 
+**Note:** `make docs` automatically runs `generate_api_docs.py` to create API documentation from source code docstrings.
+
 The built documentation will be in `docs/build/dirhtml/index.html`.
+
+### Generate API Documentation Only
+
+```bash
+# Auto-generate API reference from source code
+make docs-api
+
+# Or manually
+python docs/generate_api_docs.py
+```
+
+This creates `.rst` files in `docs/source/api/` with autodoc directives for all modules.
 
 ### Live Preview During Development
 
 For automatic rebuilding when you edit documentation files:
 
 ```bash
-# From project root
+# From project root - includes API generation
 make docs-watch
 
 # Or use sphinx-autobuild directly
@@ -185,16 +199,62 @@ The configuration follows EngiBench's setup with:
 ]
 ```
 
-## Auto-generating API Documentation
+## Auto-Generating API Documentation
 
-To auto-generate API docs from docstrings:
+The API documentation is automatically generated from Python docstrings using Sphinx autodoc.
+
+### How It Works
+
+1. **Script**: `docs/generate_api_docs.py` scans the source code
+2. **Creates**: `.rst` files in `docs/source/api/` with autodoc directives
+3. **Sphinx**: Builds HTML from docstrings during `make docs`
+
+### Supported Docstring Formats
+
+- **Google-style** (preferred)
+- **NumPy-style**
+- **Type hints** (automatically extracted)
+
+**Example:**
+```python
+def optimize(problem: str, constraints: dict) -> dict:
+    """Optimize a structural design problem.
+
+    Args:
+        problem: Problem type (e.g., 'beams2d')
+        constraints: Design constraints dictionary
+
+    Returns:
+        Optimization results with design and metrics
+
+    Raises:
+        ValueError: If problem type is unsupported
+    """
+```
+
+### Adding New Modules
+
+Edit `docs/generate_api_docs.py` and add your module to the appropriate list:
+
+```python
+modules = {
+    "agents.rst": [
+        ("src.agents.your_agent", "Your Agent"),
+    ],
+    ...
+}
+```
+
+Then run `make docs-api` to regenerate.
+
+### Manual Generation
 
 ```bash
-# Install sphinx-apidoc
-pip install sphinx
+# Auto-generate API docs only
+python docs/generate_api_docs.py
 
-# Generate API docs
-sphinx-apidoc -o docs/source/api src/
+# Or use make target
+make docs-api
 ```
 
 ## Deployment

@@ -38,6 +38,24 @@ exclude_patterns: list[str] = []
 # Napoleon settings
 napoleon_use_ivar = True
 napoleon_use_admonition_for_references = True
+napoleon_google_docstring = True
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = True
+napoleon_include_private_with_doc = False
+napoleon_include_special_with_doc = True
+napoleon_use_param = True
+napoleon_use_rtype = True
+
+# Autodoc settings
+autodoc_default_options = {
+    "members": True,
+    "member-order": "bysource",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "exclude-members": "__weakref__",
+}
+autodoc_typehints = "description"
+autodoc_typehints_description_target = "documented"
 
 # MyST Parser configuration
 myst_enable_extensions = [
@@ -51,15 +69,20 @@ html_theme = "sphinx_book_theme"
 html_title = "Engineer Assistant Documentation"
 html_baseurl = ""
 html_copy_source = False
+html_logo = "_static/logo.png"
+html_favicon = "_static/logo_notext.png"
 
 # Theme options - matching EngiBench style
 html_theme_options = {
-    "repository_url": "https://github.com/yourusername/engineer-assistant",  # Update with your repo URL
+    "repository_url": "https://github.com/gioelemo/engineer-assistant",
     "repository_branch": "main",
     "path_to_docs": "docs/",
     "use_repository_button": True,
     "use_edit_page_button": True,
     "use_issues_button": True,
+    "logo": {
+        "text": "Engineer Assistant",
+    },
 }
 
 html_static_path = ["_static"]

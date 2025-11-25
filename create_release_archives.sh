@@ -90,5 +90,5 @@ fi
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "1. Transfer these archives to your server"
-echo "2. Follow the deployment instructions in DEPLOYMENT.md"
+echo "2. Follow the deployment instructions in docs/source/deployment.md"
 echo ""

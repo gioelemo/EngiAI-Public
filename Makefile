@@ -45,11 +45,18 @@ run-mcp:  ## Start the standalone Prusa MCP server
 # Build documentation
 .PHONY: docs
 docs:
+	python docs/generate_api_docs.py
 	cd docs && $(MAKE) dirhtml
+
+# Generate API documentation only
+.PHONY: docs-api
+docs-api:  ## Generate API documentation from source code
+	python docs/generate_api_docs.py
 
 # Serve documentation with live reload (recommended for development)
 .PHONY: docs-watch
 docs-watch:
+	python docs/generate_api_docs.py
 	sphinx-autobuild -b dirhtml docs/source docs/build/dirhtml
 
 # Serve documentation locally

@@ -1,118 +1,94 @@
-Agents API Reference
-====================
+Agents API
+==========
 
-This page documents all available agents in Engineer Assistant.
+Auto-generated API documentation for agents.
 
-.. note::
-   Auto-generated API documentation will be added in a future release.
-   For now, see the usage guides and code examples.
-
-Agent Classes
--------------
-
-All agents are located in the ``src.agents`` module.
-
-Base Agent
-~~~~~~~~~~
-
-The base class for all agents.
-
-**Module**: ``src.agents.base_agent``
-
-**Class**: ``BaseAgent``
-
-Provides common functionality for agent initialization, tool binding, and invocation.
 
 Supervisor Agent
-~~~~~~~~~~~~~~~~
+----------------
 
-Orchestrates multiple agents to handle complex workflows.
+.. automodule:: src.agents.supervisor_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
 
-**Module**: ``src.agents.supervisor_agent``
 
-**Class**: ``SupervisorAgent``
+Base Agent
+----------
 
-The supervisor routes requests to appropriate specialized agents.
+.. automodule:: src.agents.base_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
 
-Engineering Agent
-~~~~~~~~~~~~~~~~~
-
-Handles optimization and engineering design tasks.
-
-**Module**: ``src.agents.engineering_agent``
-
-**Class**: ``EngineeringAgent``
-
-Integrates with EngiBench and EngiOpt for optimization problems.
-
-ArXiv Agent
-~~~~~~~~~~~
-
-Search, download, and analyze research papers from arXiv.
-
-**Module**: ``src.agents.arxiv_agent``
-
-**Class**: ``ArXivAgent``
-
-Provides tools for paper search, retrieval, and RAG-based analysis.
 
 RAG Agent
-~~~~~~~~~
+---------
 
-Query knowledge base using Retrieval-Augmented Generation.
+.. automodule:: src.agents.rag_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
 
-**Module**: ``src.agents.rag_agent``
 
-**Class**: ``RAGAgent``
+ArXiv Agent
+-----------
 
-Retrieves relevant documents and generates answers from the vector store.
+.. automodule:: src.agents.arxiv_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
+
 
 HPC Agent
-~~~~~~~~~
+---------
 
-Submit and monitor jobs on HPC clusters.
+.. automodule:: src.agents.hpc_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
 
-**Module**: ``src.agents.hpc_agent``
 
-**Class**: ``HPCAgent``
+Engineering Agent
+-----------------
 
-Supports SLURM job submission and monitoring.
+.. automodule:: src.agents.engineering_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
+
 
 Prusa Agent
-~~~~~~~~~~~
+-----------
 
-Control 3D printers for rapid prototyping.
+.. automodule:: src.agents.prusa_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
 
-**Module**: ``src.agents.prusa_agent``
-
-**Class**: ``PrusaAgent``
-
-Interfaces with Prusa printers for design fabrication.
 
 Search Agent
-~~~~~~~~~~~~
+------------
 
-Perform web searches for information retrieval.
+.. automodule:: src.agents.search_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
 
-**Module**: ``src.agents.search_agent``
-
-**Class**: ``SearchAgent``
-
-Uses various search APIs to find relevant information.
 
 CLI Agent
-~~~~~~~~~
+---------
 
-Command-line interface for agent interaction.
-
-**Module**: ``src.agents.cli_agent``
-
-**Class**: ``CLIAgent``
-
-Provides terminal-based interaction with the assistant.
-
-See Also
---------
-
-* :doc:`../usage/agents` - User guide with examples
-* :doc:`tools` - Available tools documentation
+.. automodule:: src.agents.cli_agent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
