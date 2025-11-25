@@ -14,24 +14,40 @@ from langchain.chat_models import init_chat_model
 
 from config import config
 from src.agents.supervisor_agent import SupervisorAgent
+from src.tools.rag_chain import get_shared_rag_chain
+from src.tools.vector_store import get_shared_vector_store
 from src.ui.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
 
-def get_supervisor_agent() -> SupervisorAgent:
-    """Get or create a shared SupervisorAgent instance.
+def create_supervisor_for_chat() -> SupervisorAgent:
+    """Create a new SupervisorAgent instance for a chat.
 
-    This prevents creating multiple agent instances which would
-    reinitialize all sub-agents (RAG, MCP clients, etc.) unnecessarily.
+    Creates a separate agent instance for each chat to maintain conversation
+    isolation, but reuses cached shared resources (vector store, RAG chain)
+    to avoid expensive re-initialization.
+
+    Each chat gets:
+    - Its own SupervisorAgent instance (separate conversation state)
+    - Its own sub-agents (RAG, ArXiv, etc.) with independent history
+    - Shared vector store (knowledge base is global)
+    - Shared RAG chain (stateless query engine)
 
     Returns:
-        Shared SupervisorAgent instance
+        New SupervisorAgent instance with shared cached resources
     """
-    if "supervisor_agent" not in st.session_state:
-        logger.info("Creating new SupervisorAgent instance")
-        st.session_state.supervisor_agent = SupervisorAgent()
-    return st.session_state.supervisor_agent
+    logger.info("Creating new SupervisorAgent for chat (using cached resources)")
+
+    # Get cached shared resources (initialized once, reused across all chats)
+    vector_store = get_shared_vector_store(collection_name="engineer_docs")
+    rag_chain = get_shared_rag_chain(vector_store)
+
+    # Create new agent instance that uses shared resources
+    return SupervisorAgent(
+        shared_vector_store=vector_store,
+        shared_rag_chain=rag_chain,
+    )
 
 
 def generate_chat_title(user_message: str) -> str:
@@ -130,7 +146,7 @@ def create_new_chat(name: str | None = None) -> str:
         "created_at": datetime.datetime.now(),
         "messages": [],
         "agent_state": {"messages": []},
-        "agent": get_supervisor_agent(),
+        "agent": create_supervisor_for_chat(),  # Each chat gets its own agent instance
         "config": {"configurable": {"thread_id": session_id}},
         "waiting_for_confirmation": False,
         "saved_to_db": False,  # Track if this chat has been saved to DB yet
@@ -301,7 +317,7 @@ def load_chats_from_database() -> None:
                 "created_at": conv["created_at"],
                 "messages": display_messages,
                 "agent_state": agent_state,
-                "agent": get_supervisor_agent(),
+                "agent": create_supervisor_for_chat(),  # Each chat gets its own agent instance
                 "config": config,
                 "waiting_for_confirmation": waiting_for_confirmation,
                 "saved_to_db": True,  # Already in database
@@ -354,6 +370,6 @@ def initialize_chat_state() -> None:
         if key not in st.session_state:
             st.session_state[key] = value
 
-    # Initialize agent separately using cached instance
+    # Initialize agent separately - each chat will get its own instance
     if "agent" not in st.session_state:
-        st.session_state.agent = get_supervisor_agent()
+        st.session_state.agent = create_supervisor_for_chat()

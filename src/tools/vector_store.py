@@ -11,9 +11,46 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 
+try:
+    import streamlit as st
+
+    STREAMLIT_AVAILABLE = True
+except ImportError:
+    STREAMLIT_AVAILABLE = False
+
 from config import config
 
 logger = logging.getLogger(__name__)
+
+
+if STREAMLIT_AVAILABLE:
+
+    @st.cache_resource
+    def get_shared_vector_store(
+        collection_name: str = "engineer_docs",
+        persist_directory: str | None = None,
+        embedding_model: str | None = None,
+    ) -> "EngineerRAGStore":
+        """Get or create a shared vector store instance (cached across all users/sessions).
+
+        This is cached with @st.cache_resource to avoid expensive re-initialization.
+        The vector store (ChromaDB) and embeddings are shared globally since they
+        represent the knowledge base, not per-chat state.
+
+        Args:
+            collection_name: Name of the Chroma collection
+            persist_directory: Directory to persist the database
+            embedding_model: OpenAI embedding model to use
+
+        Returns:
+            Shared EngineerRAGStore instance
+        """
+        logger.info(f"Creating/retrieving shared vector store: {collection_name}")
+        return EngineerRAGStore(
+            collection_name=collection_name,
+            persist_directory=persist_directory,
+            embedding_model=embedding_model,
+        )
 
 
 class EngineerRAGStore:

@@ -13,10 +13,53 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 
+try:
+    import streamlit as st
+
+    STREAMLIT_AVAILABLE = True
+except ImportError:
+    STREAMLIT_AVAILABLE = False
+
 from config import config
 from src.tools.vector_store import EngineerRAGStore
 
 logger = logging.getLogger(__name__)
+
+
+if STREAMLIT_AVAILABLE:
+
+    @st.cache_resource
+    def get_shared_rag_chain(
+        _vector_store: EngineerRAGStore,
+        model_name: str | None = None,
+        system_prompt: str | None = None,
+        temperature: float = 0.0,
+    ) -> "EngineeringRAGChain":
+        """Get or create a shared RAG chain instance (cached across all users/sessions).
+
+        This is cached with @st.cache_resource to avoid expensive re-initialization.
+        The RAG chain is stateless (conversation history is managed per-agent) and
+        can be safely shared globally.
+
+        Note: _vector_store has underscore prefix to exclude from cache key hashing,
+        since it's already a cached resource.
+
+        Args:
+            _vector_store: Shared vector store instance (excluded from cache key)
+            model_name: LLM model name
+            system_prompt: Custom system prompt
+            temperature: LLM temperature
+
+        Returns:
+            Shared EngineeringRAGChain instance
+        """
+        logger.info("Creating/retrieving shared RAG chain")
+        return EngineeringRAGChain(
+            vectorstore=_vector_store,
+            model_name=model_name,
+            system_prompt=system_prompt,
+            temperature=temperature,
+        )
 
 
 class EngineeringRAGChain:
