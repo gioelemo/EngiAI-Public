@@ -26,23 +26,28 @@ Usage:
 import logging
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from fabric import Connection
 
 logger = logging.getLogger(__name__)
 
+# Type alias for progress callback
+ProgressCallback = Callable[[str, str], None]
+
 
 class HPCConnection:
     """SSH connection to HPC cluster for job submission using Fabric."""
 
-    def __init__(
+    def __init__( # noqa: PLR0913
         self,
         host_alias: str = "euler",
         host: str | None = None,
         user: str | None = None,
         password: str | None = None,
         port: int = 22,
+        progress_callback: ProgressCallback | None = None,
     ) -> None:
         """
         Initialize HPC connection.
@@ -57,8 +62,10 @@ class HPCConnection:
             user: Username for password authentication
             password: Password for authentication
             port: SSH port (default: 22)
+            progress_callback: Optional callback for progress updates (step, message)
         """
         self.host_alias = host_alias
+        self.progress_callback = progress_callback
 
         # Determine authentication mode
         if host and user and password:
@@ -113,6 +120,18 @@ class HPCConnection:
                 )
                 msg += f"  4. Test manually: ssh {host_alias}"
                 raise RuntimeError(msg) from e
+
+    def _emit_progress(self, step: str, message: str) -> None:
+        """
+        Emit progress update if callback is provided.
+
+        Args:
+            step: Step identifier (e.g., "connect", "transfer", "submit")
+            message: Human-readable message
+        """
+        if self.progress_callback:
+            self.progress_callback(step, message)
+        logger.info(f"[{step}] {message}")
 
     def run_command(self, command: str) -> str:
         """
@@ -189,21 +208,28 @@ class HPCConnection:
 
         filename = local_path.name
 
-        # Ensure remote directory exists
+        # Ensure remote directory exists (silently)
         try:
             self.run_command(f"mkdir -p {remote_dir}")
         except RuntimeError as e:
             msg = f"Failed to create remote directory {remote_dir}: {e}"
             raise RuntimeError(msg) from e
 
-        # Copy file to remote using SFTP
+        # Emit progress: Transferring file
         remote_path = f"{remote_dir}/{filename}"
+        # Capitalize Euler for display
+        display_host = (
+            self.host_alias.capitalize()
+            if self.host_alias.lower() == "euler"
+            else self.host_alias
+        )
+        self._emit_progress("transfer", f"Transferring {filename} to {display_host}")
         logger.info(f"Copying {filename} to {self.host_alias}:{remote_path}")
         self.put_file(slurm_file, remote_path)
-        logger.info("File transferred successfully")
+        self._emit_progress("transfer", "File transferred successfully")
 
-        # Submit job
-        logger.info("Submitting SLURM job...")
+        # Emit progress: Submitting job
+        self._emit_progress("submit", "Submitting SLURM job...")
         sbatch_cmd = f"cd {remote_dir} && sbatch {filename}"
         output = self.run_command(sbatch_cmd)
 
@@ -215,6 +241,7 @@ class HPCConnection:
             raise RuntimeError(msg)
 
         job_id = match.group(1)
+        self._emit_progress("complete", f"Job submitted successfully! Job ID: {job_id}")
         logger.info(f"Job submitted with ID: {job_id}")
         return job_id
 

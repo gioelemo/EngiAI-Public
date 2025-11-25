@@ -27,6 +27,9 @@ _session_credentials_store: dict[str, dict[str, Any]] = {}
 # Current session ID - set by Streamlit before tool invocation
 _current_session_id: str | None = None
 
+# Progress callback - set by Streamlit UI to receive progress updates
+_progress_callback: Any | None = None
+
 # Credential expiration time in seconds (20 minutes for security)
 CREDENTIAL_EXPIRATION_SECONDS = 1200
 
@@ -69,6 +72,24 @@ def set_current_session_id(session_id: str | None) -> None:
 def get_current_session_id() -> str | None:
     """Get the current session ID."""
     return _current_session_id
+
+
+def set_progress_callback(callback: Any | None) -> None:
+    """
+    Set the progress callback for HPC operations.
+
+    This should be called by Streamlit before invoking HPC tools.
+
+    Args:
+        callback: Callback function(step: str, message: str) or None to clear
+    """
+    global _progress_callback  # noqa: PLW0603
+    _progress_callback = callback
+
+
+def get_progress_callback() -> Any | None:
+    """Get the current progress callback."""
+    return _progress_callback
 
 
 def validate_hostname(hostname: str) -> bool:
@@ -280,6 +301,9 @@ def _create_hpc_connection(host_alias: str) -> HPCConnection:
     # Clean up expired credentials periodically
     cleanup_expired_credentials()
 
+    # Get progress callback if set
+    progress_callback = get_progress_callback()
+
     # Use secure context manager to ensure password is cleared after use
     with get_ssh_credentials_secure() as creds:
         if creds:
@@ -294,11 +318,14 @@ def _create_hpc_connection(host_alias: str) -> HPCConnection:
                 user=creds["user"],
                 password=creds["password"],
                 port=creds["port"],
+                progress_callback=progress_callback,
             )
         else:
             # Use SSH config (original behavior)
             logger.info(f"Creating HPC connection with SSH config for {host_alias}")
-            return HPCConnection(host_alias=host_alias)
+            return HPCConnection(
+                host_alias=host_alias, progress_callback=progress_callback
+            )
 
 
 @tool

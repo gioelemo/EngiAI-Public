@@ -26,7 +26,7 @@ if str(project_root) not in sys.path:
 
 from config import config  # noqa: E402
 from src.tools import EngineerRAGStore, MultimodalDocumentProcessor  # noqa: E402
-from src.tools.hpc import set_current_session_id  # noqa: E402
+from src.tools.hpc import set_current_session_id, set_progress_callback  # noqa: E402
 from src.ui import chat, home, settings, wandb_report  # noqa: E402
 from src.ui.chat_management import (  # noqa: E402
     create_new_chat,
@@ -300,10 +300,42 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             # Track messages before invocation
             messages_before = len(st.session_state.agent_state["messages"])
 
-            # Invoke the agent
-            result = st.session_state.agent.invoke(
-                st.session_state.agent_state, st.session_state.config
-            )
+            # Create progress status placeholder for HPC operations
+            hpc_status_placeholder = st.empty()
+            hpc_progress_messages = []
+
+            def hpc_progress_callback(step: str, message: str) -> None:
+                """Callback to display HPC operation progress."""
+                # Map steps to emoji icons
+                step_icons = {
+                    "prepare": "📁",
+                    "transfer": "📤",
+                    "submit": "🚀",
+                    "complete": "✅",
+                }
+                icon = step_icons.get(step, "⚙️")
+
+                # Add to progress messages
+                progress_line = f"{icon} {message}"
+                hpc_progress_messages.append(progress_line)
+
+                # Display all progress in the placeholder
+                with hpc_status_placeholder.container():
+                    st.info("\n\n".join(hpc_progress_messages))
+
+            # Set progress callback for HPC operations
+            set_progress_callback(hpc_progress_callback)
+
+            try:
+                # Invoke the agent
+                result = st.session_state.agent.invoke(
+                    st.session_state.agent_state, st.session_state.config
+                )
+            finally:
+                # Clear progress callback after invocation
+                set_progress_callback(None)
+                # Clear the status placeholder
+                hpc_status_placeholder.empty()
 
             # Check if graph was interrupted for confirmation
             is_interrupted, user_request = check_streamlit_interrupt()
