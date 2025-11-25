@@ -46,7 +46,7 @@ streamlit run src/ui/streamlit_app.py
 Or use the convenience script:
 
 ```bash
-./run_ui.sh
+make run-ui
 ```
 
 The UI will open in your browser at `http://localhost:8501`

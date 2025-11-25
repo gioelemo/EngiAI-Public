@@ -93,11 +93,11 @@ Web-based user interfaces for interacting with the agent system.
 
 **Running the UI:**
 ```bash
-# Option 1: Direct streamlit command
-streamlit run src/ui/streamlit_app.py
+# Option 1: Using Makefile (recommended)
+make run-ui
 
-# Option 2: Using the provided script
-./run_ui.sh
+# Option 2: Direct streamlit command
+streamlit run src/ui/streamlit_app.py
 ```
 
 ### `cli/`
@@ -124,10 +124,10 @@ Utility functions and constants.
 **Primary Interface (Recommended):**
 ```bash
 # Run Streamlit web UI
-streamlit run src/ui/streamlit_app.py
+make run-ui
 
-# Or use the convenience script
-./run_ui.sh
+# Or directly with streamlit
+streamlit run src/ui/streamlit_app.py
 ```
 
 **Alternative CLI Interface:**

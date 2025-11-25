@@ -229,14 +229,11 @@ Best for active development and testing new features.
 
 #### a) Streamlit Web UI
 ```bash
-# Using convenience script
-./run_ui.sh
+# Using Makefile (recommended)
+make run-ui
 
 # Or directly with streamlit
 streamlit run src/ui/streamlit_app.py
-
-# Or via Makefile
-make run-ui
 ```
 
 **Features:**

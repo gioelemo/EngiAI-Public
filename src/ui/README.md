@@ -19,7 +19,7 @@ This directory contains the web-based user interface for the Engineer Assistant 
 ### Option 1: Using the Launch Script
 
 ```bash
-./run_ui.sh
+make run-ui
 ```
 
 ### Option 2: Manual Launch

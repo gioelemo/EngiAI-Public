@@ -8,7 +8,7 @@ Launch the web interface:
 
 ```bash
 # Using the run script
-./run_ui.sh
+make run-ui
 
 # Or directly with streamlit
 streamlit run src/ui/streamlit_app.py

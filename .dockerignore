@@ -110,7 +110,7 @@ docker-compose*.yml
 *.bat
 test.slurm
 setup.sh
-run_ui.sh
+# run_ui.sh (removed - use make run-ui)
 # Keep docker-entrypoint.sh for Docker startup
 
 # Environment files (secrets should be provided at runtime)
