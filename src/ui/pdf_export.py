@@ -417,22 +417,16 @@ def _add_stl_files(
         pdf_styles: Dictionary of paragraph styles
     """
     stl_files = find_stl_files_in_text(content)
-    print(f"Found {len(stl_files)} STL files in content")
 
     if not stl_files:
         return
 
     story.append(Spacer(1, 3 * mm))
     for stl_path in stl_files:
-        print(f"Processing STL: {stl_path}")
         try:
             if stl_path.exists():
-                print("STL file exists, rendering...")
                 stl_img_bytes = _render_stl_to_image(stl_path)
                 if stl_img_bytes:
-                    print(
-                        f"STL rendered successfully, size: {len(stl_img_bytes)} bytes"
-                    )
                     img_obj = _create_pdf_image(stl_img_bytes)
                     if img_obj:
                         story.append(img_obj)
@@ -443,13 +437,7 @@ def _add_stl_files(
                             )
                         )
                         story.append(Spacer(1, 3 * mm))
-                        print("STL added to PDF successfully")
-                    else:
-                        print("Failed to create PDF image from STL bytes")
-                else:
-                    print("STL rendering returned None")
             else:
-                print(f"STL file does not exist: {stl_path}")
                 story.append(
                     Paragraph(
                         f"⚠️ 3D model not found: {stl_path.name}",
@@ -457,7 +445,6 @@ def _add_stl_files(
                     )
                 )
         except Exception as e:
-            print(f"Exception rendering STL: {e}")
             story.append(
                 Paragraph(
                     f"⚠️ Error rendering {stl_path.name}: {str(e)[:50]}",
