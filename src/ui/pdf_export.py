@@ -6,6 +6,7 @@ Exports chat conversations to PDF format with text and embedded images.
 
 import base64
 import io
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -645,7 +646,8 @@ def _render_stl_to_image(stl_path: Path, dpi: int = 150) -> bytes | None:
         return buf.read()
 
     except Exception as e:
-        print(f"Error rendering STL {stl_path}: {e}")  # Debug output
+        # Log error but don't crash - return None to skip this STL
+        logging.getLogger(__name__).warning(f"Error rendering STL {stl_path}: {e}")
         return None
 
 
