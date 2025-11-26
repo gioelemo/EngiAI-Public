@@ -485,9 +485,57 @@ def _handle_prusa_session_clear(connect_state_path: Path) -> None:
         st.error(f"❌ Error: {e}")
 
 
+def _render_artifact_folder_clear() -> None:
+    """Render artifact folder clearing UI with confirmation."""
+    artifact_dir = project_root / "artifacts"
+    file_count = _count_files_in_directory(artifact_dir)
+
+    st.caption(f"📦 Artifact folder: {file_count} file(s)")
+
+    # Initialize confirmation state
+    if "confirm_clear_artifact_card" not in st.session_state:
+        st.session_state.confirm_clear_artifact_card = False
+
+    if not st.session_state.confirm_clear_artifact_card:
+        if st.button("🗑️ Clear Artifact Folder", width="stretch", type="secondary"):
+            if file_count == 0:
+                st.warning("⚠️ Folder is empty!")
+            else:
+                st.session_state.confirm_clear_artifact_card = True
+                st.rerun()
+    else:
+        st.warning(f"Delete {file_count} file(s)?")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("✅ Yes", width="stretch", type="primary", key="artifact_yes"):
+                try:
+                    deleted_count = _delete_output_folder_contents(artifact_dir)
+                    st.session_state.confirm_clear_artifact_card = False
+                    st.success(f"✅ Deleted {deleted_count} file(s)!")
+                    st.rerun()
+                except Exception as e:
+                    st.session_state.confirm_clear_artifact_card = False
+                    st.error(f"❌ Error: {e}")
+                    st.rerun()
+
+        with col2:
+            if st.button("❌ No", width="stretch", type="secondary", key="artifact_no"):
+                st.session_state.confirm_clear_artifact_card = False
+                st.rerun()
+
+
 def _render_file_management_card() -> None:
     """Render compact file management for card layout."""
-    _render_output_folder_clear()
+    # Two columns for output and artifact folders
+    col1, col2 = st.columns(2)
+
+    with col1:
+        _render_output_folder_clear()
+
+    with col2:
+        _render_artifact_folder_clear()
+
     st.markdown("")  # Spacing
     _render_prusa_session_compact()
 
