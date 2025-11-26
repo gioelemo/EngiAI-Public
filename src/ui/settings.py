@@ -5,6 +5,7 @@ import os
 import secrets
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -25,6 +26,7 @@ from src.tools.hpc import (  # noqa: E402
     set_ssh_credentials,
 )
 from src.ui.database import DatabaseManager  # noqa: E402
+from src.ui.pdf_export import create_pdf_from_conversation  # noqa: E402
 from src.utils.api_usage import (  # noqa: E402
     USAGE_THRESHOLD_CRITICAL,
     USAGE_THRESHOLD_WARNING,
@@ -235,6 +237,55 @@ def _cleanup_old_connect_state(
         )
 
 
+def _render_export_button(
+    label: str, data: str | bytes, filename: str, mime: str, has_messages: bool
+) -> None:
+    """Render an export button with consistent styling.
+
+    Args:
+        label: Button label
+        data: Data to download
+        filename: Download filename
+        mime: MIME type
+        has_messages: Whether there are messages to export
+    """
+    if has_messages:
+        st.download_button(
+            label,
+            data,
+            filename,
+            mime=mime,
+            use_container_width=True,
+            type="secondary",
+        )
+    else:
+        st.button(
+            label,
+            use_container_width=True,
+            type="secondary",
+            disabled=True,
+        )
+
+
+def _get_pdf_export_data() -> tuple[str, datetime | None]:
+    """Get conversation data for PDF export.
+
+    Returns:
+        Tuple of (conversation_name, created_at)
+    """
+    conversation_name = "Untitled Conversation"
+    created_at = None
+
+    if st.session_state.get("active_chat_id"):
+        db = DatabaseManager()
+        conv = db.get_conversation(st.session_state["active_chat_id"])
+        if conv:
+            conversation_name = conv.get("name", "Untitled Conversation")
+            created_at = conv.get("created_at")
+
+    return conversation_name, created_at
+
+
 def _render_chat_quick_settings() -> None:
     """Render compact chat settings for card layout."""
     # Streaming text toggle
@@ -277,54 +328,57 @@ def _render_chat_quick_settings() -> None:
 
     st.markdown("")  # Spacing
 
-    # Conversation management buttons
+    # Conversation management buttons - Row 1: Exports
     col1, col2, col3 = st.columns(3)
+    has_messages = bool(st.session_state.get("messages"))
 
     with col1:
-        if st.session_state.get("messages"):
-            export_data = json.dumps(st.session_state.messages, indent=2)
-            st.download_button(
-                "📥 Export JSON",
-                export_data,
-                "chat_export.json",
-                mime="application/json",
-                use_container_width=True,
-                type="secondary",
-            )
-        else:
-            st.button(
-                "📥 Export JSON",
-                use_container_width=True,
-                type="secondary",
-                disabled=True,
-            )
+        # JSON export
+        json_data = (
+            json.dumps(st.session_state.messages, indent=2) if has_messages else ""
+        )
+        _render_export_button(
+            "📥 Export JSON",
+            json_data,
+            "chat_export.json",
+            "application/json",
+            has_messages,
+        )
 
     with col2:
-        if st.session_state.get("messages"):
-            # Convert messages to Markdown format
+        # Markdown export
+        md_content = ""
+        if has_messages:
             md_content = "# Chat Export\n\n"
             for msg in st.session_state.messages:
                 role = msg.get("role", "unknown").capitalize()
                 content = msg.get("content", "")
                 md_content += f"## {role}\n\n{content}\n\n---\n\n"
-
-            st.download_button(
-                "📄 Export MD",
-                md_content,
-                "chat_export.md",
-                mime="text/markdown",
-                use_container_width=True,
-                type="secondary",
-            )
-        else:
-            st.button(
-                "📄 Export MD",
-                use_container_width=True,
-                type="secondary",
-                disabled=True,
-            )
+        _render_export_button(
+            "📄 Export MD", md_content, "chat_export.md", "text/markdown", has_messages
+        )
 
     with col3:
+        # PDF export
+        pdf_bytes = b""
+        if has_messages:
+            conversation_name, created_at = _get_pdf_export_data()
+            pdf_bytes = create_pdf_from_conversation(
+                conversation_name=conversation_name,
+                messages=st.session_state.messages,
+                created_at=created_at,
+            )
+        _render_export_button(
+            "📑 Export PDF",
+            pdf_bytes,
+            "chat_export.pdf",
+            "application/pdf",
+            has_messages,
+        )
+
+    # Row 2: Clear button
+    col1, col2, col3 = st.columns(3)
+    with col2:
         if st.button("🗑️ Clear", use_container_width=True, type="secondary"):
             st.session_state.messages = []
             st.session_state.agent_state = {"messages": []}
