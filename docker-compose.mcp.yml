@@ -50,6 +50,47 @@ services:
     networks:
       - engineer-assistant
 
+  # MMORE RAG Service for multimodal document processing
+  mmore-rag-service:
+    build:
+      context: ${MMORE_PATH:-~/Desktop/mmore}
+      dockerfile: Dockerfile
+      platforms:
+        - linux/arm64  # Build for Apple Silicon
+    container_name: mmore-rag-service
+    ports:
+      - "8000:8000"  # FastAPI server port
+    environment:
+      - MMORE_CONFIG_PATH=/app/config/retriever_config.yaml
+      - MMORE_API_HOST=0.0.0.0
+      - MMORE_API_PORT=8000
+    volumes:
+      # Persist Milvus Lite database
+      - ${MMORE_PATH:-~/Desktop/mmore}/proc_demo.db:/app/proc_demo.db
+      # Mount config
+      - ${MMORE_PATH:-~/Desktop/mmore}/examples/retriever_api/config.yaml:/app/config/retriever_config.yaml:ro
+      # Persist uploads and cache (correct path for mmoreuser home)
+      - ./data/mmore/uploads:/app/uploads
+      - ./data/mmore/cache:/home/mmoreuser/.cache
+    # Removed memory limits - let Docker use available resources for model loading
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "cd /app &&
+      . .venv/bin/activate &&
+      python -m mmore.run_live_retrieval
+      --config-file /app/config/retriever_config.yaml
+      --host 0.0.0.0
+      --port 8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 180s  # 3 minutes for model downloads on first start
+    networks:
+      - engineer-assistant
+
   # Main chatbot application (connects to external MCP server)
   chatbot:
     build:
@@ -66,6 +107,7 @@ services:
       # Override specific variables for Docker deployment with MCP
       - SKIP_MCP=false  # Enable MCP client
       - PRUSA_MCP_URL=http://prusa-mcp-server:8765  # Connect to MCP server (internal port)
+      - MMORE_RAG_URL=http://mmore-rag-service:8000  # Connect to mmore RAG service
       - DATABASE_URL=${DATABASE_URL:-postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant}
       - SSH_AUTH_SOCK=/ssh-agent
       - PAPERS_SOURCE_DIR=/app/papers  # Container path (different from host)
@@ -86,6 +128,8 @@ services:
       postgres:
         condition: service_healthy
       prusa-mcp-server:
+        condition: service_healthy
+      mmore-rag-service:
         condition: service_healthy
     restart: unless-stopped
     networks:

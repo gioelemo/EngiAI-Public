@@ -27,7 +27,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from config import config  # noqa: E402
-from src.tools import EngineerRAGStore, MultimodalDocumentProcessor  # noqa: E402
+from src.tools import MMOREClient  # noqa: E402
 from src.tools.hpc import set_current_session_id, set_progress_callback  # noqa: E402
 from src.ui import chat, home, settings, wandb_report  # noqa: E402
 from src.ui.chat_management import (  # noqa: E402
@@ -236,20 +236,20 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             ]
 
             if pdf_files:
-                # Extract PDF text using MathPixPDFLoader AND add to RAG vector store
+                # Extract PDF text for immediate display to agent
                 try:
                     pdf_text = extract_pdf_text(pdf_files)
 
-                    # ALSO add PDFs to RAG system for persistent storage
-                    processor = MultimodalDocumentProcessor()
-                    vector_store = EngineerRAGStore(collection_name="engineer_docs")
+                    # Upload PDFs to MMORE for RAG retrieval
+                    mmore_client = MMOREClient()
+                    db = get_db()  # Get database instance
 
-                    # Process and store each PDF in the RAG system
+                    # Process and store each PDF in MMORE
                     for pdf_file in pdf_files:
                         pdf_bytes = base64.b64decode(pdf_file["data"])
                         file_name = pdf_file.get("name", "document.pdf")
 
-                        # Write to temporary file for processing
+                        # Write to temporary file for MMORE upload
                         with tempfile.NamedTemporaryFile(
                             suffix=".pdf", delete=False
                         ) as tmp_file:
@@ -257,28 +257,27 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                             tmp_path = tmp_file.name
 
                         try:
-                            # Process PDF and add to vector store
-                            docs = processor.process_file(tmp_path)
-
-                            # Update source metadata to use original filename instead of temp path
-                            for doc in docs:
-                                doc.metadata["source"] = file_name
-                                doc.metadata["original_name"] = file_name
-
-                            # Add to vector store
-                            vector_store.add_documents(docs)
-
-                            # Count non-empty documents
-                            non_empty = sum(
-                                1 for doc in docs if doc.page_content.strip()
+                            # Upload to MMORE (uses file stem as ID)
+                            file_id = Path(file_name).stem
+                            mmore_client.upload_file(
+                                file_path=tmp_path, file_id=file_id
                             )
+
+                            # Track in database
+                            db.add_mmore_document(
+                                file_id=file_id, file_name=file_name, file_path=tmp_path
+                            )
+
                             st.success(
-                                f"✓ Added '{file_name}' to knowledge base ({non_empty} text chunks)"
+                                f"✓ Added '{file_name}' to MMORE knowledge base (ID: {file_id})"
+                            )
+                            logger.info(
+                                f"Uploaded {file_name} to MMORE with ID {file_id}"
                             )
 
                         except Exception as e:
-                            st.error(f"Error processing '{file_name}': {e!s}")
-                            logger.exception(f"Failed to process {file_name}")
+                            st.error(f"Error uploading '{file_name}' to MMORE: {e!s}")
+                            logger.exception(f"Failed to upload {file_name} to MMORE")
                         finally:
                             # Clean up temp file
                             tmp_file_path = Path(tmp_path)

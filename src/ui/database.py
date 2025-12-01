@@ -163,6 +163,20 @@ class Settings(Base):  # type: ignore[valid-type,misc]
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class MMOREDocument(Base):  # type: ignore[valid-type,misc]
+    """Model for tracking documents uploaded to MMORE."""
+
+    __tablename__ = "mmore_documents"
+
+    file_id = Column(String, primary_key=True)  # Unique identifier for the document
+    file_name = Column(String, nullable=False)  # Original filename
+    file_path = Column(String, nullable=True)  # Original file path (if available)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_by = Column(
+        String, nullable=True
+    )  # Optional: track which user uploaded it
+
+
 class DatabaseManager:
     """Manager class for database operations."""
 
@@ -550,4 +564,106 @@ class DatabaseManager:
                 conv.pinned = new_status  # type: ignore[assignment]
                 session.commit()
                 return new_status
+        return False
+
+    # MMORE Document Management
+
+    def add_mmore_document(
+        self,
+        file_id: str,
+        file_name: str,
+        file_path: str | None = None,
+        uploaded_by: str | None = None,
+    ) -> None:
+        """Track a document uploaded to MMORE.
+
+        Args:
+            file_id: Unique identifier for the document
+            file_name: Original filename
+            file_path: Optional file path
+            uploaded_by: Optional user identifier
+        """
+        with self.get_session() as session:
+            # Check if document already exists (update if so)
+            doc = session.query(MMOREDocument).filter_by(file_id=file_id).first()
+
+            if doc:
+                # Update existing document
+                doc.file_name = file_name  # type: ignore[assignment]
+                doc.file_path = file_path  # type: ignore[assignment]
+                doc.uploaded_at = datetime.utcnow()  # type: ignore[assignment]
+                if uploaded_by:
+                    doc.uploaded_by = uploaded_by  # type: ignore[assignment]
+            else:
+                # Create new document record
+                doc = MMOREDocument(
+                    file_id=file_id,
+                    file_name=file_name,
+                    file_path=file_path,
+                    uploaded_by=uploaded_by,
+                )
+                session.add(doc)
+
+            session.commit()
+
+    def get_all_mmore_documents(self) -> list[dict[str, Any]]:
+        """Get all documents tracked in MMORE.
+
+        Returns:
+            List of document dictionaries
+        """
+        with self.get_session() as session:
+            documents = (
+                session.query(MMOREDocument)
+                .order_by(MMOREDocument.uploaded_at.desc())
+                .all()
+            )
+
+            return [
+                {
+                    "file_id": doc.file_id,
+                    "file_name": doc.file_name,
+                    "file_path": doc.file_path,
+                    "uploaded_at": doc.uploaded_at,
+                    "uploaded_by": doc.uploaded_by,
+                }
+                for doc in documents
+            ]
+
+    def get_mmore_document(self, file_id: str) -> dict[str, Any] | None:
+        """Get a specific MMORE document by ID.
+
+        Args:
+            file_id: Document identifier
+
+        Returns:
+            Document dictionary or None if not found
+        """
+        with self.get_session() as session:
+            doc = session.query(MMOREDocument).filter_by(file_id=file_id).first()
+            if doc:
+                return {
+                    "file_id": doc.file_id,
+                    "file_name": doc.file_name,
+                    "file_path": doc.file_path,
+                    "uploaded_at": doc.uploaded_at,
+                    "uploaded_by": doc.uploaded_by,
+                }
+        return None
+
+    def delete_mmore_document(self, file_id: str) -> bool:
+        """Delete a document from MMORE tracking.
+
+        Args:
+            file_id: Document identifier
+
+        Returns:
+            True if deleted, False if not found
+        """
+        with self.get_session() as session:
+            doc = session.query(MMOREDocument).filter_by(file_id=file_id).first()
+            if doc:
+                session.delete(doc)
+                session.commit()
+                return True
         return False

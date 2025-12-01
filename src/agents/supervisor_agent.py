@@ -92,8 +92,10 @@ class SupervisorAgent:
         self.search_agent = SearchAgent(
             model_name=self.model_name, temperature=self.temperature
         )
-        # Share RAG chain between RAG and ArXiv agents
-        self.rag_agent = RAGAgent(rag_chain=self.shared_rag_chain)
+        # Initialize RAG agent with MMORE
+        self.rag_agent = RAGAgent(
+            model_name=self.model_name, temperature=self.temperature
+        )
         self.arxiv_agent = ArXivAgent(
             model_name=self.model_name,
             temperature=self.temperature,
