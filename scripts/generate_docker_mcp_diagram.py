@@ -368,8 +368,8 @@ ax.text(
 agents: list[dict[str, str | float]] = [
     {"name": "Engineering", "icon": "⚙", "x": 13.0, "y": 8.0},
     {"name": "Search", "icon": "◉", "x": 14.5, "y": 8.0},
-    {"name": "RAG", "icon": "◈", "x": 16.0, "y": 8.0},
-    {"name": "ArXiv", "icon": "◐", "y": 8.0, "x": 17.5},
+    {"name": "ArXiv", "icon": "◐", "x": 16.0, "y": 8.0},
+    {"name": "RAG", "icon": "◈", "x": 17.5, "y": 8.0},
     {"name": "Prusa", "icon": "◆", "x": 13.0, "y": 6.9},
     {"name": "HPC", "icon": "●", "x": 14.5, "y": 6.9},
     {"name": "CLI", "icon": "▶", "x": 16.0, "y": 6.9},
@@ -387,20 +387,6 @@ for agent in agents:
         color_agent,
     )
 
-
-# Volume mount indicator for data (ChromaDB)
-volume_box3 = FancyBboxPatch(
-    (8.5, 6.0),
-    2.0,
-    0.6,
-    boxstyle="round,pad=0.05",
-    edgecolor="orange",
-    facecolor=color_volume,
-    linewidth=2,
-    linestyle="--",
-)
-ax.add_patch(volume_box3)
-ax.text(9.5, 6.2, "⊕ ./data/chroma_db\n (RAG docs)", fontsize=8, ha="center")
 
 # Connection from chatbot to PostgreSQL
 draw_arrow(
@@ -529,6 +515,79 @@ external_apis: list[dict[str, Any]] = [
     {"name": "HPC Cluster", "icon": "◆", "x": 16.75},  # Compute Service
 ]
 
+# MMORE Service (bottom right - multimodal RAG backend)
+mmore_service_box = FancyBboxPatch(
+    (16.0, 1.5),
+    3.0,
+    2.2,
+    boxstyle="round,pad=0.05",
+    edgecolor="black",
+    facecolor="#B2DFDB",  # Teal-green for MMORE
+    linewidth=2.5,
+)
+ax.add_patch(mmore_service_box)
+ax.text(
+    17.5,
+    3.3,
+    "◈ MMORE Service",
+    fontsize=11,
+    ha="center",
+    fontweight="bold",
+)
+ax.text(
+    17.5,
+    2.95,
+    "Multimodal RAG",
+    fontsize=9,
+    ha="center",
+    style="italic",
+)
+ax.text(
+    17.5,
+    2.65,
+    "Port: 8000",
+    fontsize=8,
+    ha="center",
+    color="#00695C",
+)
+ax.text(
+    17.5,
+    2.35,
+    "PDF • Images • Tables",
+    fontsize=7,
+    ha="center",
+    color="#00695C",
+)
+ax.text(
+    17.5,
+    2.05,
+    "Vector Store + Indexing",
+    fontsize=7,
+    ha="center",
+    color="#00695C",
+)
+ax.text(
+    17.5,
+    1.75,
+    "/v1/files • /v1/retrieve",
+    fontsize=7,
+    ha="center",
+    family="monospace",
+    color="#004D40",
+)
+
+# Connection from RAG Agent to MMORE Service
+draw_arrow(
+    ax,
+    18.25,
+    8.0,
+    18.25,
+    3.75,
+    "HTTP REST API\nUpload/Retrieve",
+    "#20C997",
+    "-",
+)
+
 for api in external_apis:
     api_box = FancyBboxPatch(
         (float(api["x"]), external_y),
@@ -614,6 +673,7 @@ symbol_items: list[dict[str, str]] = [
     {"symbol": "●", "label": "HPC Agent"},
     {"symbol": "▶", "label": "CLI Agent"},
     {"symbol": "☁", "label": "Cloud Service"},
+    {"symbol": "◈", "label": "MMORE RAG Service"},
     {"symbol": "⊕", "label": "Volume Mount"},
     {"symbol": "⚡", "label": "Docker Network"},
     {"symbol": "→", "label": "User Connection"},

@@ -215,6 +215,8 @@ data/mmore/
 prusa-mcp/
 *.zip
 assets/docker_mcp_architecture.pdf
+assets/docker_mcp_architecture_old.pdf
 assets/workflow_example.png
 assets/agent_architecture.png
 assets/docker_mcp_architecture.png
+assets/docker_mcp_architecture_old.png
