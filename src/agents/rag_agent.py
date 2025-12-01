@@ -7,13 +7,15 @@ Now powered by MMORE for advanced multimodal document processing.
 
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from langchain_core.tools import tool
 
 from src.agents.base_agent import BaseAgent
 from src.tools import MMOREClient, MultimodalDocumentProcessor
-from src.ui.database import DatabaseManager
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,6 @@ class RAGAgent(BaseAgent):
         self.mmore_client = MMOREClient(base_url=mmore_url)
         self.document_processor = MultimodalDocumentProcessor()
 
-        # Initialize database for document tracking
-        self.db = DatabaseManager()
-
         super().__init__(model_name=model_name, temperature=temperature)
 
         # Verify MMORE connection
@@ -48,6 +47,20 @@ class RAGAgent(BaseAgent):
             logger.info("RAG Agent initialized with MMORE service")
         else:
             logger.warning("MMORE service not reachable - some features may not work")
+
+    @property
+    def db(self):
+        """Lazy-load database manager to avoid circular import."""
+        if not hasattr(self, "_db"):
+            from src.ui.database import DatabaseManager  # noqa: PLC0415
+
+            self._db = DatabaseManager()
+        return self._db
+
+    @db.setter
+    def db(self, value):
+        """Allow setting database manager (useful for testing)."""
+        self._db = value
 
     def _create_tools(self) -> list:
         """Create LangChain tools for the RAG agent."""

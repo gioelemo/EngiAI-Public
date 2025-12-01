@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
+from langchain_core.documents import Document
 from langchain_core.language_models.base import LanguageModelInput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
@@ -52,17 +53,18 @@ class FakeLLMWithTools(BaseChatModel):
 
 
 @pytest.fixture
-def mock_vector_store():
-    """Mock vector store for testing."""
+def mock_mmore_client():
+    """Mock MMORE client for testing."""
     mock = Mock()
-    mock.similarity_search.return_value = [
-        Mock(
+    mock.health_check.return_value = True
+    mock.retrieve.return_value = [
+        Document(
             page_content="Test content from document",
-            metadata={"source": "test.pdf", "page": 1},
+            metadata={"source": "test.pdf", "chunk_id": "1", "score": 0.95},
         )
     ]
-    mock.add_documents.return_value = ["doc_id_1"]
-    mock.get_collection_count.return_value = 5
+    mock.upload_file.return_value = {"status": "success", "fileId": "test_id"}
+    mock.delete_file.return_value = {"status": "success"}
     return mock
 
 
@@ -80,14 +82,19 @@ def mock_document_processor():
 
 
 @pytest.fixture
-def mock_rag_chain():
-    """Mock RAG chain for testing."""
+def mock_database_manager():
+    """Mock database manager for testing."""
     mock = Mock()
-    mock.ask.return_value = {
-        "answer": "The answer based on documents",
-        "num_sources": 3,
-    }
-    mock.clear_history.return_value = None
+    mock.add_mmore_document.return_value = None
+    mock.get_all_mmore_documents.return_value = [
+        {
+            "file_id": "test_id",
+            "file_name": "test.pdf",
+            "uploaded_at": Mock(strftime=Mock(return_value="2024-01-01 10:00")),
+        }
+    ]
+    mock.get_mmore_document.return_value = {"file_name": "test.pdf"}
+    mock.delete_mmore_document.return_value = None
     return mock
 
 
@@ -101,38 +108,37 @@ def mock_checkpointer():
 class TestRAGAgentInitialization:
     """Test RAG agent initialization."""
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_rag_agent_initialization(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain
+        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
     ):
         """Test that RAG agent initializes correctly."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent(model_name="openai:gpt-4o")
 
         assert agent is not None
         assert agent.model_name == "openai:gpt-4o"
         mock_init_llm.assert_called_once_with("openai:gpt-4o", temperature=0.7)
-        mock_processor.assert_called_once()
-        mock_store.assert_called_once()
-        mock_chain.assert_called_once()
+        mock_processor_cls.assert_called_once()
+        mock_mmore_cls.assert_called_once_with(base_url=None)
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_rag_agent_tools_created(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain
+        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
     ):
         """Test that RAG agent creates the expected tools."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
 
@@ -141,67 +147,73 @@ class TestRAGAgentInitialization:
         assert "search_documents" in tool_names
         assert "add_document" in tool_names
         assert "list_documents" in tool_names
-        assert "clear_document_memory" in tool_names
+        assert "delete_document" in tool_names
 
 
 class TestRAGAgentSearchDocuments:
     """Test the search_documents tool."""
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_success(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
+        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
     ):
         """Test successful document search."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_chain.return_value = mock_rag_chain
+        mock_mmore_client.retrieve.return_value = [
+            Document(
+                page_content="Test content about topology optimization",
+                metadata={"source": "test.pdf", "score": 0.95},
+            )
+        ]
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
         search_tool = agent.tools_by_name["search_documents"]
 
         result = search_tool.invoke({"query": "What is topology optimization?"})
 
-        assert "answer based on documents" in result
-        assert "3 document(s)" in result
-        mock_rag_chain.ask.assert_called_once()
+        assert "topology optimization" in result
+        assert "test.pdf" in result
+        mock_mmore_client.retrieve.assert_called_once()
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_with_num_results(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
+        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
     ):
         """Test document search with custom number of results."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_chain.return_value = mock_rag_chain
+        mock_mmore_client.retrieve.return_value = []
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
         search_tool = agent.tools_by_name["search_documents"]
 
         search_tool.invoke({"query": "test query", "num_results": 10})
 
-        mock_rag_chain.ask.assert_called_once_with("test query", k=10)
+        mock_mmore_client.retrieve.assert_called_once_with(
+            query="test query", max_matches=10, min_similarity=0.3
+        )
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_error_handling(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
+        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
     ):
         """Test error handling in document search."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_rag_chain.ask.side_effect = Exception("Search failed")
-        mock_chain.return_value = mock_rag_chain
+        mock_mmore_client.retrieve.side_effect = Exception("Search failed")
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
         search_tool = agent.tools_by_name["search_documents"]
@@ -214,25 +226,24 @@ class TestRAGAgentSearchDocuments:
 class TestRAGAgentAddDocument:
     """Test the add_document tool."""
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
+    @patch("pathlib.Path.exists")
     def test_add_document_success(
         self,
+        mock_exists,
         mock_init_llm,
         mock_processor_cls,
-        mock_store_cls,
-        mock_chain,
-        mock_document_processor,
-        mock_vector_store,
+        mock_mmore_cls,
+        mock_mmore_client,
     ):
         """Test successful document addition."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_processor_cls.return_value = mock_document_processor
-        mock_store_cls.return_value = mock_vector_store
+        mock_exists.return_value = True
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
         add_tool = agent.tools_by_name["add_document"]
@@ -241,67 +252,58 @@ class TestRAGAgentAddDocument:
 
         assert "Successfully added" in result
         assert "test.pdf" in result
-        mock_document_processor.process_file.assert_called_once_with(
-            "/path/to/test.pdf"
-        )
-        mock_vector_store.add_documents.assert_called_once()
+        mock_mmore_client.upload_file.assert_called_once()
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
-    def test_add_document_with_metadata(
+    @patch("pathlib.Path.exists")
+    def test_add_document_file_not_found(
         self,
+        mock_exists,
         mock_init_llm,
         mock_processor_cls,
-        mock_store_cls,
-        mock_chain,
-        mock_document_processor,
-        mock_vector_store,
+        mock_mmore_cls,
+        mock_mmore_client,
     ):
-        """Test document addition with metadata."""
-        import json
-
+        """Test document addition with non-existent file."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_processor_cls.return_value = mock_document_processor
-        mock_store_cls.return_value = mock_vector_store
-
-        agent = RAGAgent()
-        add_tool = agent.tools_by_name["add_document"]
-
-        metadata = json.dumps({"author": "Test Author", "year": 2024})
-        result = add_tool.invoke(
-            {"file_path": "/path/to/test.pdf", "metadata": metadata}
-        )
-
-        assert "Successfully added" in result
-        mock_document_processor.process_file.assert_called_once()
-
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_add_document_error_handling(
-        self,
-        mock_init_llm,
-        mock_processor_cls,
-        mock_store_cls,
-        mock_chain,
-        mock_document_processor,
-    ):
-        """Test error handling in document addition."""
-        from src.agents.rag_agent import RAGAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_document_processor.process_file.side_effect = Exception("File not found")
-        mock_processor_cls.return_value = mock_document_processor
+        mock_exists.return_value = False
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
         add_tool = agent.tools_by_name["add_document"]
 
         result = add_tool.invoke({"file_path": "/invalid/path.pdf"})
+
+        assert "File not found" in result
+
+    @patch("src.agents.rag_agent.MMOREClient")
+    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.base_agent.init_chat_model")
+    @patch("pathlib.Path.exists")
+    def test_add_document_error_handling(
+        self,
+        mock_exists,
+        mock_init_llm,
+        mock_processor_cls,
+        mock_mmore_cls,
+        mock_mmore_client,
+    ):
+        """Test error handling in document addition."""
+        from src.agents.rag_agent import RAGAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_exists.return_value = True
+        mock_mmore_client.upload_file.side_effect = Exception("Upload failed")
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        agent = RAGAgent()
+        add_tool = agent.tools_by_name["add_document"]
+
+        result = add_tool.invoke({"file_path": "/path/to/test.pdf"})
 
         assert "Error adding document" in result
 
@@ -309,115 +311,109 @@ class TestRAGAgentAddDocument:
 class TestRAGAgentListDocuments:
     """Test the list_documents tool."""
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_list_documents_success(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store_cls,
-        mock_chain,
-        mock_vector_store,
+        mock_processor_cls,
+        mock_mmore_cls,
+        mock_mmore_client,
+        mock_database_manager,
     ):
         """Test successful document listing."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_vector_store.similarity_search.return_value = [
-            Mock(
-                page_content="content",
-                metadata={"source": "doc1.pdf", "page": 1},
-            ),
-            Mock(
-                page_content="content",
-                metadata={"source": "doc1.pdf", "page": 2},
-            ),
-            Mock(
-                page_content="content",
-                metadata={"source": "doc2.pdf", "page": 1},
-            ),
-        ]
-        mock_store_cls.return_value = mock_vector_store
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
+        agent.db = mock_database_manager
+
         list_tool = agent.tools_by_name["list_documents"]
 
         result = list_tool.invoke({})
 
         assert "Knowledge Base" in result
-        assert "2 documents" in result
-        assert "doc1.pdf" in result
-        assert "doc2.pdf" in result
+        assert "1 document" in result
+        assert "test.pdf" in result
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_list_documents_empty(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store_cls,
-        mock_chain,
-        mock_vector_store,
+        mock_processor_cls,
+        mock_mmore_cls,
+        mock_mmore_client,
     ):
         """Test listing when no documents exist."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_vector_store.similarity_search.return_value = []
-        mock_store_cls.return_value = mock_vector_store
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
+        mock_db = Mock()
+        mock_db.get_all_mmore_documents.return_value = []
+        agent.db = mock_db
+
         list_tool = agent.tools_by_name["list_documents"]
 
         result = list_tool.invoke({})
 
-        assert "No documents in the knowledge base yet" in result
+        assert "No documents in MMORE knowledge base yet" in result
 
 
-class TestRAGAgentClearMemory:
-    """Test the clear_document_memory tool."""
+class TestRAGAgentDeleteDocument:
+    """Test the delete_document tool."""
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
-    def test_clear_memory_success(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
+    def test_delete_document_success(
+        self,
+        mock_init_llm,
+        mock_processor_cls,
+        mock_mmore_cls,
+        mock_mmore_client,
+        mock_database_manager,
     ):
-        """Test successful memory clearing."""
+        """Test successful document deletion."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_chain.return_value = mock_rag_chain
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
-        clear_tool = agent.tools_by_name["clear_document_memory"]
+        agent.db = mock_database_manager
 
-        result = clear_tool.invoke({})
+        delete_tool = agent.tools_by_name["delete_document"]
 
-        assert "Conversation history cleared" in result
-        mock_rag_chain.clear_history.assert_called_once()
+        result = delete_tool.invoke({"file_id": "test_id"})
+
+        assert "Deleted" in result
+        assert "test.pdf" in result
+        mock_mmore_client.delete_file.assert_called_once_with("test_id")
+        mock_database_manager.delete_mmore_document.assert_called_once_with("test_id")
 
 
 class TestRAGAgentInvoke:
     """Test RAG agent invocation."""
 
     @patch("src.agents.base_agent.get_checkpointer")
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_invoke_with_simple_query(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_processor_cls,
+        mock_mmore_cls,
         mock_get_checkpointer,
+        mock_mmore_client,
         mock_checkpointer,
     ):
         """Test invoking RAG agent with a simple query."""
@@ -429,6 +425,7 @@ class TestRAGAgentInvoke:
         )
         mock_init_llm.return_value = fake_llm
         mock_get_checkpointer.return_value = mock_checkpointer
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
         state = {"messages": [HumanMessage(content="What is in the document?")]}
@@ -444,25 +441,26 @@ class TestRAGAgentInvoke:
 class TestRAGAgentSystemPrompt:
     """Test RAG agent system prompt."""
 
-    @patch("src.agents.rag_agent.EngineeringRAGChain")
-    @patch("src.agents.rag_agent.EngineerRAGStore")
+    @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_system_prompt_content(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_processor_cls,
+        mock_mmore_cls,
+        mock_mmore_client,
     ):
         """Test that system prompt contains key instructions."""
         from src.agents.rag_agent import RAGAgent
 
         mock_llm = FakeLLMWithTools()
         mock_init_llm.return_value = mock_llm
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
 
-        # The system prompt should be used in _llm_call
-        # We can't directly access it, but we can verify the agent was created
+        # The system prompt should mention MMORE
+        system_prompt = agent._get_system_prompt()
+        assert "MMORE" in system_prompt
         assert agent is not None
