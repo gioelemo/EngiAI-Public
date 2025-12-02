@@ -25,6 +25,8 @@ services:
     build:
       context: .
       dockerfile: prusa_mcp_server/Dockerfile
+    image: prusa-mcp-server:latest
+    pull_policy: never
     container_name: prusa-mcp-server
     ports:
       - "8765:8765"  # Map host 8765 to container 8765
@@ -55,8 +57,12 @@ services:
     build:
       context: ${MMORE_PATH:-~/Desktop/mmore}
       dockerfile: Dockerfile
+      args:
+        PLATFORM: cpu  # Use CPU-only build for macOS (smaller image, no GPU support)
       platforms:
         - linux/arm64  # Build for Apple Silicon
+    image: mmore-rag-service:latest
+    pull_policy: never
     container_name: mmore-rag-service
     ports:
       - "8000:8000"  # FastAPI server port
@@ -96,6 +102,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: engineer-assistant-chatbot:latest
+    pull_policy: never
     container_name: engineer-assistant-chatbot
     ports:
       - "8501:8501"

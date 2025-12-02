@@ -39,6 +39,19 @@ run-ui:  ## Start the Streamlit UI
 run-mcp:  ## Start the standalone Prusa MCP server
 	./prusa_mcp_server/run.sh
 
+docker-up:  ## Start Docker services
+	docker-compose -f docker-compose.mcp.yml up -d
+
+docker-down:  ## Stop Docker services
+	docker-compose -f docker-compose.mcp.yml down
+
+docker-rebuild:  ## Rebuild and restart all Docker services
+	docker-compose -f docker-compose.mcp.yml down
+	docker-compose -f docker-compose.mcp.yml up -d --build
+
+docker-restart:  ## Restart Docker services without rebuilding
+	docker-compose -f docker-compose.mcp.yml restart
+
 # Build documentation
 .PHONY: docs
 docs:
