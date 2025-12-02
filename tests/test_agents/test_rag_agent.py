@@ -69,19 +69,6 @@ def mock_mmore_client():
 
 
 @pytest.fixture
-def mock_document_processor():
-    """Mock document processor for testing."""
-    mock = Mock()
-    mock.process_file.return_value = [
-        Mock(
-            page_content="Processed document content",
-            metadata={"source": "test.pdf", "page": 1},
-        )
-    ]
-    return mock
-
-
-@pytest.fixture
 def mock_database_manager():
     """Mock database manager for testing."""
     mock = Mock()
@@ -109,10 +96,9 @@ class TestRAGAgentInitialization:
     """Test RAG agent initialization."""
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_rag_agent_initialization(
-        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test that RAG agent initializes correctly."""
         from src.agents.rag_agent import RAGAgent
@@ -125,14 +111,12 @@ class TestRAGAgentInitialization:
         assert agent is not None
         assert agent.model_name == "openai:gpt-4o"
         mock_init_llm.assert_called_once_with("openai:gpt-4o", temperature=0.7)
-        mock_processor_cls.assert_called_once()
         mock_mmore_cls.assert_called_once_with(base_url=None)
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_rag_agent_tools_created(
-        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test that RAG agent creates the expected tools."""
         from src.agents.rag_agent import RAGAgent
@@ -154,10 +138,9 @@ class TestRAGAgentSearchDocuments:
     """Test the search_documents tool."""
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_success(
-        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test successful document search."""
         from src.agents.rag_agent import RAGAgent
@@ -181,10 +164,9 @@ class TestRAGAgentSearchDocuments:
         mock_mmore_client.retrieve.assert_called_once()
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_with_num_results(
-        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test document search with custom number of results."""
         from src.agents.rag_agent import RAGAgent
@@ -203,10 +185,9 @@ class TestRAGAgentSearchDocuments:
         )
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_documents_error_handling(
-        self, mock_init_llm, mock_processor_cls, mock_mmore_cls, mock_mmore_client
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test error handling in document search."""
         from src.agents.rag_agent import RAGAgent
@@ -227,14 +208,12 @@ class TestRAGAgentAddDocument:
     """Test the add_document tool."""
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     @patch("pathlib.Path.exists")
     def test_add_document_success(
         self,
         mock_exists,
         mock_init_llm,
-        mock_processor_cls,
         mock_mmore_cls,
         mock_mmore_client,
     ):
@@ -255,14 +234,12 @@ class TestRAGAgentAddDocument:
         mock_mmore_client.upload_file.assert_called_once()
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     @patch("pathlib.Path.exists")
     def test_add_document_file_not_found(
         self,
         mock_exists,
         mock_init_llm,
-        mock_processor_cls,
         mock_mmore_cls,
         mock_mmore_client,
     ):
@@ -281,14 +258,12 @@ class TestRAGAgentAddDocument:
         assert "File not found" in result
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     @patch("pathlib.Path.exists")
     def test_add_document_error_handling(
         self,
         mock_exists,
         mock_init_llm,
-        mock_processor_cls,
         mock_mmore_cls,
         mock_mmore_client,
     ):
@@ -312,12 +287,10 @@ class TestRAGAgentListDocuments:
     """Test the list_documents tool."""
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_list_documents_success(
         self,
         mock_init_llm,
-        mock_processor_cls,
         mock_mmore_cls,
         mock_mmore_client,
         mock_database_manager,
@@ -340,12 +313,10 @@ class TestRAGAgentListDocuments:
         assert "test.pdf" in result
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_list_documents_empty(
         self,
         mock_init_llm,
-        mock_processor_cls,
         mock_mmore_cls,
         mock_mmore_client,
     ):
@@ -371,12 +342,10 @@ class TestRAGAgentDeleteDocument:
     """Test the delete_document tool."""
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_delete_document_success(
         self,
         mock_init_llm,
-        mock_processor_cls,
         mock_mmore_cls,
         mock_mmore_client,
         mock_database_manager,
@@ -405,12 +374,10 @@ class TestRAGAgentInvoke:
 
     @patch("src.agents.base_agent.get_checkpointer")
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_invoke_with_simple_query(
         self,
         mock_init_llm,
-        mock_processor_cls,
         mock_mmore_cls,
         mock_get_checkpointer,
         mock_mmore_client,
@@ -442,12 +409,10 @@ class TestRAGAgentSystemPrompt:
     """Test RAG agent system prompt."""
 
     @patch("src.agents.rag_agent.MMOREClient")
-    @patch("src.agents.rag_agent.MultimodalDocumentProcessor")
     @patch("src.agents.base_agent.init_chat_model")
     def test_system_prompt_content(
         self,
         mock_init_llm,
-        mock_processor_cls,
         mock_mmore_cls,
         mock_mmore_client,
     ):

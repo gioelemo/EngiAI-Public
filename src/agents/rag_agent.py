@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Annotated
 from langchain_core.tools import tool
 
 from src.agents.base_agent import BaseAgent
-from src.tools import MMOREClient, MultimodalDocumentProcessor
+from src.tools import MMOREClient
 
 if TYPE_CHECKING:
     pass
@@ -38,7 +38,6 @@ class RAGAgent(BaseAgent):
         """
         # Initialize MMORE client
         self.mmore_client = MMOREClient(base_url=mmore_url)
-        self.document_processor = MultimodalDocumentProcessor()
 
         super().__init__(model_name=model_name, temperature=temperature)
 

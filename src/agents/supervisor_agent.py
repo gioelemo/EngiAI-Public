@@ -25,7 +25,8 @@ from src.agents.rag_agent import RAGAgent
 from src.agents.search_agent import SearchAgent
 from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
-from src.tools import EngineeringRAGChain, EngineerRAGStore
+
+# ChromaDB imports removed - now using MMORE via RAGAgent
 
 logger = logging.getLogger(__name__)
 
@@ -49,38 +50,18 @@ class SupervisorAgent:
         self,
         model_name: str | None = None,
         temperature: float | None = None,
-        shared_vector_store: EngineerRAGStore | None = None,
-        shared_rag_chain: EngineeringRAGChain | None = None,
     ):
         """Initialize the supervisor agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
-            shared_vector_store: Optional shared vector store instance (creates new if None)
-            shared_rag_chain: Optional shared RAG chain instance (creates new if None)
         """
         self.model_name = model_name or config.llm_model
         self.temperature = (
             temperature if temperature is not None else config.llm_temperature
         )
         self.llm = init_chat_model(self.model_name, temperature=self.temperature)
-
-        # Use provided shared resources or create new ones
-        # When used in Streamlit, these should be cached resources
-        if shared_vector_store is not None:
-            self.shared_vector_store = shared_vector_store
-            logger.info("Using provided shared vector store")
-        else:
-            self.shared_vector_store = EngineerRAGStore(collection_name="engineer_docs")
-            logger.info("Created new vector store")
-
-        if shared_rag_chain is not None:
-            self.shared_rag_chain = shared_rag_chain
-            logger.info("Using provided shared RAG chain")
-        else:
-            self.shared_rag_chain = EngineeringRAGChain(self.shared_vector_store)
-            logger.info("Created new RAG chain")
 
         # Initialize specialized sub-agents
         self.engineering_agent = EngineeringAgent(

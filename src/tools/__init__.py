@@ -10,9 +10,7 @@ from src.tools.arxiv_tools import (
     get_arxiv_paper,
     search_arxiv,
 )
-from src.tools.document_processor import MultimodalDocumentProcessor
 from src.tools.engibench import (
-    # Unified tools (recommended - use these!)
     create_problem,
     get_dataset_info,
     get_problem_details,
@@ -28,16 +26,12 @@ from src.tools.engiopt import (
     sample_designs_from_model,
 )
 from src.tools.mmore_client import MMOREClient
-from src.tools.rag_chain import EngineeringRAGChain
 from src.tools.search import create_search_tool
 from src.tools.stl_export import convert_design_to_stl
-from src.tools.vector_store import EngineerRAGStore
 
 __all__ = [
-    "EngineerRAGStore",
-    "EngineeringRAGChain",
+    # Primary tools (active)
     "MMOREClient",
-    "MultimodalDocumentProcessor",
     "convert_design_to_stl",
     "create_arxiv_tools",
     "create_problem",

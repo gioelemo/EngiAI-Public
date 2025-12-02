@@ -14,8 +14,8 @@ from langchain.chat_models import init_chat_model
 
 from config import config
 from src.agents.supervisor_agent import SupervisorAgent
-from src.tools.rag_chain import get_shared_rag_chain
-from src.tools.vector_store import get_shared_vector_store
+
+# ChromaDB imports removed - now using MMORE via agents
 from src.ui.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -25,29 +25,20 @@ def create_supervisor_for_chat() -> SupervisorAgent:
     """Create a new SupervisorAgent instance for a chat.
 
     Creates a separate agent instance for each chat to maintain conversation
-    isolation, but reuses cached shared resources (vector store, RAG chain)
-    to avoid expensive re-initialization.
+    isolation. Each chat gets its own SupervisorAgent instance with independent
+    conversation state and sub-agents (RAG, ArXiv, etc.).
 
-    Each chat gets:
-    - Its own SupervisorAgent instance (separate conversation state)
-    - Its own sub-agents (RAG, ArXiv, etc.) with independent history
-    - Shared vector store (knowledge base is global)
-    - Shared RAG chain (stateless query engine)
+    Knowledge persistence is now handled by MMORE which provides a shared
+    knowledge base across all chats via the database.
 
     Returns:
-        New SupervisorAgent instance with shared cached resources
+        New SupervisorAgent instance
     """
-    logger.info("Creating new SupervisorAgent for chat (using cached resources)")
+    logger.info("Creating new SupervisorAgent for chat")
 
-    # Get cached shared resources (initialized once, reused across all chats)
-    vector_store = get_shared_vector_store(collection_name="engineer_docs")
-    rag_chain = get_shared_rag_chain(vector_store)
-
-    # Create new agent instance that uses shared resources
-    return SupervisorAgent(
-        shared_vector_store=vector_store,
-        shared_rag_chain=rag_chain,
-    )
+    # Create new agent instance
+    # Each sub-agent (RAG, ArXiv) now uses MMORE which provides shared knowledge
+    return SupervisorAgent()
 
 
 def generate_chat_title(user_message: str) -> str:

@@ -27,8 +27,6 @@ def _mock_agents():
         patch("src.agents.supervisor_agent.ArXivAgent") as mock_arxiv,
         patch("src.agents.supervisor_agent.PrusaAgent") as mock_prusa,
         patch("src.agents.supervisor_agent.CLIAgent") as mock_cli,
-        patch("src.agents.supervisor_agent.EngineerRAGStore") as mock_store,
-        patch("src.agents.supervisor_agent.EngineeringRAGChain") as mock_chain,
         patch("src.agents.supervisor_agent.init_chat_model") as mock_llm,
         patch("src.agents.supervisor_agent.get_checkpointer") as mock_cp,
     ):
