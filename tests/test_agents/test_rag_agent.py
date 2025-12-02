@@ -131,10 +131,11 @@ class TestRAGAgentInitialization:
 
         agent = RAGAgent()
 
-        assert len(agent.tools) == 4
+        assert len(agent.tools) == 5
         tool_names = {tool.name for tool in agent.tools}
         assert "search_documents" in tool_names
         assert "add_document" in tool_names
+        assert "add_url_to_knowledge_base" in tool_names
         assert "list_documents" in tool_names
         assert "delete_document" in tool_names
 
