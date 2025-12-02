@@ -48,6 +48,37 @@ def main():
         logger.error(msg)
         raise ImportError(msg)
 
+    # Configure transport security BEFORE loading the module
+    from mcp.server.fastmcp.server import TransportSecuritySettings  # noqa: PLC0415
+
+    # Set allowed hosts to include Docker service name and localhost
+    allowed_hosts_env = os.getenv(
+        "MCP_ALLOWED_HOSTS",
+        "localhost,127.0.0.1,prusa-mcp-server,prusa-mcp-server:8765",
+    )
+    allowed_hosts = [h.strip() for h in allowed_hosts_env.split(",")]
+    logger.info(f"Configuring transport security with allowed hosts: {allowed_hosts}")
+
+    # Patch FastMCP to use our transport security settings
+    original_fastmcp_init = None
+    try:
+        from mcp.server.fastmcp.server import FastMCP as FastMCPClass  # noqa: PLC0415
+
+        original_fastmcp_init = FastMCPClass.__init__
+
+        def patched_init(self, *args, **kwargs):
+            # Inject transport_security if not provided
+            if "transport_security" not in kwargs:
+                kwargs["transport_security"] = TransportSecuritySettings(
+                    allowed_hosts=allowed_hosts
+                )
+            original_fastmcp_init(self, *args, **kwargs)
+
+        FastMCPClass.__init__ = patched_init
+        logger.info("Patched FastMCP initialization with transport security")
+    except Exception as e:
+        logger.warning(f"Could not patch FastMCP: {e}")
+
     prusa_mcp_module = importlib.util.module_from_spec(spec)
     sys.modules["prusa_mcp"] = prusa_mcp_module
     spec.loader.exec_module(prusa_mcp_module)

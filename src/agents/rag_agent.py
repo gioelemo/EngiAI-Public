@@ -6,9 +6,12 @@ Now powered by MMORE for advanced multimodal document processing.
 """
 
 import logging
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
+from urllib.parse import urlparse
 
+import requests
 from langchain_core.tools import tool
 
 from src.agents.base_agent import BaseAgent
@@ -66,6 +69,7 @@ class RAGAgent(BaseAgent):
         return [
             self._create_search_tool(),
             self._create_add_document_tool(),
+            self._create_add_url_tool(),
             self._create_list_documents_tool(),
             self._create_delete_document_tool(),
         ]
@@ -161,6 +165,99 @@ class RAGAgent(BaseAgent):
 
         return add_document
 
+    def _create_add_url_tool(self):
+        """Create the add URL tool using MMORE."""
+
+        @tool
+        def add_url_to_knowledge_base(
+            url: Annotated[str, "The URL to download and add to the knowledge base"],
+            file_id: Annotated[
+                str,
+                "Optional custom ID for the document (auto-generated if not provided)",
+            ] = "",
+        ) -> str:
+            """
+            Download content from a URL and add it to the MMORE knowledge base.
+
+            Supports:
+            - GitHub documentation (automatically converts to raw URLs)
+            - HTML pages
+            - Markdown files
+            - Any web-accessible document
+
+            Use this when users want to add web documentation, GitHub docs, or
+            online resources to the knowledge base.
+            """
+            try:
+                # Convert GitHub URLs to raw URLs if needed
+                download_url = url
+                if "github.com" in url and "/blob/" in url:
+                    download_url = url.replace(
+                        "github.com", "raw.githubusercontent.com"
+                    ).replace("/blob/", "/")
+                    logger.info(f"Converted GitHub URL to raw: {download_url}")
+
+                # Determine file extension from URL
+                parsed_url = urlparse(download_url)
+                path_parts = Path(parsed_url.path)
+                extension = path_parts.suffix or ".html"
+
+                # Generate file_id if not provided
+                if not file_id:
+                    file_id = "".join(
+                        c for c in path_parts.stem if c.isalnum() or c in "_-"
+                    )
+                    if not file_id:
+                        file_id = parsed_url.netloc.replace(".", "_")
+
+                # Download content
+                logger.info(f"Downloading content from {download_url}...")
+                response = requests.get(download_url, timeout=30)
+                response.raise_for_status()
+
+                # Save to temporary file
+                with tempfile.NamedTemporaryFile(
+                    mode="wb", suffix=extension, delete=False
+                ) as tmp_file:
+                    tmp_file.write(response.content)
+                    temp_path = tmp_file.name
+
+                try:
+                    # Upload to MMORE
+                    logger.info(f"Uploading to MMORE with file_id: {file_id}...")
+                    self.mmore_client.upload_file(file_path=temp_path, file_id=file_id)
+
+                    # Track in database
+                    self.db.add_mmore_document(
+                        file_id=file_id,
+                        file_name=path_parts.name or "web_content",
+                        file_path=url,  # Store original URL
+                        uploaded_by="url_upload",
+                    )
+
+                    return (
+                        f"✓ Successfully added URL content to knowledge base!\n"
+                        f"Source: {url}\n"
+                        f"File ID: {file_id}\n"
+                        f"Content size: {len(response.content)} bytes\n\n"
+                        f"You can now ask questions about this document."
+                    )
+                finally:
+                    # Clean up temporary file
+                    Path(temp_path).unlink(missing_ok=True)
+
+            except requests.HTTPError as e:
+                logger.exception("HTTP error downloading URL")
+                return f"Error downloading URL: {e.response.status_code} - {e.response.reason}"
+            except requests.RequestException as e:
+                logger.exception("Error downloading URL")
+                return f"Error downloading URL: {e}"
+            except Exception as e:
+                logger.exception("Error adding URL to MMORE")
+                return f"Error adding URL to knowledge base: {e}"
+
+        return add_url_to_knowledge_base
+
     def _create_list_documents_tool(self):
         """Create the list documents tool."""
 
@@ -248,17 +345,31 @@ processing technical documents including PDFs, images, tables, and complex layou
 Your role is to help users understand and extract information from technical documents,
 research papers, and engineering specifications they have uploaded.
 
-Guidelines:
-1. **Always cite sources**: Include document file IDs and relevance scores when answering
-2. **Be precise**: Engineering work requires accuracy - cite specific sections
-3. **Ask for clarification**: If a question is ambiguous, ask for more details
-4. **Acknowledge limitations**: If information isn't in the documents, say so clearly
-5. **Leverage multimodal content**: MMORE extracts text, images, and tables - mention when visual content is relevant
-6. **Suggest related topics**: When appropriate, suggest related questions users might ask
+CRITICAL RULES:
+1. **ALWAYS use the search_documents tool FIRST**: For EVERY question, you MUST call search_documents before answering
+2. **NEVER answer from your training data**: All answers must be based ONLY on documents retrieved via search_documents
+3. **Always cite sources**: Include document file IDs and relevance scores from the search results
+4. **If no documents found**: Tell the user no relevant documents were found
 
-When users upload documents:
+Guidelines:
+1. **First call search_documents**: Use the search tool for every user question - even questions about MMORE, file formats, or system capabilities
+2. **Base answers ONLY on search results**: Do not use your general knowledge - only use what search_documents returns
+3. **Cite sources explicitly**: Always include file IDs and relevance scores in your response
+4. **Be precise**: Engineering work requires accuracy - cite specific sections
+5. **Ask for clarification**: If a question is ambiguous, call search_documents first, then ask for clarification if needed
+6. **Acknowledge limitations**: If information isn't in the documents, say so clearly
+7. **Leverage multimodal content**: MMORE extracts text, images, and tables - mention when visual content is relevant
+
+When users upload documents or URLs:
 - Confirm successful processing with MMORE
 - Explain that MMORE will extract multimodal content (text, images, tables)
 - Suggest 2-3 initial questions they could ask about the document
 
-Always be helpful, accurate, and cite your sources!"""
+Available tools:
+- **search_documents**: Search through all uploaded documents (use this for every question!)
+- **add_document**: Upload a local file to the knowledge base
+- **add_url_to_knowledge_base**: Download and add web content (GitHub docs, HTML pages, markdown files)
+- **list_documents**: Show all documents in the knowledge base
+- **delete_document**: Remove a document by its file ID
+
+Remember: ALWAYS call search_documents FIRST for every question, even if you think you know the answer from your training!"""

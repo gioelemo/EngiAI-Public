@@ -109,7 +109,7 @@ class SupervisorAgent:
         )
         available_agents.append("- search_agent: Web research and finding information")
         available_agents.append(
-            "- rag_agent: Questions about uploaded documents, papers, PDFs (use this for 'what does the paper say', 'explain this document', 'summarize the research')"
+            "- rag_agent: Questions about uploaded documents, papers, PDFs, knowledge base content, AND uploading/adding documents or URLs (use this for 'what does the paper say', 'explain this document', 'summarize the research', 'what does MMORE support', 'according to the documentation', 'add URL to knowledge base', 'upload this URL', any question that should query or add uploaded files/docs/URLs)"
         )
         available_agents.append(
             "- arxiv_agent: ArXiv research paper search, download papers from ArXiv, analyze academic papers with RAG (use this for 'find papers about', 'search ArXiv for', 'download paper', 'analyze this ArXiv paper')"
@@ -154,7 +154,7 @@ class SupervisorAgent:
             + "- CONVERTING design to STL: 'convert to STL', 'export to STL', 'create STL', 'generate STL from design', 'make STL file' → use engineering_agent\n"
             + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
             + "- Web search, research, finding information ONLINE → use search_agent\n"
-            + "- Questions about UPLOADED documents, papers, PDFs: 'what does the paper say', 'explain this document', 'summarize the research', 'what are the findings' → use rag_agent\n"
+            + "- Questions about UPLOADED documents, papers, PDFs, documentation, knowledge base, OR uploading/adding new content: 'what does the paper say', 'explain this document', 'summarize the research', 'what are the findings', 'what does MMORE support', 'according to the docs', 'what file formats', 'add this URL', 'upload URL to knowledge base', 'add https://...', 'upload documentation from' → use rag_agent\n"
             + "- ArXiv paper search and analysis: 'find papers on ArXiv', 'search ArXiv for', 'download ArXiv paper', 'analyze paper 1605.08386', 'what papers are available on', 'ArXiv ID', 'arxiv.org' → use arxiv_agent\n"
             + "- Prusa printer management: 'printer status', 'print jobs', 'pause print', 'resume print', 'stop print', 'start print', 'Prusa Connect', 'printer', '3D printer' → use prusa_agent\n"
             + "- SLICING STL to G-code or OPENING GUI applications or EXECUTING CLI commands: 'open PrusaSlicer', 'open Terminal', 'open Mail', 'slice file.stl to gcode', 'execute pwd' → use cli_agent\n"
