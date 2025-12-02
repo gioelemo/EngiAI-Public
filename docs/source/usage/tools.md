@@ -26,26 +26,34 @@ paper = arxiv_tools.get_paper("2301.12345")
 
 ## RAG Tools
 
-Retrieve information from your knowledge base.
+Retrieve information from your knowledge base using MMORE.
 
-### `rag_query`
+### `search_documents`
 
-Query the vector store for relevant documents.
+Query MMORE for relevant documents.
 
 ```python
-from src.tools import rag_chain
+from src.tools import MMOREClient
 
-answer = rag_chain.query("What is topology optimization?")
+mmore = MMOREClient()
+results = mmore.retrieve(
+    query="What is topology optimization?",
+    max_matches=5
+)
 ```
 
-### `add_documents`
+### `upload_file`
 
-Add new documents to the knowledge base.
+Add new documents to MMORE.
 
 ```python
-from src.tools import vector_store
+from src.tools import MMOREClient
 
-vector_store.add_documents(["document.pdf", "paper.txt"])
+mmore = MMOREClient()
+response = mmore.upload_file(
+    file_path="document.pdf",
+    file_id="my_document"
+)
 ```
 
 ## HPC Tools

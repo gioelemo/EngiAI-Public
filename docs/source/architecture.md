@@ -93,7 +93,7 @@ Engineering Agent creates problem → optimizes → renders → exports STL
 Queries the knowledge base using Retrieval-Augmented Generation.
 
 **Tools**:
-- Vector store similarity search
+- MMORE multimodal document search
 - Document retrieval
 - Context-aware question answering
 
@@ -101,7 +101,7 @@ Queries the knowledge base using Retrieval-Augmented Generation.
 ```
 User: "What papers discuss topology optimization?"
   ↓
-RAG Agent searches vector store → retrieves relevant chunks → generates answer
+RAG Agent searches MMORE → retrieves relevant chunks → generates answer
 ```
 
 #### ArXiv Agent
@@ -180,8 +180,7 @@ Tools are reusable functions that agents use to complete tasks.
 
 **Key Tool Modules**:
 - `engibench.py` - Engineering optimization
-- `rag_chain.py` - Document retrieval
-- `vector_store.py` - ChromaDB integration
+- `mmore_client.py` - MMORE RAG service client
 - `arxiv_tools.py` - Paper search
 - `search.py` - Web search (Tavily)
 - `hpc.py` - SLURM operations
@@ -202,7 +201,7 @@ Tools are reusable functions that agents use to complete tasks.
 - **Embeddings**: text-embedding-3-small (OpenAI)
 
 ### Storage
-- **Vector DB**: ChromaDB (for RAG)
+- **RAG Service**: MMORE (multimodal document retrieval)
 - **Relational DB**: PostgreSQL or SQLite (for chat persistence)
 - **File Storage**: Local filesystem
 
@@ -335,7 +334,7 @@ HPC_HOST_ALIAS=euler       # SSH config alias
 
 - **Response Time**: 2-10 seconds (depends on LLM and tools used)
 - **Concurrent Users**: Supports multiple simultaneous chats
-- **Vector Search**: Sub-second retrieval from ChromaDB
+- **Document Search**: Sub-second retrieval from MMORE service
 - **HPC Operations**: Asynchronous, non-blocking
 - **File Operations**: Handles PDFs up to 100MB
 

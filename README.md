@@ -11,6 +11,25 @@ Jarvis-Style Multimodal AI Assistant for Closed-Loop Design-for-Manufacturing Co
 
 ## 🎯 Quick Start
 
+### Prerequisites
+
+Before starting, ensure you have these external services set up:
+
+1. **MMORE RAG Service** (Required) - Multimodal document retrieval
+   ```bash
+   # Contact the MMORE team or check internal documentation for repository access
+   git clone <mmore-repository-url>
+   cd mmore
+   # Follow MMORE setup instructions to run at http://localhost:8000
+   ```
+
+2. **Prusa MCP Server** (Optional) - Only needed for 3D printer integration
+   ```bash
+   # Use the prusa_mcp_server directory in this repository
+   cd prusa_mcp_server
+   # Follow Prusa MCP setup instructions in README.md
+   ```
+
 ### 🚀 Fastest Way: Docker (Recommended)
 
 ```bash
@@ -20,7 +39,7 @@ cd engineer-assistant
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env with your OpenAI and Tavily API keys
+# Edit .env with your API keys and MMORE_RAG_URL
 
 # 3. Start the application
 docker-compose up -d
@@ -356,7 +375,6 @@ For convenience, common commands are available via Makefile:
 make help          # Show all available commands
 make install       # Install/update conda environment
 make run-ui        # Start Streamlit web interface
-make run-cli       # Start CLI chat interface
 make run-mcp       # Start standalone Prusa MCP server
 make test          # Run all tests
 make test-fast     # Run only fast tests
@@ -372,12 +390,7 @@ make docs-watch    # Serve docs with live reload
 
 ### Engineering Agent with EngiBench
 
-The engineering agent uses [EngiBench](https://engibench.ethz.ch), a library for engineering design benchmarking and optimization.
-
-**Install EngiBench:**
-```bash
-pip install engibench
-```
+The engineering agent uses [EngiBench](https://engibench.ethz.ch), a library for engineering design benchmarking and optimization (automatically installed with the project dependencies).
 
 **What you can do:**
 - Optimize 2D beam structures for minimum compliance

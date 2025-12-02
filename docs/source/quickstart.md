@@ -2,6 +2,22 @@
 
 This guide will get you up and running with Engineer Assistant in 5 minutes.
 
+## Prerequisites
+
+Before starting, you need to set up the **MMORE RAG service** (required for document retrieval):
+
+```bash
+# Contact the MMORE team or check internal documentation for repository access
+git clone <mmore-repository-url>
+cd mmore
+# Follow MMORE setup and deployment instructions
+# Ensure it's running at http://localhost:8000
+```
+
+**What is MMORE?** A multimodal RAG (Retrieval-Augmented Generation) service that enables the assistant to search and answer questions about your uploaded documents (PDFs, papers, etc.).
+
+---
+
 ## 🚀 Fastest Way: Docker (Recommended)
 
 The easiest and most reliable way to get started:
@@ -23,6 +39,8 @@ cp .env.example .env
 Get API keys from:
 - [OpenAI](https://platform.openai.com/api-keys)
 - [Tavily](https://tavily.com/)
+
+**Important:** Verify `MMORE_RAG_URL=http://localhost:8000` in your `.env` file points to your running MMORE service.
 
 ### 3. Start the Application
 
@@ -101,7 +119,26 @@ The UI will open in your browser at `http://localhost:8501`
 
 ---
 
-## Try Your First Query
+## Next Steps
+
+### Import Your Documents (Optional)
+
+To enable document Q&A with your own PDFs:
+
+```bash
+# 1. Configure paper directory in .env
+echo "PAPERS_SOURCE_DIR=/path/to/your/pdfs" >> .env
+
+# 2. Import papers to MMORE
+python scripts/import_local_papers.py
+
+# 3. Ask questions about your documents
+# In the UI: "What does my research say about topology optimization?"
+```
+
+See the [Paper Import Guide](paper_import_guide.md) for detailed instructions.
+
+### Try Your First Query
 
 ### Research Workflow
 

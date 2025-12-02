@@ -8,6 +8,31 @@ This guide explains how to deploy the Engineer Assistant chatbot using Docker on
 - Docker Compose (optional, but recommended)
 - API keys for OpenAI and Tavily
 
+### External Services (Required)
+
+The following services must be cloned locally and accessible to the Docker containers:
+
+1. **MMORE RAG Service** - Multimodal document retrieval system
+   ```bash
+   # Contact the MMORE team or check internal documentation for repository access
+   git clone <mmore-repository-url>
+   cd mmore
+   # Follow MMORE setup instructions
+   ```
+   - Default URL: `http://localhost:8000`
+   - Configure with `MMORE_RAG_URL` in `.env`
+
+2. **Prusa Connect MCP Server** (Optional - only if using 3D printer integration)
+   ```bash
+   # Use the prusa_mcp_server directory in this repository
+   cd prusa_mcp_server
+   # Follow Prusa MCP setup instructions in README.md
+   ```
+   - Configure with `PRUSA_MCP_PATH` in `.env`
+   - Set `SKIP_MCP=false` to enable
+
+These services run as separate containers/processes and the Engineer Assistant connects to them via network.
+
 ## Quick Start
 
 ### Option 1: Using Docker Compose (Recommended)

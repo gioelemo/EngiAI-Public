@@ -75,10 +75,7 @@ Similar to script #2, but with different extrusion method.
 
 ## Requirements
 
-Install required dependencies:
-```bash
-pip install numpy-stl torch wandb engibench engiopt
-```
+All required dependencies (`numpy-stl`, `torch`, `wandb`, `engibench`, `engiopt`) are automatically installed with the project. See the main README for setup instructions.
 
 ---
 

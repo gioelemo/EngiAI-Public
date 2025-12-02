@@ -59,7 +59,7 @@ docs-watch:
 # Serve documentation locally
 .PHONY: docs-serve
 docs-serve:
-	cd docs/build/dirhtml && python -m http.server 8000
+	cd docs/build/dirhtml && python -m http.server 8001
 
 docs-clean:  ## Clean documentation build files
 	cd docs && $(MAKE) clean

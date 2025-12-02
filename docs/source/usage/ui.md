@@ -60,7 +60,7 @@ Configure the assistant:
 - **API Keys**: Set LangChain, OpenAI, or other API keys
 - **Model Selection**: Choose LLM models
 - **HPC Configuration**: Set cluster credentials
-- **RAG Settings**: Configure vector store and retrieval
+- **RAG Settings**: Configure MMORE service and retrieval
 
 ### 6. Database Browser
 
@@ -68,8 +68,8 @@ Explore your knowledge base:
 
 - Browse imported papers
 - View document metadata
-- Search the vector store
-- Manage collections
+- Search MMORE documents
+- Manage uploaded files
 
 ## Usage Examples
 
@@ -142,7 +142,7 @@ The UI automatically saves:
 - Chat history (in `data/chats/`)
 - Uploaded files (in `data/uploads/`)
 - User preferences (in `data/settings.json`)
-- Vector store data (in `data/chroma_db/`)
+- MMORE document tracking (in database)
 
 ## Troubleshooting
 

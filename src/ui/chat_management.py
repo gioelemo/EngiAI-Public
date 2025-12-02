@@ -14,8 +14,6 @@ from langchain.chat_models import init_chat_model
 
 from config import config
 from src.agents.supervisor_agent import SupervisorAgent
-
-# ChromaDB imports removed - now using MMORE via agents
 from src.ui.database import DatabaseManager
 
 logger = logging.getLogger(__name__)

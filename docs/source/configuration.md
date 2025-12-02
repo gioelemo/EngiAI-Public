@@ -28,11 +28,23 @@ OPENAI_API_KEY=sk-your-openai-api-key-here
 
 # Tavily API Key (Required for web search)
 TAVILY_API_KEY=tvly-your-tavily-api-key-here
+
+# MMORE RAG Service (Required for document retrieval)
+MMORE_RAG_URL=http://localhost:8000
 ```
 
 **Where to get keys:**
 - **OpenAI**: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 - **Tavily**: [https://tavily.com/](https://tavily.com/)
+
+**External Services:**
+- **MMORE**: Clone and deploy the MMORE service locally before starting Engineer Assistant
+  ```bash
+  # Contact the MMORE team or check internal documentation for repository access
+  git clone <mmore-repository-url>
+  cd mmore
+  # Follow MMORE setup and deployment instructions
+  ```
 
 ### Optional Variables
 
@@ -53,12 +65,108 @@ WANDB_API_KEY=your-wandb-key
 WANDB_PROJECT=engineer-assistant
 WANDB_ENTITY=your-team
 
-# Prusa Slicer (for 3D printing)
+# Prusa 3D Printer Integration (optional)
+SKIP_MCP=true                    # Set to false to enable Prusa integration
+PRUSA_MCP_PATH=/path/to/prusa-mcp  # Path to cloned Prusa MCP server
 PRUSA_SLICER_PATH=/Applications/PrusaSlicer.app/Contents/MacOS/PrusaSlicer
 
 # Database (optional, uses SQLite by default)
 DATABASE_URL=sqlite:///data/engineer_assistant.db
 ```
+
+**For Prusa 3D printer integration:**
+- Use the Prusa MCP server from this repository:
+  ```bash
+  # Available in prusa_mcp_server/ directory
+  # See prusa_mcp_server/README.md for setup
+  ```
+- Set `SKIP_MCP=false` and configure `PRUSA_MCP_PATH`
+
+### Document Processing Variables
+
+For PDF and document processing features:
+
+```bash
+# MathPix API (for PDF text extraction)
+MATHPIX_API_ID=your-mathpix-api-id
+MATHPIX_API_KEY=your-mathpix-api-key
+
+# Paper Import Configuration
+PAPERS_SOURCE_DIR=/path/to/papers  # Directory containing PDFs to import
+PAPERS_STATE_FILE=data/local_import_state.json  # Tracks imported papers
+```
+
+**Getting MathPix API:**
+1. Sign up at [mathpix.com](https://mathpix.com/)
+2. Get API credentials from your dashboard
+3. Free tier available for testing
+
+**Paper Import:**
+- `PAPERS_SOURCE_DIR`: Point to your local papers directory (or network share)
+- Papers are automatically uploaded to MMORE service
+- Progress tracked in `PAPERS_STATE_FILE`
+- See [Paper Import Guide](paper_import_guide.md) for details
+
+### Observability & Debugging
+
+For monitoring and debugging:
+
+```bash
+# LangSmith Tracing (optional)
+LANGSMITH_TRACING=false  # Set to true to enable
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=your-langsmith-key
+LANGSMITH_PROJECT=engineer-assistant
+
+# Host Service (Docker GUI integration)
+HOST_SERVICE_PORT=9999  # Port for opening GUI apps from Docker
+```
+
+**LangSmith Setup:**
+1. Create account at [smith.langchain.com](https://smith.langchain.com/)
+2. Get API key from settings
+3. Monitor LLM calls, costs, and performance
+4. Debug conversation flows and tool usage
+
+### Hugging Face Integration
+
+For ML model downloads:
+
+```bash
+# Hugging Face
+HF_TOKEN=your-huggingface-token
+HF_HOME=$HOME/.cache/huggingface/hub
+HF_DATASETS_CACHE=$HOME/.cache/huggingface/datasets
+```
+
+**Getting HF Token:**
+1. Create account at [huggingface.co](https://huggingface.co/)
+2. Go to Settings → Access Tokens
+3. Create token with "Read" permission
+
+### Advanced SLURM Configuration
+
+For HPC job submission (advanced users):
+
+```bash
+# SLURM Job Defaults
+SLURM_TIME=00:45:00           # Max job duration
+SLURM_NTASKS=1                # Number of tasks
+SLURM_CPUS_PER_TASK=4         # CPUs per task
+SLURM_MEM_PER_CPU=7GB         # Memory per CPU
+SLURM_GPUS=rtx_4090:1         # GPU specification
+
+# Module Loading
+SLURM_STACK_MODULE=stack/2024-06
+SLURM_GCC_MODULE=gcc/12.2.0
+SLURM_PYTHON_MODULE=python_cuda/3.11.6
+SLURM_CUDA_MODULE=cuda/12.8.0
+
+# Email Notifications
+SLURM_EMAIL_USER=your@email.com
+```
+
+**Note:** Many SLURM settings can be configured via the Settings UI (⚙️ Settings > SLURM Cluster Configuration). Environment variables serve as fallback defaults.
 
 ## LLM Models
 
@@ -80,11 +188,14 @@ LLM_MODEL=anthropic:claude-3-sonnet
 ### Model Parameters
 
 ```bash
-LLM_TEMPERATURE=0.0   # Deterministic (recommended for engineering)
-LLM_TEMPERATURE=0.7   # More creative responses
-LLM_TEMPERATURE=1.0   # Maximum creativity
+# Temperature: Controls randomness in responses (0.0 to 2.0)
+LLM_TEMPERATURE=0.0   # Deterministic, focused (recommended for engineering)
+LLM_TEMPERATURE=0.7   # Balanced creativity (default)
+LLM_TEMPERATURE=1.0   # More creative and varied responses
 
-LLM_MAX_TOKENS=4096   # Maximum response length
+# Note: Higher temperature increases creativity but may reduce accuracy
+# For engineering tasks, use 0.0-0.3 for precision
+# For brainstorming, use 0.7-1.0 for variety
 ```
 
 ## HPC Configuration
@@ -134,7 +245,8 @@ For experiment tracking:
 
 See the [Database Setup Guide](database_setup.md) for detailed instructions on:
 
-- Setting up ChromaDB
+- Setting up PostgreSQL or SQLite for conversation history
+- Configuring the MMORE RAG service for document retrieval
 
 ## VS Code Settings
 

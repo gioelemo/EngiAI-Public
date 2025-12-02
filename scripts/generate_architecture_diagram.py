@@ -465,8 +465,8 @@ ax.text(
     color="gray",
 )
 
-# ChromaDB Vector Store
-chroma_box = FancyBboxPatch(
+# MMORE RAG Service
+mmore_box = FancyBboxPatch(
     (6.5, storage_y),
     5.0,
     storage_height,
@@ -475,11 +475,11 @@ chroma_box = FancyBboxPatch(
     facecolor=color_storage,
     linewidth=2,
 )
-ax.add_patch(chroma_box)
+ax.add_patch(mmore_box)
 ax.text(
     9.0,
     storage_y + storage_height - 0.2,
-    "ChromaDB Vector Store",
+    "MMORE RAG Service",
     fontsize=11,
     ha="center",
     fontweight="bold",
@@ -487,7 +487,7 @@ ax.text(
 ax.text(
     9.0,
     storage_y + storage_height - 0.5,
-    "Document embeddings for RAG",
+    "Multimodal document retrieval",
     fontsize=8,
     ha="center",
     style="italic",

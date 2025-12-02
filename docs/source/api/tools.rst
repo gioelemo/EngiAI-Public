@@ -14,30 +14,10 @@ ArXiv Tools
    :special-members: __init__
 
 
-RAG Chain
----------
-
-.. automodule:: src.tools.rag_chain
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :special-members: __init__
-
-
-Vector Store
+MMORE Client
 ------------
 
-.. automodule:: src.tools.vector_store
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :special-members: __init__
-
-
-Document Processor
-------------------
-
-.. automodule:: src.tools.document_processor
+.. automodule:: src.tools.mmore_client
    :members:
    :undoc-members:
    :show-inheritance:

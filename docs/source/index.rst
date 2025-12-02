@@ -8,7 +8,7 @@ Engineer Assistant is a sophisticated multi-agent system that combines:
 * **🐳 Docker Deployment**: Production-ready containerized deployment
 * **🤖 Multi-Agent System**: Supervisor coordinates specialized agents
 * **🔧 Engineering Tools**: EngiBench integration for structural optimization
-* **📚 RAG System**: Document Q&A with vector store and multimodal support
+* **📚 RAG System**: Document Q&A with MMORE multimodal RAG service
 * **🖨️ 3D Printer Integration**: Prusa Connect integration via MCP
 * **🖥️ HPC Integration**: SLURM job management for remote compute clusters
 * **🔍 Research Tools**: ArXiv search and web research capabilities
@@ -105,8 +105,8 @@ Key Capabilities
 
 **Research & Knowledge**
    * ArXiv paper search and download
-   * RAG-based document Q&A
-   * Vector store with ChromaDB
+   * RAG-based document Q&A with MMORE
+   * Multimodal document processing
    * PDF processing and chunking
 
 **3D Printing**
@@ -133,7 +133,7 @@ Technology Stack
 
 * **Frameworks**: LangGraph, LangChain, Streamlit, Fabric
 * **LLMs**: OpenAI GPT-4o, GPT-4-turbo, Claude 3.5 Sonnet
-* **Storage**: ChromaDB (vector), PostgreSQL/SQLite (relational)
+* **Storage**: MMORE (RAG), PostgreSQL/SQLite (relational)
 * **Integrations**: EngiBench, Prusa Connect, Weights & Biases, Tavily
 
 Deployment Options

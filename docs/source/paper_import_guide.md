@@ -1,34 +1,80 @@
 # Paper Import Guide
 
-This guide explains how to automatically import PDF papers from your local filesystem or mounted network share into your MMORE RAG system.
+This guide explains how to automatically import PDF papers from your local filesystem or mounted network share into your MMORE RAG system for document-based Q&A.
 
 ## Overview
 
-The import script (`scripts/import_local_papers.py` in the project root) provides automatic importing of PDF papers from local directories or mounted shares. It supports:
+The paper import workflow allows you to:
+- Upload research papers, documentation, and PDFs to the MMORE service
+- Search and query these documents using natural language
+- Get answers with context from your document collection
+- Track which documents have been uploaded
+
+The import script (`scripts/import_local_papers.py`) provides automatic importing with:
 
 - **Incremental Updates**: Only processes new or modified files
-- **State Tracking**: Remembers which files have been imported
+- **State Tracking**: Remembers which files have been imported (in database)
 - **Error Handling**: Continues processing even if individual files fail
-- **Retry Logic**: Automatic retry with exponential backoff for failed uploads
+- **Retry Logic**: Automatic retry with exponential backoff for failed uploads (3 attempts)
 - **Recursive Directory Scanning**: Processes PDFs in subdirectories
 - **Metadata Tracking**: Tags documents with source information in database
 - **Dry-Run Mode**: Preview what will be imported without making changes
+- **Large File Support**: Handles files up to 100MB with progress tracking
+
+## Workflow
+
+```
+┌─────────────────┐
+│ Local PDFs      │
+│ (Your Computer  │
+│  or Network     │
+│  Share)         │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐      ┌──────────────────┐
+│ import_local_   │─────>│ MMORE Service    │
+│ papers.py       │      │ (localhost:8000) │
+│ (Upload Script) │      │                  │
+└─────────────────┘      └────────┬─────────┘
+         │                        │
+         │                        ▼
+         │               ┌─────────────────┐
+         │               │ Document Store  │
+         │               │ (Searchable)    │
+         │               └─────────────────┘
+         ▼
+┌─────────────────┐
+│ Database        │
+│ (Track State)   │
+└─────────────────┘
+```
 
 ## Installation
 
 ### 1. Install Dependencies
 
-Install all required dependencies:
+All dependencies are automatically installed when you set up the project:
 
 ```bash
-pip install -e .
+# If using conda
+conda activate engineer-assistant
+
+# If using Docker
+# Dependencies are already included in the container
 ```
 
-This will install all dependencies including `langchain`, `requests`, and other required packages.
+### 2. Verify MMORE Service
 
-### 2. Start MMORE Service
+Ensure the MMORE RAG service is running at `http://localhost:8000`:
 
-Ensure the MMORE RAG service is running. See Docker deployment documentation for details.
+```bash
+# Test MMORE service is responding
+curl http://localhost:8000/health
+# Should return: {"status": "healthy"} or similar
+```
+
+If MMORE is not running, see the [Installation Guide](installation.md) for setup instructions.
 
 ### 3. Configure Import Path
 
@@ -43,29 +89,57 @@ MMORE_RAG_URL=http://localhost:8000  # MMORE service URL
 
 **Configuration Parameters:**
 
-- `PAPERS_SOURCE_DIR`: Path to directory containing PDFs (can be a mounted network share like `/Volumes/ShareName`)
+- `PAPERS_SOURCE_DIR`: Path to directory containing PDFs (can be a mounted network share)
+  - Examples: `/Volumes/ShareName/Papers` (macOS), `/mnt/share/papers` (Linux), `C:/Papers` (Windows)
 - `PAPERS_STATE_FILE`: JSON file tracking import state (default: `data/local_import_state.json`)
+  - Tracks file paths, sizes, modification times, and upload status
+  - Used to detect changes and avoid re-uploading unchanged files
 - `MMORE_RAG_URL`: MMORE service URL (default: `http://localhost:8000`)
+
+**Important Notes:**
+
+- **State Tracking**: The script uses both the state file AND the database to track uploads
+  - State file: Quick lookup for file metadata (size, mtime)
+  - Database: Authoritative record of successfully uploaded documents
+- **File Size Limit**: Files larger than 50MB will trigger a warning but still upload
+- **Network Shares**: Works with any mounted filesystem (NFS, SMB, AFP, etc.)
 
 **For Mounted Network Shares:**
 
-If you have a network share already mounted (e.g., `/Volumes/Soheyl` on macOS or `/mnt/share` on Linux), simply use that path:
+If you have a network share mounted, use that path directly:
 
 ```bash
+# macOS example
 PAPERS_SOURCE_DIR=/Volumes/Soheyl/gioelemo/RAG/Papers
+
+# Linux example
+PAPERS_SOURCE_DIR=/mnt/network_share/papers
+
+# Windows example (in WSL or Git Bash)
+PAPERS_SOURCE_DIR=/mnt/c/Users/YourName/Documents/Papers
 ```
 
 ## Usage
 
-### Basic Usage
+### Quick Start
 
 Once configured in `.env`, simply run:
 
 ```bash
+# From project root directory
 python scripts/import_local_papers.py
+
+# This will:
+# 1. Scan PAPERS_SOURCE_DIR for PDFs
+# 2. Compare with previously imported files
+# 3. Upload only new or modified files to MMORE
+# 4. Update database with document metadata
+# 5. Save progress to PAPERS_STATE_FILE
 ```
 
-Or specify the source directory directly:
+### Command-Line Usage
+
+Specify the source directory directly:
 
 ```bash
 python scripts/import_local_papers.py /Volumes/Soheyl/gioelemo/RAG/Papers
@@ -73,15 +147,22 @@ python scripts/import_local_papers.py /Volumes/Soheyl/gioelemo/RAG/Papers
 
 **Configuration Priority:**
 1. Command-line argument (highest priority)
-2. Environment variable from `.env`
-3. Config file (if provided with `--config`)
+2. `PAPERS_SOURCE_DIR` environment variable from `.env`
+3. Default: `./papers/` (relative to script location)
 
 ### Dry-Run Mode
 
-Preview what files will be imported without actually importing them:
+Preview what will be imported without uploading:
 
 ```bash
 python scripts/import_local_papers.py --dry-run
+
+# Output example:
+# Found 150 PDF files
+# 120 already imported (unchanged)
+# 25 new files to import
+# 5 modified files to re-import
+# Total to process: 30 files
 ```
 
 ### Command-Line Options
@@ -489,8 +570,7 @@ Use the importer in your own scripts:
 from scripts.import_local_papers import LocalPaperImporter
 
 importer = LocalPaperImporter(
-    source_dir="/path/to/papers",
-    collection_name="engineer_docs"
+    source_dir="/path/to/papers"
 )
 
 stats = importer.run(dry_run=False, max_files=10)
@@ -505,7 +585,6 @@ For ETHZ users with mounted shares, add to `.env`:
 # Paper Import Configuration
 PAPERS_SOURCE_DIR=/Volumes/Soheyl/gioelemo/RAG/Papers
 PAPERS_STATE_FILE=data/local_import_state.json
-PAPERS_COLLECTION=engineer_docs
 ```
 
 Then simply run:
@@ -531,13 +610,37 @@ For issues or questions:
 4. Verify `.env` configuration is correct
 5. Check project README for general setup issues
 
-## Future Enhancements
+## Quick Reference
 
-Planned improvements:
+### Common Commands
 
-- Support for other file formats (DOCX, TXT, HTML, etc.)
-- Automatic deletion tracking for removed files
-- File versioning support
-- Parallel processing for faster imports
-- Web UI for configuration and monitoring
-- Email/Slack notifications for import status
+| Command | Description |
+|---------|-------------|
+| `python scripts/import_local_papers.py` | Import all new/modified papers from `PAPERS_SOURCE_DIR` |
+| `python scripts/import_local_papers.py --dry-run` | Preview what will be imported |
+| `python scripts/import_local_papers.py --verbose` | Show detailed progress |
+| `python scripts/import_local_papers.py --max-files 10` | Import only first 10 files |
+| `python scripts/inspect_mmore.py` | List all uploaded documents |
+| `python scripts/inspect_mmore.py --stats` | Show upload statistics |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `.env` | Configuration (PAPERS_SOURCE_DIR, MMORE_RAG_URL) |
+| `data/local_import_state.json` | Tracks file metadata and upload status |
+| `data/conversations.db` | Database with document records |
+| `data/local_import.log` | Import operation logs |
+| `scripts/import_local_papers.py` | Main import script |
+| `scripts/inspect_mmore.py` | Document inspection tool |
+
+### Retry Behavior
+
+| Attempt | Wait Time | Total Time |
+|---------|-----------|------------|
+| 1 | 0s | 0s |
+| 2 | 5s | 5s |
+| 3 | 10s | 15s |
+| Failed | - | Give up after 15s |
+
+Files larger than 50MB get extra warnings but still upload with retry logic.

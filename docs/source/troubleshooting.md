@@ -466,9 +466,9 @@ chmod 644 ~/.ssh/known_hosts
 
 **Possible Causes**:
 
-1. **Large vector store**:
-   - Reduce number of documents
-   - Clear old documents
+1. **Large document collection**:
+   - Monitor MMORE service performance
+   - Consider limiting search scope with file_ids
 
 2. **Slow API responses**:
    - Check OpenAI API status

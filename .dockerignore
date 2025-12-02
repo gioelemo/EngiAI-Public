@@ -76,7 +76,6 @@ artifacts/
 
 # Database files (should not be in container)
 data/chats/
-data/chroma_db/
 data/conversations.db
 data/*.db
 *.db

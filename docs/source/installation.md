@@ -8,28 +8,56 @@ Docker provides the easiest, most reliable installation with all dependencies is
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running
 - Git installed on your system
+- **MMORE RAG Service** running locally (see step 1 below)
 
 ### Installation Steps
 
-#### 1. Clone the Repository
+#### 1. Set Up External Services
+
+Before installing Engineer Assistant, you need to set up the required external services:
+
+**MMORE RAG Service** (Required):
+```bash
+# Clone and start MMORE service
+# Contact the MMORE team or check internal documentation for repository access
+git clone <mmore-repository-url>
+cd mmore
+# Follow MMORE setup and deployment instructions
+# Ensure it's running at http://localhost:8000
+```
+
+**Prusa Connect MCP** (Optional - for 3D printer integration):
+```bash
+# Clone Prusa MCP server from the prusa_mcp_server directory in this repo
+# Or set up external Prusa MCP deployment
+cd prusa_mcp_server
+# Follow Prusa MCP setup instructions in prusa_mcp_server/README.md
+```
+
+#### 2. Clone the Repository
 
 ```bash
 git clone https://github.com/gioelemo/engineer-assistant.git
 cd engineer-assistant
 ```
 
-#### 2. Configure Environment
+#### 3. Configure Environment
 
 ```bash
 cp .env.example .env
 # Edit .env with your API keys
 ```
 
-Required API keys:
-- **OpenAI**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
-- **Tavily**: Get from [Tavily](https://tavily.com/)
+Required configuration:
+- **OpenAI API Key**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
+- **Tavily API Key**: Get from [Tavily](https://tavily.com/)
+- **MMORE_RAG_URL**: URL to MMORE service (default: `http://localhost:8000`)
 
-#### 3. Start with Docker Compose
+Optional (for Prusa 3D printer integration):
+- **PRUSA_MCP_PATH**: Path to Prusa MCP server
+- **SKIP_MCP**: Set to `false` to enable (default: `true`)
+
+#### 4. Start with Docker Compose
 
 **Basic deployment (no Prusa 3D printer integration)**:
 ```bash
@@ -41,7 +69,7 @@ docker-compose up -d
 docker-compose -f docker-compose.mcp.yml up -d
 ```
 
-#### 4. Verify Installation
+#### 5. Verify Installation
 
 Access the UI at: **http://localhost:8501**
 
@@ -50,7 +78,7 @@ Check containers are running:
 docker-compose ps
 ```
 
-#### 5. View Logs
+#### 6. View Logs
 
 ```bash
 docker-compose logs -f chatbot

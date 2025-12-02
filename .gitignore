@@ -200,7 +200,6 @@ outputs/
 
 # Chat data (user conversations)
 data/chats/
-data/chroma_db/
 data/conversations.db
 data/*.db
 *.db

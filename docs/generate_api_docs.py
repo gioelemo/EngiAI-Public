@@ -47,9 +47,7 @@ def main() -> None:
         ],
         "tools.rst": [
             ("src.tools.arxiv_tools", "ArXiv Tools"),
-            ("src.tools.rag_chain", "RAG Chain"),
-            ("src.tools.vector_store", "Vector Store"),
-            ("src.tools.document_processor", "Document Processor"),
+            ("src.tools.mmore_client", "MMORE Client"),
             ("src.tools.hpc", "HPC Tools"),
             ("src.tools.cli", "CLI Tools"),
             ("src.tools.connection", "Connection Tools"),
