@@ -338,7 +338,7 @@ The system includes specialized agents coordinated by a supervisor:
 
 - **Engineering Agent**: Structural optimization with EngiBench
 - **Search Agent**: Web research and information gathering
-- **RAG Agent**: Document Q&A with vector store
+- **RAG Agent**: Document Q&A with MMORE multimodal RAG
 - **ArXiv Agent**: Scientific paper search and analysis
 - **Prusa Agent**: 3D printer management via Prusa Connect (optional)
 - **HPC Agent**: HPC cluster job management via SSH
@@ -681,7 +681,7 @@ python connection.py submit outputs/test.slurm
 - **🤖 Multi-Agent System**: Supervisor coordinates specialized agents (Engineering, Search, RAG, HPC, Prusa, CLI)
 - **💬 Interactive UI**: Streamlit web interface with chat, file uploads, and visualization
 - **🔧 Engineering Tools**: EngiBench integration for structural optimization and topology design
-- **🔍 RAG System**: Document Q&A with vector store (ChromaDB) and multimodal support
+- **🔍 RAG System**: Document Q&A with MMORE multimodal RAG service
 - **🖨️ 3D Printer Integration**: Prusa Connect integration via MCP (Model Context Protocol)
 - **🖥️ HPC Integration**: SLURM job management for remote compute clusters
 - **📊 Database Support**: PostgreSQL and SQLite for conversation persistence
@@ -735,10 +735,9 @@ python connection.py submit outputs/test.slurm
 │   │   ├── engibench.py         # Engineering optimization
 │   │   ├── engiopt.py           # EngiOpt integration
 │   │   ├── hpc.py               # HPC monitoring
+│   │   ├── mmore_client.py      # MMORE RAG service client
 │   │   ├── rag_chain.py         # RAG pipeline
 │   │   ├── search.py            # Web search
-│   │   ├── stl_export.py        # 3D model export
-│   │   └── vector_store.py      # ChromaDB integration
 │   ├── ui/                      # Streamlit web interface
 │   │   ├── streamlit_app.py     # Main Streamlit app
 │   │   ├── chat.py              # Chat page
@@ -751,11 +750,11 @@ python connection.py submit outputs/test.slurm
 ├── scripts/                     # Utility scripts
 │   ├── 2D_heatmap_to_stl_extruded.py  # Convert heatmaps to 3D
 │   ├── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL
-│   ├── import_local_papers.py   # Import PDFs to vector store
+│   ├── import_local_papers.py   # Import PDFs to MMORE
+│   ├── inspect_mmore.py         # Inspect MMORE documents
 │   ├── generate_architecture_diagram.py  # Agent system diagram
 │   └── generate_docker_mcp_diagram.py    # Docker MCP deployment diagram
 ├── data/                        # Data directory (gitignored)
-│   ├── chroma_db/               # Vector store database
 │   └── conversations.db         # SQLite chat history
 ├── outputs/                     # Generated outputs
 │   ├── *.slurm                  # Generated SLURM job scripts

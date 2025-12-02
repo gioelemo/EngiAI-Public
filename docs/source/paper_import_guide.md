@@ -1,6 +1,6 @@
 # Paper Import Guide
 
-This guide explains how to automatically import PDF papers from your local filesystem or mounted network share into your RAG system.
+This guide explains how to automatically import PDF papers from your local filesystem or mounted network share into your MMORE RAG system.
 
 ## Overview
 
@@ -9,8 +9,9 @@ The import script (`scripts/import_local_papers.py` in the project root) provide
 - **Incremental Updates**: Only processes new or modified files
 - **State Tracking**: Remembers which files have been imported
 - **Error Handling**: Continues processing even if individual files fail
+- **Retry Logic**: Automatic retry with exponential backoff for failed uploads
 - **Recursive Directory Scanning**: Processes PDFs in subdirectories
-- **Metadata Tracking**: Tags documents with source information
+- **Metadata Tracking**: Tags documents with source information in database
 - **Dry-Run Mode**: Preview what will be imported without making changes
 
 ## Installation
@@ -23,9 +24,13 @@ Install all required dependencies:
 pip install -e .
 ```
 
-This will install all dependencies including `langchain`, `chromadb`, and other required packages.
+This will install all dependencies including `langchain`, `requests`, and other required packages.
 
-### 2. Configure Import Path
+### 2. Start MMORE Service
+
+Ensure the MMORE RAG service is running. See Docker deployment documentation for details.
+
+### 3. Configure Import Path
 
 Add the following to your `.env` file:
 
@@ -33,14 +38,14 @@ Add the following to your `.env` file:
 # Paper Import Configuration
 PAPERS_SOURCE_DIR=/path/to/your/papers
 PAPERS_STATE_FILE=data/local_import_state.json
-PAPERS_COLLECTION=engineer_docs
+MMORE_RAG_URL=http://localhost:8000  # MMORE service URL
 ```
 
 **Configuration Parameters:**
 
 - `PAPERS_SOURCE_DIR`: Path to directory containing PDFs (can be a mounted network share like `/Volumes/ShareName`)
 - `PAPERS_STATE_FILE`: JSON file tracking import state (default: `data/local_import_state.json`)
-- `PAPERS_COLLECTION`: Chroma collection name for the documents (default: `engineer_docs`)
+- `MMORE_RAG_URL`: MMORE service URL (default: `http://localhost:8000`)
 
 **For Mounted Network Shares:**
 
@@ -85,7 +90,6 @@ python scripts/import_local_papers.py --dry-run
 
 - `source_dir`: Path to directory containing PDFs (positional argument)
 - `--state-file`: Import state file (default: from `PAPERS_STATE_FILE` or `data/local_import_state.json`)
-- `--collection`: Chroma collection name (default: from `PAPERS_COLLECTION` or `engineer_docs`)
 - `--dry-run`: List files without importing
 - `--max-files`: Maximum number of files to import
 - `--verbose`, `-v`: Enable verbose logging
@@ -108,9 +112,6 @@ python scripts/import_local_papers.py --dry-run --max-files 5
 # Import only 10 files at a time
 python scripts/import_local_papers.py --max-files 10
 
-# Use different collection
-python scripts/import_local_papers.py --collection research_papers
-
 # Verbose logging for debugging
 python scripts/import_local_papers.py --verbose
 ```
@@ -121,10 +122,11 @@ python scripts/import_local_papers.py --verbose
 
 1. **Scan for PDFs**: Recursively lists all PDF files in the source directory
 2. **Filter New Files**: Compares against state file to find new/modified files
-3. **Process PDFs**: Extracts text using MathpixPDFLoader
-4. **Add to Vector Store**: Creates embeddings and stores in Chroma
-5. **Update State**: Records imported files with metadata
-6. **Save State**: Persists state for next run
+3. **Upload to MMORE**: Sends PDF file to MMORE service for processing
+4. **Retry on Failure**: Automatically retries failed uploads with exponential backoff (3 attempts)
+5. **Track in Database**: Records uploaded files in local SQLite database
+6. **Update State**: Records imported files with metadata
+7. **Save State**: Persists state after each successful upload
 
 ### State Tracking
 
@@ -133,26 +135,23 @@ The script maintains a state file (configured via `PAPERS_STATE_FILE` or default
 - File path (relative to source directory)
 - File hash (size + modification time)
 - Import timestamp
-- Document IDs in vector store
-- Number of chunks created
+- MMORE file ID
+- Full file path
 
 This enables incremental updates - only new or modified files are re-imported.
 
-### Metadata
+### File ID Generation
 
-Each imported document receives the following metadata:
+Each uploaded document receives a unique file ID generated from its relative path:
 
 ```python
-{
-    "source": "relative/path/to/file.pdf",
-    "source_type": "local",
-    "full_path": "/absolute/path/to/file.pdf",
-    "import_date": "2025-11-06T10:30:00",
-    "file_hash": "12345_1699275000"
-}
+file_id = "papers_subdir_filename"  # Path separators replaced with underscores
 ```
 
-This metadata can be used to filter searches to specific documents.
+This file ID is used to:
+- Track documents in MMORE service
+- Query specific documents
+- Delete documents when needed
 
 ## Scheduling Automatic Imports
 
@@ -283,16 +282,16 @@ response = agent.run("What are the key findings in recent papers about FEA?")
 
 ### Filtering by Source
 
-Query only specific documents:
+Query specific documents using their file IDs:
 
 ```python
-from src.tools import EngineerRAGStore
+from src.tools import MMOREClient
 
-vector_store = EngineerRAGStore()
-results = vector_store.similarity_search(
+mmore_client = MMOREClient()
+results = mmore_client.retrieve(
     query="FEA optimization",
-    k=5,
-    filter_dict={"source_type": "local"}
+    file_ids=["papers_subfolder_paper1", "papers_subfolder_paper2"],
+    max_matches=5
 )
 ```
 
@@ -304,38 +303,35 @@ The imported papers are automatically available in the Streamlit chat interface:
 streamlit run src/ui/streamlit_app.py
 ```
 
-Just ask questions and the RAG system will search through all documents.
+Just ask questions and the RAG system will search through all documents in MMORE.
 
-## Inspecting the Database
+## Inspecting the Documents
 
-### Quick Check
+### Using the Inspector Script
 
 ```bash
-python scripts/quick_db_check.py
+# Show all uploaded documents
+python scripts/inspect_mmore.py
+
+# Get detailed stats
+python scripts/inspect_mmore.py --stats
+
+# List all document IDs
+python scripts/inspect_mmore.py --list
 ```
 
-Shows total document count, source types, and recent files.
+### Via Database Query
 
-### Detailed Inspection
+Check the local tracking database:
 
-```bash
-# List all collections
-python scripts/inspect_chromadb.py
+```python
+from src.ui.database import DatabaseManager
 
-# Show collection stats
-python scripts/inspect_chromadb.py --collection engineer_docs --stats
+db = DatabaseManager()
+docs = db.get_all_mmore_documents()
 
-# List documents
-python scripts/inspect_chromadb.py --collection engineer_docs --list
-
-# List unique sources
-python scripts/inspect_chromadb.py --collection engineer_docs --sources
-
-# Search by metadata
-python scripts/inspect_chromadb.py --collection engineer_docs --search '{"source_type": "local"}'
-
-# Export metadata
-python scripts/inspect_chromadb.py --collection engineer_docs --export data/metadata.json
+for doc in docs:
+    print(f"{doc['file_id']}: {doc['file_name']} (uploaded: {doc['uploaded_at']})")
 ```
 
 ## Troubleshooting
@@ -348,6 +344,17 @@ python scripts/inspect_chromadb.py --collection engineer_docs --export data/meta
 - Check that `PAPERS_SOURCE_DIR` is set in your `.env` file
 - Verify `.env` file is in the project root directory
 - Try providing path via command line: `python scripts/import_local_papers.py /path/to/papers`
+
+### MMORE Connection Issues
+
+**Problem**: "Connection aborted" or "Remote end closed connection without response"
+
+**Solutions**:
+- Verify MMORE service is running: `docker ps | grep mmore`
+- Check `MMORE_RAG_URL` is correct in `.env` (default: `http://localhost:8000`)
+- Test MMORE health: `curl http://localhost:8000/`
+- For large files (>50MB), increase timeout or upload in smaller batches with `--max-files`
+- Check MMORE service logs: `docker logs mmore-service`
 
 ### File Access Issues
 
@@ -371,14 +378,15 @@ python scripts/inspect_chromadb.py --collection engineer_docs --export data/meta
 
 ### File Processing Errors
 
-**Problem**: PDFs fail to process
+**Problem**: PDFs fail to upload
 
 **Solutions**:
 - Check that files are valid PDFs (try opening them)
-- Verify `MATHPIX_API_ID` and `MATHPIX_API_KEY` are set in `.env`
-- Verify sufficient disk space
+- Verify sufficient disk space for temporary files
 - Look at detailed logs with `--verbose`
-- Try processing individual files to isolate issues
+- Check MMORE service has enough memory (increase in docker-compose.yml if needed)
+- Try processing with `--max-files 5` to upload in smaller batches
+- The script will automatically retry failed uploads 3 times with exponential backoff
 
 ### State File Corruption
 

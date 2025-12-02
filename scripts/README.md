@@ -16,7 +16,6 @@ Add to your `.env` file:
 ```bash
 PAPERS_SOURCE_DIR=/path/to/your/papers
 PAPERS_STATE_FILE=data/local_import_state.json
-PAPERS_COLLECTION=engineer_docs
 ```
 
 **Usage:**
@@ -31,37 +30,22 @@ python import_local_papers.py
 python import_local_papers.py /Volumes/Share/Papers
 ```
 
-#### Quick Database Check (`quick_db_check.py`)
+#### MMORE Document Inspector (`inspect_mmore.py`)
 
-Fast overview of your ChromaDB contents:
-
-```bash
-python quick_db_check.py
-```
-
-#### Database Inspector (`inspect_chromadb.py`)
-
-Comprehensive database inspection with many options:
+Inspect documents uploaded to MMORE RAG service:
 
 ```bash
-# List all collections
-python inspect_chromadb.py
+# Show all uploaded documents
+python inspect_mmore.py
 
-# Show collection stats
-python inspect_chromadb.py --collection engineer_docs --stats
+# Get detailed stats
+python inspect_mmore.py --stats
 
-# List documents
-python inspect_chromadb.py --collection engineer_docs --list
-
-# List unique sources
-python inspect_chromadb.py --collection engineer_docs --sources
-
-# Search by metadata
-python inspect_chromadb.py --collection engineer_docs --search '{"source_type": "local"}'
-
-# Export metadata to JSON
-python inspect_chromadb.py --collection engineer_docs --export ../data/metadata.json
+# List all document IDs
+python inspect_mmore.py --list
 ```
+
+**Note**: MMORE replaces the legacy ChromaDB-based vector store with a more powerful multimodal RAG service.
 
 **See [Paper Import Guide](../docs/PAPER_IMPORT_GUIDE.md) for detailed documentation.**
 
