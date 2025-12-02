@@ -1,10 +1,9 @@
 """
 ArXiv Research Agent for searching and analyzing research papers.
 
-This agent combines ArXiv search capabilities with RAG for paper analysis.
+This agent combines ArXiv search capabilities with MMORE RAG for paper analysis.
 """
 
-import json
 import logging
 import tempfile
 from pathlib import Path
@@ -14,7 +13,7 @@ import arxiv
 from langchain_core.tools import tool
 
 from src.agents.base_agent import BaseAgent
-from src.tools import EngineeringRAGChain, EngineerRAGStore, MultimodalDocumentProcessor
+from src.tools import MMOREClient
 from src.utils.prompts import ARXIV_AGENT_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -23,43 +22,48 @@ logger = logging.getLogger(__name__)
 MAX_AUTHORS_DISPLAY = 3
 SUMMARY_PREVIEW_LENGTH = 300
 AUTHORS_PREVIEW_LENGTH = 100
-AUTHORS_LIST_LENGTH = 80
 
 
 class ArXivAgent(BaseAgent):
-    """Agent for ArXiv paper search and analysis with RAG integration."""
+    """Agent for ArXiv paper search and analysis with MMORE RAG integration."""
 
     def __init__(
         self,
         model_name: str | None = None,
         temperature: float | None = None,
-        vector_store: EngineerRAGStore | None = None,
-        rag_chain: EngineeringRAGChain | None = None,
+        mmore_url: str | None = None,
     ):
-        """Initialize the ArXiv agent with search and RAG capabilities.
+        """Initialize the ArXiv agent with search and MMORE RAG capabilities.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
-            vector_store: Shared vector store instance (creates new if None)
-            rag_chain: Shared RAG chain instance (creates new if None)
+            mmore_url: URL of MMORE service (defaults to MMORE_RAG_URL env var)
         """
-        # Initialize RAG components for paper analysis
-        # Use the same collection as RAG agent for unified knowledge base
-        self.document_processor = MultimodalDocumentProcessor()
-
-        # Use shared instances or create new ones
-        if rag_chain is not None:
-            self.rag_chain = rag_chain
-            self.vector_store = rag_chain.vectorstore
-        else:
-            self.vector_store = vector_store or EngineerRAGStore(
-                collection_name="engineer_docs"
-            )
-            self.rag_chain = EngineeringRAGChain(self.vector_store)
+        # Initialize MMORE client for paper analysis
+        self.mmore_client = MMOREClient(base_url=mmore_url)
 
         super().__init__(model_name=model_name, temperature=temperature)
-        logger.info("ArXiv Agent initialized with RAG system")
+
+        # Verify MMORE connection
+        if self.mmore_client.health_check():
+            logger.info("ArXiv Agent initialized with MMORE service")
+        else:
+            logger.warning("MMORE service not reachable - some features may not work")
+
+    @property
+    def db(self):
+        """Lazy-load database manager to avoid circular import."""
+        if not hasattr(self, "_db"):
+            from src.ui.database import DatabaseManager  # noqa: PLC0415
+
+            self._db = DatabaseManager()
+        return self._db
+
+    @db.setter
+    def db(self, value):
+        """Allow setting database manager (useful for testing)."""
+        self._db = value
 
     def _create_tools(self) -> list:
         """Create LangChain tools for the ArXiv agent."""
@@ -69,7 +73,6 @@ class ArXivAgent(BaseAgent):
             self._create_download_and_analyze_tool(),
             self._create_ask_papers_tool(),
             self._create_list_papers_tool(),
-            self._create_clear_memory_tool(),
         ]
 
     def _create_search_tool(self):
@@ -189,13 +192,13 @@ class ArXivAgent(BaseAgent):
         @tool
         def download_and_analyze_paper(
             arxiv_id: Annotated[str, "ArXiv paper ID to download and analyze"],
-            metadata: Annotated[str, "Optional metadata as JSON string"] = "{}",
         ) -> str:
             """
-            Download an ArXiv paper PDF and add it to the knowledge base for analysis.
+            Download an ArXiv paper PDF and add it to MMORE knowledge base for analysis.
 
-            The paper will be downloaded, processed, and added to the RAG system,
-            allowing you to ask questions about its contents.
+            The paper will be downloaded, processed, and uploaded to MMORE,
+            allowing you to ask questions about its contents with advanced
+            multimodal retrieval (text, images, tables).
             """
             try:
                 # Clean the arxiv ID
@@ -212,42 +215,35 @@ class ArXivAgent(BaseAgent):
                 logger.info(f"Downloading paper {clean_id}...")
                 pdf_path = paper.download_pdf(dirpath=str(temp_dir))
 
-                # Parse metadata
-                meta = json.loads(metadata) if metadata != "{}" else {}
-                meta.update(
-                    {
-                        "source": f"ArXiv:{clean_id}",
-                        "title": paper.title,
-                        "authors": ", ".join([author.name for author in paper.authors]),
-                        "published": paper.published.strftime("%Y-%m-%d"),
-                        "arxiv_id": clean_id,
-                    }
+                # Generate file_id for MMORE
+                file_id = f"arxiv_{clean_id}"
+
+                # Upload to MMORE
+                logger.info(f"Uploading paper {clean_id} to MMORE...")
+                self.mmore_client.upload_file(file_path=pdf_path, file_id=file_id)
+
+                # Track uploaded document in database
+                authors = ", ".join([author.name for author in paper.authors])
+                self.db.add_mmore_document(
+                    file_id=file_id,
+                    file_name=f"{paper.title}.pdf",
+                    file_path=pdf_path,
                 )
 
-                # Process and add to vector store
-                logger.info(f"Processing paper {clean_id}...")
-                docs = self.document_processor.process_file(pdf_path)
+                logger.info(f"Successfully added paper {clean_id} to MMORE")
 
-                # Add metadata to all chunks
-                for doc in docs:
-                    doc.metadata.update(meta)
-
-                # Store in vector database
-                self.vector_store.add_documents(docs)
-
-                logger.info(f"Successfully added paper {clean_id} to knowledge base")
-
-                authors_preview = meta["authors"][:AUTHORS_PREVIEW_LENGTH]
+                authors_preview = authors[:AUTHORS_PREVIEW_LENGTH]
                 authors_ellipsis = (
-                    "..." if len(meta["authors"]) > AUTHORS_PREVIEW_LENGTH else ""
+                    "..." if len(authors) > AUTHORS_PREVIEW_LENGTH else ""
                 )
 
                 result = f"""✓ Successfully downloaded and analyzed '{paper.title}'
    - ArXiv ID: {clean_id}
    - Authors: {authors_preview}{authors_ellipsis}
-   - Chunks processed: {len(docs)}
+   - File ID: {file_id}
    - PDF saved to: {pdf_path}
 
+💡 MMORE will extract multimodal content (text, images, tables) automatically.
 💡 You can now use ask_about_papers() to ask questions about this paper!"""
 
             except StopIteration:
@@ -269,19 +265,40 @@ class ArXivAgent(BaseAgent):
             num_results: Annotated[int, "Number of relevant chunks to retrieve"] = 5,
         ) -> str:
             """
-            Ask questions about papers that have been downloaded and analyzed.
+            Ask questions about papers that have been downloaded and analyzed using MMORE.
 
             Use this after downloading papers with download_and_analyze_paper().
-            Returns answers with citations to specific papers and sections.
+            Returns relevant passages with citations to specific papers using
+            MMORE's advanced multimodal retrieval.
             """
             try:
-                result = self.rag_chain.ask(query, k=num_results)
-                answer = result["answer"]
-                sources = result["num_sources"]
+                # Retrieve documents from MMORE (filter for arxiv papers)
+                docs = self.mmore_client.retrieve(
+                    query=query,
+                    max_matches=num_results,
+                    min_similarity=0.3,  # Filter low-quality matches
+                )
 
-                response = f"{answer}\n\n📚 Sources: {sources} paper section(s)"
+                if not docs:
+                    return "No relevant information found in the analyzed papers. Try downloading more papers or rephrasing your question."
+
+                # Format results with context
+                response_parts = []
+                for i, doc in enumerate(docs, 1):
+                    file_id = doc.metadata.get("source", "unknown")
+                    score = doc.metadata.get("score", 0.0)
+                    content = doc.page_content[:500]  # Limit content length
+
+                    response_parts.append(
+                        f"**Passage {i}** (relevance: {score:.2f})\n"
+                        f"Source: {file_id}\n"
+                        f"{content}...\n"
+                    )
+
+                response = "\n\n".join(response_parts)
+                response += f"\n\n📚 Found {len(docs)} relevant passage(s) from papers"
             except Exception as e:
-                logger.exception("Error querying papers")
+                logger.exception("Error querying papers with MMORE")
                 return f"Error querying papers: {e}"
             else:
                 return response
@@ -294,47 +311,36 @@ class ArXivAgent(BaseAgent):
         @tool
         def list_analyzed_papers() -> str:
             """
-            List all ArXiv papers currently in the knowledge base.
+            List all ArXiv papers currently in the MMORE knowledge base.
 
             Shows papers that have been downloaded and are available for analysis.
             """
             try:
-                # Get all documents
-                all_docs = self.vector_store.similarity_search("", k=100)
+                # Get all documents from database (filter for arxiv papers)
+                all_documents = self.db.get_all_mmore_documents()
 
-                if not all_docs:
-                    return "No papers in the knowledge base yet. Use download_and_analyze_paper() to add papers."
+                # Filter only arxiv papers
+                arxiv_papers = [
+                    doc for doc in all_documents if doc["file_id"].startswith("arxiv_")
+                ]
 
-                # Organize by ArXiv ID
-                papers = {}
-                for doc in all_docs:
-                    arxiv_id = doc.metadata.get("arxiv_id", "unknown")
-                    if arxiv_id not in papers:
-                        papers[arxiv_id] = {
-                            "title": doc.metadata.get("title", "Unknown"),
-                            "authors": doc.metadata.get("authors", "Unknown"),
-                            "published": doc.metadata.get("published", "N/A"),
-                            "chunks": 0,
-                        }
-                    papers[arxiv_id]["chunks"] += 1
+                if not arxiv_papers:
+                    return "No ArXiv papers in MMORE knowledge base yet.\n\nUse download_and_analyze_paper() to add papers."
 
                 # Format output
-                result = (
-                    f"📚 ArXiv Papers in Knowledge Base ({len(papers)} papers):\n\n"
-                )
-                for arxiv_id, info in papers.items():
-                    authors_preview = info["authors"][:AUTHORS_LIST_LENGTH]
-                    authors_ellipsis = (
-                        "..." if len(info["authors"]) > AUTHORS_LIST_LENGTH else ""
-                    )
-                    result += f"• **{info['title']}**\n"
-                    result += f"  - ArXiv ID: {arxiv_id}\n"
-                    result += f"  - Authors: {authors_preview}{authors_ellipsis}\n"
-                    result += f"  - Published: {info['published']}\n"
-                    result += f"  - Chunks: {info['chunks']}\n\n"
+                result = f"📚 ArXiv Papers in MMORE Knowledge Base ({len(arxiv_papers)} paper(s)):\n\n"
+                for doc in arxiv_papers:
+                    file_name = doc["file_name"]
+                    file_id = doc["file_id"]
+                    arxiv_id = file_id.replace("arxiv_", "")
+                    uploaded_at = doc["uploaded_at"].strftime("%Y-%m-%d %H:%M")
 
-                total_count = self.vector_store.get_collection_count()
-                result += f"Total chunks: {total_count}"
+                    result += f"• **{file_name}**\n"
+                    result += f"  - ArXiv ID: {arxiv_id}\n"
+                    result += f"  - File ID: {file_id}\n"
+                    result += f"  - Uploaded: {uploaded_at}\n\n"
+
+                result += "\n✓ All papers indexed with multimodal content (text, images, tables)"
             except Exception as e:
                 logger.exception("Error listing papers")
                 return f"Error listing papers: {e}"
@@ -342,27 +348,6 @@ class ArXivAgent(BaseAgent):
                 return result
 
         return list_analyzed_papers
-
-    def _create_clear_memory_tool(self):
-        """Create the clear memory tool."""
-
-        @tool
-        def clear_conversation_memory() -> str:
-            """
-            Clear the conversation history for paper analysis.
-
-            Use this when starting a new research topic or when you want to
-            reset the conversation context.
-            """
-            try:
-                self.rag_chain.clear_history()
-            except Exception as e:
-                logger.exception("Error clearing history")
-                return f"Error clearing history: {e}"
-            else:
-                return "✓ Conversation history cleared"
-
-        return clear_conversation_memory
 
     def _get_system_prompt(self) -> str:
         """Get the system prompt for the ArXiv agent.

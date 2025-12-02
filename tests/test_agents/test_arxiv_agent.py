@@ -1,4 +1,4 @@
-"""Tests for ArXiv Agent."""
+"""Tests for ArXiv Agent with MMORE integration."""
 
 from collections.abc import Callable, Sequence
 from datetime import datetime
@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
+from langchain_core.documents import Document
 from langchain_core.language_models.base import LanguageModelInput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
@@ -86,53 +87,37 @@ def mock_arxiv_search(mock_arxiv_paper):
 
 
 @pytest.fixture
-def mock_vector_store():
-    """Mock vector store for testing."""
+def mock_mmore_client():
+    """Mock MMORE client for testing."""
     mock = Mock()
-    mock.similarity_search.return_value = [
-        Mock(
-            page_content="Test content from paper",
+    mock.health_check.return_value = True
+    mock.upload_file.return_value = {"status": "success", "file_id": "arxiv_1605.08386"}
+    mock.retrieve.return_value = [
+        Document(
+            page_content="Test content from paper about topology optimization",
             metadata={
-                "source": "ArXiv:1605.08386",
-                "title": "Test Paper",
-                "arxiv_id": "1605.08386",
-                "authors": "John Doe, Jane Smith",
-                "published": "2024-01-15",
-                "page": 1,
+                "source": "arxiv_1605.08386",
+                "chunk_id": "chunk_1",
+                "score": 0.95,
             },
         )
     ]
-    mock.add_documents.return_value = ["doc_id_1"]
-    mock.get_collection_count.return_value = 50
+    mock.delete_file.return_value = {"status": "deleted"}
     return mock
 
 
 @pytest.fixture
-def mock_document_processor():
-    """Mock document processor for testing."""
+def mock_database():
+    """Mock database manager for testing."""
     mock = Mock()
-    mock.process_file.return_value = [
-        Mock(
-            page_content="Processed paper content page 1",
-            metadata={"page": 1},
-        ),
-        Mock(
-            page_content="Processed paper content page 2",
-            metadata={"page": 2},
-        ),
+    mock.add_mmore_document.return_value = None
+    mock.get_all_mmore_documents.return_value = [
+        {
+            "file_id": "arxiv_1605.08386",
+            "file_name": "Topology Optimization in Engineering.pdf",
+            "uploaded_at": datetime(2024, 1, 15, 10, 30),
+        }
     ]
-    return mock
-
-
-@pytest.fixture
-def mock_rag_chain():
-    """Mock RAG chain for testing."""
-    mock = Mock()
-    mock.ask.return_value = {
-        "answer": "The answer based on papers",
-        "num_sources": 3,
-    }
-    mock.clear_history.return_value = None
     return mock
 
 
@@ -145,74 +130,83 @@ def mock_checkpointer():
 class TestArXivAgentInitialization:
     """Test ArXiv agent initialization."""
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_arxiv_agent_initialization(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test that ArXiv agent initializes correctly."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent(model_name="openai:gpt-4o")
 
         assert agent is not None
         assert agent.model_name == "openai:gpt-4o"
         mock_init_llm.assert_called_once_with("openai:gpt-4o", temperature=0.7)
-        mock_processor.assert_called_once()
-        mock_store.assert_called_once_with(collection_name="engineer_docs")
-        mock_chain.assert_called_once()
+        mock_mmore_cls.assert_called_once_with(base_url=None)
+        mock_mmore_client.health_check.assert_called_once()
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_arxiv_agent_tools_created(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test that ArXiv agent creates the expected tools."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
 
-        assert len(agent.tools) == 6
+        assert len(agent.tools) == 5
         tool_names = {tool.name for tool in agent.tools}
         assert "search_arxiv" in tool_names
         assert "get_arxiv_paper" in tool_names
         assert "download_and_analyze_paper" in tool_names
         assert "ask_about_papers" in tool_names
         assert "list_analyzed_papers" in tool_names
-        assert "clear_conversation_memory" in tool_names
+
+    @patch("src.agents.arxiv_agent.MMOREClient")
+    @patch("src.agents.base_agent.init_chat_model")
+    def test_arxiv_agent_mmore_url(
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
+    ):
+        """Test that ArXiv agent accepts custom MMORE URL."""
+        from src.agents.arxiv_agent import ArXivAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        agent = ArXivAgent(mmore_url="http://custom:8000")
+
+        mock_mmore_cls.assert_called_once_with(base_url="http://custom:8000")
 
 
 class TestArXivAgentSearchTool:
     """Test the search_arxiv tool."""
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_arxiv_success(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
         mock_arxiv_search,
         mock_arxiv_paper,
+        mock_mmore_client,
     ):
         """Test successful ArXiv search."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_search_cls.return_value = mock_arxiv_search
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         search_tool = agent.tools_by_name["search_arxiv"]
@@ -226,24 +220,22 @@ class TestArXivAgentSearchTool:
         mock_search_cls.assert_called_once()
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_arxiv_max_results(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
         mock_arxiv_search,
+        mock_mmore_client,
     ):
         """Test ArXiv search with custom max results."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_search_cls.return_value = mock_arxiv_search
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         search_tool = agent.tools_by_name["search_arxiv"]
@@ -255,17 +247,14 @@ class TestArXivAgentSearchTool:
         assert call_args.kwargs["max_results"] == 10
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_arxiv_no_results(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
+        mock_mmore_client,
     ):
         """Test ArXiv search with no results."""
         from src.agents.arxiv_agent import ArXivAgent
@@ -274,6 +263,7 @@ class TestArXivAgentSearchTool:
         mock_search = Mock()
         mock_search.results.return_value = iter([])
         mock_search_cls.return_value = mock_search
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         search_tool = agent.tools_by_name["search_arxiv"]
@@ -283,23 +273,21 @@ class TestArXivAgentSearchTool:
         assert "No papers found" in result
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_arxiv_error_handling(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
+        mock_mmore_client,
     ):
         """Test error handling in ArXiv search."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_search_cls.side_effect = Exception("Network error")
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         search_tool = agent.tools_by_name["search_arxiv"]
@@ -313,25 +301,23 @@ class TestArXivAgentGetPaperTool:
     """Test the get_arxiv_paper tool."""
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_get_arxiv_paper_success(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
         mock_arxiv_search,
         mock_arxiv_paper,
+        mock_mmore_client,
     ):
         """Test successful paper retrieval."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_search_cls.return_value = mock_arxiv_search
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         get_tool = agent.tools_by_name["get_arxiv_paper"]
@@ -345,24 +331,22 @@ class TestArXivAgentGetPaperTool:
         mock_search_cls.assert_called_once()
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_get_arxiv_paper_with_prefix(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
         mock_arxiv_search,
+        mock_mmore_client,
     ):
         """Test paper retrieval with arxiv: prefix."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_search_cls.return_value = mock_arxiv_search
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         get_tool = agent.tools_by_name["get_arxiv_paper"]
@@ -373,17 +357,14 @@ class TestArXivAgentGetPaperTool:
         assert call_args.kwargs["id_list"] == ["1605.08386"]
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_get_arxiv_paper_not_found(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
+        mock_mmore_client,
     ):
         """Test paper retrieval when paper not found."""
         from src.agents.arxiv_agent import ArXivAgent
@@ -392,6 +373,7 @@ class TestArXivAgentGetPaperTool:
         mock_search = Mock()
         mock_search.results.return_value = iter([])
         mock_search_cls.return_value = mock_search
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         get_tool = agent.tools_by_name["get_arxiv_paper"]
@@ -405,31 +387,28 @@ class TestArXivAgentDownloadAndAnalyzeTool:
     """Test the download_and_analyze_paper tool."""
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_download_and_analyze_success(
         self,
         mock_init_llm,
-        mock_processor_cls,
-        mock_store_cls,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
         mock_arxiv_search,
         mock_arxiv_paper,
-        mock_document_processor,
-        mock_vector_store,
+        mock_mmore_client,
+        mock_database,
     ):
         """Test successful paper download and analysis."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_search_cls.return_value = mock_arxiv_search
-        mock_processor_cls.return_value = mock_document_processor
-        mock_store_cls.return_value = mock_vector_store
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
+        agent.db = mock_database  # Inject mock database
+
         download_tool = agent.tools_by_name["download_and_analyze_paper"]
 
         result = download_tool.invoke({"arxiv_id": "1605.08386"})
@@ -437,65 +416,19 @@ class TestArXivAgentDownloadAndAnalyzeTool:
         assert "Successfully downloaded and analyzed" in result
         assert "Topology Optimization in Engineering" in result
         assert "1605.08386" in result
-        assert "Chunks processed: 2" in result
         mock_arxiv_paper.download_pdf.assert_called_once()
-        mock_document_processor.process_file.assert_called_once()
-        mock_vector_store.add_documents.assert_called_once()
+        mock_mmore_client.upload_file.assert_called_once()
+        mock_database.add_mmore_document.assert_called_once()
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_download_and_analyze_with_metadata(
-        self,
-        mock_init_llm,
-        mock_processor_cls,
-        mock_store_cls,
-        mock_chain,
-        mock_search_cls,
-        mock_arxiv_search,
-        mock_arxiv_paper,
-        mock_document_processor,
-        mock_vector_store,
-    ):
-        """Test paper download with custom metadata."""
-        import json
-
-        from src.agents.arxiv_agent import ArXivAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_search_cls.return_value = mock_arxiv_search
-        mock_processor_cls.return_value = mock_document_processor
-        mock_store_cls.return_value = mock_vector_store
-
-        agent = ArXivAgent()
-        download_tool = agent.tools_by_name["download_and_analyze_paper"]
-
-        metadata = json.dumps(
-            {"category": "structural engineering", "priority": "high"}
-        )
-        result = download_tool.invoke({"arxiv_id": "1605.08386", "metadata": metadata})
-
-        assert "Successfully downloaded and analyzed" in result
-        mock_document_processor.process_file.assert_called_once()
-        # Verify metadata was added to documents
-        added_docs = mock_vector_store.add_documents.call_args[0][0]
-        assert "category" in added_docs[0].metadata
-        assert added_docs[0].metadata["category"] == "structural engineering"
-
-    @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_download_and_analyze_paper_not_found(
         self,
         mock_init_llm,
-        mock_processor_cls,
-        mock_store_cls,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
+        mock_mmore_client,
     ):
         """Test download when paper not found."""
         from src.agents.arxiv_agent import ArXivAgent
@@ -504,6 +437,7 @@ class TestArXivAgentDownloadAndAnalyzeTool:
         mock_search = Mock()
         mock_search.results.return_value = iter([])
         mock_search_cls.return_value = mock_search
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         download_tool = agent.tools_by_name["download_and_analyze_paper"]
@@ -513,30 +447,24 @@ class TestArXivAgentDownloadAndAnalyzeTool:
         assert "not found" in result
 
     @patch("src.agents.arxiv_agent.arxiv.Search")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_download_and_analyze_error_handling(
         self,
         mock_init_llm,
-        mock_processor_cls,
-        mock_store_cls,
-        mock_chain,
+        mock_mmore_cls,
         mock_search_cls,
         mock_arxiv_search,
         mock_arxiv_paper,
-        mock_document_processor,
+        mock_mmore_client,
     ):
         """Test error handling in download and analysis."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_search_cls.return_value = mock_arxiv_search
-        mock_document_processor.process_file.side_effect = Exception(
-            "Processing failed"
-        )
-        mock_processor_cls.return_value = mock_document_processor
+        mock_mmore_client.upload_file.side_effect = Exception("Upload failed")
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         download_tool = agent.tools_by_name["download_and_analyze_paper"]
@@ -549,61 +477,77 @@ class TestArXivAgentDownloadAndAnalyzeTool:
 class TestArXivAgentAskPapersTool:
     """Test the ask_about_papers tool."""
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_ask_about_papers_success(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test successful paper query."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_chain.return_value = mock_rag_chain
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         ask_tool = agent.tools_by_name["ask_about_papers"]
 
         result = ask_tool.invoke({"query": "What is topology optimization?"})
 
-        assert "answer based on papers" in result
-        assert "3 paper section(s)" in result
-        mock_rag_chain.ask.assert_called_once()
+        assert "Passage 1" in result
+        assert "topology optimization" in result.lower()
+        assert "relevance:" in result
+        mock_mmore_client.retrieve.assert_called_once()
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_ask_about_papers_with_num_results(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test paper query with custom number of results."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_chain.return_value = mock_rag_chain
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         ask_tool = agent.tools_by_name["ask_about_papers"]
 
         ask_tool.invoke({"query": "test query", "num_results": 10})
 
-        mock_rag_chain.ask.assert_called_once_with("test query", k=10)
+        mock_mmore_client.retrieve.assert_called_once()
+        call_args = mock_mmore_client.retrieve.call_args
+        assert call_args.kwargs["max_matches"] == 10
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
+    @patch("src.agents.base_agent.init_chat_model")
+    def test_ask_about_papers_no_results(
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
+    ):
+        """Test paper query with no results."""
+        from src.agents.arxiv_agent import ArXivAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_client.retrieve.return_value = []
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        agent = ArXivAgent()
+        ask_tool = agent.tools_by_name["ask_about_papers"]
+
+        result = ask_tool.invoke({"query": "test"})
+
+        assert "No relevant information found" in result
+
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_ask_about_papers_error_handling(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
+        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test error handling in paper query."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_rag_chain.ask.side_effect = Exception("Query failed")
-        mock_chain.return_value = mock_rag_chain
+        mock_mmore_client.retrieve.side_effect = Exception("Query failed")
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         ask_tool = agent.tools_by_name["ask_about_papers"]
@@ -616,112 +560,80 @@ class TestArXivAgentAskPapersTool:
 class TestArXivAgentListPapersTool:
     """Test the list_analyzed_papers tool."""
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_list_papers_success(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store_cls,
-        mock_chain,
-        mock_vector_store,
+        mock_mmore_cls,
+        mock_mmore_client,
+        mock_database,
     ):
         """Test successful paper listing."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_vector_store.similarity_search.return_value = [
-            Mock(
-                page_content="content1",
-                metadata={
-                    "arxiv_id": "1605.08386",
-                    "title": "Paper One",
-                    "authors": "John Doe, Jane Smith",
-                    "published": "2024-01-15",
-                },
-            ),
-            Mock(
-                page_content="content2",
-                metadata={
-                    "arxiv_id": "1605.08386",
-                    "title": "Paper One",
-                    "authors": "John Doe, Jane Smith",
-                    "published": "2024-01-15",
-                },
-            ),
-            Mock(
-                page_content="content3",
-                metadata={
-                    "arxiv_id": "1706.03762",
-                    "title": "Attention Is All You Need",
-                    "authors": "Vaswani et al.",
-                    "published": "2017-06-12",
-                },
-            ),
-        ]
-        mock_store_cls.return_value = mock_vector_store
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
+        agent.db = mock_database  # Inject mock database
+
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 
         result = list_tool.invoke({})
 
-        assert "ArXiv Papers in Knowledge Base" in result
-        assert "2 papers" in result
-        assert "Paper One" in result
-        assert "Attention Is All You Need" in result
+        assert "ArXiv Papers in MMORE Knowledge Base" in result
+        assert "1 paper(s)" in result
+        assert "Topology Optimization in Engineering" in result
         assert "1605.08386" in result
-        assert "1706.03762" in result
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_list_papers_empty(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store_cls,
-        mock_chain,
-        mock_vector_store,
+        mock_mmore_cls,
+        mock_mmore_client,
     ):
         """Test listing when no papers exist."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_vector_store.similarity_search.return_value = []
-        mock_store_cls.return_value = mock_vector_store
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        mock_db = Mock()
+        mock_db.get_all_mmore_documents.return_value = []
 
         agent = ArXivAgent()
+        agent.db = mock_db
+
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 
         result = list_tool.invoke({})
 
-        assert "No papers in the knowledge base yet" in result
+        assert "No ArXiv papers in MMORE knowledge base yet" in result
         assert "download_and_analyze_paper" in result
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_list_papers_error_handling(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store_cls,
-        mock_chain,
-        mock_vector_store,
+        mock_mmore_cls,
+        mock_mmore_client,
     ):
         """Test error handling in paper listing."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
-        mock_vector_store.similarity_search.side_effect = Exception("Database error")
-        mock_store_cls.return_value = mock_vector_store
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        mock_db = Mock()
+        mock_db.get_all_mmore_documents.side_effect = Exception("Database error")
 
         agent = ArXivAgent()
+        agent.db = mock_db
+
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 
         result = list_tool.invoke({})
@@ -729,68 +641,19 @@ class TestArXivAgentListPapersTool:
         assert "Error listing papers" in result
 
 
-class TestArXivAgentClearMemoryTool:
-    """Test the clear_conversation_memory tool."""
-
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_clear_memory_success(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
-    ):
-        """Test successful memory clearing."""
-        from src.agents.arxiv_agent import ArXivAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_chain.return_value = mock_rag_chain
-
-        agent = ArXivAgent()
-        clear_tool = agent.tools_by_name["clear_conversation_memory"]
-
-        result = clear_tool.invoke({})
-
-        assert "Conversation history cleared" in result
-        mock_rag_chain.clear_history.assert_called_once()
-
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_clear_memory_error_handling(
-        self, mock_init_llm, mock_processor, mock_store, mock_chain, mock_rag_chain
-    ):
-        """Test error handling in memory clearing."""
-        from src.agents.arxiv_agent import ArXivAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_rag_chain.clear_history.side_effect = Exception("Clear failed")
-        mock_chain.return_value = mock_rag_chain
-
-        agent = ArXivAgent()
-        clear_tool = agent.tools_by_name["clear_conversation_memory"]
-
-        result = clear_tool.invoke({})
-
-        assert "Error clearing history" in result
-
-
 class TestArXivAgentInvoke:
     """Test ArXiv agent invocation."""
 
     @patch("src.agents.base_agent.get_checkpointer")
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_invoke_with_simple_query(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
         mock_get_checkpointer,
         mock_checkpointer,
+        mock_mmore_client,
     ):
         """Test invoking ArXiv agent with a simple query."""
         from src.agents.arxiv_agent import ArXivAgent
@@ -802,6 +665,7 @@ class TestArXivAgentInvoke:
         )
         mock_init_llm.return_value = fake_llm
         mock_get_checkpointer.return_value = mock_checkpointer
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
         state = {
@@ -819,22 +683,20 @@ class TestArXivAgentInvoke:
 class TestArXivAgentSystemPrompt:
     """Test ArXiv agent system prompt."""
 
-    @patch("src.agents.arxiv_agent.EngineeringRAGChain")
-    @patch("src.agents.arxiv_agent.EngineerRAGStore")
-    @patch("src.agents.arxiv_agent.MultimodalDocumentProcessor")
+    @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_system_prompt_content(
         self,
         mock_init_llm,
-        mock_processor,
-        mock_store,
-        mock_chain,
+        mock_mmore_cls,
+        mock_mmore_client,
     ):
         """Test that system prompt is set correctly."""
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_llm = FakeLLMWithTools()
         mock_init_llm.return_value = mock_llm
+        mock_mmore_cls.return_value = mock_mmore_client
 
         agent = ArXivAgent()
 

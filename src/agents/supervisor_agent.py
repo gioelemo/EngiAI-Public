@@ -96,10 +96,10 @@ class SupervisorAgent:
         self.rag_agent = RAGAgent(
             model_name=self.model_name, temperature=self.temperature
         )
+        # Initialize ArXiv agent with MMORE
         self.arxiv_agent = ArXivAgent(
             model_name=self.model_name,
             temperature=self.temperature,
-            rag_chain=self.shared_rag_chain,
         )
         # PrusaAgent will check SKIP_MCP env var automatically
         self.prusa_agent = PrusaAgent(
