@@ -1,4 +1,9 @@
-"""Tests for RAG Agent."""
+"""Tests for RAG Agent.
+
+NOTE: Tests marked as @pytest.mark.slow are SKIPPED in CI (runs with -m "not slow").
+They only run when you explicitly run pytest locally without the marker filter.
+These tests require database connections not available in CI environment.
+"""
 
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -204,6 +209,7 @@ class TestRAGAgentSearchDocuments:
         assert "Error searching documents" in result
 
 
+@pytest.mark.slow
 class TestRAGAgentAddDocument:
     """Test the add_document tool."""
 
@@ -283,6 +289,7 @@ class TestRAGAgentAddDocument:
         assert "Error adding document" in result
 
 
+@pytest.mark.slow
 class TestRAGAgentListDocuments:
     """Test the list_documents tool."""
 
@@ -338,6 +345,7 @@ class TestRAGAgentListDocuments:
         assert "No documents in MMORE knowledge base yet" in result
 
 
+@pytest.mark.slow
 class TestRAGAgentDeleteDocument:
     """Test the delete_document tool."""
 
