@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Local/Mounted Share Paper Import Script for RAG System
+Local/Mounted Share Paper Import Script for MMORE RAG System
 
 This script imports PDF papers from a local directory or mounted network share
-into the RAG system. It supports incremental updates by tracking which
+into the MMORE RAG system. It supports incremental updates by tracking which
 files have already been imported.
 
 This is simpler than the SMB script when you have the share already mounted
@@ -11,7 +11,7 @@ This is simpler than the SMB script when you have the share already mounted
 
 Features:
 - Scans local or mounted directory for PDFs
-- Processes and adds PDFs to the vector store
+- Uploads PDFs to MMORE service for indexing
 - Tracks import state to avoid re-importing
 - Handles errors gracefully with detailed logging
 - Supports dry-run mode for testing
@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -34,7 +35,8 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import after path manipulation (ruff: E402 is acceptable here)
-from src.tools import EngineerRAGStore, MultimodalDocumentProcessor  # noqa: E402
+from src.tools import MMOREClient  # noqa: E402
+from src.ui.database import DatabaseManager  # noqa: E402
 
 # Configure logging
 # Ensure log directory exists
@@ -52,14 +54,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Constants
+LARGE_FILE_THRESHOLD_MB = 50  # Warn for files larger than this
+MAX_UPLOAD_RETRIES = 3
+RETRY_BASE_DELAY = 5  # seconds
+
+
 class LocalPaperImporter:
-    """Handles importing PDF papers from local/mounted directory to RAG system."""
+    """Handles importing PDF papers from local/mounted directory to MMORE RAG system."""
 
     def __init__(
         self,
         source_dir: str,
         state_file: str = "data/local_import_state.json",
-        collection_name: str = "engineer_docs",
         use_symlinks: bool = False,
     ):
         """
@@ -68,8 +75,7 @@ class LocalPaperImporter:
         Args:
             source_dir: Path to directory containing PDFs (can be mounted share)
             state_file: JSON file tracking import state
-            collection_name: Chroma collection name for documents
-            use_symlinks: If True, don't copy files, just reference them
+            use_symlinks: If True, don't copy files, just reference them (unused with MMORE)
         """
         self.source_dir = Path(source_dir)
         if not self.source_dir.exists():
@@ -79,12 +85,11 @@ class LocalPaperImporter:
         self.state_file = Path(state_file)
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
 
-        self.collection_name = collection_name
         self.use_symlinks = use_symlinks
 
-        # Initialize RAG components
-        self.document_processor = MultimodalDocumentProcessor()
-        self.vector_store = EngineerRAGStore(collection_name=collection_name)
+        # Initialize MMORE components
+        self.mmore_client = MMOREClient()
+        self.db = DatabaseManager()
 
         # Import state
         self.imported_files: dict[str, dict] = self._load_state()
@@ -181,7 +186,7 @@ class LocalPaperImporter:
 
     def process_and_import(self, files: list[Path]) -> dict[str, bool]:
         """
-        Process PDF files and add them to vector store.
+        Process PDF files and upload them to MMORE.
 
         Args:
             files: List of file paths to process
@@ -201,42 +206,78 @@ class LocalPaperImporter:
 
                 logger.info(f"Processing {rel_path}...")
 
-                # Process PDF
-                docs = self.document_processor.process_file(str(file_path))
+                # Check file size and warn if large
+                file_size_mb = file_path.stat().st_size / (1024 * 1024)
+                if file_size_mb > LARGE_FILE_THRESHOLD_MB:
+                    logger.warning(
+                        f"{rel_path} is {file_size_mb:.1f} MB - may take a while to process"
+                    )
 
-                if not docs:
-                    logger.warning(f"No content extracted from {rel_path}")
-                    results[rel_path] = False
-                    continue
+                # Generate unique file ID based on relative path
+                # Replace path separators with underscores for cleaner IDs
+                file_id = (
+                    rel_path.replace("/", "_")
+                    .replace("\\", "_")
+                    .replace(".pdf", "")
+                    .replace(".PDF", "")
+                )
 
-                # Add metadata
-                metadata = {
-                    "source": rel_path,
-                    "source_type": "local",
-                    "full_path": str(file_path),
-                    "import_date": datetime.now().isoformat(),
-                    "file_hash": self.get_file_hash(file_path),
-                }
+                # Upload file to MMORE with retry logic
+                max_retries = MAX_UPLOAD_RETRIES
+                retry_delay = RETRY_BASE_DELAY
+                last_error = None
 
-                # Add to vector store
-                doc_ids = self.vector_store.add_documents(docs, metadata=metadata)
+                for attempt in range(max_retries):
+                    try:
+                        self.mmore_client.upload_file(
+                            file_path=str(file_path),
+                            file_id=file_id,
+                        )
+                        break  # Success, exit retry loop
+                    except Exception as e:
+                        last_error = e
+                        if attempt < max_retries - 1:
+                            wait_time = retry_delay * (
+                                2**attempt
+                            )  # Exponential backoff
+                            logger.warning(
+                                f"Upload attempt {attempt + 1} failed for {rel_path}: {e}. "
+                                f"Retrying in {wait_time}s..."
+                            )
+                            time.sleep(wait_time)
+                        else:
+                            # Final attempt failed
+                            raise last_error from e
 
-                logger.info(f"Successfully imported {rel_path} ({len(doc_ids)} chunks)")
+                logger.info(
+                    f"Successfully uploaded {rel_path} to MMORE (fileId: {file_id})"
+                )
+
+                # Track in database
+                self.db.add_mmore_document(
+                    file_id=file_id,
+                    file_name=file_path.name,
+                    file_path=str(file_path),
+                    uploaded_by="local_import_script",
+                )
 
                 # Update state
                 self.imported_files[rel_path] = {
-                    "hash": metadata["file_hash"],
-                    "import_date": metadata["import_date"],
-                    "doc_ids": doc_ids,
-                    "num_chunks": len(doc_ids),
+                    "hash": self.get_file_hash(file_path),
+                    "import_date": datetime.now().isoformat(),
+                    "file_id": file_id,
                     "full_path": str(file_path),
                 }
+
+                # Save state after each successful upload to avoid losing progress
+                self._save_state()
 
                 results[rel_path] = True
 
             except Exception as e:
                 logger.error(f"Failed to process {file_path}: {e}", exc_info=True)
                 results[rel_path] = False
+                # Continue with next file instead of stopping
 
         return results
 
@@ -305,7 +346,7 @@ class LocalPaperImporter:
 def main():
     """Main entry point for CLI."""
     parser = argparse.ArgumentParser(
-        description="Import PDF papers from local/mounted directory to RAG system"
+        description="Import PDF papers from local/mounted directory to MMORE RAG system"
     )
 
     parser.add_argument(
@@ -326,12 +367,7 @@ def main():
         default="data/local_import_state.json",
         help="Import state file",
     )
-    parser.add_argument(
-        "--collection",
-        type=str,
-        default="engineer_docs",
-        help="Chroma collection name",
-    )
+
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -357,7 +393,6 @@ def main():
     # Priority: command-line arg > environment variable > config file
     source_dir = args.source_dir
     state_file = args.state_file
-    collection_name = args.collection
 
     # Try environment variables if not provided via command line
     if not source_dir:
@@ -365,9 +400,6 @@ def main():
 
     if state_file == "data/local_import_state.json":  # Default value
         state_file = os.getenv("PAPERS_STATE_FILE", state_file)
-
-    if collection_name == "engineer_docs":  # Default value
-        collection_name = os.getenv("PAPERS_COLLECTION", collection_name)
 
     # Fall back to config file if still not found
     config_file = Path(args.config)
@@ -377,9 +409,6 @@ def main():
             config = json.load(f)
             source_dir = source_dir or config.get("source_dir")
             state_file = state_file or config.get("state_file", state_file)
-            collection_name = collection_name or config.get(
-                "collection_name", collection_name
-            )
 
     # Validate required parameters
     if not source_dir:
@@ -396,7 +425,6 @@ def main():
     importer = LocalPaperImporter(
         source_dir=source_dir,
         state_file=state_file,
-        collection_name=collection_name,
     )
 
     # Run import

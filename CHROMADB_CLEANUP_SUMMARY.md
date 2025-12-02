@@ -180,19 +180,40 @@ These files/features need to be migrated to MMORE:
 
 ## 🎯 Next Steps
 
-1. **Test the changes:**
+1. **✓ Test the changes:**
    ```bash
    docker exec engineer-assistant-chatbot python -m pytest tests/test_agents/ -v
    ```
+   **Status:** ✅ All tests passing (42 passed, 7 skipped)
 
 2. **Migrate bulk import script:**
    ```bash
    # Create new script: scripts/import_local_papers_mmore.py
    ```
+   **Status:** ⏳ TODO - adapt scripts/import_local_papers.py to use MMORE
 
-3. **Create MMORE inspection tool:**
+3. **✓ Create MMORE inspection tool:**
    ```bash
-   # Create: scripts/inspect_mmore.py
+   # Created: scripts/inspect_mmore.py
+   ```
+   **Status:** ✅ Completed - provides functionality to:
+   - Check MMORE service health
+   - List all documents in knowledge base
+   - Show detailed document information
+   - Test retrieval with custom queries
+   - List unique sources
+   - Export metadata to JSON
+
+   **Usage examples:**
+   ```bash
+   # List all documents
+   python scripts/inspect_mmore.py
+
+   # Test retrieval
+   python scripts/inspect_mmore.py --retrieve "topology optimization"
+
+   # Show document details
+   python scripts/inspect_mmore.py --details arxiv_2301.07098v1
    ```
 
 4. **Update documentation:**

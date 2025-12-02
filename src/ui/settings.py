@@ -607,7 +607,6 @@ def _render_paper_import_settings() -> None:
         "PAPERS_SOURCE_DIR_HOST", ""
     )  # Host path for display
     papers_state_file = os.getenv("PAPERS_STATE_FILE", "data/local_import_state.json")
-    papers_collection = os.getenv("PAPERS_COLLECTION", "engineer_docs")
 
     # Display configuration (show host path to user)
     display_path = (
@@ -670,7 +669,6 @@ def _render_paper_import_settings() -> None:
                 importer = LocalPaperImporter(
                     source_dir=str(papers_path),
                     state_file=papers_state_file,
-                    collection_name=papers_collection,
                 )
 
                 # Run import

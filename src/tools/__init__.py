@@ -30,7 +30,6 @@ from src.tools.search import create_search_tool
 from src.tools.stl_export import convert_design_to_stl
 
 __all__ = [
-    # Primary tools (active)
     "MMOREClient",
     "convert_design_to_stl",
     "create_arxiv_tools",
