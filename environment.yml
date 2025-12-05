@@ -23,7 +23,7 @@ dependencies:
     - pre-commit>=3.0.0
     - python-dotenv
     - ruff>=0.1.0
-    - streamlit==1.51.0
+    - streamlit==1.52.0
     - streamlit-stl==0.0.6
     - torch==2.8.0
     - torchaudio==2.8.0
