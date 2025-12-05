@@ -49,6 +49,15 @@ docker-rebuild:  ## Rebuild and restart all Docker services
 	docker-compose -f docker-compose.mcp.yml down
 	docker-compose -f docker-compose.mcp.yml up -d --build
 
+docker-rebuild-chatbot:  ## Rebuild only the chatbot service
+	docker-compose -f docker-compose.mcp.yml up -d --build chatbot
+
+docker-rebuild-mmore:  ## Rebuild only the MMORE RAG service
+	docker-compose -f docker-compose.mcp.yml up -d --build mmore-rag-service
+
+docker-rebuild-prusa:  ## Rebuild only the Prusa MCP server
+	docker-compose -f docker-compose.mcp.yml up -d --build prusa-mcp-server
+
 docker-restart:  ## Restart Docker services without rebuilding
 	docker-compose -f docker-compose.mcp.yml restart
 

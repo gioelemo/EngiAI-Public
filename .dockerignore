@@ -73,12 +73,11 @@ docs/
 # Generated outputs (reduce image size)
 outputs/
 artifacts/
+releases/
 
-# Database files (should not be in container)
-data/chats/
-data/conversations.db
-data/*.db
-*.db
+# Data directory (mounted as volume at runtime - 5.8GB+ with MMORE cache)
+# Entire data/ directory is excluded since it's mounted at runtime
+data/
 
 # Logs
 *.log

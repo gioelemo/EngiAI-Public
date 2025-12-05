@@ -25,6 +25,7 @@ from src.agents.rag_agent import RAGAgent
 from src.agents.search_agent import SearchAgent
 from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
+from src.utils.prompts import SUPERVISOR_AGENT_SYSTEM_PROMPT
 
 # ChromaDB imports removed - now using MMORE via RAGAgent
 
@@ -97,75 +98,12 @@ class SupervisorAgent:
         self.graph = self._build_graph()
 
     def _build_routing_prompt(self) -> str:
-        """Build the routing system prompt based on available agents."""
-        available_agents = []
-        agent_names = []
+        """Get the routing system prompt for the supervisor.
 
-        available_agents.append(
-            "- engineering_agent: Structural optimization, beam design, topology optimization, STL conversion, downloading/using pre-trained models from WandB, generative models (GANs, Diffusion)"
-        )
-        available_agents.append(
-            "- hpc_agent: HPC cluster job management, SLURM job submission, job monitoring, output retrieval"
-        )
-        available_agents.append("- search_agent: Web research and finding information")
-        available_agents.append(
-            "- rag_agent: Questions about uploaded documents, papers, PDFs, knowledge base content, AND uploading/adding documents or URLs (use this for 'what does the paper say', 'explain this document', 'summarize the research', 'what does MMORE support', 'according to the documentation', 'add URL to knowledge base', 'upload this URL', any question that should query or add uploaded files/docs/URLs)"
-        )
-        available_agents.append(
-            "- arxiv_agent: ArXiv research paper search, download papers from ArXiv, analyze academic papers with RAG (use this for 'find papers about', 'search ArXiv for', 'download paper', 'analyze this ArXiv paper')"
-        )
-        available_agents.append(
-            "- prusa_agent: Prusa 3D printer management via Prusa Connect (printer status, job monitoring, printer control, file management)"
-        )
-        available_agents.append(
-            "- cli_agent: Open GUI applications (PrusaSlicer, Terminal, Blender, etc.) and execute local CLI commands (mesh processing, file conversion, any command-line tool)"
-        )
-        agent_names.extend(
-            [
-                "'engineering_agent'",
-                "'hpc_agent'",
-                "'search_agent'",
-                "'rag_agent'",
-                "'arxiv_agent'",
-                "'prusa_agent'",
-                "'cli_agent'",
-            ]
-        )
-
-        return (
-            "You are a supervisor that routes tasks to specialized agents.\n\n"
-            + "Available agents:\n"
-            + "\n".join(available_agents)
-            + "\n\n"
-            + "CRITICAL: Distinguish between PURE CAPABILITY QUESTIONS vs ACTUAL TASK REQUESTS.\n\n"
-            + "Use FINISH (answer directly) ONLY for questions about general system capabilities:\n"
-            + "- 'what can you do?' → FINISH\n"
-            + "- 'what agents do you have?' → FINISH\n"
-            + "- 'do you support optimization?' (general inquiry) → FINISH\n\n"
-            + "Route to agents for ANY specific task requests, even if phrased as questions:\n"
-            + "- 'can you optimize this beam?' → engineering_agent (it's asking you to DO something)\n"
-            + "- 'can you generate a SLURM script?' → engineering_agent (it's asking you to DO something)\n"
-            + "- 'can you slice this STL?' → cli_agent (it's asking you to DO something)\n"
-            + "- 'can you download this model?' → engineering_agent (it's asking you to DO something)\n\n"
-            + "IMPORTANT ROUTING RULES:\n"
-            + "- Any mention of 'wandb', 'models', 'pretrained', 'download model', 'GAN', 'diffusion', "
-            + "'beam', 'beam2d', 'optimization', 'design', 'algorithm', 'checkpoint', 'training', 'train', "
-            + "'generate script', 'generate SLURM', 'slurm', 'model training' → use engineering_agent\n"
-            + "- CONVERTING design to STL: 'convert to STL', 'export to STL', 'create STL', 'generate STL from design', 'make STL file' → use engineering_agent\n"
-            + "- HPC cluster job management ONLY: submit job, job submission, job status, check job, monitor job, cancel job, download output, 'euler' cluster operations → use hpc_agent\n"
-            + "- Web search, research, finding information ONLINE → use search_agent\n"
-            + "- Questions about UPLOADED documents, papers, PDFs, documentation, knowledge base, OR uploading/adding new content: 'what does the paper say', 'explain this document', 'summarize the research', 'what are the findings', 'what does MMORE support', 'according to the docs', 'what file formats', 'add this URL', 'upload URL to knowledge base', 'add https://...', 'upload documentation from' → use rag_agent\n"
-            + "- ArXiv paper search and analysis: 'find papers on ArXiv', 'search ArXiv for', 'download ArXiv paper', 'analyze paper 1605.08386', 'what papers are available on', 'ArXiv ID', 'arxiv.org' → use arxiv_agent\n"
-            + "- Prusa printer management: 'printer status', 'print jobs', 'pause print', 'resume print', 'stop print', 'start print', 'Prusa Connect', 'printer', '3D printer' → use prusa_agent\n"
-            + "- SLICING STL to G-code or OPENING GUI applications or EXECUTING CLI commands: 'open PrusaSlicer', 'open Terminal', 'open Mail', 'slice file.stl to gcode', 'execute pwd' → use cli_agent\n"
-            + "\n"
-            + "Respond with ONLY ONE WORD: "
-            + ", ".join(agent_names[:-1])
-            + (" or " if len(agent_names) > 1 else "")
-            + agent_names[-1]
-            + " or 'FINISH' if it's a pure capability question.\n"
-            + "No explanations, no other text, just the agent name or FINISH."
-        )
+        Returns:
+            Routing prompt from centralized prompts file
+        """
+        return SUPERVISOR_AGENT_SYSTEM_PROMPT
 
     def _supervisor_node(self, state: SupervisorState):  # noqa: PLR0912
         """Supervisor decides which agent should act next."""
