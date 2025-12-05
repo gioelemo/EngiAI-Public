@@ -13,7 +13,6 @@ from langchain_core.messages import AIMessage, ToolMessage
 from src.ui.message_processing import (
     extract_suggested_prompts,
     fix_latex_delimiters,
-    format_ai_message,
     format_tool_call,
 )
 
@@ -217,58 +216,6 @@ def test_format_tool_call_missing_name():
 # ============================================================================
 # AI MESSAGE FORMATTING TESTS
 # ============================================================================
-
-
-@pytest.mark.unit
-def test_format_ai_message_simple():
-    """Test formatting a simple AI message."""
-    message = AIMessage(content="Hello, how can I help?")
-    result = format_ai_message(message)
-
-    assert result == "Hello, how can I help?"
-
-
-@pytest.mark.unit
-def test_format_ai_message_empty():
-    """Test formatting an AI message with empty content."""
-    message = AIMessage(content="")
-    result = format_ai_message(message)
-
-    assert result == ""
-
-
-@pytest.mark.unit
-def test_format_ai_message_with_tool_calls():
-    """Test formatting an AI message with tool calls."""
-    message = AIMessage(
-        content="Let me search for that.",
-        tool_calls=[{"name": "search", "args": {}, "id": "1"}],
-    )
-    result = format_ai_message(message)
-
-    assert "search" in result
-    assert "Let me search for that." in result
-
-
-@pytest.mark.unit
-def test_format_tool_message():
-    """Test formatting a tool message."""
-    message = ToolMessage(content="Tool result here", tool_call_id="123")
-    result = format_ai_message(message)
-
-    assert "Tool result here" in result
-    assert "```" in result
-
-
-@pytest.mark.unit
-def test_format_tool_message_truncation():
-    """Test that long tool messages are truncated."""
-    long_content = "x" * 2000
-    message = ToolMessage(content=long_content, tool_call_id="123")
-    result = format_ai_message(message)
-
-    assert "truncated" in result
-    assert len(result) < len(long_content) + 100
 
 
 # ============================================================================

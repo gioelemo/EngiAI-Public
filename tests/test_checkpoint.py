@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from src.checkpoint import POSTGRES_AVAILABLE, close_checkpointer, get_checkpointer
+from src.checkpoint import POSTGRES_AVAILABLE, get_checkpointer
 
 
 class TestCheckpointerInitialization:
@@ -136,71 +136,6 @@ class TestCheckpointerInitialization:
                 cp._initialized = False
 
 
-class TestCheckpointerClose:
-    """Test checkpointer cleanup."""
-
-    def test_close_checkpointer_with_memorysaver(self):
-        """Test closing MemorySaver checkpointer."""
-        import src.checkpoint as cp
-
-        # Initialize with MemorySaver
-        cp._checkpointer = None
-        cp._initialized = False
-        get_checkpointer()
-
-        # Close it
-        close_checkpointer()
-
-        assert cp._checkpointer is None
-        assert not cp._initialized
-
-    @pytest.mark.skipif(not POSTGRES_AVAILABLE, reason="PostgreSQL not available")
-    def test_close_checkpointer_with_postgres(self, monkeypatch):
-        """Test closing PostgreSQL checkpointer."""
-        import src.checkpoint as cp
-        from config import config
-
-        if not POSTGRES_AVAILABLE:
-            pytest.skip("PostgreSQL not available")
-
-        original_url = config.database_url
-        config.database_url = "postgresql://user:pass@localhost/test"
-
-        # Reset global state
-        cp._checkpointer = None
-        cp._initialized = False
-
-        # Mock PostgresSaver - need to actually create a mock class
-        from langgraph.checkpoint.postgres import (
-            PostgresSaver as RealPostgresSaver,
-        )
-
-        mock_saver = Mock(spec=RealPostgresSaver)
-        mock_context = MagicMock()
-        mock_context.__enter__ = Mock(return_value=mock_saver)
-        mock_context.__exit__ = Mock()
-
-        with (
-            patch("src.checkpoint.PostgresSaver", RealPostgresSaver),
-            patch.object(
-                RealPostgresSaver, "from_conn_string", return_value=mock_context
-            ),
-        ):
-            try:
-                get_checkpointer()
-                cp._context_manager = mock_context
-
-                close_checkpointer()
-
-                mock_context.__exit__.assert_called_once()
-                assert cp._checkpointer is None
-                assert not cp._initialized
-            finally:
-                config.database_url = original_url
-                cp._checkpointer = None
-                cp._initialized = False
-
-
 class TestCheckpointerEdgeCases:
     """Test edge cases and error scenarios."""
 
@@ -217,16 +152,3 @@ class TestCheckpointerEdgeCases:
 
         assert checkpointer1 is checkpointer2 is checkpointer3
         assert cp._initialized
-
-    def test_close_without_initialization(self):
-        """Test that closing without initialization doesn't error."""
-        import src.checkpoint as cp
-
-        cp._checkpointer = None
-        cp._initialized = False
-
-        # Should not raise error
-        close_checkpointer()
-
-        assert cp._checkpointer is None
-        assert not cp._initialized

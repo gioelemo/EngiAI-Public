@@ -29,6 +29,9 @@ if str(project_root) not in sys.path:
 from config import config  # noqa: E402
 from src.tools import MMOREClient  # noqa: E402
 from src.tools.hpc import set_current_session_id, set_progress_callback  # noqa: E402
+from src.tools.mmore_client import (  # noqa: E402
+    set_progress_callback as set_mmore_progress_callback,
+)
 from src.ui import chat, home, settings, wandb_report  # noqa: E402
 from src.ui.chat_management import (  # noqa: E402
     create_new_chat,
@@ -159,24 +162,41 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
         save_active_chat_to_storage()  # Save after confirmation response
         return
 
+    # Check if this is a simple "add to knowledge" request with PDF attachments
+    has_pdfs = any(f.get("type") == "application/pdf" for f in images_for_display)
+    is_knowledge_upload = has_pdfs and text_content.lower().strip() in [
+        "add to my knowledge",
+        "add to knowledge",
+        "add to my knowledge base",
+        "add to knowledge base",
+        "upload to knowledge",
+        "upload to knowledge base",
+    ]
+
     # Normal flow - add user message to display
     message_dict: dict[str, Any] = {"role": "user", "content": text_content}
     if images_for_display:
         message_dict["images"] = images_for_display
     st.session_state.messages.append(message_dict)
 
-    # Save user message to database
+    # Save user message to database (strip 'bytes' field - only store base64)
     if st.session_state.active_chat_id:
         db = get_db()
+        # Remove 'bytes' field before saving to database (only keep base64)
+        images_for_db = (
+            [
+                {k: v for k, v in img.items() if k != "bytes"}
+                for img in images_for_display
+            ]
+            if images_for_display
+            else None
+        )
         db.add_message(
             conversation_id=st.session_state.active_chat_id,
             role="user",
             content=text_content,
-            images=images_for_display if images_for_display else None,
+            images=images_for_db,
         )
-
-    # Check if we have PDFs - they will be extracted and added as text
-    has_pdfs = any(f.get("type") == "application/pdf" for f in images_for_display)
 
     # Filter out PDFs from images_for_agent (PDFs are handled separately via text extraction)
     non_pdf_images = (
@@ -234,62 +254,14 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                 f for f in images_for_display if f.get("type") == "application/pdf"
             ]
 
-            if pdf_files:
-                # Upload PDFs to MMORE for RAG retrieval (no Mathpix)
-                try:
-                    mmore_client = MMOREClient()
-                    db = get_db()  # Get database instance
-
-                    # Process and store each PDF in MMORE
-                    for pdf_file in pdf_files:
-                        pdf_bytes = base64.b64decode(pdf_file["data"])
-                        file_name = pdf_file.get("name", "document.pdf")
-
-                        # Write to temporary file for MMORE upload
-                        with tempfile.NamedTemporaryFile(
-                            suffix=".pdf", delete=False
-                        ) as tmp_file:
-                            tmp_file.write(pdf_bytes)
-                            tmp_path = tmp_file.name
-
-                        try:
-                            # Upload to MMORE (uses file stem as ID)
-                            file_id = Path(file_name).stem
-                            mmore_client.upload_file(
-                                file_path=tmp_path, file_id=file_id
-                            )
-
-                            # Track in database
-                            db.add_mmore_document(
-                                file_id=file_id, file_name=file_name, file_path=tmp_path
-                            )
-
-                            st.success(
-                                f"✓ Added '{file_name}' to MMORE knowledge base (ID: {file_id})"
-                            )
-                            logger.info(
-                                f"Uploaded {file_name} to MMORE with ID {file_id}"
-                            )
-
-                        except Exception as e:
-                            st.error(f"Error uploading '{file_name}' to MMORE: {e!s}")
-                            logger.exception(f"Failed to upload {file_name} to MMORE")
-                        finally:
-                            # Clean up temp file
-                            tmp_file_path = Path(tmp_path)
-                            if tmp_file_path.exists():
-                                tmp_file_path.unlink()
-
-                except Exception as e:
-                    st.error(f"Error processing PDF: {e!s}")
-                    # Continue with regular processing
-
             # Track messages before invocation
             messages_before = len(st.session_state.agent_state["messages"])
 
-            # Create progress status placeholder for HPC operations
+            # Create progress status placeholders FIRST
             hpc_status_placeholder = st.empty()
             hpc_progress_messages = []
+            mmore_status_placeholder = st.empty()
+            mmore_progress_messages = []
 
             def hpc_progress_callback(step: str, message: str) -> None:
                 """Callback to display HPC operation progress."""
@@ -329,8 +301,134 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                                 f"Job {job_id} submitted, will prompt user to monitor"
                             )
 
+            def mmore_progress_callback(step: str, message: str) -> None:
+                """Callback to display MMORE operation progress."""
+                # Map steps to emoji icons
+                step_icons = {
+                    "prepare": "📄",
+                    "upload": "📤",
+                    "process": "⚙️",
+                    "download": "⬇️",
+                    "complete": "✅",
+                    "error": "❌",
+                }
+                icon = step_icons.get(step, "📝")
+
+                # Add to progress messages
+                progress_line = f"{icon} {message}"
+                mmore_progress_messages.append(progress_line)
+
+                # Display all progress in the placeholder
+                with mmore_status_placeholder.container():
+                    st.info("\n\n".join(mmore_progress_messages))
+
             # Set progress callback for HPC operations
             set_progress_callback(hpc_progress_callback)
+
+            # Set progress callback for MMORE operations
+            set_mmore_progress_callback(mmore_progress_callback)
+
+            # Upload PDFs to MMORE AFTER setting up progress callbacks
+            if pdf_files:
+                try:
+                    mmore_client = MMOREClient()
+                    db = get_db()  # Get database instance
+
+                    # Process and store each PDF in MMORE
+                    for pdf_file in pdf_files:
+                        # Use original bytes if available (avoids decode), otherwise decode from base64
+                        pdf_bytes: bytes = (
+                            cast(bytes, pdf_file["bytes"])
+                            if "bytes" in pdf_file and pdf_file["bytes"] is not None
+                            else base64.b64decode(pdf_file["data"])
+                        )
+                        file_name = pdf_file.get("name", "document.pdf")
+
+                        # Write to temporary file for MMORE upload
+                        with tempfile.NamedTemporaryFile(
+                            suffix=".pdf", delete=False
+                        ) as tmp_file:
+                            tmp_file.write(pdf_bytes)
+                            tmp_path = tmp_file.name
+
+                        try:
+                            # Upload to MMORE (uses file stem as ID)
+                            file_id = Path(file_name).stem
+                            mmore_client.upload_file(
+                                file_path=tmp_path,
+                                file_id=file_id,
+                                original_name=file_name,
+                            )
+
+                            # Track in database
+                            db.add_mmore_document(
+                                file_id=file_id, file_name=file_name, file_path=tmp_path
+                            )
+
+                            # Report completion through progress callback
+                            mmore_progress_callback(
+                                "complete",
+                                f"✓ Successfully indexed '{file_name}' - ready for queries!",
+                            )
+
+                            st.success(
+                                f"✓ Added '{file_name}' to MMORE knowledge base (ID: {file_id})"
+                            )
+                            logger.info(
+                                f"Uploaded {file_name} to MMORE with ID {file_id}"
+                            )
+
+                        except Exception as e:
+                            st.error(f"Error uploading '{file_name}' to MMORE: {e!s}")
+                            logger.exception(f"Failed to upload {file_name} to MMORE")
+                        finally:
+                            # Clean up temp file
+                            tmp_file_path = Path(tmp_path)
+                            if tmp_file_path.exists():
+                                tmp_file_path.unlink()
+
+                except Exception as e:
+                    st.error(f"Error processing PDF: {e!s}")
+                    # Continue with regular processing
+
+            # If this was just a simple knowledge upload request, provide a direct response
+            if is_knowledge_upload:
+                # Provide a helpful response without invoking the agent
+                uploaded_names = ", ".join(
+                    [f"'{f.get('name', 'document.pdf')}'" for f in pdf_files]
+                )
+                response_text = (
+                    f"✅ Successfully added {uploaded_names} to the MMORE knowledge base!\n\n"
+                    f"You can now ask questions about {'this document' if len(pdf_files) == 1 else 'these documents'}. "
+                    f"For example:\n"
+                    f'- "What is this paper about?"\n'
+                    f'- "Summarize the key findings"\n'
+                    f'- "What methods did they use?"'
+                )
+
+                # Display the response
+                st.markdown(response_text)
+
+                # Add to display history
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": response_text,
+                    }
+                )
+
+                # Save assistant message to database
+                if st.session_state.active_chat_id:
+                    db = get_db()
+                    db.add_message(
+                        conversation_id=st.session_state.active_chat_id,
+                        role="assistant",
+                        content=response_text,
+                    )
+
+                # Save chat state
+                save_active_chat_to_storage()
+                return
 
             try:
                 # Invoke the agent
@@ -338,10 +436,12 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                     st.session_state.agent_state, st.session_state.config
                 )
             finally:
-                # Clear progress callback after invocation
+                # Clear progress callbacks after invocation
                 set_progress_callback(None)
-                # Clear the status placeholder
+                set_mmore_progress_callback(None)
+                # Clear the status placeholders
                 hpc_status_placeholder.empty()
+                mmore_status_placeholder.empty()
 
             # Check if graph was interrupted for confirmation
             is_interrupted, user_request = check_streamlit_interrupt()
@@ -626,19 +726,6 @@ def get_job_status_display(job_id: str, host_alias: str = "euler") -> dict[str, 
         }
 
 
-def _render_job_monitor_header() -> None:
-    """Render job monitor header with add and refresh buttons."""
-    col1, col2, col3 = st.columns([6, 1, 1])
-    with col1:
-        st.markdown("## 🚀 SLURM Job Monitor")
-    with col2:
-        if st.button("+", key="add_job_btn", help="Add job to monitor"):
-            st.session_state.show_add_job_form = True
-    with col3:
-        if st.button("🔄", key="refresh_jobs_btn", help="Refresh all jobs"):
-            st.rerun()
-
-
 def _render_add_job_form(form_key: str) -> None:
     """Render form to add a new job to monitor."""
     with st.form(form_key):
@@ -661,83 +748,6 @@ def _render_add_job_form(form_key: str) -> None:
         elif cancelled:
             st.session_state[f"show_{form_key}"] = False
             st.rerun()
-
-
-def _display_job_status_widget(
-    job_id: str, status: dict[str, Any], key_prefix: str
-) -> None:
-    """Display a single job's status in a widget."""
-    if not status["success"]:
-        st.markdown(f"**Job ID: `{job_id}`**")
-        st.error(f"❌ Error: {status.get('error', 'Unknown error')}")
-        if st.button(
-            "🗑️ Remove",
-            key=f"{key_prefix}_error_{job_id}",
-            type="secondary",
-            use_container_width=True,
-        ):
-            del st.session_state.monitored_jobs[job_id]
-            st.rerun()
-        return
-
-    state = status["state"]
-    is_completed = status["is_completed"]
-
-    # Update job info
-    st.session_state.monitored_jobs[job_id]["state"] = state
-    st.session_state.monitored_jobs[job_id]["is_completed"] = is_completed
-    st.session_state.monitored_jobs[job_id]["last_check"] = time.time()
-
-    st.markdown(f"**Job ID: `{job_id}`**")
-
-    # Display status with color coding
-    if is_completed:
-        st.success(f"✅ **{state}**")
-    elif state in {"R", "RUNNING"}:
-        st.info(f"▶️ **{state}** (Running)")
-    elif state in {"PD", "PENDING"}:
-        st.warning(f"⏳ **{state}** (Pending)")
-    else:
-        st.info(f"⚙️ **{state}**")
-
-    # Show raw output in expander
-    with st.expander("📊 View squeue output"):
-        st.code(status["raw_output"], language="text")
-
-    # Remove button
-    if st.button(
-        "🗑️ Remove",
-        key=f"{key_prefix}_{job_id}",
-        type="secondary",
-        use_container_width=True,
-    ):
-        del st.session_state.monitored_jobs[job_id]
-        st.rerun()
-
-
-def _render_auto_refresh_status() -> None:
-    """Render auto-refresh status message."""
-    if not st.session_state.monitored_jobs:
-        return
-
-    has_active_jobs = any(
-        not job_info.get("is_completed", False)
-        for job_info in st.session_state.monitored_jobs.values()
-    )
-
-    local_time = time.strftime("%H:%M:%S", time.localtime())
-
-    if has_active_jobs:
-        refresh_interval = st.session_state.get("job_monitor_refresh_interval", 60)
-        st.markdown(
-            f"*Auto-refreshing every {refresh_interval}s... (Last update: {local_time})*"
-        )
-        time.sleep(refresh_interval)
-        st.rerun()
-    else:
-        st.markdown(
-            f"*All jobs completed. Auto-refresh stopped. (Last update: {local_time})*"
-        )
 
 
 def add_job_to_monitor(job_id: str, initial_state: str = "SUBMITTED") -> None:

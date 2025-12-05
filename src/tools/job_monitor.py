@@ -11,7 +11,6 @@ when jobs complete. It supports:
 import logging
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from langchain_core.tools import tool
@@ -294,53 +293,3 @@ def get_active_jobs_summary(
             "jobs_output": output,
             "message": f"Found {job_count} active job(s) in the queue",
         }
-
-
-def generate_slurm_script_with_notifications(
-    script_path: str,
-    email: str | None = None,
-    notify_on: str = "END,FAIL",
-) -> str:
-    """
-    Add email notification directives to a SLURM script.
-
-    Args:
-        script_path: Path to the SLURM script
-        email: Email address for notifications (uses SLURM_EMAIL_USER from .env if not provided)
-        notify_on: When to send notifications (default: "END,FAIL")
-                   Options: BEGIN, END, FAIL, REQUEUE, ALL
-
-    Returns:
-        Modified script content with notification directives
-    """
-    if email is None:
-        email = config.slurm_email_user if hasattr(config, "slurm_email_user") else ""
-
-    script = Path(script_path).read_text()
-
-    # Check if notifications already configured
-    if "#SBATCH --mail-user" in script:
-        logger.warning("Email notifications already configured in script")
-        return script
-
-    # Find where to insert (after other #SBATCH directives)
-    lines = script.split("\n")
-    insert_pos = 0
-
-    for i, line in enumerate(lines):
-        if line.strip().startswith("#SBATCH"):
-            insert_pos = i + 1
-
-    # Insert notification directives
-    notification_lines = [
-        f"#SBATCH --mail-type={notify_on}",
-        f"#SBATCH --mail-user={email}",
-    ]
-
-    lines[insert_pos:insert_pos] = notification_lines
-    modified_script = "\n".join(lines)
-
-    logger.info("Added email notifications to script")
-    logger.debug(f"Email: {email}, Notify on: {notify_on}")
-
-    return modified_script

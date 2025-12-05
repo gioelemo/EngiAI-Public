@@ -356,40 +356,6 @@ def format_tool_call(tool_call: Any) -> str:
     return f"🔧 **Using tool:** `{tool_name}`"
 
 
-def format_ai_message(message: AIMessage | ToolMessage) -> str:
-    """Format an AI or tool message for display.
-
-    Args:
-        message: The message to format
-
-    Returns:
-        Formatted message content
-    """
-    max_content_length = 1000
-
-    if isinstance(message, ToolMessage):
-        # Tool results
-        content = str(message.content)
-        if len(content) > max_content_length:
-            content = content[:max_content_length] + "\n\n... (truncated)"
-        return f"```\n{content}\n```"
-
-    # AI message
-    content = str(message.content) if message.content else ""
-
-    # Add tool calls if present
-    if hasattr(message, "tool_calls") and message.tool_calls:
-        tool_info = "\n\n".join(
-            format_tool_call(tc)
-            for tc in message.tool_calls  # type: ignore[arg-type]
-        )
-        if content:
-            return f"{tool_info}\n\n{content}"
-        return tool_info
-
-    return content
-
-
 def format_and_display_messages(
     new_messages: list, use_streaming: bool = False
 ) -> tuple[str, list[str]]:

@@ -16,6 +16,7 @@ from langchain_core.tools import tool
 
 from src.agents.base_agent import BaseAgent
 from src.tools import MMOREClient
+from src.tools.mmore_client import _report_progress
 
 if TYPE_CHECKING:
     pass
@@ -153,8 +154,15 @@ class RAGAgent(BaseAgent):
                 self.db.add_mmore_document(
                     file_id=file_id, file_name=path.name, file_path=str(path)
                 )
+
+                # Report completion
+                _report_progress(
+                    "complete",
+                    f"✓ Successfully indexed '{path.name}' - ready for queries!",
+                )
             except Exception as e:
                 logger.exception("Error adding document to MMORE")
+                _report_progress("error", f"✗ Error adding document: {e}")
                 return f"Error adding document: {e}"
             else:
                 return (
@@ -212,6 +220,7 @@ class RAGAgent(BaseAgent):
 
                 # Download content
                 logger.info(f"Downloading content from {download_url}...")
+                _report_progress("download", "Downloading content from URL...")
                 response = requests.get(download_url, timeout=30)
                 response.raise_for_status()
 
@@ -235,6 +244,12 @@ class RAGAgent(BaseAgent):
                         uploaded_by="url_upload",
                     )
 
+                    # Report completion
+                    _report_progress(
+                        "complete",
+                        "✓ Successfully indexed content from URL - ready for queries!",
+                    )
+
                     return (
                         f"✓ Successfully added URL content to knowledge base!\n"
                         f"Source: {url}\n"
@@ -248,12 +263,15 @@ class RAGAgent(BaseAgent):
 
             except requests.HTTPError as e:
                 logger.exception("HTTP error downloading URL")
+                _report_progress("error", f"✗ HTTP error: {e.response.status_code}")
                 return f"Error downloading URL: {e.response.status_code} - {e.response.reason}"
             except requests.RequestException as e:
                 logger.exception("Error downloading URL")
+                _report_progress("error", f"✗ Error downloading URL: {e}")
                 return f"Error downloading URL: {e}"
             except Exception as e:
                 logger.exception("Error adding URL to MMORE")
+                _report_progress("error", f"✗ Error adding URL: {e}")
                 return f"Error adding URL to knowledge base: {e}"
 
         return add_url_to_knowledge_base

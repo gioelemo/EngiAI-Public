@@ -102,24 +102,3 @@ def get_checkpointer() -> MemorySaver:
             )
 
     return _checkpointer  # type: ignore[return-value]
-
-
-def close_checkpointer() -> None:
-    """
-    Close the global checkpointer connection.
-
-    This should be called when the application is shutting down.
-    """
-    global _checkpointer, _context_manager, _initialized  # noqa: PLW0603
-
-    if _checkpointer is not None:
-        if (
-            POSTGRES_AVAILABLE
-            and PostgresSaver is not None
-            and isinstance(_checkpointer, PostgresSaver)
-            and _context_manager is not None
-        ):
-            _context_manager.__exit__(None, None, None)  # Exit the context manager
-        _checkpointer = None
-        _context_manager = None
-        _initialized = False

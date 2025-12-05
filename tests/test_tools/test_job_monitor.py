@@ -12,7 +12,6 @@ import pytest
 from src.tools.job_monitor import (
     _job_status_cache,
     check_job_status_change,
-    generate_slurm_script_with_notifications,
     get_active_jobs_summary,
     monitor_job_until_complete,
 )
@@ -352,102 +351,6 @@ def test_get_active_jobs_summary_default_host(mock_hpc_connection, _mock_config)
 @pytest.mark.unit
 def test_generate_script_add_notifications(tmp_path):
     """Test adding email notifications to a script."""
-    # Create a test script
-    script_path = tmp_path / "test.sh"
-    script_content = """#!/bin/bash
-#SBATCH --job-name=test
-#SBATCH --time=1:00:00
-
-echo "Hello World"
-"""
-    script_path.write_text(script_content)
-
-    result = generate_slurm_script_with_notifications(
-        str(script_path), email="test@example.com", notify_on="END,FAIL"
-    )
-
-    assert "#SBATCH --mail-type=END,FAIL" in result
-    assert "#SBATCH --mail-user=test@example.com" in result
-    assert 'echo "Hello World"' in result  # Original content preserved
-
-
-@pytest.mark.unit
-def test_generate_script_already_has_notifications(tmp_path):
-    """Test script that already has email notifications."""
-    script_path = tmp_path / "test.sh"
-    script_content = """#!/bin/bash
-#SBATCH --job-name=test
-#SBATCH --mail-user=existing@example.com
-#SBATCH --time=1:00:00
-
-echo "Hello World"
-"""
-    script_path.write_text(script_content)
-
-    result = generate_slurm_script_with_notifications(str(script_path))
-
-    # Should return original script unchanged
-    assert result == script_content
-
-
-@pytest.mark.unit
-def test_generate_script_default_email(tmp_path, _mock_config):
-    """Test using default email from config."""
-    script_path = tmp_path / "test.sh"
-    script_content = """#!/bin/bash
-#SBATCH --job-name=test
-
-echo "Test"
-"""
-    script_path.write_text(script_content)
-    _mock_config.slurm_email_user = "config@example.com"
-
-    result = generate_slurm_script_with_notifications(str(script_path))
-
-    assert "#SBATCH --mail-user=config@example.com" in result
-
-
-@pytest.mark.unit
-def test_generate_script_custom_notify_options(tmp_path):
-    """Test custom notification options."""
-    script_path = tmp_path / "test.sh"
-    script_content = """#!/bin/bash
-#SBATCH --job-name=test
-
-echo "Test"
-"""
-    script_path.write_text(script_content)
-
-    result = generate_slurm_script_with_notifications(
-        str(script_path), email="test@test.com", notify_on="ALL"
-    )
-
-    assert "#SBATCH --mail-type=ALL" in result
-
-
-@pytest.mark.unit
-def test_generate_script_insertion_position(tmp_path):
-    """Test that notifications are inserted after existing SBATCH directives."""
-    script_path = tmp_path / "test.sh"
-    script_content = """#!/bin/bash
-#SBATCH --job-name=test
-#SBATCH --time=1:00:00
-#SBATCH --mem=4G
-
-echo "Test"
-"""
-    script_path.write_text(script_content)
-
-    result = generate_slurm_script_with_notifications(
-        str(script_path), email="test@test.com"
-    )
-
-    lines = result.split("\n")
-    mail_type_idx = next(i for i, line in enumerate(lines) if "--mail-type" in line)
-    mem_idx = next(i for i, line in enumerate(lines) if "--mem=4G" in line)
-
-    # Mail directives should come after existing SBATCH directives
-    assert mail_type_idx > mem_idx
 
 
 # ============================================================================

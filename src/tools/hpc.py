@@ -69,11 +69,6 @@ def set_current_session_id(session_id: str | None) -> None:
     _current_session_id = session_id
 
 
-def get_current_session_id() -> str | None:
-    """Get the current session ID."""
-    return _current_session_id
-
-
 def set_progress_callback(callback: Any | None) -> None:
     """
     Set the progress callback for HPC operations.

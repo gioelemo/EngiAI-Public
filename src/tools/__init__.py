@@ -25,7 +25,11 @@ from src.tools.engiopt import (
     load_wandb_model,
     sample_designs_from_model,
 )
-from src.tools.mmore_client import MMOREClient
+from src.tools.mmore_client import (
+    MMOREClient,
+    get_progress_callback,
+    set_progress_callback,
+)
 from src.tools.search import create_search_tool
 from src.tools.stl_export import convert_design_to_stl
 
@@ -41,11 +45,13 @@ __all__ = [
     "get_dataset_info",
     "get_problem_details",
     "get_problem_info",
+    "get_progress_callback",
     "list_available_algorithms",
     "load_wandb_model",
     "optimize_design",
     "render_design",
     "sample_designs_from_model",
     "search_arxiv",
+    "set_progress_callback",
     "simulate_design",
 ]
