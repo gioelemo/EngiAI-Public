@@ -25,6 +25,36 @@ from src.ui.media_display import (
 )
 from src.ui.streaming import stream_text
 
+# Constants
+MIN_AI_RESPONSE_LENGTH = 100  # Minimum AI response length before showing CLI output
+
+
+def filter_rag_summary_only(response: str) -> str:
+    """Filter RAG response to show only the LLM summary, not retrieval results.
+
+    This removes the "Result 1", "Result 2", etc. section and keeps only
+    the final summary that comes after the retrieval results.
+
+    Args:
+        response: Full response text containing both retrieval results and summary
+
+    Returns:
+        Only the summary part, or the full response if no pattern is found
+    """
+    # Pattern to match the "📚 Found X relevant passage(s)" footer
+    # Everything after this is the LLM's summary
+    pattern = r"📚 Found \d+ relevant passage\(s\)[^\n]*\n*(.+)"
+    match = re.search(pattern, response, re.DOTALL)
+
+    if match:
+        # Return only the content after the footer
+        summary = match.group(1).strip()
+        if summary:
+            return summary
+
+    # If no pattern found, return the full response
+    return response
+
 
 def fix_latex_delimiters(text: str) -> str:
     """Fix LaTeX delimiters to be Streamlit-compatible.
@@ -185,6 +215,105 @@ def extract_suggested_prompts(response: str) -> tuple[str, list[str]]:
     return cleaned_response, suggestions
 
 
+def _extract_messages_from_list(
+    new_messages: list,
+) -> tuple[AIMessage | None, list[ToolMessage]]:
+    """Extract final AI message and tool outputs from message list.
+
+    Args:
+        new_messages: List of messages from agent
+
+    Returns:
+        Tuple of (final AI message, list of tool messages)
+    """
+    final_message = None
+    tool_outputs = []
+
+    for message in new_messages:
+        if isinstance(message, ToolMessage):
+            tool_outputs.append(message)
+        elif isinstance(message, AIMessage):
+            has_content = message.content and str(message.content).strip()
+            has_tool_calls = hasattr(message, "tool_calls") and message.tool_calls
+            if has_content and not has_tool_calls:
+                final_message = message
+
+    return final_message, tool_outputs
+
+
+def _extract_cli_outputs(tool_outputs: list[ToolMessage]) -> list[str]:
+    """Extract CLI command outputs from tool messages.
+
+    Args:
+        tool_outputs: List of tool messages
+
+    Returns:
+        List of CLI output strings
+    """
+    cli_outputs = []
+    for tool_msg in tool_outputs:
+        content = str(tool_msg.content)
+        if "Command:" in content and "Exit Code:" in content:
+            cli_outputs.append(content)
+    return cli_outputs
+
+
+def _truncate_output(output: str, max_length: int = 3000) -> str:
+    """Truncate output if it exceeds max length.
+
+    Args:
+        output: Output string to truncate
+        max_length: Maximum length before truncation
+
+    Returns:
+        Truncated output string
+    """
+    if len(output) > max_length:
+        return output[:max_length] + "\n\n... (output truncated)"
+    return output
+
+
+def _format_cli_outputs(cli_outputs: list[str]) -> list[str]:
+    """Format CLI outputs as code blocks.
+
+    Args:
+        cli_outputs: List of CLI output strings
+
+    Returns:
+        List of formatted code blocks
+    """
+    formatted = []
+    for output in cli_outputs:
+        truncated = _truncate_output(output)
+        formatted.append(f"```\n{truncated}\n```")
+    return formatted
+
+
+def _process_ai_response(
+    final_message: AIMessage, cli_outputs: list[str]
+) -> tuple[list[str], list[str]]:
+    """Process AI message and optionally include CLI outputs.
+
+    Args:
+        final_message: The final AI message
+        cli_outputs: List of CLI output strings
+
+    Returns:
+        Tuple of (response parts, suggested prompts)
+    """
+    full_response = str(final_message.content)
+    cleaned_response, suggested_prompts = extract_suggested_prompts(full_response)
+    cleaned_response = extract_and_display_validation_warnings(cleaned_response)
+
+    response_parts = [cleaned_response]
+
+    # Add CLI outputs if AI response is too short
+    if cli_outputs and len(cleaned_response.strip()) < MIN_AI_RESPONSE_LENGTH:
+        response_parts.extend(_format_cli_outputs(cli_outputs))
+
+    return response_parts, suggested_prompts
+
+
 def extract_and_display_validation_warnings(response_text: str) -> str:
     """Extract validation warnings from response and display them as Streamlit warnings.
 
@@ -194,7 +323,6 @@ def extract_and_display_validation_warnings(response_text: str) -> str:
     Returns:
         Response text with validation warnings removed (they'll be shown separately)
     """
-
     # --- Pattern 1: Check for the highly structured "CRITICAL" block ---
     pattern_structured = (
         r"={60,}\n🚨 \*\*CRITICAL: Resource Allocation Review\*\*\n={60,}.*?={60,}"
@@ -371,88 +499,29 @@ def format_and_display_messages(
     Returns:
         Tuple of (formatted response string, list of suggested prompts)
     """
-    # Find the last AIMessage that has content and no tool_calls (the final response)
-    # Also collect all tool outputs from the messages
-    final_message = None
-    tool_outputs = []
-
-    for message in new_messages:
-        if isinstance(message, ToolMessage):
-            # Collect all tool outputs
-            tool_outputs.append(message)
-        elif isinstance(message, AIMessage):
-            # Check if this is a final response (has content, no tool_calls)
-            has_content = message.content and str(message.content).strip()
-            has_tool_calls = hasattr(message, "tool_calls") and message.tool_calls
-            if has_content and not has_tool_calls:
-                final_message = message
+    # Extract messages
+    final_message, tool_outputs = _extract_messages_from_list(new_messages)
+    cli_outputs = _extract_cli_outputs(tool_outputs)
 
     suggested_prompts: list[str] = []
-    response_parts = []
+    response_parts: list[str] = []
 
-    # Only show raw CLI command outputs (shell commands like pip list, ls, etc.)
-    # Skip tool outputs from agents that format their own responses (Prusa, engineering, etc.)
-    # The AI will provide a formatted summary for those
-    if tool_outputs:
-        for tool_msg in tool_outputs:
-            content = str(tool_msg.content)
-            # Only show outputs that look like raw shell command output:
-            # - Has multiple lines
-            # - Looks like package list, file listing, or similar tabular data
-            # - Doesn't contain structured data patterns
-            is_shell_output = (
-                "\n" in content
-                and not content.strip().startswith("{")
-                and "array([" not in content
-                and "'problem_id':" not in content
-                and "'success':" not in content
-                # Skip Prusa/printer outputs (formatted by the agent)
-                and "Printer Name:" not in content
-                and "Printer UUID:" not in content
-                and "Temperature (Nozzle)" not in content
-                # Skip JSON responses (API outputs)
-                and '"id":' not in content
-                and '"state":' not in content
-                and '"command":' not in content
-                # Skip other agent-formatted outputs
-                and "---" not in content[:100]  # Separators indicate formatted output
-                # Skip printer file listings
-                and "PRINT_FILE" not in content
-                and ".bgcode" not in content
-            )
-            if is_shell_output:
-                # Truncate very long outputs
-                max_content_length = 3000
-                if len(content) > max_content_length:
-                    content = (
-                        content[:max_content_length] + "\n\n... (output truncated)"
-                    )
-                response_parts.append(f"```\n{content}\n```")
-
+    # Process based on what we have
     if final_message:
-        full_response = str(final_message.content)
+        response_parts, suggested_prompts = _process_ai_response(
+            final_message, cli_outputs
+        )
+    elif cli_outputs:
+        response_parts = _format_cli_outputs(cli_outputs)
 
-        # Extract suggested prompts first
-        cleaned_response, suggested_prompts = extract_suggested_prompts(full_response)
-
-        # Extract and display validation warnings as separate Streamlit components
-        cleaned_response = extract_and_display_validation_warnings(cleaned_response)
-
-        response_parts.append(cleaned_response)
-
-    # Combine all parts
+    # Display if we have content
     combined_response = "\n\n".join(response_parts)
-
     if combined_response:
-        # Display the combined response with or without streaming
         if use_streaming:
             st.write_stream(stream_text(combined_response))
         else:
             st.markdown(combined_response)
-
-        # Display media files
         display_response_media(combined_response)
-
         return combined_response, suggested_prompts
 
     return "", suggested_prompts
