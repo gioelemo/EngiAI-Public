@@ -32,5 +32,18 @@ else
     echo "SSH configuration skipped (no SSH keys mounted)."
 fi
 
+# Check if papers directory is accessible and has content
+if [ -d "/app/papers" ]; then
+    PAPER_COUNT=$(find /app/papers -type f \( -name "*.pdf" -o -name "*.txt" -o -name "*.md" \) 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$PAPER_COUNT" -gt 0 ]; then
+        echo "Papers directory mounted: Found $PAPER_COUNT paper files."
+    else
+        echo "⚠️  WARNING: Papers directory is empty. If you're on university network, ensure PAPERS_SOURCE_DIR is set correctly in .env"
+        echo "⚠️  Current papers mount: Using fallback local directory. No papers available for import."
+    fi
+else
+    echo "⚠️  WARNING: Papers directory not accessible at /app/papers"
+fi
+
 # Execute the main command (Streamlit)
 exec "$@"
