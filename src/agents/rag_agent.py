@@ -17,6 +17,7 @@ from langchain_core.tools import tool
 from src.agents.base_agent import BaseAgent
 from src.tools import MMOREClient
 from src.tools.mmore_client import _report_progress
+from src.tools.web_crawler import WebCrawler
 
 if TYPE_CHECKING:
     pass
@@ -173,15 +174,23 @@ class RAGAgent(BaseAgent):
 
         return add_document
 
-    def _create_add_url_tool(self):
+    def _create_add_url_tool(self):  # noqa: PLR0915
         """Create the add URL tool using MMORE."""
 
         @tool
-        def add_url_to_knowledge_base(
+        def add_url_to_knowledge_base(  # noqa: PLR0912, PLR0915
             url: Annotated[str, "The URL to download and add to the knowledge base"],
+            crawl_subpages: Annotated[
+                bool,
+                "Whether to crawl and index all linked pages (default: True for documentation sites)",
+            ] = True,
+            max_pages: Annotated[
+                int,
+                "Maximum number of pages to crawl (default: 50)",
+            ] = 50,
             file_id: Annotated[
                 str,
-                "Optional custom ID for the document (auto-generated if not provided)",
+                "Optional custom ID prefix for documents (auto-generated if not provided)",
             ] = "",
         ) -> str:
             """
@@ -189,9 +198,15 @@ class RAGAgent(BaseAgent):
 
             Supports:
             - GitHub documentation (automatically converts to raw URLs)
-            - HTML pages
+            - HTML pages with optional crawling of linked subpages
             - Markdown files
             - Any web-accessible document
+
+            When crawl_subpages is True, will crawl all pages within the same domain
+            up to max_pages, making it ideal for adding entire documentation sites.
+
+            MMORE processes HTML by converting it to Markdown using markdownify,
+            then extracts images and cleans the text.
 
             Use this when users want to add web documentation, GitHub docs, or
             online resources to the knowledge base.
@@ -199,67 +214,180 @@ class RAGAgent(BaseAgent):
             try:
                 # Convert GitHub URLs to raw URLs if needed
                 download_url = url
+                is_github_raw = False
                 if "github.com" in url and "/blob/" in url:
                     download_url = url.replace(
                         "github.com", "raw.githubusercontent.com"
                     ).replace("/blob/", "/")
                     logger.info(f"Converted GitHub URL to raw: {download_url}")
+                    is_github_raw = True
+                    # Disable crawling for single GitHub files
+                    crawl_subpages = False
 
-                # Determine file extension from URL
-                parsed_url = urlparse(download_url)
-                path_parts = Path(parsed_url.path)
-                extension = path_parts.suffix or ".html"
-
-                # Generate file_id if not provided
-                if not file_id:
-                    file_id = "".join(
-                        c for c in path_parts.stem if c.isalnum() or c in "_-"
+                # Check if we should crawl multiple pages
+                if crawl_subpages and not is_github_raw:
+                    logger.info(f"Crawling website starting from {url}...")
+                    _report_progress(
+                        "crawl", f"Crawling website (max {max_pages} pages)..."
                     )
-                    if not file_id:
-                        file_id = parsed_url.netloc.replace(".", "_")
 
-                # Download content
-                logger.info(f"Downloading content from {download_url}...")
-                _report_progress("download", "Downloading content from URL...")
-                response = requests.get(download_url, timeout=30)
-                response.raise_for_status()
+                    # Use web crawler to get all pages
+                    crawler = WebCrawler(max_pages=max_pages, max_depth=3)
+                    pages = list(crawler.crawl(url))
 
-                # Save to temporary file
-                with tempfile.NamedTemporaryFile(
-                    mode="wb", suffix=extension, delete=False
-                ) as tmp_file:
-                    tmp_file.write(response.content)
-                    temp_path = tmp_file.name
+                    if not pages:
+                        return f"No pages found at {url}. The site may be inaccessible or contains no HTML content."
 
-                try:
-                    # Upload to MMORE
-                    logger.info(f"Uploading to MMORE with file_id: {file_id}...")
-                    self.mmore_client.upload_file(file_path=temp_path, file_id=file_id)
+                    # Process and upload each page
+                    uploaded_count = 0
+                    failed_count = 0
+                    temp_files = []
 
-                    # Track in database
-                    self.db.add_mmore_document(
-                        file_id=file_id,
-                        file_name=path_parts.name or "web_content",
-                        file_path=url,  # Store original URL
-                        uploaded_by="url_upload",
-                    )
+                    try:
+                        for i, page_data in enumerate(pages):
+                            page_url = page_data["url"]
+                            content = page_data["content"]
+                            title = page_data["title"] or f"page_{i}"
+
+                            # Generate unique file ID for this page
+                            parsed_url = urlparse(page_url)
+                            path_parts = Path(parsed_url.path)
+
+                            # Create a unique file ID based on URL path
+                            page_file_id = file_id or parsed_url.netloc.replace(
+                                ".", "_"
+                            )
+                            if path_parts.parts:
+                                # Add path to file ID
+                                path_suffix = "_".join(
+                                    "".join(c for c in part if c.isalnum() or c in "_-")
+                                    for part in path_parts.parts
+                                    if part
+                                )
+                                if path_suffix:
+                                    page_file_id += f"_{path_suffix}"
+
+                            # Ensure unique file ID
+                            if i > 0 or not file_id:
+                                page_file_id += f"_{i}"
+
+                            try:
+                                # Save to temporary file
+                                with tempfile.NamedTemporaryFile(
+                                    mode="w",
+                                    suffix=".html",
+                                    delete=False,
+                                    encoding="utf-8",
+                                ) as tmp_file:
+                                    tmp_file.write(content)
+                                    temp_path = tmp_file.name
+                                    temp_files.append(temp_path)
+
+                                # Upload to MMORE
+                                self.mmore_client.upload_file(
+                                    file_path=temp_path, file_id=page_file_id
+                                )
+
+                                # Track in database
+                                self.db.add_mmore_document(
+                                    file_id=page_file_id,
+                                    file_name=title
+                                    or page_url.split("/")[-1]
+                                    or "index",
+                                    file_path=page_url,
+                                    uploaded_by="url_crawl",
+                                )
+
+                                uploaded_count += 1
+                                _report_progress(
+                                    "upload",
+                                    f"Uploaded {uploaded_count}/{len(pages)} pages...",
+                                )
+
+                            except Exception as e:
+                                logger.warning(f"Failed to upload {page_url}: {e}")
+                                failed_count += 1
+
+                    finally:
+                        # Clean up all temporary files
+                        for temp_path in temp_files:
+                            Path(temp_path).unlink(missing_ok=True)
 
                     # Report completion
                     _report_progress(
                         "complete",
-                        "✓ Successfully indexed content from URL - ready for queries!",
+                        f"✓ Successfully indexed {uploaded_count} pages - ready for queries!",
                     )
 
+                    stats = crawler.get_stats()
                     return (
-                        f"✓ Successfully added URL content to knowledge base!\n"
+                        f"✓ Successfully crawled and indexed website!\n"
                         f"Source: {url}\n"
-                        f"File ID: {file_id}\n"
-                        f"Content size: {len(response.content)} bytes\n\n"
-                        f"You can now ask questions about this document."
+                        f"Pages indexed: {uploaded_count}\n"
+                        f"Failed: {failed_count}\n"
+                        f"Total size: {stats['total_size_bytes'] / 1024:.1f} KB\n"
+                        f"Max depth: {stats['max_depth_reached']}\n\n"
+                        f"You can now ask questions about this documentation."
                     )
-                finally:
-                    # Clean up temporary file
-                    Path(temp_path).unlink(missing_ok=True)
+
+                else:
+                    # Single page mode (original behavior)
+                    parsed_url = urlparse(download_url)
+                    path_parts = Path(parsed_url.path)
+                    extension = path_parts.suffix or ".html"
+
+                    # Generate file_id if not provided
+                    if not file_id:
+                        file_id = "".join(
+                            c for c in path_parts.stem if c.isalnum() or c in "_-"
+                        )
+                        if not file_id:
+                            file_id = parsed_url.netloc.replace(".", "_")
+
+                    # Download content
+                    logger.info(f"Downloading content from {download_url}...")
+                    _report_progress("download", "Downloading content from URL...")
+                    response = requests.get(download_url, timeout=30)
+                    response.raise_for_status()
+
+                    # Save to temporary file
+                    with tempfile.NamedTemporaryFile(
+                        mode="wb", suffix=extension, delete=False
+                    ) as tmp_file:
+                        tmp_file.write(response.content)
+                        temp_path = tmp_file.name
+
+                    try:
+                        # Upload to MMORE
+                        logger.info(f"Uploading to MMORE with file_id: {file_id}...")
+                        self.mmore_client.upload_file(
+                            file_path=temp_path, file_id=file_id
+                        )
+
+                        # Track in database
+                        self.db.add_mmore_document(
+                            file_id=file_id,
+                            file_name=path_parts.name or "web_content",
+                            file_path=url,  # Store original URL
+                            uploaded_by="url_upload",
+                        )
+
+                        # Report completion
+                        _report_progress(
+                            "complete",
+                            "✓ Successfully indexed content from URL - ready for queries!",
+                        )
+
+                        return (
+                            f"✓ Successfully added URL content to knowledge base!\n"
+                            f"Source: {url}\n"
+                            f"File ID: {file_id}\n"
+                            f"Content size: {len(response.content)} bytes\n\n"
+                            f"You can now ask questions about this document."
+                        )
+                    finally:
+                        # Clean up temporary file
+                        Path(temp_path).unlink(missing_ok=True)
 
             except requests.HTTPError as e:
                 logger.exception("HTTP error downloading URL")
