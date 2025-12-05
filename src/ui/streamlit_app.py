@@ -47,7 +47,6 @@ from src.ui.confirmation_handler import (  # noqa: E402
 )
 from src.ui.database import DatabaseManager  # noqa: E402
 from src.ui.file_processing import (  # noqa: E402
-    extract_pdf_text,
     process_uploaded_images,
 )
 from src.ui.message_processing import (  # noqa: E402
@@ -236,11 +235,8 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             ]
 
             if pdf_files:
-                # Extract PDF text for immediate display to agent
+                # Upload PDFs to MMORE for RAG retrieval (no Mathpix)
                 try:
-                    pdf_text = extract_pdf_text(pdf_files)
-
-                    # Upload PDFs to MMORE for RAG retrieval
                     mmore_client = MMOREClient()
                     db = get_db()  # Get database instance
 
@@ -283,18 +279,6 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                             tmp_file_path = Path(tmp_path)
                             if tmp_file_path.exists():
                                 tmp_file_path.unlink()
-
-                    # Update the user message in agent state to include PDF content
-                    # Remove the last message (text-only) and replace with PDF-enhanced version
-                    st.session_state.agent_state["messages"].pop()
-
-                    # Create enhanced message with PDF text
-                    enhanced_content = (
-                        f"PDF Content:\n\n{pdf_text}\n\nUser Question: {text_content}"
-                    )
-                    st.session_state.agent_state["messages"].append(
-                        HumanMessage(content=enhanced_content)
-                    )
 
                 except Exception as e:
                     st.error(f"Error processing PDF: {e!s}")
