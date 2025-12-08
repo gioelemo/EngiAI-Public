@@ -280,6 +280,10 @@ def render() -> None:
                     unsafe_allow_html=True,
                 )
 
+        # Create a placeholder for new messages BEFORE the chat input
+        # This ensures messages appear in the correct position
+        new_message_placeholder = st.empty()
+
         # Chat input with image upload support - always show it so user can respond to follow-up questions
         message = st.chat_input(
             "Ask me anything about engineering design...",
@@ -292,7 +296,9 @@ def render() -> None:
 
         # Process the input if we have any
         if input_to_process:
-            process_user_input(input_to_process)
+            # Use the placeholder to render new messages above the chat input
+            with new_message_placeholder.container():
+                process_user_input(input_to_process)
 
         # Render compact job monitor at the bottom if there are jobs
         if st.session_state.get("monitored_jobs"):
