@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+from streamlit.components.v1 import html as components_html
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -60,61 +61,129 @@ def _render_job_monitoring_prompt() -> None:
 
 
 def render() -> None:
-    """Render the chat page."""
-    # IMPORTANT: Check for pending suggestion FIRST, before any rendering
-    # This handles the case where a button was clicked and stored a suggestion
-    pending_suggestion = None
-    if (
-        hasattr(st.session_state, "selected_suggestion")
-        and st.session_state.selected_suggestion
-    ):
-        pending_suggestion = st.session_state.selected_suggestion
-        st.session_state.selected_suggestion = (
-            None  # Clear immediately to prevent double-processing
+    """Render the chat page with Excalidraw canvas."""
+    # Create two columns: 2/3 for chat, 1/3 for canvas
+    chat_col, canvas_col = st.columns([2, 1])
+
+    with canvas_col:
+        # Center the whiteboard section
+        st.markdown(
+            """
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <h3 style="text-align: center; margin-bottom: 1rem;">🎨 Whiteboard</h3>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    # Small logo at top when chat has messages
-    if st.session_state.messages:
-        # Display chat history
-        for message_idx, message in enumerate(st.session_state.messages):
-            display_message(message, message_idx)
+        # Excalidraw HTML for iframe
+        excalidraw_html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css"/>
+    <style>
+        body { margin: 0; padding: 0; background: #f5f5f5; }
+        #app { height: 100vh; width: 100%; }
+    </style>
+    <script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";</script>
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@19.0.0",
+            "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
+            "react-dom": "https://esm.sh/react-dom@19.0.0",
+            "react-dom/client": "https://esm.sh/react-dom@19.0.0/client"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        (async () => {
+            try {
+                const React = await import("react");
+                const ReactDOM = await import("react-dom/client");
+                const ExcalidrawLib = await import('https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom');
 
-        # Show job monitoring prompt if there are pending jobs
-        if st.session_state.get("pending_job_monitor"):
-            _render_job_monitoring_prompt()
-    else:
-        # Welcome message for empty chat
-        st.markdown("<br>" * 2, unsafe_allow_html=True)
+                const App = () => {
+                    return React.createElement(
+                        'div',
+                        { style: { height: '100vh' } },
+                        React.createElement(ExcalidrawLib.Excalidraw)
+                    );
+                };
 
-        _, center_col, _ = st.columns([1, 2, 1])
-        with center_col:
-            st.markdown(
-                '<h2 style="text-align: center;">💬 Start a conversation</h2>',
-                unsafe_allow_html=True,
+                const root = ReactDOM.createRoot(document.getElementById("app"));
+                root.render(React.createElement(App));
+            } catch (error) {
+                document.getElementById('app').innerHTML = '<div style="padding:20px;color:red;">Error loading Excalidraw: ' + error.message + '</div>';
+            }
+        })();
+    </script>
+</body>
+</html>
+"""
+        components_html(excalidraw_html, height=700)
+
+    with chat_col:
+        # IMPORTANT: Check for pending suggestion FIRST, before any rendering
+        # This handles the case where a button was clicked and stored a suggestion
+        pending_suggestion = None
+        if (
+            hasattr(st.session_state, "selected_suggestion")
+            and st.session_state.selected_suggestion
+        ):
+            pending_suggestion = st.session_state.selected_suggestion
+            st.session_state.selected_suggestion = (
+                None  # Clear immediately to prevent double-processing
             )
-            st.markdown(
-                '<p style="text-align: center; color: #666;">Ask me anything about engineering design, optimization, or 3D modeling</p>',
-                unsafe_allow_html=True,
-            )
 
-    # Chat input with image upload support - always show it so user can respond to follow-up questions
-    message = st.chat_input(
-        "Ask me anything about engineering design...",
-        accept_file=True,
-        file_type=["png", "jpg", "jpeg", "gif", "webp", "pdf"],
-    )
+        # Small logo at top when chat has messages
+        if st.session_state.messages:
+            # Display chat history
+            for message_idx, message in enumerate(st.session_state.messages):
+                display_message(message, message_idx)
 
-    # Determine what to process: pending suggestion takes priority, then chat input
-    input_to_process = pending_suggestion if pending_suggestion else message
+            # Show job monitoring prompt if there are pending jobs
+            if st.session_state.get("pending_job_monitor"):
+                _render_job_monitoring_prompt()
+        else:
+            # Welcome message for empty chat
+            st.markdown("<br>" * 2, unsafe_allow_html=True)
 
-    # Process the input if we have any
-    if input_to_process:
-        process_user_input(input_to_process)
+            _, center_col, _ = st.columns([1, 2, 1])
+            with center_col:
+                st.markdown(
+                    '<h2 style="text-align: center;">💬 Start a conversation</h2>',
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    '<p style="text-align: center; color: #666;">Ask me anything about engineering design, optimization, or 3D modeling</p>',
+                    unsafe_allow_html=True,
+                )
 
-    # Render compact job monitor at the bottom if there are jobs
-    if st.session_state.get("monitored_jobs"):
-        st.markdown("---")
-        render_job_monitor_compact()
+        # Chat input with image upload support - always show it so user can respond to follow-up questions
+        message = st.chat_input(
+            "Ask me anything about engineering design...",
+            accept_file=True,
+            file_type=["png", "jpg", "jpeg", "gif", "webp", "pdf"],
+        )
+
+        # Determine what to process: pending suggestion takes priority, then chat input
+        input_to_process = pending_suggestion if pending_suggestion else message
+
+        # Process the input if we have any
+        if input_to_process:
+            process_user_input(input_to_process)
+
+        # Render compact job monitor at the bottom if there are jobs
+        if st.session_state.get("monitored_jobs"):
+            st.markdown("---")
+            render_job_monitor_compact()
 
 
 if __name__ == "__main__":
