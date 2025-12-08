@@ -76,7 +76,7 @@ def render() -> None:
             unsafe_allow_html=True,
         )
 
-        # Excalidraw HTML for iframe
+        # Excalidraw HTML for iframe with export functionality
         excalidraw_html = """
 <!DOCTYPE html>
 <html>
@@ -85,8 +85,26 @@ def render() -> None:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css"/>
     <style>
-        body { margin: 0; padding: 0; background: #f5f5f5; }
-        #app { height: 100vh; width: 100%; }
+        body { margin: 0; padding: 0; background: #f5f5f5; font-family: sans-serif; }
+        #app { height: calc(100vh - 60px); width: 100%; }
+        #export-btn {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: #6965db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+        }
+        #export-btn:hover { background: #5753c5; }
+        #export-btn:active { transform: translateX(-50%) scale(0.98); }
     </style>
     <script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";</script>
     <script type="importmap">
@@ -102,6 +120,7 @@ def render() -> None:
 </head>
 <body>
     <div id="app"></div>
+    <button id="export-btn">📤 Send to Chat</button>
     <script type="module">
         (async () => {
             try {
@@ -109,16 +128,83 @@ def render() -> None:
                 const ReactDOM = await import("react-dom/client");
                 const ExcalidrawLib = await import('https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom');
 
+                let excalidrawAPI = null;
+
                 const App = () => {
                     return React.createElement(
                         'div',
-                        { style: { height: '100vh' } },
-                        React.createElement(ExcalidrawLib.Excalidraw)
+                        { style: { height: 'calc(100vh - 60px)' } },
+                        React.createElement(ExcalidrawLib.Excalidraw, {
+                            excalidrawAPI: (api) => { excalidrawAPI = api; }
+                        })
                     );
                 };
 
                 const root = ReactDOM.createRoot(document.getElementById("app"));
                 root.render(React.createElement(App));
+
+                // Export button handler
+                document.getElementById('export-btn').addEventListener('click', async () => {
+                    if (!excalidrawAPI) {
+                        alert('Excalidraw not ready yet!');
+                        return;
+                    }
+
+                    const btn = document.getElementById('export-btn');
+                    btn.textContent = '⏳ Exporting...';
+                    btn.disabled = true;
+
+                    try {
+                        const elements = excalidrawAPI.getSceneElements();
+                        if (!elements || elements.length === 0) {
+                            alert('Canvas is empty! Draw something first.');
+                            btn.textContent = '📤 Send to Chat';
+                            btn.disabled = false;
+                            return;
+                        }
+
+                        // Export to blob
+                        const blob = await ExcalidrawLib.exportToBlob({
+                            elements: elements,
+                            appState: excalidrawAPI.getAppState(),
+                            files: excalidrawAPI.getFiles(),
+                            mimeType: 'image/png',
+                            quality: 0.95
+                        });
+
+                        // Convert blob to base64
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64data = reader.result;
+
+                            // Download the image automatically
+                            const link = document.createElement('a');
+                            link.href = base64data;
+                            link.download = 'excalidraw-' + Date.now() + '.png';
+                            link.click();
+
+                            // Also send via postMessage for potential auto-upload
+                            window.parent.postMessage({
+                                type: 'excalidraw-export',
+                                data: base64data,
+                                timestamp: Date.now()
+                            }, '*');
+
+                            btn.textContent = '✅ Sent!';
+                            setTimeout(() => {
+                                btn.textContent = '📤 Send to Chat';
+                                btn.disabled = false;
+                            }, 2000);
+                        };
+                        reader.readAsDataURL(blob);
+
+                    } catch (error) {
+                        alert('Export failed: ' + error.message);
+                        btn.textContent = '📤 Send to Chat';
+                        btn.disabled = false;
+                    }
+                });
+
             } catch (error) {
                 document.getElementById('app').innerHTML = '<div style="padding:20px;color:red;">Error loading Excalidraw: ' + error.message + '</div>';
             }
@@ -128,6 +214,11 @@ def render() -> None:
 </html>
 """
         components_html(excalidraw_html, height=700)
+
+        st.markdown("---")
+        st.info(
+            "💡 Click 'Send to Chat' button inside the whiteboard to download your drawing, then upload it in the chat below!"
+        )
 
     with chat_col:
         # IMPORTANT: Check for pending suggestion FIRST, before any rendering
