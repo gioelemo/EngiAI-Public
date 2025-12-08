@@ -1,10 +1,24 @@
+# Multi-stage build for custom Streamlit component
+# Stage 1: Build the React component
+FROM node:18-slim as component-builder
+
+WORKDIR /component
+
+# Copy component package files and install
+COPY src/ui/components/canvas_receiver/frontend/package.json ./
+RUN npm install --production=false
+
+COPY src/ui/components/canvas_receiver/frontend/ ./
+RUN npm run build
+
+# Stage 2: Python application
 # Use Python 3.11 as specified in pyproject.toml
 FROM python:3.11-slim
 
 # Set working directory (Streamlit requires non-root directory)
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including Node.js for custom component
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
@@ -23,6 +37,9 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
 
 # Copy the rest of the application
 COPY . .
+
+# Copy pre-built component from builder stage
+COPY --from=component-builder /component/build /app/src/ui/components/canvas_receiver/frontend/build
 
 # Copy and set permissions for entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/

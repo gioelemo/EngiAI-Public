@@ -11,6 +11,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from src.ui.canvas_bridge import get_canvas_export, process_canvas_export  # noqa: E402
 from src.ui.message_processing import display_message  # noqa: E402
 from src.ui.streamlit_app import (  # noqa: E402
     add_job_to_monitor,
@@ -177,28 +178,20 @@ def render() -> None:
                         reader.onloadend = () => {
                             const base64data = reader.result;
 
-                            // Download the image automatically
-                            const link = document.createElement('a');
-                            link.href = base64data;
-                            link.download = 'excalidraw-' + Date.now() + '.png';
-                            link.click();
+                            // Store in localStorage for custom component to pick up
+                            localStorage.setItem('excalidraw_pending_export', base64data);
 
-                            // Also send via postMessage for potential auto-upload
-                            window.parent.postMessage({
-                                type: 'excalidraw-export',
-                                data: base64data,
-                                timestamp: Date.now()
-                            }, '*');
+                            btn.textContent = '✅ Sending...';
+                            btn.disabled = true;
 
-                            btn.textContent = '✅ Sent!';
+                            // The custom component will detect this and send to Python
+                            // Wait a moment then reset button
                             setTimeout(() => {
                                 btn.textContent = '📤 Send to Chat';
                                 btn.disabled = false;
                             }, 2000);
                         };
-                        reader.readAsDataURL(blob);
-
-                    } catch (error) {
+                        reader.readAsDataURL(blob);                    } catch (error) {
                         alert('Export failed: ' + error.message);
                         btn.textContent = '📤 Send to Chat';
                         btn.disabled = false;
@@ -215,12 +208,42 @@ def render() -> None:
 """
         components_html(excalidraw_html, height=700)
 
+        # Add custom component to receive exports
+        export_data = get_canvas_export()
+
+        # If we received data and it's different from what we last processed, store it
+        if export_data:
+            last_processed = st.session_state.get("last_processed_export")
+            if export_data != last_processed:
+                st.session_state.pending_canvas_export = export_data
+                st.session_state.last_processed_export = export_data
+
         st.markdown("---")
         st.info(
-            "💡 Click 'Send to Chat' button inside the whiteboard to download your drawing, then upload it in the chat below!"
+            "💡 Click '📤 Send to Chat' button in the whiteboard to automatically send your drawing!"
         )
 
     with chat_col:
+        # Check for pending canvas export
+        if st.session_state.get("pending_canvas_export"):
+            try:
+                # Process the export
+                canvas_input = process_canvas_export(
+                    st.session_state.pending_canvas_export
+                )
+
+                # Clear the pending export
+                del st.session_state.pending_canvas_export
+
+                # Process through chat
+                process_user_input(canvas_input)
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Failed to process canvas export: {e}")
+                if "pending_canvas_export" in st.session_state:
+                    del st.session_state.pending_canvas_export
+
         # IMPORTANT: Check for pending suggestion FIRST, before any rendering
         # This handles the case where a button was clicked and stored a suggestion
         pending_suggestion = None
