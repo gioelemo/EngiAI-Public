@@ -11,7 +11,9 @@ class InvalidCanvasDataError(ValueError):
     """Raised when canvas data is invalid or malformed."""
 
 
-def get_excalidraw_whiteboard(height: int = 650, key: str | None = None) -> str | None:
+def get_excalidraw_whiteboard(
+    height: int = 650, key: str | None = None, trigger_export: bool = False
+) -> str | None:
     """
     Render an Excalidraw whiteboard and get export data.
 
@@ -21,14 +23,16 @@ def get_excalidraw_whiteboard(height: int = 650, key: str | None = None) -> str 
         Height of the whiteboard in pixels. Default is 650.
     key : str or None
         An optional key that uniquely identifies this component.
+    trigger_export : bool
+        If True, triggers the export of the canvas. Default is False.
 
     Returns
     -------
     str or None
-        Base64 encoded PNG image data when user clicks "Send to Chat",
+        Base64 encoded PNG image data when export is triggered,
         None otherwise.
     """
-    return excalidraw_whiteboard(height=height, key=key)
+    return excalidraw_whiteboard(height=height, key=key, trigger_export=trigger_export)
 
 
 def process_canvas_export(base64_data: str) -> dict:

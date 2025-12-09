@@ -63,83 +63,115 @@ def _render_job_monitoring_prompt() -> None:
                 st.caption("💡 You can change this preference in Settings")
 
 
+def _render_canvas_column() -> None:
+    """Render the canvas/whiteboard column."""
+    st.subheader("🎨 Whiteboard", text_alignment="center")
+
+    # Check if export was triggered
+    trigger_export = st.session_state.get("trigger_canvas_export", False)
+    if trigger_export:
+        st.session_state.trigger_canvas_export = False
+
+    # Render the Excalidraw component
+    export_data = get_excalidraw_whiteboard(
+        height=650, key="excalidraw_main", trigger_export=trigger_export
+    )
+
+    # If we received data and it's different from what we last processed, store it
+    if export_data:
+        last_processed = st.session_state.get("last_processed_export")
+        if export_data != last_processed:
+            st.session_state.pending_canvas_export = export_data
+            st.session_state.last_processed_export = export_data
+    elif trigger_export:
+        # Canvas was empty when export was triggered
+        st.warning("Canvas is empty! Draw something first.")
+
+    # Add Streamlit button below canvas
+    if st.button(
+        "📤 Send to Chat",
+        key="canvas_send_button",
+        use_container_width=True,
+        type="primary",
+    ):
+        # Trigger export by setting a flag
+        st.session_state.trigger_canvas_export = True
+        st.rerun()
+
+
+def _get_pending_inputs() -> tuple[str | dict | None, str | None]:
+    """Get pending canvas export and suggestion inputs.
+
+    Returns:
+        Tuple of (pending_canvas_input, pending_suggestion)
+    """
+    pending_canvas_input = None
+    if st.session_state.get("pending_canvas_export"):
+        try:
+            # Process the export
+            pending_canvas_input = process_canvas_export(
+                st.session_state.pending_canvas_export
+            )
+            # Clear the pending export
+            del st.session_state.pending_canvas_export
+        except Exception as e:
+            st.error(f"Failed to process canvas export: {e}")
+            if "pending_canvas_export" in st.session_state:
+                del st.session_state.pending_canvas_export
+
+    pending_suggestion = None
+    if (
+        hasattr(st.session_state, "selected_suggestion")
+        and st.session_state.selected_suggestion
+    ):
+        pending_suggestion = st.session_state.selected_suggestion
+        st.session_state.selected_suggestion = None
+
+    return pending_canvas_input, pending_suggestion
+
+
+def _render_chat_history() -> None:
+    """Render chat message history or welcome message."""
+    if st.session_state.messages:
+        # Display chat history
+        for message_idx, message in enumerate(st.session_state.messages):
+            display_message(message, message_idx)
+
+        # Show job monitoring prompt if there are pending jobs
+        if st.session_state.get("pending_job_monitor"):
+            _render_job_monitoring_prompt()
+    else:
+        # Welcome message for empty chat
+        st.markdown("")
+        st.markdown("")
+        st.header("💬 Start a conversation", text_alignment="center")
+        st.caption(
+            "Ask me anything about engineering design, optimization, or 3D modeling",
+            text_alignment="center",
+        )
+
+
 def render() -> None:
     """Render the chat page with Excalidraw canvas."""
     # Create two columns: 2/3 for chat, 1/3 for canvas
     chat_col, canvas_col = st.columns([2, 1], vertical_alignment="bottom")
 
+    # Render canvas column
     with canvas_col:
-        st.subheader("🎨 Whiteboard", text_alignment="center")
+        _render_canvas_column()
 
-        # Render the Excalidraw component
-        export_data = get_excalidraw_whiteboard(height=700, key="excalidraw_main")
-
-        # If we received data and it's different from what we last processed, store it
-        if export_data:
-            last_processed = st.session_state.get("last_processed_export")
-            if export_data != last_processed:
-                st.session_state.pending_canvas_export = export_data
-                st.session_state.last_processed_export = export_data
-
-        st.markdown("---")
-        st.info(
-            "💡 Click '📤 Send to Chat' button in the whiteboard to send your drawing!"
-        )
-
+    # Render chat column
     with chat_col:
-        # IMPORTANT: Check for pending canvas export and suggestion FIRST, before any rendering
-        # This handles the case where a button was clicked or canvas was exported
-        pending_canvas_input = None
-        if st.session_state.get("pending_canvas_export"):
-            try:
-                # Process the export
-                pending_canvas_input = process_canvas_export(
-                    st.session_state.pending_canvas_export
-                )
-                # Clear the pending export
-                del st.session_state.pending_canvas_export
-            except Exception as e:
-                st.error(f"Failed to process canvas export: {e}")
-                if "pending_canvas_export" in st.session_state:
-                    del st.session_state.pending_canvas_export
+        # Get pending inputs (canvas export and suggestions)
+        pending_canvas_input, pending_suggestion = _get_pending_inputs()
 
-        pending_suggestion = None
-        if (
-            hasattr(st.session_state, "selected_suggestion")
-            and st.session_state.selected_suggestion
-        ):
-            pending_suggestion = st.session_state.selected_suggestion
-            st.session_state.selected_suggestion = (
-                None  # Clear immediately to prevent double-processing
-            )
-
-        # Small logo at top when chat has messages
-        if st.session_state.messages:
-            # Display chat history
-            for message_idx, message in enumerate(st.session_state.messages):
-                display_message(message, message_idx)
-
-            # Show job monitoring prompt if there are pending jobs
-            if st.session_state.get("pending_job_monitor"):
-                _render_job_monitoring_prompt()
-        else:
-            # Welcome message for empty chat
-            st.markdown("")
-            st.markdown("")
-            st.header(
-                "💬 Start a conversation",
-                text_alignment="center",
-            )
-            st.caption(
-                "Ask me anything about engineering design, optimization, or 3D modeling",
-                text_alignment="center",
-            )
+        # Display chat history or welcome message
+        _render_chat_history()
 
         # Create a placeholder for new messages BEFORE the chat input
-        # This ensures messages appear in the correct position
         new_message_placeholder = st.empty()
 
-        # Chat input with image upload support - always show it so user can respond to follow-up questions
+        # Chat input with image upload support
         message = st.chat_input(
             "Ask me anything about engineering design...",
             accept_file=True,
@@ -151,7 +183,6 @@ def render() -> None:
 
         # Process the input if we have any
         if input_to_process:
-            # Use the placeholder to render new messages above the chat input
             with new_message_placeholder.container():
                 process_user_input(input_to_process)
             st.rerun()
