@@ -1,6 +1,6 @@
 # Multi-stage build for custom Streamlit components
 # Stage 1: Build the Excalidraw component
-FROM node:18-slim as excalidraw-builder
+FROM node:18-slim AS excalidraw-builder
 
 WORKDIR /component
 
