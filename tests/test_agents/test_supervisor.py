@@ -1,21 +1,22 @@
 """
-Improved tests for the Supervisor Agent.
+Comprehensive tests for the Supervisor Agent.
 
-These tests are more realistic and catch actual bugs:
-- Test realistic LLM response formats (JSON, structured output)
-- Test error handling and edge cases
-- Test state management through the graph
-- Test integration between components
+Tests cover:
+- Initialization and configuration
+- LLM-based routing with structured output
+- Error handling and edge cases
+- State management and conversation flow
+- Agent delegation
+- Integration workflows
 """
 
 import sys
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.agents.supervisor_agent import SupervisorAgent
+from src.agents.supervisor_agent import RouteDecision, SupervisorAgent, SupervisorState
 
 # Mock heavy dependencies
 sys.modules["engibench"] = MagicMock()
@@ -25,25 +26,164 @@ sys.modules["engibench.problems.beams2d.v0"] = MagicMock()
 
 
 # ============================================================================
-# ROUTING TESTS - Test decision making logic
+# TEST HELPERS
+# ============================================================================
+
+
+def create_mock_llm_with_structured_output(agent_name, reasoning="Test reasoning"):
+    """Helper to create a mock LLM that supports with_structured_output."""
+    mock_llm = MagicMock()
+    mock_structured_llm = MagicMock()
+
+    # Create a RouteDecision object
+    route_decision = RouteDecision(agent=agent_name, reasoning=reasoning)
+    mock_structured_llm.invoke.return_value = route_decision
+
+    # Mock with_structured_output to return the structured LLM
+    mock_llm.with_structured_output.return_value = mock_structured_llm
+
+    return mock_llm
+
+
+def create_mock_routing_llm(agent_name, reasoning="Test reasoning"):
+    """Helper to create a mock routing LLM that returns RouteDecision."""
+    mock_routing_llm = MagicMock()
+    route_decision = RouteDecision(agent=agent_name, reasoning=reasoning)
+    mock_routing_llm.invoke.return_value = route_decision
+    return mock_routing_llm
+
+
+@pytest.fixture
+def _mock_agents():
+    """Fixture to mock all agent dependencies."""
+    with (
+        patch("src.agents.supervisor_agent.EngineeringAgent") as mock_eng,
+        patch("src.agents.supervisor_agent.HPCAgent") as mock_hpc,
+        patch("src.agents.supervisor_agent.SearchAgent") as mock_search,
+        patch("src.agents.supervisor_agent.RAGAgent") as mock_rag,
+        patch("src.agents.supervisor_agent.ArXivAgent") as mock_arxiv,
+        patch("src.agents.supervisor_agent.PrusaAgent") as mock_prusa,
+        patch("src.agents.supervisor_agent.CLIAgent") as mock_cli,
+        patch("src.agents.supervisor_agent.init_chat_model") as mock_llm,
+        patch("src.agents.supervisor_agent.get_checkpointer") as mock_cp,
+    ):
+        mock_llm_instance = MagicMock()
+        mock_llm_instance.with_structured_output.return_value = MagicMock()
+        mock_llm.return_value = mock_llm_instance
+        mock_cp.return_value = MagicMock()
+
+        yield {
+            "engineering": mock_eng,
+            "hpc": mock_hpc,
+            "search": mock_search,
+            "rag": mock_rag,
+            "arxiv": mock_arxiv,
+            "prusa": mock_prusa,
+            "cli": mock_cli,
+        }
+
+
+# ============================================================================
+# INITIALIZATION TESTS
 # ============================================================================
 
 
 @pytest.mark.unit
+def test_supervisor_agent_initialization(_mock_agents):
+    """Test SupervisorAgent initialization with all components."""
+    agent = SupervisorAgent()
+
+    assert agent.graph is not None
+    assert agent.llm is not None
+    assert agent.routing_llm is not None
+    assert hasattr(agent, "engineering_agent")
+    assert hasattr(agent, "hpc_agent")
+    assert hasattr(agent, "search_agent")
+    assert hasattr(agent, "rag_agent")
+    assert hasattr(agent, "arxiv_agent")
+    assert hasattr(agent, "prusa_agent")
+    assert hasattr(agent, "cli_agent")
+    assert hasattr(agent.graph, "invoke")
+
+
+@pytest.mark.unit
+def test_supervisor_agent_custom_model(_mock_agents):
+    """Test SupervisorAgent with custom model configuration."""
+    agent = SupervisorAgent(model_name="gpt-4", temperature=0.5)
+
+    assert agent.model_name == "gpt-4"
+    assert agent.temperature == 0.5
+
+
+# ============================================================================
+# ROUTING PROMPT TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_build_routing_prompt(_mock_agents):
+    """Test routing prompt contains all agent names and routing guidelines."""
+    agent = SupervisorAgent()
+    prompt = agent._build_routing_prompt()
+
+    # Check all agents are mentioned
+    assert "engineering_agent" in prompt
+    assert "hpc_agent" in prompt
+    assert "search_agent" in prompt
+    assert "rag_agent" in prompt
+    assert "arxiv_agent" in prompt
+    assert "prusa_agent" in prompt
+    assert "cli_agent" in prompt
+    assert "supervisor_response" in prompt
+
+    # Check routing guidelines are present
+    assert "documentation" in prompt.lower() or "how do i" in prompt.lower()
+
+
+@pytest.mark.unit
+def test_routing_prompt_contains_keywords(_mock_agents):
+    """Test that routing prompt contains important domain keywords."""
+    agent = SupervisorAgent()
+    prompt = agent._build_routing_prompt()
+
+    # Engineering keywords
+    assert "optimization" in prompt.lower()
+    assert "wandb" in prompt.lower()
+
+    # HPC keywords
+    assert "slurm" in prompt.lower()
+    assert "cluster" in prompt.lower()
+
+    # Prusa keywords
+    assert "printer" in prompt.lower()
+
+
+# ============================================================================
+# ROUTING TESTS - LLM-based decision making
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_supervisor_node_already_routed(_mock_agents):
+    """Test supervisor returns FINISH if already routed."""
+    agent = SupervisorAgent()
+
+    state = SupervisorState(
+        messages=[HumanMessage(content="test")], next="engineering_agent"
+    )
+    result = agent._supervisor_node(state)
+
+    assert result["next"] == "FINISH"
+
+
+@pytest.mark.unit
 def test_supervisor_routes_to_engineering_with_realistic_response():
-    """Test supervisor routes optimization queries with realistic LLM output."""
-    # Simulate realistic structured output from LLM
-    fake_llm = GenericFakeChatModel(
-        messages=iter(
-            [
-                AIMessage(
-                    content='{"next": "engineering_agent", "reasoning": "User asked about beam optimization"}'
-                )
-            ]
-        )
+    """Test supervisor routes optimization queries to engineering agent."""
+    mock_llm = create_mock_llm_with_structured_output(
+        "engineering_agent", "User asked about beam optimization"
     )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
         agent = SupervisorAgent()
 
         state = {
@@ -58,33 +198,42 @@ def test_supervisor_routes_to_engineering_with_realistic_response():
         result = agent._supervisor_node(state)
 
         assert result["next"] == "engineering_agent"
-        assert "messages" in result  # Should preserve message history
+        assert "messages" in result
+
+
+@pytest.mark.unit
+def test_supervisor_routes_to_hpc(_mock_agents):
+    """Test routing to HPC agent for cluster operations."""
+    agent = SupervisorAgent()
+    agent.routing_llm = create_mock_routing_llm("hpc_agent", "HPC job submission")
+
+    state = SupervisorState(
+        messages=[HumanMessage(content="Submit job.slurm to cluster")], next=""
+    )
+    result = agent._supervisor_node(state)
+
+    assert result["next"] == "hpc_agent"
 
 
 @pytest.mark.unit
 def test_supervisor_routes_to_search_for_research_queries():
-    """Test supervisor routes research/literature queries to search agent."""
-    # Provide enough responses for all test cases
-    fake_llm = GenericFakeChatModel(
-        messages=iter(
-            [
-                AIMessage(content="search_agent"),
-                AIMessage(content="search_agent"),
-                AIMessage(content="search_agent"),
-            ]
+    """Test supervisor routes web research queries to search agent."""
+    test_cases = [
+        "Search for topology optimization papers from 2024",
+        "Find research on SIMP method",
+        "What are the latest papers on structural optimization?",
+    ]
+
+    for query in test_cases:
+        mock_llm = create_mock_llm_with_structured_output(
+            "search_agent", f"Research query: {query}"
         )
-    )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
-        agent = SupervisorAgent()
+        with patch(
+            "src.agents.supervisor_agent.init_chat_model", return_value=mock_llm
+        ):
+            agent = SupervisorAgent()
 
-        test_cases = [
-            "Search for topology optimization papers from 2024",
-            "Find research on SIMP method",
-            "What are the latest papers on structural optimization?",
-        ]
-
-        for query in test_cases:
             state = {
                 "messages": [HumanMessage(content=query)],
                 "next": "",
@@ -95,36 +244,58 @@ def test_supervisor_routes_to_search_for_research_queries():
 
 
 @pytest.mark.unit
-def test_supervisor_routes_to_hpc_for_compute_queries():
-    """Test supervisor routes HPC/compute queries correctly."""
-    fake_llm = GenericFakeChatModel(messages=iter([AIMessage(content="hpc_agent")]))
+def test_supervisor_routes_to_rag(_mock_agents):
+    """Test routing to RAG agent for documentation queries."""
+    agent = SupervisorAgent()
+    agent.routing_llm = create_mock_routing_llm("rag_agent", "Documentation query")
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
-        agent = SupervisorAgent()
+    state = SupervisorState(
+        messages=[HumanMessage(content="How do I submit a job on Euler?")], next=""
+    )
+    result = agent._supervisor_node(state)
 
-        state = {
-            "messages": [
-                HumanMessage(content="Submit this optimization job to the cluster")
-            ],
-            "next": "",
-        }
+    assert result["next"] == "rag_agent"
 
-        result = agent._supervisor_node(state)
-        assert result["next"] == "hpc_agent"
+
+@pytest.mark.unit
+def test_supervisor_routes_to_arxiv(_mock_agents):
+    """Test routing to ArXiv agent for paper searches."""
+    agent = SupervisorAgent()
+    agent.routing_llm = create_mock_routing_llm("arxiv_agent", "ArXiv paper search")
+
+    state = SupervisorState(
+        messages=[HumanMessage(content="Find papers about transformers on ArXiv")],
+        next="",
+    )
+    result = agent._supervisor_node(state)
+
+    assert result["next"] == "arxiv_agent"
+
+
+@pytest.mark.unit
+def test_supervisor_routes_to_prusa(_mock_agents):
+    """Test routing to Prusa agent for printer management."""
+    agent = SupervisorAgent()
+    agent.routing_llm = create_mock_routing_llm("prusa_agent", "Printer management")
+
+    state = SupervisorState(
+        messages=[HumanMessage(content="Check printer status")], next=""
+    )
+    result = agent._supervisor_node(state)
+
+    assert result["next"] == "prusa_agent"
 
 
 @pytest.mark.unit
 def test_supervisor_routes_to_cli_for_system_queries():
-    """Test supervisor routes CLI/system queries correctly."""
-    fake_llm = GenericFakeChatModel(messages=iter([AIMessage(content="cli_agent")]))
+    """Test supervisor routes CLI commands and app opening to CLI agent."""
+    mock_llm = create_mock_llm_with_structured_output("cli_agent", "CLI operation")
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
         agent = SupervisorAgent()
 
         state = {
-            "messages": [
-                HumanMessage(content="List the files in my simulation directory")
-            ],
+            "messages": [HumanMessage(content="open PrusaSlicer")],
             "next": "",
         }
 
@@ -135,27 +306,22 @@ def test_supervisor_routes_to_cli_for_system_queries():
 @pytest.mark.unit
 def test_supervisor_responds_directly_for_capability_questions():
     """Test supervisor answers capability/help questions directly."""
-    # Provide enough responses for all test cases
-    fake_llm = GenericFakeChatModel(
-        messages=iter(
-            [
-                AIMessage(content="FINISH"),
-                AIMessage(content="FINISH"),
-                AIMessage(content="FINISH"),
-            ]
+    test_cases = [
+        "What can you do?",
+        "How do I use this system?",
+        "Tell me about your capabilities",
+    ]
+
+    for query in test_cases:
+        mock_llm = create_mock_llm_with_structured_output(
+            "supervisor_response", "General capability question"
         )
-    )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
-        agent = SupervisorAgent()
+        with patch(
+            "src.agents.supervisor_agent.init_chat_model", return_value=mock_llm
+        ):
+            agent = SupervisorAgent()
 
-        test_cases = [
-            "What can you do?",
-            "How do I use this system?",
-            "Tell me about your capabilities",
-        ]
-
-        for query in test_cases:
             state = {
                 "messages": [HumanMessage(content=query)],
                 "next": "",
@@ -165,19 +331,66 @@ def test_supervisor_responds_directly_for_capability_questions():
             assert result["next"] == "supervisor_response", f"Failed for query: {query}"
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "agent_name,query",
+    [
+        ("engineering_agent", "Optimize a cantilever beam"),
+        ("search_agent", "Find papers on topology optimization"),
+        ("hpc_agent", "Submit job to cluster"),
+        ("cli_agent", "List simulation files"),
+        ("rag_agent", "How does SLURM work?"),
+        ("supervisor_response", "What can you do?"),
+    ],
+)
+def test_supervisor_routing_parametrized(agent_name, query):
+    """Parametrized test for different routing scenarios."""
+    mock_llm = create_mock_llm_with_structured_output(
+        agent_name, f"Route to {agent_name}"
+    )
+
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
+        agent = SupervisorAgent()
+
+        state = {
+            "messages": [HumanMessage(content=query)],
+            "next": "",
+        }
+
+        result = agent._supervisor_node(state)
+        assert result["next"] == agent_name
+
+
 # ============================================================================
-# ERROR HANDLING TESTS - Test robustness
+# ERROR HANDLING TESTS
 # ============================================================================
 
 
 @pytest.mark.unit
 def test_supervisor_handles_invalid_agent_name():
-    """Test supervisor handles LLM returning invalid agent name."""
-    fake_llm = GenericFakeChatModel(
-        messages=iter([AIMessage(content="nonexistent_agent")])
-    )
+    """Test supervisor handles LLM returning invalid agent name via Pydantic validation."""
+    from pydantic import ValidationError
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    mock_llm = MagicMock()
+    mock_structured_llm = MagicMock()
+
+    mock_structured_llm.invoke.side_effect = ValidationError.from_exception_data(
+        "ValidationError",
+        [
+            {
+                "type": "literal_error",
+                "loc": ("agent",),
+                "msg": "Invalid agent name",
+                "input": "invalid_agent",
+                "ctx": {
+                    "expected": "'engineering_agent', 'hpc_agent', 'search_agent', 'rag_agent', 'arxiv_agent', 'prusa_agent', 'cli_agent' or 'supervisor_response'"
+                },
+            }
+        ],
+    )
+    mock_llm.with_structured_output.return_value = mock_structured_llm
+
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
         agent = SupervisorAgent()
 
         state = {
@@ -185,51 +398,18 @@ def test_supervisor_handles_invalid_agent_name():
             "next": "",
         }
 
-        # Should either raise a clear error or default to supervisor_response
-        # Test whichever behavior your system implements
-        try:
-            result = agent._supervisor_node(state)
-            # If it doesn't raise, it should default gracefully
-            assert result["next"] in [
-                "supervisor_response",
-                "engineering_agent",  # or whatever your default is
-            ]
-        except (ValueError, KeyError) as e:
-            # If it raises, that's also acceptable - just should be clear
-            assert "agent" in str(e).lower() or "invalid" in str(e).lower()
-
-
-@pytest.mark.unit
-def test_supervisor_handles_malformed_json_response():
-    """Test supervisor handles LLM returning malformed JSON."""
-    fake_llm = GenericFakeChatModel(
-        messages=iter(
-            [AIMessage(content='{"next": "engineering_agent", invalid json}')]
-        )
-    )
-
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
-        agent = SupervisorAgent()
-
-        state = {
-            "messages": [HumanMessage(content="Optimize beam")],
-            "next": "",
-        }
-
-        # Should handle gracefully - either parse what it can or use fallback
-        result = agent._supervisor_node(state)
-        assert "next" in result
-        assert isinstance(result["next"], str)
+        with pytest.raises(ValidationError):
+            agent._supervisor_node(state)
 
 
 @pytest.mark.unit
 def test_supervisor_handles_empty_message_list():
     """Test supervisor handles empty message list gracefully."""
-    fake_llm = GenericFakeChatModel(
-        messages=iter([AIMessage(content="supervisor_response")])
+    mock_llm = create_mock_llm_with_structured_output(
+        "supervisor_response", "Empty message"
     )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
         agent = SupervisorAgent()
 
         state = {
@@ -237,7 +417,6 @@ def test_supervisor_handles_empty_message_list():
             "next": "",
         }
 
-        # Should handle empty messages without crashing
         try:
             result = agent._supervisor_node(state)
             assert "next" in result
@@ -248,14 +427,13 @@ def test_supervisor_handles_empty_message_list():
 @pytest.mark.unit
 def test_supervisor_handles_very_long_message():
     """Test supervisor handles very long input messages."""
-    fake_llm = GenericFakeChatModel(
-        messages=iter([AIMessage(content="engineering_agent")])
+    mock_llm = create_mock_llm_with_structured_output(
+        "engineering_agent", "Long optimization request"
     )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
         agent = SupervisorAgent()
 
-        # Simulate a very long message
         long_content = "Optimize my beam " + "with many constraints " * 1000
 
         state = {
@@ -268,18 +446,18 @@ def test_supervisor_handles_very_long_message():
 
 
 # ============================================================================
-# STATE MANAGEMENT TESTS - Test conversation flow
+# STATE MANAGEMENT TESTS
 # ============================================================================
 
 
 @pytest.mark.unit
 def test_supervisor_returns_empty_messages_with_routing():
-    """Test supervisor returns empty messages list (state is managed by add_messages reducer)."""
-    fake_llm = GenericFakeChatModel(
-        messages=iter([AIMessage(content="engineering_agent")])
+    """Test supervisor returns empty messages (state managed by add_messages reducer)."""
+    mock_llm = create_mock_llm_with_structured_output(
+        "engineering_agent", "Optimization request"
     )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
         agent = SupervisorAgent()
 
         initial_messages = [
@@ -295,29 +473,22 @@ def test_supervisor_returns_empty_messages_with_routing():
 
         result = agent._supervisor_node(state)
 
-        # Supervisor node returns empty messages to avoid duplicates
-        # (add_messages reducer handles state preservation)
+        # Supervisor returns empty messages (add_messages handles state)
         assert result.get("messages", []) == []
-        # Should still return correct routing decision
         assert result.get("next") == "engineering_agent"
 
 
 @pytest.mark.unit
 def test_supervisor_handles_multi_turn_conversation():
-    """Test supervisor handles context from previous turns."""
-    fake_llm = GenericFakeChatModel(
-        messages=iter(
-            [
-                AIMessage(content="engineering_agent"),
-                AIMessage(content="search_agent"),
-            ]
-        )
+    """Test supervisor handles context from previous conversation turns."""
+    # First turn
+    mock_llm1 = create_mock_llm_with_structured_output(
+        "engineering_agent", "Optimization request"
     )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm1):
         agent = SupervisorAgent()
 
-        # First turn - optimization request
         state1 = {
             "messages": [HumanMessage(content="Optimize a beam")],
             "next": "",
@@ -325,7 +496,12 @@ def test_supervisor_handles_multi_turn_conversation():
         result1 = agent._supervisor_node(state1)
         assert result1["next"] == "engineering_agent"
 
-        # Second turn - follow-up search request
+    # Second turn
+    mock_llm2 = create_mock_llm_with_structured_output("search_agent", "Search request")
+
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm2):
+        agent = SupervisorAgent()
+
         state2 = {
             "messages": [
                 HumanMessage(content="Optimize a beam"),
@@ -339,21 +515,151 @@ def test_supervisor_handles_multi_turn_conversation():
 
 
 # ============================================================================
-# INTEGRATION TESTS - Test full workflow
+# AGENT NODE TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_engineering_node(_mock_agents):
+    """Test engineering node delegation."""
+    agent = SupervisorAgent()
+    agent.engineering_agent = MagicMock()
+    agent.engineering_agent.invoke.return_value = {
+        "messages": [HumanMessage(content="test"), AIMessage(content="result")]
+    }
+
+    state = SupervisorState(messages=[HumanMessage(content="test")], next="")
+    result = agent._engineering_node(state)
+
+    assert "messages" in result
+    assert result["next"] == "FINISH"
+
+
+@pytest.mark.unit
+def test_hpc_node(_mock_agents):
+    """Test HPC node delegation."""
+    agent = SupervisorAgent()
+    agent.hpc_agent = MagicMock()
+    agent.hpc_agent.invoke.return_value = {
+        "messages": [HumanMessage(content="test"), AIMessage(content="result")]
+    }
+
+    state = SupervisorState(messages=[HumanMessage(content="test")], next="")
+    result = agent._hpc_node(state)
+
+    assert "messages" in result
+    assert result["next"] == "FINISH"
+
+
+@pytest.mark.unit
+def test_search_node(_mock_agents):
+    """Test search node delegation."""
+    agent = SupervisorAgent()
+    agent.search_agent = MagicMock()
+    agent.search_agent.invoke.return_value = {
+        "messages": [HumanMessage(content="test"), AIMessage(content="result")]
+    }
+
+    state = SupervisorState(messages=[HumanMessage(content="test")], next="")
+    result = agent._search_node(state)
+
+    assert "messages" in result
+    assert result["next"] == "FINISH"
+
+
+@pytest.mark.unit
+def test_supervisor_response_node(_mock_agents):
+    """Test supervisor response node for capability questions."""
+    agent = SupervisorAgent()
+    agent.llm = MagicMock()
+    agent.llm.invoke.return_value = MagicMock(content="I can help with...")
+
+    state = SupervisorState(
+        messages=[HumanMessage(content="what can you do?")], next=""
+    )
+    result = agent._supervisor_response_node(state)
+
+    assert "messages" in result
+    assert len(result["messages"]) == 1
+    assert isinstance(result["messages"][0], AIMessage)
+    assert result["next"] == "FINISH"
+
+
+# ============================================================================
+# INVOKE & GRAPH TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_invoke_with_messages_state(_mock_agents):
+    """Test invoke with MessagesState format."""
+    agent = SupervisorAgent()
+    agent.graph = MagicMock()
+    agent.graph.invoke.return_value = {"messages": [AIMessage(content="response")]}
+
+    state = {"messages": [HumanMessage(content="test")]}
+    config = {"configurable": {"thread_id": "test"}}
+
+    result = agent.invoke(state, config)
+
+    assert "messages" in result
+
+
+@pytest.mark.unit
+def test_invoke_with_supervisor_state(_mock_agents):
+    """Test invoke with SupervisorState format."""
+    agent = SupervisorAgent()
+    agent.graph = MagicMock()
+    agent.graph.invoke.return_value = {"messages": [AIMessage(content="response")]}
+
+    state = {"messages": [HumanMessage(content="test")], "next": ""}
+    config = {"configurable": {"thread_id": "test"}}
+
+    result = agent.invoke(state, config)
+
+    assert "messages" in result
+
+
+@pytest.mark.unit
+def test_invoke_resume_from_interrupt(_mock_agents):
+    """Test invoke with None state (resume from interrupt)."""
+    agent = SupervisorAgent()
+    agent.graph = MagicMock()
+    agent.graph.invoke.return_value = {"messages": [AIMessage(content="response")]}
+
+    config = {"configurable": {"thread_id": "test"}}
+
+    result = agent.invoke(None, config)
+
+    agent.graph.invoke.assert_called_once_with(None, config)
+    assert "messages" in result
+
+
+@pytest.mark.unit
+def test_build_graph_creates_graph(_mock_agents):
+    """Test that _build_graph creates a compiled graph."""
+    agent = SupervisorAgent()
+
+    assert agent.graph is not None
+    assert hasattr(agent.graph, "invoke")
+
+
+# ============================================================================
+# INTEGRATION TESTS
 # ============================================================================
 
 
 @pytest.mark.integration
 def test_supervisor_full_routing_workflow():
     """Test complete workflow from user input to agent selection."""
-    fake_llm = GenericFakeChatModel(
-        messages=iter([AIMessage(content="engineering_agent")])
+    mock_llm = create_mock_llm_with_structured_output(
+        "engineering_agent", "User wants beam optimization"
     )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
         agent = SupervisorAgent()
 
-        # Mock the sub-agents to avoid real execution
+        # Mock sub-agents
         agent.engineering_agent = Mock(
             return_value={
                 "messages": [AIMessage(content="Engineering work done")],
@@ -368,51 +674,20 @@ def test_supervisor_full_routing_workflow():
             "next": "",
         }
 
-        # Test the supervisor node works in context
         result = agent._supervisor_node(initial_state)
 
         assert result["next"] == "engineering_agent"
         assert "messages" in result
 
 
-@pytest.mark.integration
-def test_supervisor_initialization_creates_all_components():
-    """Test supervisor initializes with all required components."""
-    fake_llm = GenericFakeChatModel(messages=iter(["test"]))
-
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
-        agent = SupervisorAgent()
-
-        # Verify all components are initialized
-        assert agent.llm is not None, "LLM should be initialized"
-        assert agent.engineering_agent is not None, "Engineering agent should exist"
-        assert agent.hpc_agent is not None, "HPC agent should exist"
-        assert agent.search_agent is not None, "Search agent should exist"
-        assert agent.cli_agent is not None, "CLI agent should exist"
-        assert agent.graph is not None, "Graph should be initialized"
-
-        # Verify graph has correct structure
-        assert hasattr(agent.graph, "invoke"), "Graph should be invokable"
-
-
-# ============================================================================
-# PERFORMANCE & EDGE CASE TESTS
-# ============================================================================
-
-
 @pytest.mark.unit
 def test_supervisor_routing_is_deterministic():
     """Test that same input produces same routing decision."""
-    fake_llm = GenericFakeChatModel(
-        messages=iter(
-            [
-                AIMessage(content="engineering_agent"),
-                AIMessage(content="engineering_agent"),
-            ]
-        )
+    mock_llm = create_mock_llm_with_structured_output(
+        "engineering_agent", "Optimization request"
     )
 
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
         agent = SupervisorAgent()
 
         state = {
@@ -423,97 +698,4 @@ def test_supervisor_routing_is_deterministic():
         result1 = agent._supervisor_node(state)
         result2 = agent._supervisor_node(state)
 
-        assert result1["next"] == result2["next"], "Routing should be deterministic"
-
-
-@pytest.mark.unit
-def test_supervisor_handles_mixed_case_routing():
-    """Test supervisor handles routing responses with different casing."""
-    test_cases = [
-        "engineering_agent",
-        "Engineering_Agent",
-        "ENGINEERING_AGENT",
-    ]
-
-    for response in test_cases:
-        fake_llm = GenericFakeChatModel(messages=iter([AIMessage(content=response)]))
-
-        with patch(
-            "src.agents.supervisor_agent.init_chat_model", return_value=fake_llm
-        ):
-            agent = SupervisorAgent()
-
-            state = {
-                "messages": [HumanMessage(content="Optimize beam")],
-                "next": "",
-            }
-
-            result = agent._supervisor_node(state)
-            # Should normalize to lowercase or handle case-insensitively
-            assert result["next"].lower() == "engineering_agent"
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "agent_name,query",
-    [
-        ("engineering_agent", "Optimize a cantilever beam"),
-        ("search_agent", "Find papers on topology optimization"),
-        ("hpc_agent", "Submit job to cluster"),
-        ("cli_agent", "List simulation files"),
-        ("supervisor_response", "What can you do?"),
-    ],
-)
-def test_supervisor_routing_parametrized(agent_name, query):
-    """Parametrized test for different routing scenarios."""
-    fake_llm = GenericFakeChatModel(messages=iter([AIMessage(content=agent_name)]))
-
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
-        agent = SupervisorAgent()
-
-        state = {
-            "messages": [HumanMessage(content=query)],
-            "next": "",
-        }
-
-        result = agent._supervisor_node(state)
-        assert result["next"] == agent_name
-
-
-# ============================================================================
-# FIXTURES IMPROVEMENTS
-# ============================================================================
-
-
-@pytest.fixture
-def mock_supervisor_with_fake_llm():
-    """Fixture that provides a fully mocked supervisor for testing."""
-    fake_llm = GenericFakeChatModel(messages=iter(["test"]))
-
-    with patch("src.agents.supervisor_agent.init_chat_model", return_value=fake_llm):
-        agent = SupervisorAgent()
-
-        # Mock all sub-agents to prevent real execution
-        agent.engineering_agent = Mock()
-        agent.hpc_agent = Mock()
-        agent.search_agent = Mock()
-        agent.cli_agent = Mock()
-
-        return agent
-
-
-@pytest.fixture
-def sample_conversation_state():
-    """Fixture providing a realistic conversation state for testing."""
-    return {
-        "messages": [
-            HumanMessage(content="Hello"),
-            AIMessage(content="Hi! How can I help?"),
-            HumanMessage(content="Optimize my beam design"),
-        ],
-        "next": "",
-        "metadata": {
-            "user_id": "test_user",
-            "session_id": "test_session",
-        },
-    }
+        assert result1["next"] == result2["next"]
