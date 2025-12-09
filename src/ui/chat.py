@@ -69,15 +69,7 @@ def render() -> None:
     chat_col, canvas_col = st.columns([2, 1], vertical_alignment="bottom")
 
     with canvas_col:
-        # Center the whiteboard section
-        st.markdown(
-            """
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                <h3 style="text-align: center; margin-bottom: 1rem;">🎨 Whiteboard</h3>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.subheader("🎨 Whiteboard", text_alignment="center")
 
         # Render the Excalidraw component
         export_data = get_excalidraw_whiteboard(height=700, key="excalidraw_main")
@@ -138,18 +130,16 @@ def render() -> None:
                 _render_job_monitoring_prompt()
         else:
             # Welcome message for empty chat
-            st.markdown("<br>" * 2, unsafe_allow_html=True)
-
-            _, center_col, _ = st.columns([1, 2, 1])
-            with center_col:
-                st.markdown(
-                    '<h2 style="text-align: center;">💬 Start a conversation</h2>',
-                    unsafe_allow_html=True,
-                )
-                st.markdown(
-                    '<p style="text-align: center; color: #666;">Ask me anything about engineering design, optimization, or 3D modeling</p>',
-                    unsafe_allow_html=True,
-                )
+            st.markdown("")
+            st.markdown("")
+            st.header(
+                "💬 Start a conversation",
+                text_alignment="center",
+            )
+            st.caption(
+                "Ask me anything about engineering design, optimization, or 3D modeling",
+                text_alignment="center",
+            )
 
         # Create a placeholder for new messages BEFORE the chat input
         # This ensures messages appear in the correct position
