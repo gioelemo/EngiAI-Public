@@ -64,7 +64,7 @@ def _render_job_monitoring_prompt() -> None:
 def render() -> None:
     """Render the chat page with Excalidraw canvas."""
     # Create two columns: 2/3 for chat, 1/3 for canvas
-    chat_col, canvas_col = st.columns([2, 1])
+    chat_col, canvas_col = st.columns([2, 1], vertical_alignment="bottom")
 
     with canvas_col:
         # Center the whiteboard section
