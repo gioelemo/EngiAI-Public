@@ -251,6 +251,7 @@ module = [
   "engibench.*",
   "engiopt.*",
   "fabric",
+  "flask",
   "httpx",
   "langchain.*",
   "langchain-mcp-adapters",
