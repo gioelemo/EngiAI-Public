@@ -87,6 +87,14 @@ def _render_canvas_column() -> None:
         # Canvas was empty when export was triggered
         st.warning("Canvas is empty! Draw something first.")
 
+    # Add text input for custom message
+    canvas_message = st.text_input(
+        "Add a message (optional)",
+        key="canvas_message_input",
+        placeholder="Describe your drawing or ask a question...",
+        label_visibility="collapsed",
+    )
+
     # Add Streamlit button below canvas
     if st.button(
         "📤 Send to Chat",
@@ -95,6 +103,9 @@ def _render_canvas_column() -> None:
         type="primary",
         shortcut="Ctrl+Enter",
     ):
+        # Store the custom message if provided
+        if canvas_message:
+            st.session_state.canvas_custom_message = canvas_message
         # Trigger export by setting a flag
         st.session_state.trigger_canvas_export = True
         st.rerun()
@@ -109,12 +120,17 @@ def _get_pending_inputs() -> tuple[str | dict | None, str | None]:
     pending_canvas_input = None
     if st.session_state.get("pending_canvas_export"):
         try:
-            # Process the export
+            # Get custom message if it exists
+            custom_message = st.session_state.get("canvas_custom_message")
+
+            # Process the export with custom message
             pending_canvas_input = process_canvas_export(
-                st.session_state.pending_canvas_export
+                st.session_state.pending_canvas_export, custom_message=custom_message
             )
-            # Clear the pending export
+            # Clear the pending export and custom message
             del st.session_state.pending_canvas_export
+            if "canvas_custom_message" in st.session_state:
+                del st.session_state.canvas_custom_message
         except Exception as e:
             st.error(f"Failed to process canvas export: {e}")
             if "pending_canvas_export" in st.session_state:

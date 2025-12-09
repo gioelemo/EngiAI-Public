@@ -35,8 +35,21 @@ def get_excalidraw_whiteboard(
     return excalidraw_whiteboard(height=height, key=key, trigger_export=trigger_export)
 
 
-def process_canvas_export(base64_data: str) -> dict:
-    """Process the exported canvas data and create a mock file for chat."""
+def process_canvas_export(base64_data: str, custom_message: str | None = None) -> dict:
+    """Process the exported canvas data and create a mock file for chat.
+
+    Parameters
+    ----------
+    base64_data : str
+        Base64 encoded PNG image data
+    custom_message : str or None
+        Optional custom message to include with the canvas
+
+    Returns
+    -------
+    dict
+        Dictionary with 'text' and 'files' keys for chat processing
+    """
 
     if not base64_data or "," not in base64_data:
         raise InvalidCanvasDataError
@@ -68,4 +81,6 @@ def process_canvas_export(base64_data: str) -> dict:
         "image/png",
     )
 
-    return {"text": "Here's my whiteboard drawing:", "files": [mock_file]}
+    # Use custom message if provided, otherwise use default
+    message_text = custom_message if custom_message else "Here's my whiteboard drawing:"
+    return {"text": message_text, "files": [mock_file]}
