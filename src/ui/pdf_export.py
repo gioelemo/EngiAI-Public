@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from PIL import Image
 from reportlab.lib import colors
