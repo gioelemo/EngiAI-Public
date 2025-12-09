@@ -1,28 +1,25 @@
 import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 const isProduction = process.env.NODE_ENV === "production";
 
 export default defineConfig({
+  plugins: [react()],
   base: "./",
   build: {
     outDir: "build",
-    lib: {
-      entry: "./src/index.ts",
-      name: "CanvasReceiver",
-      formats: ["es"],
-      fileName: "index-[hash]",
-    },
     minify: isProduction ? "esbuild" : false,
     sourcemap: !isProduction,
     rollupOptions: {
       output: {
-        entryFileNames: "index-[hash].js",
+        // Disable code splitting - create a single bundle
+        inlineDynamicImports: true,
       },
     },
   },
   esbuild: isProduction
     ? {
-        drop: ["console", "debugger"],
+        drop: ["debugger"],
         minifyIdentifiers: true,
         minifySyntax: true,
       }

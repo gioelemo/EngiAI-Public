@@ -4,14 +4,16 @@ import sys
 from pathlib import Path
 
 import streamlit as st
-from streamlit.components.v1 import html as components_html
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.ui.canvas_bridge import get_canvas_export, process_canvas_export  # noqa: E402
+from src.ui.canvas_bridge import (  # noqa: E402
+    get_excalidraw_whiteboard,
+    process_canvas_export,
+)
 from src.ui.message_processing import display_message  # noqa: E402
 from src.ui.streamlit_app import (  # noqa: E402
     add_job_to_monitor,
@@ -77,139 +79,8 @@ def render() -> None:
             unsafe_allow_html=True,
         )
 
-        # Excalidraw HTML for iframe with export functionality
-        excalidraw_html = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css"/>
-    <style>
-        body { margin: 0; padding: 0; background: #f5f5f5; font-family: sans-serif; }
-        #app { height: calc(100vh - 60px); width: 100%; }
-        #export-btn {
-            position: fixed;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            background: #6965db;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            z-index: 1000;
-        }
-        #export-btn:hover { background: #5753c5; }
-        #export-btn:active { transform: translateX(-50%) scale(0.98); }
-    </style>
-    <script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";</script>
-    <script type="importmap">
-    {
-        "imports": {
-            "react": "https://esm.sh/react@19.0.0",
-            "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
-            "react-dom": "https://esm.sh/react-dom@19.0.0",
-            "react-dom/client": "https://esm.sh/react-dom@19.0.0/client"
-        }
-    }
-    </script>
-</head>
-<body>
-    <div id="app"></div>
-    <button id="export-btn">📤 Send to Chat</button>
-    <script type="module">
-        (async () => {
-            try {
-                const React = await import("react");
-                const ReactDOM = await import("react-dom/client");
-                const ExcalidrawLib = await import('https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom');
-
-                let excalidrawAPI = null;
-
-                const App = () => {
-                    return React.createElement(
-                        'div',
-                        { style: { height: 'calc(100vh - 60px)' } },
-                        React.createElement(ExcalidrawLib.Excalidraw, {
-                            excalidrawAPI: (api) => { excalidrawAPI = api; }
-                        })
-                    );
-                };
-
-                const root = ReactDOM.createRoot(document.getElementById("app"));
-                root.render(React.createElement(App));
-
-                // Export button handler
-                document.getElementById('export-btn').addEventListener('click', async () => {
-                    if (!excalidrawAPI) {
-                        alert('Excalidraw not ready yet!');
-                        return;
-                    }
-
-                    const btn = document.getElementById('export-btn');
-                    btn.textContent = '⏳ Exporting...';
-                    btn.disabled = true;
-
-                    try {
-                        const elements = excalidrawAPI.getSceneElements();
-                        if (!elements || elements.length === 0) {
-                            alert('Canvas is empty! Draw something first.');
-                            btn.textContent = '📤 Send to Chat';
-                            btn.disabled = false;
-                            return;
-                        }
-
-                        // Export to blob
-                        const blob = await ExcalidrawLib.exportToBlob({
-                            elements: elements,
-                            appState: excalidrawAPI.getAppState(),
-                            files: excalidrawAPI.getFiles(),
-                            mimeType: 'image/png',
-                            quality: 0.95
-                        });
-
-                        // Convert blob to base64
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const base64data = reader.result;
-
-                            // Store in localStorage for custom component to pick up
-                            localStorage.setItem('excalidraw_pending_export', base64data);
-
-                            btn.textContent = '✅ Sending...';
-                            btn.disabled = true;
-
-                            // The custom component will detect this and send to Python
-                            // Wait a moment then reset button
-                            setTimeout(() => {
-                                btn.textContent = '📤 Send to Chat';
-                                btn.disabled = false;
-                            }, 2000);
-                        };
-                        reader.readAsDataURL(blob);                    } catch (error) {
-                        alert('Export failed: ' + error.message);
-                        btn.textContent = '📤 Send to Chat';
-                        btn.disabled = false;
-                    }
-                });
-
-            } catch (error) {
-                document.getElementById('app').innerHTML = '<div style="padding:20px;color:red;">Error loading Excalidraw: ' + error.message + '</div>';
-            }
-        })();
-    </script>
-</body>
-</html>
-"""
-        components_html(excalidraw_html, height=700)
-
-        # Add custom component to receive exports
-        export_data = get_canvas_export()
+        # Render the Excalidraw component
+        export_data = get_excalidraw_whiteboard(height=700, key="excalidraw_main")
 
         # If we received data and it's different from what we last processed, store it
         if export_data:
@@ -220,7 +91,7 @@ def render() -> None:
 
         st.markdown("---")
         st.info(
-            "💡 Click '📤 Send to Chat' button in the whiteboard to automatically send your drawing!"
+            "💡 Click '📤 Send to Chat' button in the whiteboard to send your drawing!"
         )
 
     with chat_col:

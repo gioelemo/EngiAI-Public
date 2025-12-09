@@ -1,14 +1,14 @@
-# Multi-stage build for custom Streamlit component
-# Stage 1: Build the React component
-FROM node:18-slim as component-builder
+# Multi-stage build for custom Streamlit components
+# Stage 1: Build the Excalidraw component
+FROM node:18-slim as excalidraw-builder
 
 WORKDIR /component
 
 # Copy component package files and install
-COPY src/ui/components/canvas_receiver/frontend/package.json ./
+COPY src/ui/components/excalidraw/frontend/package.json ./
 RUN npm install --production=false
 
-COPY src/ui/components/canvas_receiver/frontend/ ./
+COPY src/ui/components/excalidraw/frontend/ ./
 RUN npm run build
 
 # Stage 2: Python application
@@ -38,8 +38,8 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
 # Copy the rest of the application
 COPY . .
 
-# Copy pre-built component from builder stage
-COPY --from=component-builder /component/build /app/src/ui/components/canvas_receiver/frontend/build
+# Copy pre-built Excalidraw component from builder stage
+COPY --from=excalidraw-builder /component/build /app/src/ui/components/excalidraw/frontend/build
 
 # Copy and set permissions for entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/

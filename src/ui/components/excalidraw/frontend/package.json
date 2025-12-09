@@ -1,5 +1,5 @@
 {
-  "name": "canvas_receiver",
+  "name": "excalidraw-component",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "build:frontend:production": "cross-env NODE_ENV=production vite build",
     "clean": "rimraf build",
     "dev": "cross-env NODE_ENV=development vite build --watch",
-    "format": "prettier --write src/**/*.ts vite.config.ts",
+    "format": "prettier --write src/**/*.ts src/**/*.tsx vite.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "browserslist": [
@@ -19,9 +19,16 @@
   ],
   "prettier": {},
   "dependencies": {
-    "@streamlit/component-v2-lib": "^0.1.0"
+    "@excalidraw/excalidraw": "^0.18.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "streamlit-component-lib": "^2.0.0"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
     "cross-env": "^7.0.3",
     "prettier": "^3.2.5",
     "rimraf": "^5.0.5",
