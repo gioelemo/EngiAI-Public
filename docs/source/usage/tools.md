@@ -91,14 +91,34 @@ Optimization and design tools.
 
 Run optimization using EngiBench problems.
 
+Supported problem types:
+- **beams2d**: 2D structural topology optimization
+- **thermoelastic2d**: 2D multi-physics optimization (structural + thermal)
+
 ```python
 from src.tools import engibench
 
+# Structural optimization
 result = engibench.optimize(
     problem="beams2d",
     config={"volfrac": 0.3, "forcedist": 0.5}
 )
+
+# Multi-physics thermoelastic optimization
+result = engibench.optimize(
+    problem="thermoelastic2d",
+    config={"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
+)
 ```
+
+The unified tools work with both problem types:
+- `create_problem` - Initialize a problem instance
+- `simulate_design` - Evaluate a design
+- `optimize_design` - Run topology optimization
+- `render_design` - Visualize the design
+- `get_problem_info` - Get problem metadata
+- `get_problem_details` - Get detailed problem description
+- `get_dataset_info` - Get dataset information
 
 ### `engiopt_optimize`
 

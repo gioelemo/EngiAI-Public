@@ -257,6 +257,7 @@ streamlit run src/ui/streamlit_app.py
 
 **Features:**
 - 💬 Clean chat interface
+- 🎨 Interactive whiteboard with Excalidraw canvas
 - 🔧 Real-time tool usage visualization
 - 📥 Direct file downloads
 - 🗑️ Conversation management
@@ -397,6 +398,7 @@ The engineering agent uses [EngiBench](https://engibench.ethz.ch), a library for
 - Simulate structural designs under various load conditions
 - Run topology optimization with volume constraints
 - Explore trade-offs between stiffness and material usage
+- Perform multi-physics optimization balancing structural and thermal performance (ThermoElastic2D)
 
 **Example conversation:**
 ```
@@ -418,9 +420,13 @@ stiffer while using only 35% of the available material.
 
 This project includes integration with HPC clusters (like ETH Zurich's Euler cluster) for submitting and monitoring large-scale training jobs.
 
-### SSH Key Setup
+### SSH Authentication Setup
 
-Before using HPC integration, set up SSH key authentication:
+The HPC integration supports two authentication methods:
+
+#### Option 1: SSH Key Authentication (Recommended)
+
+This is the most secure and convenient method for regular use:
 
 #### 1. Generate SSH Key (if you don't have one)
 
@@ -519,6 +525,30 @@ docker-compose -f docker-compose.mcp.yml restart chatbot
 ```
 
 Now your SSH connections will work seamlessly from both your terminal and the Docker container!
+
+#### Option 2: Password Authentication (Alternative)
+
+For environments where SSH key setup is not possible, you can use password authentication:
+
+**Python API:**
+```python
+from src.tools.connection import HPCConnection
+
+# Initialize connection with password
+hpc = HPCConnection(
+    host="euler.ethz.ch",      # Explicit hostname
+    user="your_username",       # HPC username
+    password="your_password",   # HPC password
+    port=22                     # SSH port (default: 22)
+)
+```
+
+**Important Notes:**
+- Password authentication is less secure than SSH keys
+- Passwords are not stored and must be provided each time
+- Some HPC clusters may require SSH keys and not accept passwords
+- Not recommended for production use
+- Consider using SSH keys (Option 1) for better security
 
 ### Using the HPC Connection Tool
 
@@ -692,8 +722,8 @@ python connection.py submit outputs/test.slurm
 ### Core Features
 - **🐳 Docker Deployment**: Production-ready containerized deployment with Docker Compose
 - **🤖 Multi-Agent System**: Supervisor coordinates specialized agents (Engineering, Search, RAG, HPC, Prusa, CLI)
-- **💬 Interactive UI**: Streamlit web interface with chat, file uploads, and visualization
-- **🔧 Engineering Tools**: EngiBench integration for structural optimization and topology design
+- **💬 Interactive UI**: Streamlit web interface with chat, Excalidraw whiteboard, file uploads, and visualization
+- **🔧 Engineering Tools**: EngiBench integration for structural and multi-physics topology optimization (beams2d, ThermoElastic2D)
 - **🔍 RAG System**: Document Q&A with MMORE multimodal RAG service
 - **🖨️ 3D Printer Integration**: Prusa Connect integration via MCP (Model Context Protocol)
 - **🖥️ HPC Integration**: SLURM job management for remote compute clusters

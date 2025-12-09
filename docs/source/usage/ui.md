@@ -53,7 +53,21 @@ Organize your conversations:
 - Load previous conversations
 - Export chat transcripts
 
-### 5. Settings
+### 5. Interactive Whiteboard (Excalidraw)
+
+Draw and sketch designs directly in the chat:
+
+- **Real-time Drawing**: Native Excalidraw canvas for visual design discussions
+- **Canvas Export**: Export drawings as PNG images to chat
+- **Custom Descriptions**: Add optional text descriptions when sending canvas images
+- **Smart State Detection**: Send button disabled when canvas is empty
+- **Keyboard Shortcuts**:
+  - `Ctrl/Cmd + Enter`: Send canvas to chat
+  - `Ctrl/Cmd + K`: Create new chat
+
+The canvas automatically clears after sending, and visual indicators show the current state.
+
+### 6. Settings
 
 Configure the assistant:
 
@@ -61,8 +75,9 @@ Configure the assistant:
 - **Model Selection**: Choose LLM models
 - **HPC Configuration**: Set cluster credentials
 - **RAG Settings**: Configure MMORE service and retrieval
+- **Output Management**: Clear generated files from the outputs folder with one click
 
-### 6. Database Browser
+### 7. Database Browser
 
 Explore your knowledge base:
 
