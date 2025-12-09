@@ -7,12 +7,13 @@ sub-agents (Engineering, Search, etc.) rather than having all tools directly.
 
 import logging
 import uuid
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
+from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
 from config import config
@@ -25,11 +26,30 @@ from src.agents.rag_agent import RAGAgent
 from src.agents.search_agent import SearchAgent
 from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
-from src.utils.prompts import SUPERVISOR_AGENT_SYSTEM_PROMPT
-
-# ChromaDB imports removed - now using MMORE via RAGAgent
+from src.utils.prompts import (
+    SUPERVISOR_AGENT_SYSTEM_PROMPT,
+    SUPERVISOR_CAPABILITIES_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
+
+
+class RouteDecision(BaseModel):
+    """Structured output for routing decision."""
+
+    agent: Literal[
+        "engineering_agent",
+        "hpc_agent",
+        "search_agent",
+        "rag_agent",
+        "arxiv_agent",
+        "prusa_agent",
+        "cli_agent",
+        "supervisor_response",
+    ] = Field(description="The agent to route the task to based on the user's request")
+    reasoning: str = Field(
+        description="Brief explanation of why this agent was selected"
+    )
 
 
 class SupervisorState(TypedDict):
@@ -63,6 +83,8 @@ class SupervisorAgent:
             temperature if temperature is not None else config.llm_temperature
         )
         self.llm = init_chat_model(self.model_name, temperature=self.temperature)
+        # Create structured LLM for routing decisions
+        self.routing_llm = self.llm.with_structured_output(RouteDecision)
 
         # Initialize specialized sub-agents
         self.engineering_agent = EngineeringAgent(
@@ -105,8 +127,8 @@ class SupervisorAgent:
         """
         return SUPERVISOR_AGENT_SYSTEM_PROMPT
 
-    def _supervisor_node(self, state: SupervisorState):  # noqa: PLR0912
-        """Supervisor decides which agent should act next."""
+    def _supervisor_node(self, state: SupervisorState):
+        """Supervisor decides which agent should act next using LLM-based routing."""
         # Only route if we haven't routed yet (no next value set)
         if state.get("next") and state["next"] != "":
             # Already routed, finish
@@ -115,91 +137,19 @@ class SupervisorAgent:
                 "messages": [],  # Don't return messages - add_messages will handle state
             }
 
-        # Check user message directly for "open" commands - route to CLI immediately
-        last_user_message = ""
-        for msg in reversed(state["messages"]):
-            if hasattr(msg, "type") and msg.type == "human":
-                last_user_message = str(msg.content).lower()
-                break
-            elif isinstance(msg, dict) and msg.get("role") == "user":
-                last_user_message = str(msg.get("content", "")).lower()
-                break
-
-        logger.info(
-            f"[SUPERVISOR ROUTING DEBUG] Last user message: '{last_user_message}'"
-        )
-        logger.info(
-            f"[SUPERVISOR ROUTING DEBUG] Starts with 'open ': {last_user_message.startswith('open ')}"
-        )
-
-        # Direct routing for "open" commands - bypass LLM routing
-        if last_user_message.startswith("open "):
-            logger.info(
-                "[SUPERVISOR ROUTING DEBUG] ROUTING TO CLI_AGENT (direct routing)"
-            )
-            return {
-                "next": "cli_agent",
-                "messages": [],  # Don't return messages - add_messages will handle state
-            }
-
         messages = [
             {"role": "system", "content": self._build_routing_prompt()},
             *state["messages"],
         ]
-        response = self.llm.invoke(messages)
 
-        # Extract routing decision from response
-        content = str(response.content).strip().lower()
+        # Use structured output to get routing decision from LLM
+        route_decision = cast(RouteDecision, self.routing_llm.invoke(messages))
+        next_agent = route_decision.agent
 
-        # Determine next agent - check engineering first (more specific keywords)
-        next_agent = "supervisor_response"  # Default to supervisor response for safety
-        if (
-            "engineering" in content
-            or "training" in content
-            or "generate" in content
-            or "wandb" in content
-            or "slurm" in content
-            or "beam" in content
-            or "optimization" in content
-            or "design" in content
-        ):
-            # Engineering handles: training scripts, model generation, design tasks, WandB operations
-            next_agent = "engineering_agent"
-        elif (
-            "hpc" in content
-            or "submit" in content
-            or "status" in content
-            or "cancel" in content
-            or "monitor" in content
-            or "download output" in content
-        ):
-            # HPC handles: job submission, monitoring, cancellation, output retrieval
-            next_agent = "hpc_agent"
-        elif "search" in content:
-            next_agent = "search_agent"
-        elif "rag" in content or "document" in content:
-            # RAG handles: questions about uploaded documents/papers
-            next_agent = "rag_agent"
-        elif "arxiv" in content or "paper" in content:
-            # ArXiv handles: ArXiv paper search, download, and analysis
-            next_agent = "arxiv_agent"
-        elif (
-            "prusa" in content
-            or "printer" in content
-            or "print" in content
-            or "3d printer" in content
-        ):
-            # Prusa handles: printer management, job monitoring, printer control
-            next_agent = "prusa_agent"
-        elif "cli" in content or "command" in content or "run" in content:
-            # CLI handles: local command-line tool execution
-            next_agent = "cli_agent"
-        elif "finish" in content or "supervisor" in content:
-            # Supervisor will answer directly
-            next_agent = "supervisor_response"
-
-        # Preserve the original messages and add the routing decision
-        logger.info(f"[SUPERVISOR ROUTING DEBUG] LLM routing decision: '{next_agent}'")
+        # Log the routing decision with reasoning
+        logger.info(
+            f"[SUPERVISOR ROUTING] Agent: '{next_agent}' | Reasoning: {route_decision.reasoning}"
+        )
         return {
             "next": next_agent,
             "messages": [],  # Don't return messages - add_messages will handle state
@@ -208,69 +158,8 @@ class SupervisorAgent:
     def _supervisor_response_node(self, state: SupervisorState):
         """Supervisor responds directly to informational questions."""
 
-        # Build a helpful system prompt for answering capability questions
-        capabilities_prompt = """You are a helpful assistant that can answer questions about the system's capabilities.
-
-The system has the following capabilities:
-
-**Engineering & Optimization:**
-- Structural optimization and topology design
-- Beam design problems and simulation
-- STL file generation for 3D printing
-- Access to pre-trained models from WandB
-- Generative models (GANs, Diffusion)
-
-
-
-**CLI Command Execution:**
-- Execute any local command-line tool
-- PrusaSlicer for STL slicing to G-code
-- Mesh processing and file conversion tools
-- Basic shell commands (pwd, ls, cat, etc.)
-
-**HPC Cluster Management:**
-- SLURM job submission and monitoring
-- Job status checking and output retrieval
-- Remote cluster operations
-
-**Document Intelligence:**
-- Upload and analyze research papers (PDFs)
-- Question-answering about uploaded documents
-- Document summarization and information extraction
-- Persistent knowledge base for your papers
-
-**ArXiv Research:**
-- Search ArXiv for academic papers
-- Download and analyze ArXiv papers
-- Ask questions about downloaded papers using RAG
-- Track and manage your research paper collection
-
-**Web Research:**
-- Search for engineering information
-- Find best practices and papers
-- Current state-of-the-art research
-
-**Prusa 3D Printer Management:**
-- Monitor printer status and print jobs
-- Control printers (pause, resume, stop)
-- Manage files and storage
-
-Answer the user's question clearly and concisely about what the system can do.
-
-**CRITICAL: You MUST end EVERY response with 2-4 contextual follow-up suggestions in this format:**
-
-```suggested_prompts
-Suggestion 1 text here
----
-Suggestion 2 text here
----
-Suggestion 3 text here
-```
-
-For capability questions, suggest specific actions the user might want to try with the system."""
-
         messages = [
-            {"role": "system", "content": capabilities_prompt},
+            {"role": "system", "content": SUPERVISOR_CAPABILITIES_PROMPT},
             *state["messages"],
         ]
         response = self.llm.invoke(messages)
