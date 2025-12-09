@@ -441,6 +441,8 @@ ssh-keygen -t ed25519 -C "your_email@example.com"
 # - Confirm passphrase
 ```
 
+**Note:** You cannot add the private key itself to Keychain, but you can store the passphrase for the private key in Keychain (Step 3 below).
+
 #### 2. Copy Public Key to HPC Cluster
 
 ```bash
@@ -458,17 +460,33 @@ chmod 600 ~/.ssh/authorized_keys
 EOF
 ```
 
-#### 3. Configure SSH Config for Automatic Key Loading
+#### 3. Store Passphrase in Keychain (macOS)
 
-Edit `~/.ssh/config` to enable automatic key loading and keychain integration:
+**macOS 12.0 Monterey and later:**
+```bash
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+```
 
-**IMPORTANT for macOS users:** Add this configuration to automatically load your SSH key without repeated passphrase prompts:
+**macOS older than 12.0 Monterey:**
+```bash
+ssh-add -K ~/.ssh/id_ed25519
+```
+
+Enter your key passphrase when prompted - you won't be asked for it again!
+
+**Note:** If this fails, make sure you're using Apple's version of `ssh-add`: `which ssh-add` should return `/usr/bin/ssh-add` (not a Homebrew version).
+
+#### 4. Configure SSH to Always Use Keychain (macOS Sierra and later)
+
+**Important:** macOS Sierra removed the convenient behavior of persisting keys between logins. You need to configure SSH to use the Keychain by default.
+
+Create or edit `~/.ssh/config`:
 
 ```bash
-# Default settings for all hosts (automatic key loading)
+# Default settings for all hosts
 Host *
-    AddKeysToAgent yes
     UseKeychain yes
+    AddKeysToAgent yes
     IdentityFile ~/.ssh/id_ed25519
 
 # Your HPC Cluster
@@ -480,31 +498,34 @@ Host euler
 ```
 
 **What each setting does:**
-- `AddKeysToAgent yes` - Automatically adds keys to SSH agent when used
-- `UseKeychain yes` - Stores passphrases in macOS Keychain (prevents repeated prompts)
+- `UseKeychain yes` - **Critical!** Tells SSH to look in macOS Keychain for the passphrase
+- `AddKeysToAgent yes` - Automatically adds keys to SSH agent when first used
 - `IdentityFile` - Specifies which SSH key to use
 - `ForwardAgent yes` - Allows SSH agent forwarding for multi-hop connections
 
-#### 4. Add Key to SSH Agent and Keychain (One-Time Setup)
+**Note:** If you have multiple private keys (e.g., `id_rsa`, `id_ed25519`), add an `IdentityFile` line for each one.
 
-**macOS:**
+#### 5. Configure Shell to Auto-Load Keys (macOS)
+
+Add this line to your `~/.zshrc` file to automatically load keys from Keychain on each login:
+
 ```bash
-# Add your key to SSH agent and save passphrase to Keychain
-ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+# Auto-load SSH keys from Keychain
+ssh-add --apple-load-keychain -q 2>/dev/null
 ```
 
-**Linux:**
+The `-q` flag suppresses the success message. After adding this, reload your shell:
 ```bash
-# Add your key to SSH agent
-ssh-add ~/.ssh/id_ed25519
+source ~/.zshrc
 ```
 
-After entering your passphrase once:
-- ✅ Key is loaded into SSH agent
-- ✅ Passphrase is saved to macOS Keychain (macOS only)
-- ✅ Key auto-loads on every login (no more passphrase prompts!)
+**That's it!** Next time you load any SSH connection, it will:
+- ✅ Try the private keys you've specified
+- ✅ Look for their passphrase in the macOS Keychain
+- ✅ Auto-load keys on each login (via ~/.zshrc)
+- ✅ **No passphrase typing required!**
 
-#### 5. Verify SSH Setup
+#### 6. Verify SSH Setup
 
 ```bash
 # Check that your key is loaded
@@ -516,7 +537,7 @@ ssh euler
 # Should connect without asking for passphrase!
 ```
 
-#### 6. Restart Docker (if using Docker deployment)
+#### 7. Restart Docker (if using Docker deployment)
 
 If you're running the application in Docker, restart the container to pick up the SSH agent:
 
