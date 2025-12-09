@@ -93,6 +93,7 @@ def _render_canvas_column() -> None:
         key="canvas_send_button",
         use_container_width=True,
         type="primary",
+        shortcut="Ctrl+Enter",
     ):
         # Trigger export by setting a flag
         st.session_state.trigger_canvas_export = True
