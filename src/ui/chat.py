@@ -87,28 +87,22 @@ def render() -> None:
         )
 
     with chat_col:
-        # Check for pending canvas export
+        # IMPORTANT: Check for pending canvas export and suggestion FIRST, before any rendering
+        # This handles the case where a button was clicked or canvas was exported
+        pending_canvas_input = None
         if st.session_state.get("pending_canvas_export"):
             try:
                 # Process the export
-                canvas_input = process_canvas_export(
+                pending_canvas_input = process_canvas_export(
                     st.session_state.pending_canvas_export
                 )
-
                 # Clear the pending export
                 del st.session_state.pending_canvas_export
-
-                # Process through chat
-                process_user_input(canvas_input)
-                st.rerun()
-
             except Exception as e:
                 st.error(f"Failed to process canvas export: {e}")
                 if "pending_canvas_export" in st.session_state:
                     del st.session_state.pending_canvas_export
 
-        # IMPORTANT: Check for pending suggestion FIRST, before any rendering
-        # This handles the case where a button was clicked and stored a suggestion
         pending_suggestion = None
         if (
             hasattr(st.session_state, "selected_suggestion")
@@ -152,14 +146,15 @@ def render() -> None:
             file_type=["png", "jpg", "jpeg", "gif", "webp", "pdf"],
         )
 
-        # Determine what to process: pending suggestion takes priority, then chat input
-        input_to_process = pending_suggestion if pending_suggestion else message
+        # Determine what to process: canvas export > pending suggestion > chat input
+        input_to_process = pending_canvas_input or pending_suggestion or message
 
         # Process the input if we have any
         if input_to_process:
             # Use the placeholder to render new messages above the chat input
             with new_message_placeholder.container():
                 process_user_input(input_to_process)
+            st.rerun()
 
         # Render compact job monitor at the bottom if there are jobs
         if st.session_state.get("monitored_jobs"):
