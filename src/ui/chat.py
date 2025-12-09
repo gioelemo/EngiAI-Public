@@ -143,13 +143,13 @@ def _render_chat_history() -> None:
             _render_job_monitoring_prompt()
     else:
         # Welcome message for empty chat
-        st.markdown("")
-        st.markdown("")
+        st.space(100)  # Fixed spacing to push content down
         st.header("💬 Start a conversation", text_alignment="center")
         st.caption(
             "Ask me anything about engineering design, optimization, or 3D modeling",
             text_alignment="center",
         )
+        st.space(250)  # Spacing before chat input
 
 
 def render() -> None:
