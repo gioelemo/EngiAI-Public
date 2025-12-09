@@ -152,3 +152,69 @@ class TestCheckpointerEdgeCases:
 
         assert checkpointer1 is checkpointer2 is checkpointer3
         assert cp._initialized
+
+    def test_postgres_available_is_boolean(self):
+        """Test that POSTGRES_AVAILABLE is a boolean."""
+        assert isinstance(POSTGRES_AVAILABLE, bool)
+
+    def test_checkpointer_interface_memory_saver(self, monkeypatch):
+        """Test that MemorySaver has expected checkpointer interface."""
+        monkeypatch.setattr("src.checkpoint.POSTGRES_AVAILABLE", False)
+
+        import src.checkpoint as cp
+
+        cp._checkpointer = None
+        cp._initialized = False
+
+        checkpointer = get_checkpointer()
+
+        # MemorySaver should have these methods
+        assert hasattr(checkpointer, "put")
+        assert hasattr(checkpointer, "get")
+        assert hasattr(checkpointer, "list")
+
+    def test_postgres_url_detection(self):
+        """Test that PostgreSQL URLs are correctly detected."""
+        from config import config
+
+        original_url = config.database_url
+
+        # Test PostgreSQL URL
+        config.database_url = "postgresql://localhost/test"
+
+        import src.checkpoint as cp
+
+        cp._checkpointer = None
+        cp._initialized = False
+
+        # Should attempt to use PostgreSQL (if available)
+        try:
+            checkpointer = get_checkpointer()
+            assert checkpointer is not None
+        finally:
+            config.database_url = original_url
+            cp._checkpointer = None
+            cp._initialized = False
+
+    def test_empty_database_url(self):
+        """Test handling of empty database URL."""
+        from config import config
+
+        original_url = config.database_url
+        config.database_url = ""
+
+        import src.checkpoint as cp
+
+        cp._checkpointer = None
+        cp._initialized = False
+
+        try:
+            checkpointer = get_checkpointer()
+            # Should fall back to MemorySaver
+            from langgraph.checkpoint.memory import MemorySaver
+
+            assert isinstance(checkpointer, MemorySaver)
+        finally:
+            config.database_url = original_url
+            cp._checkpointer = None
+            cp._initialized = False

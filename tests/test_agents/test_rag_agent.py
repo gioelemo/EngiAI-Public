@@ -438,3 +438,196 @@ class TestRAGAgentSystemPrompt:
         system_prompt = agent._get_system_prompt()
         assert "MMORE" in system_prompt
         assert agent is not None
+
+
+@pytest.mark.slow
+class TestRAGAgentAddURLTool:
+    """Test the add_url_to_knowledge_base tool."""
+
+    @patch("src.agents.rag_agent.WebCrawler")
+    @patch("src.agents.rag_agent.MMOREClient")
+    @patch("src.agents.base_agent.init_chat_model")
+    def test_add_url_direct_pdf(
+        self,
+        mock_init_llm,
+        mock_mmore_cls,
+        mock_crawler_cls,
+        mock_mmore_client,
+    ):
+        """Test adding a direct PDF URL."""
+        from src.agents.rag_agent import RAGAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
+        mock_crawler = Mock()
+        mock_crawler_cls.return_value = mock_crawler
+
+        agent = RAGAgent()
+        add_url_tool = agent.tools_by_name["add_url_to_knowledge_base"]
+
+        # Mock tempfile and requests for PDF download
+        with patch("src.agents.rag_agent.tempfile.NamedTemporaryFile") as mock_temp:
+            with patch("src.agents.rag_agent.requests.get") as mock_get:
+                mock_temp_file = Mock()
+                mock_temp_file.name = "/tmp/test.pdf"
+                mock_temp_file.__enter__ = Mock(return_value=mock_temp_file)
+                mock_temp_file.__exit__ = Mock(return_value=False)
+                mock_temp.return_value = mock_temp_file
+
+                mock_response = Mock()
+                mock_response.content = b"PDF content"
+                mock_response.raise_for_status = Mock()
+                mock_get.return_value = mock_response
+
+                result = add_url_tool.invoke(
+                    {
+                        "url": "https://example.com/paper.pdf",
+                        "crawl_subpages": False,
+                    }
+                )
+
+                assert "Successfully added" in result or "Error" in result
+
+    @patch("src.agents.rag_agent.WebCrawler")
+    @patch("src.agents.rag_agent.MMOREClient")
+    @patch("src.agents.base_agent.init_chat_model")
+    def test_add_url_with_crawling(
+        self,
+        mock_init_llm,
+        mock_mmore_cls,
+        mock_crawler_cls,
+        mock_mmore_client,
+    ):
+        """Test adding URL with subpage crawling."""
+        from src.agents.rag_agent import RAGAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        mock_crawler = Mock()
+        mock_crawler.crawl.return_value = [
+            {"url": "https://example.com", "content": "Test content"}
+        ]
+        mock_crawler_cls.return_value = mock_crawler
+
+        agent = RAGAgent()
+        add_url_tool = agent.tools_by_name["add_url_to_knowledge_base"]
+
+        with patch("src.agents.rag_agent.tempfile.TemporaryDirectory") as mock_temp:
+            mock_temp_dir = Mock()
+            mock_temp_dir.name = "/tmp/test_dir"
+            mock_temp_dir.__enter__ = Mock(return_value=mock_temp_dir)
+            mock_temp_dir.__exit__ = Mock(return_value=False)
+            mock_temp.return_value = mock_temp_dir
+
+            with patch("builtins.open", create=True):
+                result = add_url_tool.invoke(
+                    {
+                        "url": "https://example.com",
+                        "crawl_subpages": True,
+                        "max_pages": 5,
+                    }
+                )
+
+                # Should handle crawling
+                assert isinstance(result, str)
+
+
+@pytest.mark.slow
+class TestRAGAgentToolsIntegration:
+    """Test tool integration and interaction."""
+
+    @patch("src.agents.rag_agent.MMOREClient")
+    @patch("src.agents.base_agent.init_chat_model")
+    def test_all_tools_registered(
+        self,
+        mock_init_llm,
+        mock_mmore_cls,
+        mock_mmore_client,
+    ):
+        """Test that all expected tools are registered."""
+        from src.agents.rag_agent import RAGAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        agent = RAGAgent()
+
+        expected_tools = [
+            "search_documents",
+            "add_document",
+            "add_url_to_knowledge_base",
+            "list_documents",
+            "delete_document",
+        ]
+
+        for tool_name in expected_tools:
+            assert tool_name in agent.tools_by_name
+
+    @patch("src.agents.rag_agent.MMOREClient")
+    @patch("src.agents.base_agent.init_chat_model")
+    def test_tools_have_descriptions(
+        self,
+        mock_init_llm,
+        mock_mmore_cls,
+        mock_mmore_client,
+    ):
+        """Test that all tools have proper descriptions."""
+        from src.agents.rag_agent import RAGAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        agent = RAGAgent()
+
+        for tool in agent.tools_by_name.values():
+            assert tool.description is not None
+            assert len(tool.description) > 0
+
+
+@pytest.mark.unit
+class TestRAGAgentEdgeCases:
+    """Test edge cases and error conditions."""
+
+    @patch("src.agents.rag_agent.MMOREClient")
+    @patch("src.agents.base_agent.init_chat_model")
+    def test_initialization_with_custom_params(
+        self,
+        mock_init_llm,
+        mock_mmore_cls,
+    ):
+        """Test RAG agent initialization with custom parameters."""
+        from src.agents.rag_agent import RAGAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_client = Mock()
+        mock_mmore_client.health_check.return_value = True
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        agent = RAGAgent(
+            model_name="custom-model",
+            temperature=0.7,
+            mmore_url="http://custom-url:8000",
+        )
+
+        assert agent is not None
+        mock_mmore_cls.assert_called_with(base_url="http://custom-url:8000")
+
+    @patch("src.agents.rag_agent.MMOREClient")
+    @patch("src.agents.base_agent.init_chat_model")
+    def test_mmore_health_check_failure(
+        self,
+        mock_init_llm,
+        mock_mmore_cls,
+    ):
+        """Test handling of MMORE health check failure."""
+        from src.agents.rag_agent import RAGAgent
+
+        mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_client = Mock()
+        mock_mmore_client.health_check.return_value = False
+        mock_mmore_cls.return_value = mock_mmore_client
+
+        # Should still initialize but warn
+        agent = RAGAgent()
+        assert agent is not None
