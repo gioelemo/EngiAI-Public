@@ -14,7 +14,8 @@ if str(project_root) not in sys.path:
 def render() -> None:
     """Render the home page."""
     # Add vertical spacing
-    st.markdown("<br>" * 2, unsafe_allow_html=True)
+    st.markdown("")
+    st.markdown("")
 
     # Center the logo and text
     _, center_col, _ = st.columns([1, 2, 1])
@@ -25,22 +26,16 @@ def render() -> None:
                 # Use file path directly instead of PIL to avoid caching issues
                 st.image(str(logo_path), width="stretch")
             except Exception:
-                st.markdown(
-                    '<h1 style="text-align: center;">💬 EngiAI</h1>',
-                    unsafe_allow_html=True,
-                )
+                st.title("💬 EngiAI", text_alignment="center")
         else:
-            st.markdown(
-                '<h1 style="text-align: center;">💬 EngiAI</h1>',
-                unsafe_allow_html=True,
-            )
+            st.title("💬 EngiAI", text_alignment="center")
 
-        st.markdown(
-            '<p style="text-align: center; font-size: 1.2em; color: #666;">Your AI-powered engineering design assistant</p>',
-            unsafe_allow_html=True,
+        st.caption(
+            "Your AI-powered engineering design assistant",
+            text_alignment="center",
         )
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("")
 
     # Feature highlights
     col1, col2, col3 = st.columns(3)

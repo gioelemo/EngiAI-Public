@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Interactive Whiteboard Feature (Excalidraw Integration)**
+  - Native Excalidraw canvas integrated into chat interface
+  - Real-time drawing and sketching capabilities for design discussions
+  - Export canvas drawings as PNG images to chat
+  - Custom message input for canvas exports with optional descriptions
+  - Smart empty state detection with disabled send button when canvas is empty
+  - Visual indicators and helpful tooltips for canvas state
+  - Keyboard shortcuts:
+    - `Ctrl+Enter` (Cmd+Enter on Mac) to send canvas to chat
+    - `Ctrl+K` (Cmd+K on Mac) to create new chat
+  - Native Streamlit button replacing iframe button for better UX
+  - Automatic canvas clearing after successful send
 - Script to get deployment zip to be uploaded on server
 - ThermoElastic2D problem integration from EngiBench
   - 7 new tools for multi-physics topology optimization
@@ -27,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Database tracking of uploaded documents
 
 ### Changed
+- **UI/UX Improvements**
+  - Replaced internal canvas button with native Streamlit button for consistency
+  - Improved chat layout with better spacing on welcome screen
+  - Enhanced delete button in chat sidebar (using ✕ instead of x)
+  - Refactored chat.py with helper functions for better code organization
+  - Fixed message display order during processing (canvas messages now appear correctly)
 - Updated engineering agent system prompts with ThermoElastic2D workflow guidance
 - Enhanced prompts with multi-physics optimization concepts and key parameters
 - Migrated RAG system from ChromaDB to MMORE service
@@ -34,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Deployment fix for SSH configuration (do not work for the moment)
+- Fixed canvas export message ordering in chat display
+- Corrected Docker build warning (changed `as` to `AS` in Dockerfile for consistency)
+- Fixed complexity warnings in chat.py (reduced statements and branches)
 
 ## [1.0.0] - 2025-11-17
 

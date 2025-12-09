@@ -864,7 +864,13 @@ def render_sidebar() -> None:
     truncated_title_length = 32
 
     # New Chat button at the top
-    if st.button("+ New Chat", key="new_chat_btn", width="stretch", type="primary"):
+    if st.button(
+        "+ New Chat",
+        key="new_chat_btn",
+        width="stretch",
+        type="primary",
+        shortcut="Ctrl+K",
+    ):
         # Save current chat before creating new one
         save_active_chat_to_storage()
         # Create new chat without auto-generated name (will be generated from first message)

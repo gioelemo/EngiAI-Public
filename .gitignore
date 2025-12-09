@@ -219,3 +219,10 @@ assets/workflow_example.png
 assets/agent_architecture.png
 assets/docker_mcp_architecture.png
 assets/docker_mcp_architecture_old.png
+
+# Node.js / Custom Components
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+src/ui/components/*/frontend/build/
