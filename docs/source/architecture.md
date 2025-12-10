@@ -75,8 +75,9 @@ Each agent is autonomous and equipped with specific tools:
 Handles structural design and optimization workflows.
 
 **Tools**:
-- EngiBench optimization (beams2d, ThermoElastic2D)
-- Design simulation and analysis
+- EngiBench optimization (beams2d, ThermoElastic2D, Photonics2D)
+- Unified problem registry system - easily extensible for new problem types
+- Design simulation and analysis with dynamic objective extraction
 - Constraint checking
 - STL export for 3D printing
 

@@ -64,6 +64,26 @@ Search Tools
    :special-members: __init__
 
 
+Web Crawler
+-----------
+
+.. automodule:: src.tools.web_crawler
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
+
+
+Algorithms
+----------
+
+.. automodule:: src.tools.algorithms
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
+
+
 EngiOpt Tools
 -------------
 
@@ -104,10 +124,10 @@ Job Monitor
    :special-members: __init__
 
 
-Constants
----------
+Problem Registry
+----------------
 
-.. automodule:: src.tools.constants
+.. automodule:: src.tools.problems
    :members:
    :undoc-members:
    :show-inheritance:

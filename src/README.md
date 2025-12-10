@@ -25,10 +25,11 @@ src/
 │   ├── __init__.py
 │   ├── cli.py                  # CLI tools
 │   ├── connection.py           # SSH/HPC connection management
-│   ├── engibench.py            # Engineering benchmarks (beams, etc.)
+│   ├── engibench.py            # Engineering benchmarks (unified problem-agnostic tools)
 │   ├── engiopt.py              # ML model training & optimization
 │   ├── hpc.py                  # HPC cluster operations
 │   ├── job_monitor.py          # SLURM job monitoring & notifications
+│   ├── problems.py             # Problem registry (single source of truth)
 │   ├── search.py               # Web search via Tavily
 │   └── stl_export.py           # CAD file conversion to STL
 │
@@ -70,7 +71,8 @@ Contains LangChain tools that agents can use. Each tool is decorated with `@tool
 **Current tools:**
 - **`cli.py`**: CLI commands
 - **`connection.py`**: SSH connection management for remote HPC systems
-- **`engibench.py`**: Engineering benchmark (beams2d)
+- **`problems.py`**: Problem registry (single source of truth for all supported problem types)
+- **`engibench.py`**: Engineering benchmark tools (problem-agnostic, works with any registered problem)
 - **`engiopt.py`**: ML model training and optimization (GANs, CNNs) with W&B tracking
 - **`hpc.py`**: HPC cluster operations (submit jobs, transfer files, run commands)
 - **`job_monitor.py`**: SLURM job monitoring with status updates and notifications
@@ -140,6 +142,42 @@ The Streamlit interface (`src/ui/streamlit_app.py`) provides:
 5. **Configuration via .env** - Never hardcode credentials
 6. **Test your changes** - Add tests in `tests/` mirroring structure
 7. **Update documentation** - Keep this README current
+
+## Adding New Engineering Problems
+
+The system uses a **unified problem registry** that makes adding new problems straightforward:
+
+**To add a new problem type:**
+
+1. **Import from EngiBench** (if available):
+   ```python
+   # In src/tools/problems.py
+   from engibench import NewProblemClass
+   ```
+
+2. **Add to PROBLEM_CLASSES registry**:
+   ```python
+   PROBLEM_CLASSES: dict[ProblemId, type[Problem]] = {
+       "beams2d": Beams2D,
+       "thermoelastic2d": ThermoElastic2D,
+       "photonics2d": Photonics2D,
+       "newproblem": NewProblemClass,  # Add your problem here
+   }
+   ```
+
+3. **Update ProblemId type**:
+   ```python
+   ProblemId = Literal["beams2d", "thermoelastic2d", "photonics2d", "newproblem"]
+   ```
+
+**That's it!** The system automatically:
+- ✅ Enables the problem in all tools (`engibench.py`, `engiopt.py`)
+- ✅ Updates documentation in all agent prompts
+- ✅ Extracts objectives dynamically from `problem.objectives`
+- ✅ Handles visualization and constraints
+- ✅ Works with model training and sampling
+
+No need to modify `engibench.py`, `engiopt.py`, or `prompts.py` - they adapt automatically!
 
 ## Testing
 

@@ -149,12 +149,12 @@ See the [Paper Import Guide](paper_import_guide.md) for detailed instructions.
 ### Design Workflow
 
 1. **Generate Design**: "Create a 2D beam design"
-2. **Optimize**: "Optimize for minimal compliance"
+2. **Optimize**: "Optimize for minimal compliance" (works with beams2d, thermoelastic2d, photonics2d)
 3. **Export**: "Convert to STL for 3D printing"
 
 ### HPC Training Workflow
 
-1. **Prepare**: "Set up training for beams2d problem"
+1. **Prepare**: "Set up training for [problem_type]" (any supported problem: beams2d, thermoelastic2d, photonics2d)
 2. **Submit**: "Submit training job to HPC cluster"
 3. **Monitor**: "Check training status"
 

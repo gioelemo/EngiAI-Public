@@ -98,6 +98,59 @@ Then create a Pull Request on GitHub with:
 - Link to related issues
 - Screenshots if applicable
 
+## Adding New Engineering Problems
+
+The system uses a **unified problem registry** that makes adding new EngiBench problems simple:
+
+### Step-by-Step Guide
+
+1. **Import the Problem Class** (in `src/tools/problems.py`):
+   ```python
+   from engibench import YourNewProblem
+   ```
+
+2. **Add to PROBLEM_CLASSES Registry**:
+   ```python
+   PROBLEM_CLASSES: dict[ProblemId, type[Problem]] = {
+       "beams2d": Beams2D,
+       "thermoelastic2d": ThermoElastic2D,
+       "photonics2d": Photonics2D,
+       "yournewproblem": YourNewProblem,  # Add here
+   }
+   ```
+
+3. **Update ProblemId Type**:
+   ```python
+   ProblemId = Literal["beams2d", "thermoelastic2d", "photonics2d", "yournewproblem"]
+   ```
+
+4. **That's It!** The system automatically:
+   - ✅ Enables the problem in all tools
+   - ✅ Updates documentation in prompts
+   - ✅ Extracts objectives dynamically
+   - ✅ Handles rendering and constraints
+   - ✅ Works with training and sampling
+
+### What NOT to Modify
+
+You **don't need** to edit:
+- `src/tools/engibench.py` - Already problem-agnostic
+- `src/tools/engiopt.py` - Uses registry automatically
+- `src/utils/prompts.py` - Auto-generates documentation
+- Agent files - They adapt automatically
+
+### Testing Your New Problem
+
+```python
+@pytest.mark.parametrize("problem_id", ["beams2d", "yournewproblem"])
+def test_new_problem(problem_id):
+    from src.tools.problems import PROBLEM_CLASSES
+    problem_class = PROBLEM_CLASSES[problem_id]
+    problem = problem_class()
+    assert problem is not None
+    assert hasattr(problem, 'objectives')
+```
+
 ## Code Style
 
 ### Python
@@ -164,6 +217,7 @@ def agent():
     return EngineeringAgent()
 
 def test_optimization(agent):
+    # Works with any problem type from the registry
     result = agent.optimize(problem="beams2d")
     assert result is not None
 
@@ -171,6 +225,12 @@ def test_optimization(agent):
 def test_volume_fractions(agent, volfrac):
     result = agent.optimize(config={"volfrac": volfrac})
     assert result["volfrac"] == volfrac
+
+@pytest.mark.parametrize("problem_type", ["beams2d", "thermoelastic2d", "photonics2d"])
+def test_all_problem_types(agent, problem_type):
+    # System automatically adapts to any registered problem
+    result = agent.optimize(problem=problem_type)
+    assert result is not None
 ```
 
 ### Running Tests
