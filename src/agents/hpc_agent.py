@@ -18,7 +18,7 @@ from src.tools.job_monitor import (
     get_active_jobs_summary,
     monitor_job_until_complete,
 )
-from src.utils.prompts import HPC_AGENT_SYSTEM_PROMPT
+from src.utils.prompts import get_hpc_agent_system_prompt
 
 
 class HPCAgent(BaseAgent):
@@ -56,4 +56,4 @@ class HPCAgent(BaseAgent):
         Returns:
             System prompt string
         """
-        return HPC_AGENT_SYSTEM_PROMPT
+        return get_hpc_agent_system_prompt()

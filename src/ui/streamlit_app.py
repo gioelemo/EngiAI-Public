@@ -645,7 +645,7 @@ def extract_job_id_from_response(response: str) -> str | None:
     return None
 
 
-def get_or_create_hpc_connection(host_alias: str = "euler"):
+def get_or_create_hpc_connection(host_alias: str | None = None):
     """Get or create a persistent HPC connection for job monitoring.
 
     This maintains a single SSH connection in session state to avoid
@@ -654,12 +654,17 @@ def get_or_create_hpc_connection(host_alias: str = "euler"):
     to inefficient reconnections every ~12 seconds.
 
     Args:
-        host_alias: Host alias from ~/.ssh/config
+        host_alias: Host alias from ~/.ssh/config. If not provided, uses HPC_HOST_ALIAS from .env
 
     Returns:
         HPCConnection instance (reused across multiple status checks)
     """
+    from config import config  # noqa: PLC0415
     from src.tools.connection import HPCConnection  # noqa: PLC0415
+
+    # Use configured host alias if not provided
+    if host_alias is None:
+        host_alias = config.hpc_host_alias
 
     # Initialize connections dict if it doesn't exist
     if "hpc_connections" not in st.session_state:
@@ -677,8 +682,16 @@ def get_or_create_hpc_connection(host_alias: str = "euler"):
     return st.session_state.hpc_connections[host_alias]
 
 
-def get_job_status_display(job_id: str, host_alias: str = "euler") -> dict[str, Any]:
+def get_job_status_display(
+    job_id: str, host_alias: str | None = None
+) -> dict[str, Any]:
     """Get formatted job status for display."""
+    from config import config  # noqa: PLC0415
+
+    # Use configured host alias if not provided
+    if host_alias is None:
+        host_alias = config.hpc_host_alias
+
     try:
         # Use persistent connection instead of creating a new one each time
         hpc = get_or_create_hpc_connection(host_alias)

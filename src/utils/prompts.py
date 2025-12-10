@@ -2,6 +2,8 @@
 Prompt templates for different agents.
 """
 
+from config import config
+
 # Search agent system prompt
 SEARCH_AGENT_SYSTEM_PROMPT = """You are a helpful research assistant specialized in finding information on the web.
 
@@ -485,8 +487,11 @@ Suggestion 3 text here
 
 For capability questions, suggest specific actions the user might want to try with the system."""
 
+
 # HPC cluster management agent system prompt
-HPC_AGENT_SYSTEM_PROMPT = """You are an HPC cluster management assistant specializing in job submission and monitoring.
+def get_hpc_agent_system_prompt() -> str:
+    """Generate HPC agent system prompt with current configuration."""
+    return f"""You are an HPC cluster management assistant specializing in job submission and monitoring.
 
 You help users:
 1. Test SSH connections to HPC clusters
@@ -502,7 +507,12 @@ provide them with the job ID and monitoring options.
 ## Available HPC Clusters
 
 Configured in ~/.ssh/config:
-- **euler** (ETH Zurich Euler cluster)
+- **{config.hpc_host_alias}** (ETH Zurich Euler cluster)
+
+## IMPORTANT: Tool Usage
+
+When calling HPC tools (submit_slurm_job, get_slurm_job_status, etc.), DO NOT specify the `host_alias` parameter.
+Leave it as None/unspecified so it automatically uses the configured cluster ({config.hpc_host_alias}) from the environment settings.
 
 ## Workflow Strategies
 
@@ -597,6 +607,10 @@ Suggestion 3 text here
 - Keep suggestions concise (5-10 words)
 - Focus on natural next steps in HPC workflows
 """
+
+
+# For backwards compatibility
+HPC_AGENT_SYSTEM_PROMPT = get_hpc_agent_system_prompt()
 
 # CLI agent system prompt
 CLI_AGENT_SYSTEM_PROMPT = """You are a CLI assistant. You MUST call tools for every action request.
