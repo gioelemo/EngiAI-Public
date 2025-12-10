@@ -17,6 +17,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from engibench.problems.beams2d.v0 import Beams2D  # type: ignore[import-untyped]
+from engibench.problems.photonics2d.v0 import (
+    Photonics2D,  # type: ignore[import-untyped]
+)
 from engibench.problems.thermoelastic2d.v0 import (
     ThermoElastic2D,  # type: ignore[import-untyped]
 )
@@ -31,6 +34,7 @@ EXPECTED_ARRAY_DIMENSIONS = 2  # For 2D beam design arrays
 PROBLEM_REGISTRY: dict[str, type] = {
     "beams2d": Beams2D,
     "thermoelastic2d": ThermoElastic2D,
+    "photonics2d": Photonics2D,
 }
 
 # Unified state management for all problem types
@@ -38,6 +42,7 @@ PROBLEM_REGISTRY: dict[str, type] = {
 _problem_states: dict[str, dict[str, Any]] = {
     "beams2d": {"problem_instance": None, "last_design": None},
     "thermoelastic2d": {"problem_instance": None, "last_design": None},
+    "photonics2d": {"problem_instance": None, "last_design": None},
 }
 
 
@@ -63,7 +68,9 @@ def get_problem_state(problem_type: str) -> dict[str, Any]:
     return _problem_states[problem_key]
 
 
-def get_unified_problem_instance(problem_type: str) -> Beams2D | ThermoElastic2D:
+def get_unified_problem_instance(
+    problem_type: str,
+) -> Beams2D | ThermoElastic2D | Photonics2D:
     """Get or create a problem instance for the given problem type."""
     state = get_problem_state(problem_type)
     if state["problem_instance"] is None:
@@ -171,7 +178,7 @@ def create_problem(
 
 
 @tool
-def simulate_design(
+def simulate_design(  # noqa: PLR0911
     problem_type: str = "beams2d",
     design_description: str = "random design",
     config: dict[str, Any] | None = None,
@@ -181,10 +188,10 @@ def simulate_design(
     Simulate a design and return its performance metrics.
 
     This unified tool works with any problem type available in EngiBench.
-    Currently supported: 'beams2d', 'thermoelastic2d'.
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:
-        problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d', etc.)
         design_description: Description of the design approach (e.g., "random design",
             "optimized topology", "last design"). The tool will generate or retrieve
             an appropriate design based on this description.
@@ -263,6 +270,17 @@ def simulate_design(
                 "volume_fraction_used": volume_fraction_actual,
                 "design_valid": True,
                 "message": f"Simulated {design_description}: Structural={structural_compliance:.6f}, Thermal={thermal_compliance:.6f}",
+            }
+        elif problem_key == "photonics2d":
+            total_overlap = float(objectives[0])
+            material_usage = float(design.mean())
+            return {
+                "success": True,
+                "problem_type": problem_key,
+                "total_overlap": total_overlap,
+                "material_usage": material_usage,
+                "design_valid": True,
+                "message": f"Simulated {design_description} with total_overlap {total_overlap:.6f}",
             }
         else:
             return {
@@ -539,6 +557,25 @@ def _format_optimization_result(
             }
         )
 
+    elif problem_key == "photonics2d":
+        initial_overlap = float(initial_objectives[0])
+        final_overlap = float(final_objectives[0])
+        # For photonics2d, higher overlap is better (MAXIMIZE)
+        improvement = (
+            (final_overlap - initial_overlap) / abs(initial_overlap)
+            if initial_overlap != 0
+            else 0
+        ) * 100
+
+        result.update(
+            {
+                "initial_total_overlap": initial_overlap,
+                "final_total_overlap": final_overlap,
+                "improvement": improvement,
+                "message": f"Optimized {problem_type} design: {initial_overlap:.6f} → {final_overlap:.6f} ({improvement:.1f}% improvement)",
+            }
+        )
+
     return result
 
 
@@ -670,7 +707,7 @@ def get_problem_info(problem_type: str = "beams2d") -> dict[str, Any]:
     Get information about available EngiBench problems.
 
     Args:
-        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", "photonics2d", etc.)
             Default: "beams2d"
 
     Returns:
@@ -721,6 +758,27 @@ def get_problem_info(problem_type: str = "beams2d") -> dict[str, Any]:
             },
             "design_space": "2D grid (64x64) with material density [0,1] at each point",
         },
+        "photonics2d": {
+            "description": "2D photonic inverse design problem. Optimize a material distribution "
+            "to function as a wavelength demultiplexer, routing electromagnetic waves of different "
+            "wavelengths to separate output ports. Uses Finite Difference Frequency Domain (FDFD) "
+            "solver with automatic differentiation for gradient-based optimization.",
+            "objectives": [
+                ("total_overlap", "MAXIMIZE"),
+            ],
+            "typical_conditions": {
+                "lambda1": "First wavelength in micrometers (default: 1.5)",
+                "lambda2": "Second wavelength in micrometers (default: 1.3)",
+                "blur_radius": "Density blurring filter radius in pixels (default: 2)",
+                "num_elems_x": "Grid resolution in x-direction (default: 120)",
+                "num_elems_y": "Grid resolution in y-direction (default: 120)",
+                "num_optimization_steps": "Number of optimization steps (default: 300)",
+                "step_size": "Adam optimizer step size (default: 0.1)",
+                "penalty_weight": "Material use penalty weight (default: 1e-2)",
+                "initial_beta": "Continuation scheme parameter (default: 1.0)",
+            },
+            "design_space": "2D grid (120x120) with material density [0,1] at each point representing permittivity distribution",
+        },
     }
 
     problem_key = problem_type.lower()
@@ -752,7 +810,7 @@ def get_problem_details(problem_type: str = "beams2d") -> dict[str, Any]:
     source of problem specifications.
 
     Args:
-        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", "photonics2d", etc.)
             Default: "beams2d"
 
     Returns:
@@ -825,7 +883,7 @@ def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
     and their corresponding parameters.
 
     Args:
-        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", "photonics2d", etc.)
             Default: "beams2d"
 
     Returns:

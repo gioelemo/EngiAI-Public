@@ -125,7 +125,7 @@ def download_wandb_model(  # noqa: PLR0913
     then falls back to official benchmark models. No project specification needed!
 
     Args:
-        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d", "photonics2d"
         algorithm: Model architecture to download. Options:
             - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
             - diffusion_2d_cond: Conditional Diffusion (2D)
@@ -453,24 +453,25 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912, PLR0915
 
         if seed_mismatch:
             seed_info = (
-                f"  ⚠️  SEED MISMATCH DETECTED ⚠️\n"
-                f"  Requested: seed {seed}\n"
-                f"  Actual: seed {actual_seed}\n"
-                f"  Reason: Model with seed {seed} does not exist in WandB.\n"
-                f"  Action: Downloaded '{actual_version}' version instead (trained with seed {actual_seed}).\n"
+                f"\n⚠️ **SEED MISMATCH DETECTED** ⚠️\n"
+                f"- Requested: seed {seed}\n"
+                f"- Actual: seed {actual_seed}\n"
+                f"- Reason: Model with seed {seed} does not exist in WandB\n"
+                f"- Action: Downloaded '{actual_version}' version instead (trained with seed {actual_seed})\n"
             )
         else:
-            seed_info = f"  Seed: {seed}\n"
+            seed_info = f"\n- Seed: {seed}"
 
         success_message = (
-            f"✅ Successfully downloaded {display_name} model!\n"
-            f"  Algorithm: {algorithm}\n"
-            f"  Problem: {problem_id}\n"
-            f"{seed_info}"
-            f"  Artifact version: {actual_version}\n"
-            f"  WandB artifact: {artifact_path}\n"
-            f"  Local path: {checkpoint_path}\n"
-            f"  File size: {checkpoint_path.stat().st_size / (1024 * 1024):.1f} MB"
+            f"✅ **Successfully downloaded {display_name} model!**\n\n"
+            f"**Details:**\n"
+            f"- Algorithm: `{algorithm}`\n"
+            f"- Problem: `{problem_id}`"
+            f"{seed_info}\n"
+            f"- Artifact version: `{actual_version}`\n"
+            f"- WandB artifact: `{artifact_path}`\n"
+            f"- Local path: `{checkpoint_path}`\n"
+            f"- File size: {checkpoint_path.stat().st_size / (1024 * 1024):.1f} MB"
         )
 
         return {
@@ -533,7 +534,7 @@ def load_wandb_model(  # noqa: PLR0913
     Args:
         checkpoint_path: Path to the model checkpoint file
             (e.g., discriminator.pth, generator.pth, or model.pth for diffusion)
-        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d", "photonics2d"
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         model_type: Type of model to load:
             - discriminator: Load discriminator model [default] (for GANs)
@@ -901,21 +902,27 @@ def _generate_designs_diffusion(
     return gen_designs
 
 
-def _save_designs(
+def _save_designs(  # noqa: PLR0913
     gen_designs: Any,
     n_samples: int,
     output_path: Path,
     problem: Any,
+    problem_id: str = "unknown",
+    conditions: list[dict[str, float]] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Save generated designs as .npy and .png files. Returns (design_files, render_files)."""
     import numpy as np
     import matplotlib.pyplot as plt
     import logging
+    import datetime
 
     logger = logging.getLogger(__name__)
 
     design_files = []
     render_files = []
+
+    # Create timestamp for this batch of designs
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for i in range(n_samples):
         design = gen_designs[i]
@@ -927,15 +934,32 @@ def _save_designs(
         logger.info(f"  Mean: {design.mean():.4f}, Std: {design.std():.4f}")
         logger.info(f"  Non-zero elements: {np.count_nonzero(design)}/{design.size}")
 
-        # Save as numpy array
-        design_filename = output_path / f"generated_design_{i}.npy"
+        # Save as numpy array with descriptive filename
+        design_filename = (
+            output_path / f"{problem_id}_design_generated_{i}_{timestamp}.npy"
+        )
         np.save(design_filename, design)
         design_files.append(str(design_filename))
 
-        # Render and save visualization
-        render_filename = output_path / f"generated_design_{i}.png"
+        # Update problem conditions if provided (important for photonics2d wavelengths)
+        # For photonics2d, we need to create a new problem instance with specific conditions
+        render_problem = problem
+        if conditions and i < len(conditions) and problem_id == "photonics2d":
+            try:
+                from engibench.problems.photonics2d.v0 import Photonics2D
+
+                render_problem = Photonics2D(seed=0, config=conditions[i])
+            except Exception as e:
+                logger.warning(
+                    f"  Failed to create problem with conditions: {e}, using default"
+                )
+
+        # Render and save visualization with descriptive filename
+        render_filename = (
+            output_path / f"{problem_id}_design_generated_{i}_{timestamp}.png"
+        )
         try:
-            fig, _ = problem.render(design)
+            fig = render_problem.render(design)
 
             # Save to file
             fig.savefig(str(render_filename), dpi=150, bbox_inches="tight")
@@ -1260,13 +1284,12 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     Args:
         checkpoint_path: Path to the generator.pth checkpoint file. If None, will auto-select
             or download a model (default: None)
-        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d", "photonics2d"
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         conditions: List of condition dictionaries for conditional models. Each dict should have:
-            - volfrac: Volume fraction (0-1)
-            - rmin: Minimum radius filter
-            - forcedist: Force distribution (0-1)
-            - overhang_constraint: Overhang constraint (0-1)
+            For beams2d: volfrac, rmin, forcedist, overhang_constraint
+            For thermoelastic2d: volfrac, rmin, weight
+            For photonics2d: lambda1, lambda2, blur_radius
             If None, will use default conditions. Length should match n_samples.
         n_samples: Number of designs to generate (default: 3)
         latent_dim: Latent dimension of the model (default: 32)
@@ -1356,24 +1379,60 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         import random
 
         conditions = []
-        for _ in range(n_samples):
-            # Add small random variations around base values
-            base_volfrac = 0.35
-            base_forcedist = 0.2
-            conditions.append(
-                {
-                    "volfrac": base_volfrac + random.uniform(-0.05, 0.05),  # 0.30-0.40
-                    "rmin": 2.0,  # Keep constant for consistent feature size
-                    "forcedist": base_forcedist
-                    + random.uniform(-0.1, 0.1),  # 0.10-0.30
-                    "overhang_constraint": 0.0,
-                }
-            )
-        logger.info(f"Generated varied conditions for {n_samples} designs:")
-        for i, cond in enumerate(conditions):
-            logger.info(
-                f"  Design {i}: volfrac={cond['volfrac']:.3f}, forcedist={cond['forcedist']:.2f}"
-            )
+        if problem_id == "beams2d":
+            for _ in range(n_samples):
+                # Add small random variations around base values
+                base_volfrac = 0.35
+                base_forcedist = 0.2
+                conditions.append(
+                    {
+                        "volfrac": base_volfrac
+                        + random.uniform(-0.05, 0.05),  # 0.30-0.40
+                        "rmin": 2.0,  # Keep constant for consistent feature size
+                        "forcedist": base_forcedist
+                        + random.uniform(-0.1, 0.1),  # 0.10-0.30
+                        "overhang_constraint": 0.0,
+                    }
+                )
+            logger.info(f"Generated varied conditions for {n_samples} designs:")
+            for i, cond in enumerate(conditions):
+                logger.info(
+                    f"  Design {i}: volfrac={cond['volfrac']:.3f}, forcedist={cond['forcedist']:.2f}"
+                )
+        elif problem_id == "photonics2d":
+            for _ in range(n_samples):
+                # Add variations for photonics wavelengths
+                base_lambda1 = 1.5
+                base_lambda2 = 1.3
+                conditions.append(
+                    {
+                        "lambda1": base_lambda1
+                        + random.uniform(-0.1, 0.1),  # 1.4-1.6 μm
+                        "lambda2": base_lambda2
+                        + random.uniform(-0.1, 0.1),  # 1.2-1.4 μm
+                        "blur_radius": 2.0,  # Keep constant
+                    }
+                )
+            logger.info(f"Generated varied conditions for {n_samples} designs:")
+            for i, cond in enumerate(conditions):
+                logger.info(
+                    f"  Design {i}: lambda1={cond['lambda1']:.3f}, lambda2={cond['lambda2']:.3f}"
+                )
+        elif problem_id == "thermoelastic2d":
+            for _ in range(n_samples):
+                base_volfrac = 0.3
+                conditions.append(
+                    {
+                        "volfrac": base_volfrac + random.uniform(-0.05, 0.05),
+                        "rmin": 1.1,
+                        "weight": 0.5,
+                    }
+                )
+            logger.info(f"Generated varied conditions for {n_samples} designs:")
+            for i, cond in enumerate(conditions):
+                logger.info(
+                    f"  Design {i}: volfrac={cond['volfrac']:.3f}, weight={cond['weight']:.2f}"
+                )
 
     try:
         # Import required libraries
@@ -1388,6 +1447,10 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
                 from engibench.problems.thermoelastic2d.v0 import Thermoelastic2D
 
                 problem = Thermoelastic2D()
+            elif problem_id == "photonics2d":
+                from engibench.problems.photonics2d.v0 import Photonics2D
+
+                problem = Photonics2D()
             else:
                 return {
                     "success": False,
@@ -1504,17 +1567,31 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
         design_files, render_files = _save_designs(
-            gen_designs, n_samples, output_path, problem
+            gen_designs, n_samples, output_path, problem, problem_id, conditions
         )
 
         # Build message with just conditions (no images to avoid context overflow)
         message_parts = []
         for i in range(n_samples):
             message_parts.append(f"**Design {i}:**")
-            message_parts.append(f"- Volume Fraction: {conditions[i]['volfrac']:.3f}")
-            message_parts.append(
-                f"- Force Distribution: {conditions[i]['forcedist']:.3f}"
-            )
+            if problem_id == "beams2d":
+                message_parts.append(
+                    f"- Volume Fraction: {conditions[i]['volfrac']:.3f}"
+                )
+                message_parts.append(
+                    f"- Force Distribution: {conditions[i]['forcedist']:.3f}"
+                )
+            elif problem_id == "photonics2d":
+                message_parts.append(f"- Lambda1 (μm): {conditions[i]['lambda1']:.3f}")
+                message_parts.append(f"- Lambda2 (μm): {conditions[i]['lambda2']:.3f}")
+                message_parts.append(
+                    f"- Blur Radius: {conditions[i]['blur_radius']:.1f}"
+                )
+            elif problem_id == "thermoelastic2d":
+                message_parts.append(
+                    f"- Volume Fraction: {conditions[i]['volfrac']:.3f}"
+                )
+                message_parts.append(f"- Weight: {conditions[i]['weight']:.3f}")
             message_parts.append(f"- Render: {render_files[i]}")
             if i < n_samples - 1:
                 message_parts.append("")  # Empty line between designs

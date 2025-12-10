@@ -226,3 +226,5 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 src/ui/components/*/frontend/build/
+opt_frames/frame_final.png
+opt_frames/

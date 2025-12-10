@@ -3,7 +3,7 @@
 from typing import Literal
 
 # Supported problem types for EngiOpt/EngiBench
-SUPPORTED_PROBLEMS = ["beams2d", "thermoelastic2d"]
+SUPPORTED_PROBLEMS = ["beams2d", "thermoelastic2d", "photonics2d"]
 
 # Type alias for problem IDs
-ProblemId = Literal["beams2d", "thermoelastic2d"]
+ProblemId = Literal["beams2d", "thermoelastic2d", "photonics2d"]
