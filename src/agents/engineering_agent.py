@@ -10,7 +10,6 @@ from src.tools.engibench import (
     create_problem,
     get_dataset_info,
     get_problem_details,
-    get_problem_info,
     optimize_design,
     render_design,
     simulate_design,
@@ -50,7 +49,6 @@ class EngineeringAgent(BaseAgent):
             simulate_design,
             optimize_design,
             render_design,
-            get_problem_info,
             get_problem_details,
             get_dataset_info,
             # Export tools

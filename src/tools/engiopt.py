@@ -6,36 +6,15 @@ that can be used for inverse design tasks. The models are trained using the engi
 library and are available on the engibench WandB project.
 """
 
-import importlib.util
 import os
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Literal
-from dataclasses import dataclass, fields
 
 from langchain_core.tools import tool
-from src.tools.constants import SUPPORTED_PROBLEMS, ProblemId
 
-# Check for optional dependencies
-TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
-WANDB_AVAILABLE = importlib.util.find_spec("wandb") is not None
-
-# Supported algorithms and their properties
-SUPPORTED_ALGORITHMS = {
-    "cgan_cnn_2d": {
-        "class": "Inverse Design",
-        "dimensions": "2D",
-        "conditional": True,
-        "model": "GAN + CNN",
-        "model_types": ["generator", "discriminator"],
-    },
-    "diffusion_2d_cond": {
-        "class": "Inverse Design",
-        "dimensions": "2D",
-        "conditional": True,
-        "model": "Diffusion",
-        "model_types": ["model"],
-    },
-}
+from src.tools.algorithms import SUPPORTED_ALGORITHMS
+from src.tools.problems import PROBLEM_CLASSES, ProblemId, SUPPORTED_PROBLEMS
 
 
 # ======================================================================
@@ -213,11 +192,6 @@ def download_wandb_model(  # noqa: PLR0913
     if error_response:
         return error_response
 
-    # Try to import wandb
-    error_response = _check_wandb_available()
-    if error_response:
-        return error_response
-
     # If no project specified, try multiple projects in order
     if wandb_project is None:
         # Get project names from environment variables with fallback defaults
@@ -287,16 +261,6 @@ def _validate_download_inputs(problem_id: str, algorithm: str) -> dict[str, Any]
             "error": f"Unsupported problem_id '{problem_id}'. Supported problems: {', '.join(SUPPORTED_PROBLEMS)}",
         }
 
-    return None
-
-
-def _check_wandb_available() -> dict[str, Any] | None:
-    """Check if wandb is available."""
-    if not WANDB_AVAILABLE:
-        return {
-            "success": False,
-            "error": "wandb is not installed. Install with: pip install wandb",
-        }
     return None
 
 
@@ -600,13 +564,6 @@ def load_wandb_model(  # noqa: PLR0913
 
     logger = logging.getLogger(__name__)
 
-    # Check if PyTorch is available
-    if not TORCH_AVAILABLE:
-        return {
-            "success": False,
-            "error": "PyTorch is not installed. Install with: pip install torch",
-        }
-
     # Validate checkpoint path
     checkpoint_file = Path(checkpoint_path)
     if not checkpoint_file.exists():
@@ -672,13 +629,6 @@ def _validate_sampling_inputs(
     n_samples: int,
 ) -> dict[str, Any] | None:
     """Validate inputs for design sampling. Returns error dict or None if valid."""
-    # Check dependencies
-    if not TORCH_AVAILABLE:
-        return {
-            "success": False,
-            "error": "PyTorch is not installed. Install with: pip install torch",
-        }
-
     # Validate algorithm
     if algorithm not in SUPPORTED_ALGORITHMS:
         return {
@@ -941,14 +891,14 @@ def _save_designs(  # noqa: PLR0913
         np.save(design_filename, design)
         design_files.append(str(design_filename))
 
-        # Update problem conditions if provided (important for photonics2d wavelengths)
-        # For photonics2d, we need to create a new problem instance with specific conditions
+        # Update problem conditions if provided (important for problems with variable conditions)
+        # If conditions are provided, create a new problem instance with specific conditions
         render_problem = problem
-        if conditions and i < len(conditions) and problem_id == "photonics2d":
+        if conditions and i < len(conditions):
             try:
-                from engibench.problems.photonics2d.v0 import Photonics2D
-
-                render_problem = Photonics2D(seed=0, config=conditions[i])
+                # Get problem class from registry
+                problem_class = PROBLEM_CLASSES[problem_id]
+                render_problem = problem_class(seed=0, config=conditions[i])
             except Exception as e:
                 logger.warning(
                     f"  Failed to create problem with conditions: {e}, using default"
@@ -1372,90 +1322,21 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 
     assert resolved_checkpoint_path is not None
 
-    # Set default conditions if not provided
-    if conditions is None:
-        # Add slight variations to conditions to ensure design diversity
-        # Each design gets slightly different target conditions
-        import random
-
-        conditions = []
-        if problem_id == "beams2d":
-            for _ in range(n_samples):
-                # Add small random variations around base values
-                base_volfrac = 0.35
-                base_forcedist = 0.2
-                conditions.append(
-                    {
-                        "volfrac": base_volfrac
-                        + random.uniform(-0.05, 0.05),  # 0.30-0.40
-                        "rmin": 2.0,  # Keep constant for consistent feature size
-                        "forcedist": base_forcedist
-                        + random.uniform(-0.1, 0.1),  # 0.10-0.30
-                        "overhang_constraint": 0.0,
-                    }
-                )
-            logger.info(f"Generated varied conditions for {n_samples} designs:")
-            for i, cond in enumerate(conditions):
-                logger.info(
-                    f"  Design {i}: volfrac={cond['volfrac']:.3f}, forcedist={cond['forcedist']:.2f}"
-                )
-        elif problem_id == "photonics2d":
-            for _ in range(n_samples):
-                # Add variations for photonics wavelengths
-                base_lambda1 = 1.5
-                base_lambda2 = 1.3
-                conditions.append(
-                    {
-                        "lambda1": base_lambda1
-                        + random.uniform(-0.1, 0.1),  # 1.4-1.6 μm
-                        "lambda2": base_lambda2
-                        + random.uniform(-0.1, 0.1),  # 1.2-1.4 μm
-                        "blur_radius": 2.0,  # Keep constant
-                    }
-                )
-            logger.info(f"Generated varied conditions for {n_samples} designs:")
-            for i, cond in enumerate(conditions):
-                logger.info(
-                    f"  Design {i}: lambda1={cond['lambda1']:.3f}, lambda2={cond['lambda2']:.3f}"
-                )
-        elif problem_id == "thermoelastic2d":
-            for _ in range(n_samples):
-                base_volfrac = 0.3
-                conditions.append(
-                    {
-                        "volfrac": base_volfrac + random.uniform(-0.05, 0.05),
-                        "rmin": 1.1,
-                        "weight": 0.5,
-                    }
-                )
-            logger.info(f"Generated varied conditions for {n_samples} designs:")
-            for i, cond in enumerate(conditions):
-                logger.info(
-                    f"  Design {i}: volfrac={cond['volfrac']:.3f}, weight={cond['weight']:.2f}"
-                )
-
     try:
         # Import required libraries
         try:
             import numpy as np
 
-            if problem_id == "beams2d":
-                from engibench.problems.beams2d.v0 import Beams2D
-
-                problem = Beams2D()
-            elif problem_id == "thermoelastic2d":
-                from engibench.problems.thermoelastic2d.v0 import Thermoelastic2D
-
-                problem = Thermoelastic2D()
-            elif problem_id == "photonics2d":
-                from engibench.problems.photonics2d.v0 import Photonics2D
-
-                problem = Photonics2D()
-            else:
+            # Get problem class from registry (no hardcoded imports needed!)
+            if problem_id not in PROBLEM_CLASSES:
                 return {
                     "success": False,
-                    "error": f"Unsupported problem_id: {problem_id}",
+                    "error": f"Unsupported problem_id: {problem_id}. Supported: {', '.join(SUPPORTED_PROBLEMS)}",
                 }
+
+            problem_class = PROBLEM_CLASSES[problem_id]
+            problem = problem_class()
+
         except ImportError as e:
             return {
                 "success": False,
@@ -1464,6 +1345,50 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 
         # Reset problem instance
         problem.reset(seed=0)
+
+        # Set default conditions if not provided - extract from problem dynamically
+        if conditions is None:
+            import random
+
+            # Get default conditions from the problem
+            default_conditions = dict(problem.conditions)
+            condition_keys = problem.conditions_keys
+
+            logger.info(
+                f"Generating varied conditions from problem defaults: {condition_keys}"
+            )
+
+            conditions = []
+            for _ in range(n_samples):
+                # Create varied conditions by adding small variations to defaults
+                varied_cond = {}
+                for key in condition_keys:
+                    base_value = default_conditions[key]
+
+                    # Add variation based on value type and magnitude
+                    if isinstance(base_value, (int, float)):
+                        # Add 10% variation for numeric values
+                        variation = base_value * 0.1 if base_value != 0 else 0.1
+                        varied_cond[key] = base_value + random.uniform(
+                            -variation, variation
+                        )
+                    else:
+                        # Keep non-numeric values as-is
+                        varied_cond[key] = base_value
+
+                conditions.append(varied_cond)
+
+            # Log generated conditions dynamically
+            logger.info(f"Generated varied conditions for {n_samples} designs:")
+            for i, cond in enumerate(conditions):
+                # Format condition display dynamically
+                cond_str = ", ".join(
+                    [
+                        f"{k}={v:.3f}" if isinstance(v, float) else f"{k}={v}"
+                        for k, v in cond.items()
+                    ]
+                )
+                logger.info(f"  Design {i}: {cond_str}")
 
         # Branch based on algorithm type
         if algorithm == "diffusion_2d_cond":
@@ -1571,27 +1496,23 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         )
 
         # Build message with just conditions (no images to avoid context overflow)
+        # Format conditions dynamically based on what the problem actually uses
         message_parts = []
         for i in range(n_samples):
             message_parts.append(f"**Design {i}:**")
-            if problem_id == "beams2d":
-                message_parts.append(
-                    f"- Volume Fraction: {conditions[i]['volfrac']:.3f}"
-                )
-                message_parts.append(
-                    f"- Force Distribution: {conditions[i]['forcedist']:.3f}"
-                )
-            elif problem_id == "photonics2d":
-                message_parts.append(f"- Lambda1 (μm): {conditions[i]['lambda1']:.3f}")
-                message_parts.append(f"- Lambda2 (μm): {conditions[i]['lambda2']:.3f}")
-                message_parts.append(
-                    f"- Blur Radius: {conditions[i]['blur_radius']:.1f}"
-                )
-            elif problem_id == "thermoelastic2d":
-                message_parts.append(
-                    f"- Volume Fraction: {conditions[i]['volfrac']:.3f}"
-                )
-                message_parts.append(f"- Weight: {conditions[i]['weight']:.3f}")
+            # Display conditions dynamically
+            for key, value in conditions[i].items():
+                # Format the key name nicely (convert snake_case to Title Case)
+                display_name = key.replace("_", " ").title()
+                # Format value based on type
+                if isinstance(value, float):
+                    # Add special units for known parameters
+                    if "lambda" in key.lower():
+                        message_parts.append(f"- {display_name} (μm): {value:.3f}")
+                    else:
+                        message_parts.append(f"- {display_name}: {value:.3f}")
+                else:
+                    message_parts.append(f"- {display_name}: {value}")
             message_parts.append(f"- Render: {render_files[i]}")
             if i < n_samples - 1:
                 message_parts.append("")  # Empty line between designs
