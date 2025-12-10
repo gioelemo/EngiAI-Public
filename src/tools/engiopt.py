@@ -6,36 +6,15 @@ that can be used for inverse design tasks. The models are trained using the engi
 library and are available on the engibench WandB project.
 """
 
-import importlib.util
 import os
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Literal
-from dataclasses import dataclass, fields
 
 from langchain_core.tools import tool
-from src.tools.constants import SUPPORTED_PROBLEMS, ProblemId
 
-# Check for optional dependencies
-TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
-WANDB_AVAILABLE = importlib.util.find_spec("wandb") is not None
-
-# Supported algorithms and their properties
-SUPPORTED_ALGORITHMS = {
-    "cgan_cnn_2d": {
-        "class": "Inverse Design",
-        "dimensions": "2D",
-        "conditional": True,
-        "model": "GAN + CNN",
-        "model_types": ["generator", "discriminator"],
-    },
-    "diffusion_2d_cond": {
-        "class": "Inverse Design",
-        "dimensions": "2D",
-        "conditional": True,
-        "model": "Diffusion",
-        "model_types": ["model"],
-    },
-}
+from src.tools.algorithms import SUPPORTED_ALGORITHMS
+from src.tools.problems import PROBLEM_CLASSES, ProblemId, SUPPORTED_PROBLEMS
 
 
 # ======================================================================
@@ -125,7 +104,7 @@ def download_wandb_model(  # noqa: PLR0913
     then falls back to official benchmark models. No project specification needed!
 
     Args:
-        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d", "photonics2d"
         algorithm: Model architecture to download. Options:
             - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
             - diffusion_2d_cond: Conditional Diffusion (2D)
@@ -213,11 +192,6 @@ def download_wandb_model(  # noqa: PLR0913
     if error_response:
         return error_response
 
-    # Try to import wandb
-    error_response = _check_wandb_available()
-    if error_response:
-        return error_response
-
     # If no project specified, try multiple projects in order
     if wandb_project is None:
         # Get project names from environment variables with fallback defaults
@@ -287,16 +261,6 @@ def _validate_download_inputs(problem_id: str, algorithm: str) -> dict[str, Any]
             "error": f"Unsupported problem_id '{problem_id}'. Supported problems: {', '.join(SUPPORTED_PROBLEMS)}",
         }
 
-    return None
-
-
-def _check_wandb_available() -> dict[str, Any] | None:
-    """Check if wandb is available."""
-    if not WANDB_AVAILABLE:
-        return {
-            "success": False,
-            "error": "wandb is not installed. Install with: pip install wandb",
-        }
     return None
 
 
@@ -453,24 +417,25 @@ def _download_from_wandb(  # noqa: PLR0913, PLR0912, PLR0915
 
         if seed_mismatch:
             seed_info = (
-                f"  ⚠️  SEED MISMATCH DETECTED ⚠️\n"
-                f"  Requested: seed {seed}\n"
-                f"  Actual: seed {actual_seed}\n"
-                f"  Reason: Model with seed {seed} does not exist in WandB.\n"
-                f"  Action: Downloaded '{actual_version}' version instead (trained with seed {actual_seed}).\n"
+                f"\n⚠️ **SEED MISMATCH DETECTED** ⚠️\n"
+                f"- Requested: seed {seed}\n"
+                f"- Actual: seed {actual_seed}\n"
+                f"- Reason: Model with seed {seed} does not exist in WandB\n"
+                f"- Action: Downloaded '{actual_version}' version instead (trained with seed {actual_seed})\n"
             )
         else:
-            seed_info = f"  Seed: {seed}\n"
+            seed_info = f"\n- Seed: {seed}"
 
         success_message = (
-            f"✅ Successfully downloaded {display_name} model!\n"
-            f"  Algorithm: {algorithm}\n"
-            f"  Problem: {problem_id}\n"
-            f"{seed_info}"
-            f"  Artifact version: {actual_version}\n"
-            f"  WandB artifact: {artifact_path}\n"
-            f"  Local path: {checkpoint_path}\n"
-            f"  File size: {checkpoint_path.stat().st_size / (1024 * 1024):.1f} MB"
+            f"✅ **Successfully downloaded {display_name} model!**\n\n"
+            f"**Details:**\n"
+            f"- Algorithm: `{algorithm}`\n"
+            f"- Problem: `{problem_id}`"
+            f"{seed_info}\n"
+            f"- Artifact version: `{actual_version}`\n"
+            f"- WandB artifact: `{artifact_path}`\n"
+            f"- Local path: `{checkpoint_path}`\n"
+            f"- File size: {checkpoint_path.stat().st_size / (1024 * 1024):.1f} MB"
         )
 
         return {
@@ -533,7 +498,7 @@ def load_wandb_model(  # noqa: PLR0913
     Args:
         checkpoint_path: Path to the model checkpoint file
             (e.g., discriminator.pth, generator.pth, or model.pth for diffusion)
-        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d", "photonics2d"
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         model_type: Type of model to load:
             - discriminator: Load discriminator model [default] (for GANs)
@@ -598,13 +563,6 @@ def load_wandb_model(  # noqa: PLR0913
     import torch as th
 
     logger = logging.getLogger(__name__)
-
-    # Check if PyTorch is available
-    if not TORCH_AVAILABLE:
-        return {
-            "success": False,
-            "error": "PyTorch is not installed. Install with: pip install torch",
-        }
 
     # Validate checkpoint path
     checkpoint_file = Path(checkpoint_path)
@@ -671,13 +629,6 @@ def _validate_sampling_inputs(
     n_samples: int,
 ) -> dict[str, Any] | None:
     """Validate inputs for design sampling. Returns error dict or None if valid."""
-    # Check dependencies
-    if not TORCH_AVAILABLE:
-        return {
-            "success": False,
-            "error": "PyTorch is not installed. Install with: pip install torch",
-        }
-
     # Validate algorithm
     if algorithm not in SUPPORTED_ALGORITHMS:
         return {
@@ -901,21 +852,27 @@ def _generate_designs_diffusion(
     return gen_designs
 
 
-def _save_designs(
+def _save_designs(  # noqa: PLR0913
     gen_designs: Any,
     n_samples: int,
     output_path: Path,
     problem: Any,
+    problem_id: str = "unknown",
+    conditions: list[dict[str, float]] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Save generated designs as .npy and .png files. Returns (design_files, render_files)."""
     import numpy as np
     import matplotlib.pyplot as plt
     import logging
+    import datetime
 
     logger = logging.getLogger(__name__)
 
     design_files = []
     render_files = []
+
+    # Create timestamp for this batch of designs
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for i in range(n_samples):
         design = gen_designs[i]
@@ -927,15 +884,32 @@ def _save_designs(
         logger.info(f"  Mean: {design.mean():.4f}, Std: {design.std():.4f}")
         logger.info(f"  Non-zero elements: {np.count_nonzero(design)}/{design.size}")
 
-        # Save as numpy array
-        design_filename = output_path / f"generated_design_{i}.npy"
+        # Save as numpy array with descriptive filename
+        design_filename = (
+            output_path / f"{problem_id}_design_generated_{i}_{timestamp}.npy"
+        )
         np.save(design_filename, design)
         design_files.append(str(design_filename))
 
-        # Render and save visualization
-        render_filename = output_path / f"generated_design_{i}.png"
+        # Update problem conditions if provided (important for problems with variable conditions)
+        # If conditions are provided, create a new problem instance with specific conditions
+        render_problem = problem
+        if conditions and i < len(conditions):
+            try:
+                # Get problem class from registry
+                problem_class = PROBLEM_CLASSES[problem_id]
+                render_problem = problem_class(seed=0, config=conditions[i])
+            except Exception as e:
+                logger.warning(
+                    f"  Failed to create problem with conditions: {e}, using default"
+                )
+
+        # Render and save visualization with descriptive filename
+        render_filename = (
+            output_path / f"{problem_id}_design_generated_{i}_{timestamp}.png"
+        )
         try:
-            fig, _ = problem.render(design)
+            fig = render_problem.render(design)
 
             # Save to file
             fig.savefig(str(render_filename), dpi=150, bbox_inches="tight")
@@ -1260,13 +1234,12 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     Args:
         checkpoint_path: Path to the generator.pth checkpoint file. If None, will auto-select
             or download a model (default: None)
-        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d"
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d", "photonics2d"
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         conditions: List of condition dictionaries for conditional models. Each dict should have:
-            - volfrac: Volume fraction (0-1)
-            - rmin: Minimum radius filter
-            - forcedist: Force distribution (0-1)
-            - overhang_constraint: Overhang constraint (0-1)
+            For beams2d: volfrac, rmin, forcedist, overhang_constraint
+            For thermoelastic2d: volfrac, rmin, weight
+            For photonics2d: lambda1, lambda2, blur_radius
             If None, will use default conditions. Length should match n_samples.
         n_samples: Number of designs to generate (default: 3)
         latent_dim: Latent dimension of the model (default: 32)
@@ -1349,50 +1322,21 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 
     assert resolved_checkpoint_path is not None
 
-    # Set default conditions if not provided
-    if conditions is None:
-        # Add slight variations to conditions to ensure design diversity
-        # Each design gets slightly different target conditions
-        import random
-
-        conditions = []
-        for _ in range(n_samples):
-            # Add small random variations around base values
-            base_volfrac = 0.35
-            base_forcedist = 0.2
-            conditions.append(
-                {
-                    "volfrac": base_volfrac + random.uniform(-0.05, 0.05),  # 0.30-0.40
-                    "rmin": 2.0,  # Keep constant for consistent feature size
-                    "forcedist": base_forcedist
-                    + random.uniform(-0.1, 0.1),  # 0.10-0.30
-                    "overhang_constraint": 0.0,
-                }
-            )
-        logger.info(f"Generated varied conditions for {n_samples} designs:")
-        for i, cond in enumerate(conditions):
-            logger.info(
-                f"  Design {i}: volfrac={cond['volfrac']:.3f}, forcedist={cond['forcedist']:.2f}"
-            )
-
     try:
         # Import required libraries
         try:
             import numpy as np
 
-            if problem_id == "beams2d":
-                from engibench.problems.beams2d.v0 import Beams2D
-
-                problem = Beams2D()
-            elif problem_id == "thermoelastic2d":
-                from engibench.problems.thermoelastic2d.v0 import Thermoelastic2D
-
-                problem = Thermoelastic2D()
-            else:
+            # Get problem class from registry (no hardcoded imports needed!)
+            if problem_id not in PROBLEM_CLASSES:
                 return {
                     "success": False,
-                    "error": f"Unsupported problem_id: {problem_id}",
+                    "error": f"Unsupported problem_id: {problem_id}. Supported: {', '.join(SUPPORTED_PROBLEMS)}",
                 }
+
+            problem_class = PROBLEM_CLASSES[problem_id]
+            problem = problem_class()
+
         except ImportError as e:
             return {
                 "success": False,
@@ -1401,6 +1345,50 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 
         # Reset problem instance
         problem.reset(seed=0)
+
+        # Set default conditions if not provided - extract from problem dynamically
+        if conditions is None:
+            import random
+
+            # Get default conditions from the problem
+            default_conditions = dict(problem.conditions)
+            condition_keys = problem.conditions_keys
+
+            logger.info(
+                f"Generating varied conditions from problem defaults: {condition_keys}"
+            )
+
+            conditions = []
+            for _ in range(n_samples):
+                # Create varied conditions by adding small variations to defaults
+                varied_cond = {}
+                for key in condition_keys:
+                    base_value = default_conditions[key]
+
+                    # Add variation based on value type and magnitude
+                    if isinstance(base_value, (int, float)):
+                        # Add 10% variation for numeric values
+                        variation = base_value * 0.1 if base_value != 0 else 0.1
+                        varied_cond[key] = base_value + random.uniform(
+                            -variation, variation
+                        )
+                    else:
+                        # Keep non-numeric values as-is
+                        varied_cond[key] = base_value
+
+                conditions.append(varied_cond)
+
+            # Log generated conditions dynamically
+            logger.info(f"Generated varied conditions for {n_samples} designs:")
+            for i, cond in enumerate(conditions):
+                # Format condition display dynamically
+                cond_str = ", ".join(
+                    [
+                        f"{k}={v:.3f}" if isinstance(v, float) else f"{k}={v}"
+                        for k, v in cond.items()
+                    ]
+                )
+                logger.info(f"  Design {i}: {cond_str}")
 
         # Branch based on algorithm type
         if algorithm == "diffusion_2d_cond":
@@ -1504,17 +1492,27 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
         design_files, render_files = _save_designs(
-            gen_designs, n_samples, output_path, problem
+            gen_designs, n_samples, output_path, problem, problem_id, conditions
         )
 
         # Build message with just conditions (no images to avoid context overflow)
+        # Format conditions dynamically based on what the problem actually uses
         message_parts = []
         for i in range(n_samples):
             message_parts.append(f"**Design {i}:**")
-            message_parts.append(f"- Volume Fraction: {conditions[i]['volfrac']:.3f}")
-            message_parts.append(
-                f"- Force Distribution: {conditions[i]['forcedist']:.3f}"
-            )
+            # Display conditions dynamically
+            for key, value in conditions[i].items():
+                # Format the key name nicely (convert snake_case to Title Case)
+                display_name = key.replace("_", " ").title()
+                # Format value based on type
+                if isinstance(value, float):
+                    # Add special units for known parameters
+                    if "lambda" in key.lower():
+                        message_parts.append(f"- {display_name} (μm): {value:.3f}")
+                    else:
+                        message_parts.append(f"- {display_name}: {value:.3f}")
+                else:
+                    message_parts.append(f"- {display_name}: {value}")
             message_parts.append(f"- Render: {render_files[i]}")
             if i < n_samples - 1:
                 message_parts.append("")  # Empty line between designs

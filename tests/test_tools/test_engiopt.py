@@ -21,7 +21,6 @@ from src.tools.engiopt import (
     _check_contextual_recommendations,
     _check_general_recommendations,
     _check_hard_limits,
-    _check_wandb_available,
     _download_from_wandb,
     _get_artifact_info,
     _parse_hpc_inputs,
@@ -209,26 +208,6 @@ def test_validate_download_inputs_success(monkeypatch):
 
 
 @pytest.mark.unit
-@patch("src.tools.engiopt.WANDB_AVAILABLE", False)
-def test_check_wandb_available_not_installed():
-    """Test check when wandb is not installed."""
-    result = _check_wandb_available()
-
-    assert result is not None
-    assert result["success"] is False
-    assert "not installed" in result["error"].lower()
-
-
-@pytest.mark.unit
-@patch("src.tools.engiopt.WANDB_AVAILABLE", True)
-def test_check_wandb_available_installed():
-    """Test check when wandb is installed."""
-    result = _check_wandb_available()
-
-    assert result is None  # None means check passed
-
-
-@pytest.mark.unit
 def test_list_available_algorithms():
     """Test listing available algorithms."""
     result = list_available_algorithms.invoke({})
@@ -272,20 +251,6 @@ def test_download_wandb_model_invalid_algorithm(monkeypatch):
 
     assert result["success"] is False
     assert "unsupported algorithm" in result["error"].lower()
-
-
-@pytest.mark.unit
-@patch("src.tools.engiopt.WANDB_AVAILABLE", False)
-def test_download_wandb_model_wandb_not_installed(monkeypatch):
-    """Test download when wandb package is not installed."""
-    monkeypatch.setenv("USE_WANDB", "True")
-
-    result = download_wandb_model.invoke(
-        {"problem_id": "beams2d", "algorithm": "cgan_cnn_2d"}
-    )
-
-    assert result["success"] is False
-    assert "not installed" in result["error"].lower()
 
 
 @pytest.mark.unit
@@ -364,7 +329,6 @@ def test_training_config_problem_id_literal():
 
 
 @pytest.mark.unit
-@patch("src.tools.engiopt.WANDB_AVAILABLE", True)
 def test_download_from_wandb_success(monkeypatch, tmp_path):
     """Test successful download from WandB with mocked API."""
     monkeypatch.setenv("USE_WANDB", "True")
@@ -419,7 +383,6 @@ def test_download_from_wandb_success(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
-@patch("src.tools.engiopt.WANDB_AVAILABLE", True)
 def test_download_from_wandb_checkpoint_not_found(monkeypatch, tmp_path):
     """Test download when checkpoint file is missing."""
     monkeypatch.setenv("USE_WANDB", "True")
@@ -463,7 +426,6 @@ def test_download_from_wandb_checkpoint_not_found(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
-@patch("src.tools.engiopt.WANDB_AVAILABLE", True)
 def test_download_from_wandb_api_error(monkeypatch):
     """Test download when WandB API raises an error."""
     monkeypatch.setenv("USE_WANDB", "True")
@@ -504,7 +466,6 @@ def test_download_from_wandb_api_error(monkeypatch):
 
 
 @pytest.mark.unit
-@patch("src.tools.engiopt.WANDB_AVAILABLE", True)
 def test_download_wandb_model_multi_project_fallback(monkeypatch, tmp_path):
     """Test download fallback to multiple projects."""
     monkeypatch.setenv("USE_WANDB", "True")
@@ -1142,13 +1103,12 @@ def test_api_status_message_without_keys():
 @pytest.mark.unit
 def test_validate_sampling_inputs_valid():
     """Test _validate_sampling_inputs with valid inputs."""
-    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
-        result = _validate_sampling_inputs(
-            algorithm="cgan_cnn_2d",
-            problem_id="beams2d",
-            conditions=[{"volfrac": 0.5}],
-            n_samples=1,
-        )
+    result = _validate_sampling_inputs(
+        algorithm="cgan_cnn_2d",
+        problem_id="beams2d",
+        conditions=[{"volfrac": 0.5}],
+        n_samples=1,
+    )
 
     assert result is None  # None means valid
 
@@ -1156,13 +1116,12 @@ def test_validate_sampling_inputs_valid():
 @pytest.mark.unit
 def test_validate_sampling_inputs_invalid_algorithm():
     """Test _validate_sampling_inputs with invalid algorithm."""
-    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
-        result = _validate_sampling_inputs(
-            algorithm="invalid",
-            problem_id="beams2d",
-            conditions=None,
-            n_samples=1,
-        )
+    result = _validate_sampling_inputs(
+        algorithm="invalid",
+        problem_id="beams2d",
+        conditions=None,
+        n_samples=1,
+    )
 
     assert result is not None
     assert result["success"] is False
@@ -1172,13 +1131,12 @@ def test_validate_sampling_inputs_invalid_algorithm():
 @pytest.mark.unit
 def test_validate_sampling_inputs_invalid_problem():
     """Test _validate_sampling_inputs with invalid problem."""
-    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
-        result = _validate_sampling_inputs(
-            algorithm="cgan_cnn_2d",
-            problem_id="invalid",
-            conditions=None,
-            n_samples=1,
-        )
+    result = _validate_sampling_inputs(
+        algorithm="cgan_cnn_2d",
+        problem_id="invalid",
+        conditions=None,
+        n_samples=1,
+    )
 
     assert result is not None
     assert result["success"] is False
@@ -1188,33 +1146,16 @@ def test_validate_sampling_inputs_invalid_problem():
 @pytest.mark.unit
 def test_validate_sampling_inputs_conditions_mismatch():
     """Test _validate_sampling_inputs with mismatched conditions count."""
-    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
-        result = _validate_sampling_inputs(
-            algorithm="cgan_cnn_2d",
-            problem_id="beams2d",
-            conditions=[{"volfrac": 0.5}],  # 1 condition
-            n_samples=3,  # 3 samples
-        )
-
-    assert result is not None
-    assert result["success"] is False
-    assert "must match" in result["error"].lower()
-
-
-@pytest.mark.unit
-@patch("src.tools.engiopt.TORCH_AVAILABLE", False)
-def test_validate_sampling_inputs_no_torch():
-    """Test _validate_sampling_inputs without PyTorch."""
     result = _validate_sampling_inputs(
         algorithm="cgan_cnn_2d",
         problem_id="beams2d",
-        conditions=None,
-        n_samples=1,
+        conditions=[{"volfrac": 0.5}],  # 1 condition
+        n_samples=3,  # 3 samples
     )
 
     assert result is not None
     assert result["success"] is False
-    assert "torch" in result["error"].lower() or "pytorch" in result["error"].lower()
+    assert "must match" in result["error"].lower()
 
 
 @pytest.mark.unit
@@ -1252,32 +1193,15 @@ def test_generate_training_command_invalid_algorithm():
 
 
 @pytest.mark.unit
-@patch("src.tools.engiopt.TORCH_AVAILABLE", False)
-def test_load_wandb_model_no_torch():
-    """Test load_wandb_model without PyTorch."""
+def test_load_wandb_model_missing_file():
+    """Test load_wandb_model with missing checkpoint file."""
     result = load_wandb_model.invoke(
         {
-            "checkpoint_path": "/fake/path.pth",
+            "checkpoint_path": "/nonexistent/path.pth",
             "problem_id": "beams2d",
             "algorithm": "cgan_cnn_2d",
         }
     )
-
-    assert result["success"] is False
-    assert "torch" in result["error"].lower() or "pytorch" in result["error"].lower()
-
-
-@pytest.mark.unit
-def test_load_wandb_model_missing_file():
-    """Test load_wandb_model with missing checkpoint file."""
-    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
-        result = load_wandb_model.invoke(
-            {
-                "checkpoint_path": "/nonexistent/path.pth",
-                "problem_id": "beams2d",
-                "algorithm": "cgan_cnn_2d",
-            }
-        )
 
     assert result["success"] is False
     assert "not found" in result["error"].lower()
@@ -1290,14 +1214,13 @@ def test_load_wandb_model_invalid_algorithm(tmp_path):
     fake_checkpoint = tmp_path / "fake.pth"
     fake_checkpoint.touch()
 
-    with patch("src.tools.engiopt.TORCH_AVAILABLE", True):
-        result = load_wandb_model.invoke(
-            {
-                "checkpoint_path": str(fake_checkpoint),
-                "problem_id": "beams2d",
-                "algorithm": "invalid_algo",
-            }
-        )
+    result = load_wandb_model.invoke(
+        {
+            "checkpoint_path": str(fake_checkpoint),
+            "problem_id": "beams2d",
+            "algorithm": "invalid_algo",
+        }
+    )
 
     assert result["success"] is False
     assert "unsupported algorithm" in result["error"].lower()

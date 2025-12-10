@@ -399,6 +399,8 @@ The engineering agent uses [EngiBench](https://engibench.ethz.ch), a library for
 - Run topology optimization with volume constraints
 - Explore trade-offs between stiffness and material usage
 - Perform multi-physics optimization balancing structural and thermal performance (ThermoElastic2D)
+- Design optical devices for wavelength multiplexing (Photonics2D)
+- Seamlessly work with any problem type - the system automatically adapts
 
 **Example conversation:**
 ```
@@ -744,7 +746,7 @@ python connection.py submit outputs/test.slurm
 - **🐳 Docker Deployment**: Production-ready containerized deployment with Docker Compose
 - **🤖 Multi-Agent System**: Supervisor coordinates specialized agents (Engineering, Search, RAG, HPC, Prusa, CLI)
 - **💬 Interactive UI**: Streamlit web interface with chat, Excalidraw whiteboard, file uploads, and visualization
-- **🔧 Engineering Tools**: EngiBench integration for structural and multi-physics topology optimization (beams2d, ThermoElastic2D)
+- **🔧 Engineering Tools**: EngiBench integration for structural, multi-physics, and photonics topology optimization (beams2d, ThermoElastic2D, Photonics2D)
 - **🔍 RAG System**: Document Q&A with MMORE multimodal RAG service
 - **🖨️ 3D Printer Integration**: Prusa Connect integration via MCP (Model Context Protocol)
 - **🖥️ HPC Integration**: SLURM job management for remote compute clusters

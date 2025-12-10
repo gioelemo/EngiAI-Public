@@ -8,36 +8,38 @@ problems like beam design, airfoils, truss structures, etc.
 These tools allow LLM agents to interact with EngiBench simulators.
 """
 
+from __future__ import annotations
+
 import datetime
 import random
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from engibench.problems.beams2d.v0 import Beams2D  # type: ignore[import-untyped]
-from engibench.problems.thermoelastic2d.v0 import (
-    ThermoElastic2D,  # type: ignore[import-untyped]
-)
 from langchain_core.tools import tool
+
+from src.tools.problems import PROBLEM_CLASSES, SUPPORTED_PROBLEMS
+
+if TYPE_CHECKING:
+    from engibench.core import Problem
+
+from engibench.core import ObjectiveDirection
 
 matplotlib.use("Agg")  # Use non-interactive backend
 
 # Constants
 EXPECTED_ARRAY_DIMENSIONS = 2  # For 2D beam design arrays
 
-# Problem registry - maps problem type names to their classes
-PROBLEM_REGISTRY: dict[str, type] = {
-    "beams2d": Beams2D,
-    "thermoelastic2d": ThermoElastic2D,
-}
+# Build problem registry from problems.py - single source of truth
+PROBLEM_REGISTRY: dict[str, type] = PROBLEM_CLASSES
 
-# Unified state management for all problem types
+# Build state management dictionary dynamically from SUPPORTED_PROBLEMS
 # Each problem type has its own instance and last_design
 _problem_states: dict[str, dict[str, Any]] = {
-    "beams2d": {"problem_instance": None, "last_design": None},
-    "thermoelastic2d": {"problem_instance": None, "last_design": None},
+    problem_id: {"problem_instance": None, "last_design": None}
+    for problem_id in SUPPORTED_PROBLEMS
 }
 
 
@@ -63,7 +65,9 @@ def get_problem_state(problem_type: str) -> dict[str, Any]:
     return _problem_states[problem_key]
 
 
-def get_unified_problem_instance(problem_type: str) -> Beams2D | ThermoElastic2D:
+def get_unified_problem_instance(
+    problem_type: str,
+) -> Problem:
     """Get or create a problem instance for the given problem type."""
     state = get_problem_state(problem_type)
     if state["problem_instance"] is None:
@@ -181,10 +185,10 @@ def simulate_design(
     Simulate a design and return its performance metrics.
 
     This unified tool works with any problem type available in EngiBench.
-    Currently supported: 'beams2d', 'thermoelastic2d'.
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:
-        problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d', etc.)
         design_description: Description of the design approach (e.g., "random design",
             "optimized topology", "last design"). The tool will generate or retrieve
             an appropriate design based on this description.
@@ -238,37 +242,33 @@ def simulate_design(
         # Run simulation
         objectives = problem.simulate(design=design, config=config if config else None)
 
-        # Format results based on problem type
+        # Format results based on problem type - use problem.objectives to dynamically extract
         problem_key = problem_type.lower()
-        if problem_key == "beams2d":
-            compliance = float(objectives[0])
-            volume_fraction_actual = float(design.mean())
-            return {
-                "success": True,
-                "problem_type": problem_key,
-                "compliance": compliance,
-                "volume_fraction_used": volume_fraction_actual,
-                "design_valid": True,
-                "message": f"Simulated {design_description} with compliance {compliance:.6f}",
-            }
-        elif problem_key == "thermoelastic2d":
-            structural_compliance = float(objectives[0])
-            thermal_compliance = float(objectives[1])
-            volume_fraction_actual = float(objectives[2])
-            return {
-                "success": True,
-                "problem_type": problem_key,
-                "structural_compliance": structural_compliance,
-                "thermal_compliance": thermal_compliance,
-                "volume_fraction_used": volume_fraction_actual,
-                "design_valid": True,
-                "message": f"Simulated {design_description}: Structural={structural_compliance:.6f}, Thermal={thermal_compliance:.6f}",
-            }
-        else:
-            return {
-                "success": False,
-                "error": f"Unknown problem type result format: {problem_type}",
-            }
+
+        # Build result dictionary dynamically from problem.objectives
+        result = {
+            "success": True,
+            "problem_type": problem_key,
+            "design_valid": True,
+        }
+
+        # Extract objective names from problem.objectives
+        objective_names = [name for name, _ in problem.objectives]
+
+        # Map objective values to their names
+        for i, obj_name in enumerate(objective_names):
+            if i < len(objectives):
+                result[obj_name] = float(objectives[i])
+
+        # Add material usage metric (common to all problems)
+        result["material_usage"] = float(design.mean())
+
+        # Build a human-readable message
+        obj_strings = [
+            f"{name}={result[name]:.6f}" for name in objective_names if name in result
+        ]
+        message = f"Simulated {design_description}: " + ", ".join(obj_strings)
+        result["message"] = message
 
     except ValueError as e:
         return {"success": False, "error": str(e)}
@@ -279,6 +279,8 @@ def simulate_design(
         }
     except Exception as e:
         return {"success": False, "error": f"Simulation failed: {e!s}"}
+    else:
+        return result
 
 
 @tool
@@ -486,7 +488,7 @@ def _format_optimization_result(
     optimized_design: np.ndarray,
     optimization_info: dict,
 ) -> dict[str, Any]:
-    """Format optimization results based on problem type.
+    """Format optimization results dynamically based on problem.objectives.
 
     Returns:
         Dictionary with formatted results
@@ -499,45 +501,45 @@ def _format_optimization_result(
         "optimization_info": optimization_info,
     }
 
-    if problem_key == "beams2d":
-        initial_compliance = float(initial_objectives[0])
-        final_compliance = float(final_objectives[0])
-        improvement = (
-            (initial_compliance - final_compliance) / initial_compliance
-        ) * 100
+    # Get problem instance to access objectives metadata
+    problem = get_unified_problem_instance(problem_type)
+    objective_names = [name for name, _ in problem.objectives]
+    objective_directions = dict(problem.objectives)
 
-        result.update(
-            {
-                "initial_compliance": initial_compliance,
-                "final_compliance": final_compliance,
-                "improvement": improvement,
-                "message": f"Optimized {problem_type} design: {initial_compliance:.6f} → {final_compliance:.6f} ({improvement:.1f}% improvement)",
-            }
-        )
+    # Store initial and final objective values
+    message_parts = []
+    for i, obj_name in enumerate(objective_names):
+        if i < len(initial_objectives) and i < len(final_objectives):
+            initial_val = float(initial_objectives[i])
+            final_val = float(final_objectives[i])
 
-    elif problem_key == "thermoelastic2d":
-        initial_structural = float(initial_objectives[0])
-        initial_thermal = float(initial_objectives[1])
-        final_structural = float(final_objectives[0])
-        final_thermal = float(final_objectives[1])
-        structural_improvement = (
-            (initial_structural - final_structural) / initial_structural
-        ) * 100
-        thermal_improvement = (
-            (initial_thermal - final_thermal) / initial_thermal
-        ) * 100
+            # Store values in result
+            result[f"initial_{obj_name}"] = initial_val
+            result[f"final_{obj_name}"] = final_val
 
-        result.update(
-            {
-                "initial_structural_compliance": initial_structural,
-                "initial_thermal_compliance": initial_thermal,
-                "final_structural_compliance": final_structural,
-                "final_thermal_compliance": final_thermal,
-                "structural_improvement": structural_improvement,
-                "thermal_improvement": thermal_improvement,
-                "message": f"Optimized {problem_type} design: Structural {initial_structural:.6f}→{final_structural:.6f} ({structural_improvement:.1f}%), Thermal {initial_thermal:.6f}→{final_thermal:.6f} ({thermal_improvement:.1f}%)",
-            }
-        )
+            # Calculate improvement based on objective direction
+            if objective_directions[obj_name] == ObjectiveDirection.MINIMIZE:
+                # For minimize: improvement when value decreases
+                improvement = (
+                    ((initial_val - final_val) / abs(initial_val) * 100)
+                    if initial_val != 0
+                    else 0
+                )
+            else:  # MAXIMIZE
+                # For maximize: improvement when value increases
+                improvement = (
+                    ((final_val - initial_val) / abs(initial_val) * 100)
+                    if initial_val != 0
+                    else 0
+                )
+
+            result[f"{obj_name}_improvement"] = improvement
+            message_parts.append(
+                f"{obj_name}: {initial_val:.6f}→{final_val:.6f} ({improvement:.1f}%)"
+            )
+
+    # Build message
+    result["message"] = f"Optimized {problem_type} design: " + ", ".join(message_parts)
 
     return result
 
@@ -597,7 +599,7 @@ def render_design(
             full_save_path = save_path_obj
 
         # Get problem instance
-        problem: Beams2D | ThermoElastic2D = get_unified_problem_instance(problem_type)
+        problem: Problem = get_unified_problem_instance(problem_type)
 
         # Verify we have the correct problem type
         problem_class = get_problem_class(problem_type)
@@ -665,84 +667,6 @@ def render_design(
 
 
 @tool
-def get_problem_info(problem_type: str = "beams2d") -> dict[str, Any]:
-    """
-    Get information about available EngiBench problems.
-
-    Args:
-        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
-            Default: "beams2d"
-
-    Returns:
-        dict with problem information:
-        - available_problems: list of supported problem types
-        - selected_problem: str
-        - description: str (problem description)
-        - objectives: list
-        - typical_conditions: dict
-
-    Example:
-        >>> info = get_problem_info("beams2d")
-        >>> print(info['description'])
-    """
-    problems_info = {
-        "beams2d": {
-            "description": "2D beam topology optimization problem. Minimize compliance "
-            "(maximize stiffness) while satisfying volume constraints. Based on the classic "
-            "88-line topology optimization code using SIMP (Solid Isotropic Material with "
-            "Penalization) method.",
-            "objectives": [("compliance", "MINIMIZE")],
-            "typical_conditions": {
-                "volfrac": "Volume fraction constraint (0-1, default: 0.35)",
-                "rmin": "Filter radius for density filtering (>0, default: 2.0)",
-                "forcedist": "Force distribution parameter (0-1, default: 0.0)",
-                "overhang_constraint": "Enable overhang constraint (bool, default: False)",
-            },
-            "design_space": "2D grid (50x100) with material density [0,1] at each point",
-        },
-        "thermoelastic2d": {
-            "description": "2D thermoelastic topology optimization problem. Multi-physics problem "
-            "that couples structural (mechanical) and thermal domains. Minimize total compliance "
-            "(structural + thermal) subject to volume constraints. Features one-way coupling from "
-            "thermal to elastic domain through thermal expansion.",
-            "objectives": [
-                ("structural_compliance", "MINIMIZE"),
-                ("thermal_compliance", "MINIMIZE"),
-                ("volume_fraction", "MINIMIZE"),
-            ],
-            "typical_conditions": {
-                "volfrac": "Volume fraction constraint (0-1, default: 0.3)",
-                "rmin": "Filter radius for density filtering (>0, default: 1.1)",
-                "weight": "Domain weighting: 1.0=pure structural, 0.0=pure thermal (0-1, default: 0.5)",
-                "fixed_elements": "Binary NxN matrix of structurally fixed elements",
-                "force_elements_x": "Binary NxN matrix of x-direction structural loads",
-                "force_elements_y": "Binary NxN matrix of y-direction structural loads",
-                "heatsink_elements": "Binary NxN matrix of heatsink elements",
-            },
-            "design_space": "2D grid (64x64) with material density [0,1] at each point",
-        },
-    }
-
-    problem_key = problem_type.lower()
-
-    if problem_key in problems_info:
-        info = problems_info[problem_key]
-        return {
-            "success": True,
-            "available_problems": list(problems_info.keys()),
-            "selected_problem": problem_key,
-            **info,
-        }
-    else:
-        return {
-            "success": True,
-            "available_problems": list(problems_info.keys()),
-            "selected_problem": None,
-            "message": f"Problem type '{problem_type}' not found. Available: {list(problems_info.keys())}",
-        }
-
-
-@tool
 def get_problem_details(problem_type: str = "beams2d") -> dict[str, Any]:
     """
     Get detailed information directly from the problem object's attributes.
@@ -752,7 +676,7 @@ def get_problem_details(problem_type: str = "beams2d") -> dict[str, Any]:
     source of problem specifications.
 
     Args:
-        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", "photonics2d", etc.)
             Default: "beams2d"
 
     Returns:
@@ -825,7 +749,7 @@ def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
     and their corresponding parameters.
 
     Args:
-        problem_type: Type of problem ("beams2d", "thermoelastic2d", etc.)
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", "photonics2d", etc.)
             Default: "beams2d"
 
     Returns:
@@ -872,17 +796,11 @@ def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
             if not features and split.column_names:
                 features = split.column_names
 
-        # Problem-specific descriptions
-        descriptions = {
-            "beams2d": "HuggingFace dataset containing pre-computed optimal beam designs. "
-            "Each sample includes the optimal design array, optimization parameters "
-            "(volfrac, rmin, forcedist, overhang_constraint), compliance value (c), "
-            "and optimization history.",
-            "thermoelastic2d": "HuggingFace dataset containing pre-computed optimal thermoelastic designs. "
-            "Each sample includes the optimal design array, optimization parameters "
-            "(volfrac, temp_load, mech_load), compliance and thermal expansion values, "
-            "and optimization history.",
-        }
+        # Generic description for all problems - specific details available via features
+        description = (
+            f"HuggingFace dataset containing pre-computed optimal {problem_key} designs. "
+            f"Includes design arrays, optimization parameters, objective values, and history."
+        )
 
         return {
             "success": True,
@@ -892,9 +810,7 @@ def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
             "split_names": list(dataset.keys()),
             "features": features,
             "total_samples": total_samples,
-            "description": descriptions.get(
-                problem_key, f"HuggingFace dataset for {problem_key} problem."
-            ),
+            "description": description,
         }
     except ImportError:
         return {

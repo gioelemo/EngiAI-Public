@@ -19,26 +19,22 @@ pytest.importorskip("scipy")
 pytest.importorskip("cvxopt")
 pytest.importorskip("engibench")
 
-from src.tools.constants import SUPPORTED_PROBLEMS
 from src.tools.engibench import (
     EXPECTED_ARRAY_DIMENSIONS,
     _problem_states,
     create_problem,
     get_dataset_info,
     get_problem_details,
-    get_problem_info,
     get_unified_last_design,
     optimize_design,
     render_design,
     simulate_design,
 )
-
-# Supported problems for these unified tests. Add more problem keys here to extend coverage.
-PROBLEM_TYPES = SUPPORTED_PROBLEMS
+from src.tools.problems import SUPPORTED_PROBLEMS
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("problem", PROBLEM_TYPES)
+@pytest.mark.parametrize("problem", SUPPORTED_PROBLEMS)
 def test_create_problem_basic(problem):
     """Create a problem instance for each supported problem type."""
     result = create_problem.invoke({"problem_type": problem, "seed": 0})
@@ -49,7 +45,7 @@ def test_create_problem_basic(problem):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("problem", PROBLEM_TYPES)
+@pytest.mark.parametrize("problem", SUPPORTED_PROBLEMS)
 def test_simulate_design_random_and_reuse(problem):
     """Simulate a random design and then reuse the stored design."""
     # Ensure problem instance exists
@@ -110,52 +106,6 @@ def test_state_getters_and_setters_basic():
 
 
 @pytest.mark.unit
-def test_get_problem_info_structure():
-    """Test that get_problem_info returns expected structure."""
-    result1 = get_problem_info.invoke({"problem_type": "beams2d"})
-
-    assert result1["success"] is True
-    assert result1["selected_problem"] == "beams2d"
-    assert "description" in result1
-    assert "objectives" in result1
-    assert "typical_conditions" in result1
-    assert "available_problems" in result1
-
-    # Test thermoelastic2d support
-    result2 = get_problem_info.invoke({"problem_type": "thermoelastic2d"})
-
-    assert result2["success"] is True
-    assert result2["selected_problem"] == "thermoelastic2d"
-    assert "description" in result2
-    assert "objectives" in result2
-
-    # Test default (no argument)
-    result3 = get_problem_info.invoke({})
-    assert result3["success"] is True
-    assert result3["selected_problem"] == "beams2d"
-
-
-@pytest.mark.unit
-def test_get_problem_info_unknown_type():
-    """Test get_problem_info with unknown problem type."""
-    result = get_problem_info.invoke({"problem_type": "unknown_type"})
-
-    assert result["success"] is True
-    assert result["selected_problem"] is None
-    assert "available_problems" in result
-    assert len(result["available_problems"]) > 0
-
-
-@pytest.mark.unit
-def test_get_problem_info_case_insensitive():
-    """Test that problem type matching is case-insensitive."""
-    result = get_problem_info.invoke({"problem_type": "BEAMS2D"})
-
-    assert result["success"] is True
-    assert result["selected_problem"] == "beams2d"
-
-
-@pytest.mark.unit
 def test_get_dataset_info_unsupported_problem():
     """Test get_dataset_info with unsupported problem type."""
     result = get_dataset_info.invoke({"problem_type": "unsupported"})
@@ -195,67 +145,42 @@ def test_matplotlib_backend_configuration():
 
 
 @pytest.mark.slow
-def test_get_problem_info_beams2d():
-    """Test getting problem information for beams2d."""
-    result = get_problem_info.invoke({"problem_type": "beams2d"})
+@pytest.mark.parametrize("problem", SUPPORTED_PROBLEMS)
+def test_get_problem_details(problem):
+    """Test getting detailed problem information for all supported problems."""
+    result = get_problem_details.invoke({"problem_type": problem})
 
     assert result["success"] is True
-    assert result["selected_problem"] == "beams2d"
-    assert "description" in result
+    assert result["problem_type"] == problem
+    assert "design_space" in result
+    assert "design_space_shape" in result
+    # Verify shape is a tuple with 2 dimensions (for 2D problems)
+    assert isinstance(result["design_space_shape"], tuple)
+    assert len(result["design_space_shape"]) == 2
+
     assert "objectives" in result
-    assert "typical_conditions" in result
-    assert "available_problems" in result
+    assert "conditions" in result
+    assert "dataset_id" in result
 
 
 @pytest.mark.slow
-def test_get_problem_info_invalid_type():
-    """Test getting info for an invalid problem type."""
-    result = get_problem_info.invoke({"problem_type": "nonexistent"})
+@pytest.mark.parametrize("problem", SUPPORTED_PROBLEMS)
+def test_get_dataset_info(problem):
+    """Test getting dataset information for all supported problems."""
+    result = get_dataset_info.invoke({"problem_type": problem})
 
-    assert result["success"] is True  # Still succeeds but returns available options
-    assert result["selected_problem"] is None
-    assert "available_problems" in result
-
-
-@pytest.mark.slow
-def test_get_problem_details():
-    """Test getting detailed problem information for supported problem types."""
-    for problem in PROBLEM_TYPES:
-        result = get_problem_details.invoke({"problem_type": problem})
-
-        assert result["success"] is True
-        assert result["problem_type"] == problem
-        assert "design_space" in result
-        assert "design_space_shape" in result
-        # Problem-specific shape expectations
-        if problem == "beams2d":
-            assert result["design_space_shape"] == (50, 100)
-        elif problem == "thermoelastic2d":
-            assert result["design_space_shape"] == (64, 64)
-
-        assert "objectives" in result
-        assert "conditions" in result
-        assert "dataset_id" in result
+    assert result["success"] is True
+    assert "dataset_id" in result
+    assert "splits" in result
+    assert "features" in result
+    # total_samples may vary; ensure key exists and is non-negative when present
+    if "total_samples" in result:
+        assert isinstance(result["total_samples"], int)
+        assert result["total_samples"] >= 0
 
 
 @pytest.mark.slow
-def test_get_dataset_info():
-    """Test getting dataset information for supported problems."""
-    for problem in PROBLEM_TYPES:
-        result = get_dataset_info.invoke({"problem_type": problem})
-
-        assert result["success"] is True
-        assert "dataset_id" in result
-        assert "splits" in result
-        assert "features" in result
-        # total_samples may vary; ensure key exists and is non-negative when present
-        if "total_samples" in result:
-            assert isinstance(result["total_samples"], int)
-            assert result["total_samples"] >= 0
-
-
-@pytest.mark.slow
-@pytest.mark.parametrize("problem", PROBLEM_TYPES)
+@pytest.mark.parametrize("problem", SUPPORTED_PROBLEMS)
 def test_render_design_writes_files(tmp_path, problem):
     """Test that render_design writes PNG and NPY files to the provided outputs dir."""
     # Create outputs path under tmp_path so we don't pollute repo
@@ -282,7 +207,7 @@ def test_render_design_writes_files(tmp_path, problem):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("problem", PROBLEM_TYPES)
+@pytest.mark.parametrize("problem", SUPPORTED_PROBLEMS)
 def test_optimize_design_smoke(problem):
     """Smoke test for optimize_design (kept slow)."""
     create_problem.invoke({"problem_type": problem, "seed": 0})

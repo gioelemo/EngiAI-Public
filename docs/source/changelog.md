@@ -21,7 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Native Streamlit button replacing iframe button for better UX
   - Automatic canvas clearing after successful send
 - Script to get deployment zip to be uploaded on server
-- ThermoElastic2D problem integration from EngiBench
+- **Photonics2D problem integration from EngiBench**
+  - New optical device topology optimization problem for wavelength multiplexing
+  - Support for designing photonic structures with multiple objectives
+  - Seamlessly integrated with existing unified tool framework
+- **Problem Registry System Simplification**
+  - Centralized problem registry in `problems.py` as single source of truth
+  - Dynamic objective extraction using `problem.objectives` attribute
+  - Automatic prompt generation from problem registry
+  - Removed all hardcoded problem-specific code from `engibench.py` and `engiopt.py`
+  - Adding new problems now only requires updating `problems.py` - all tools and documentation update automatically
+- **ThermoElastic2D problem integration from EngiBench**
   - 7 new tools for multi-physics topology optimization
   - Support for balancing structural and thermal performance
   - Unified tools: `create_problem`, `simulate_design`, `optimize_design`
@@ -55,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed canvas export message ordering in chat display
 - Corrected Docker build warning (changed `as` to `AS` in Dockerfile for consistency)
 - Fixed complexity warnings in chat.py (reduced statements and branches)
+- **Fixed all unit tests for generalized problem system**
+  - Updated tests in `test_engibench.py` to work with dynamic objective extraction
+  - Fixed `test_engiopt.py` to use problem registry instead of hardcoded imports
+  - All tests passing with new problem-agnostic architecture
 
 ## [1.0.0] - 2025-11-17
 
