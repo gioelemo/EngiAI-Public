@@ -57,7 +57,7 @@ from src.ui.file_processing import (  # noqa: E402
 from src.ui.message_processing import (  # noqa: E402
     format_and_display_messages,
 )
-from src.ui.voices import DEFAULT_VOICE, VOICE_IDS  # noqa: E402
+from src.ui.voices import DEFAULT_VOICE, STT_MODEL, TTS_MODEL, VOICE_IDS  # noqa: E402
 from src.utils.api_usage import (  # noqa: E402
     UNLIMITED_LIMIT_VALUE,
     USAGE_THRESHOLD_CRITICAL,
@@ -169,17 +169,47 @@ def transcribe_audio(audio_data) -> str | None:
         return None
 
     try:
+        # Log audio properties before transcription
+        if hasattr(audio_data, "read"):
+            # Get file size
+            audio_data.seek(0, 2)  # Seek to end
+            file_size = audio_data.tell()
+            audio_data.seek(0)  # Reset to beginning
+            logger.info(f"Audio file size before transcription: {file_size} bytes")
+
         # Pass the audio_data directly to ElevenLabs
         # It can handle both UploadedFile objects and BytesIO
+        # Note: ElevenLabs STT may struggle with:
+        # - Very short audio clips (< 1 second)
+        # - Low sample rates (< 16kHz recommended)
+        # - High background noise
+        # - Non-standard WAV formats
         transcription = st.session_state.elevenlabs_client.speech_to_text.convert(
             file=audio_data,
-            model_id="scribe_v2",
+            model_id=STT_MODEL,
         )
 
         # Log the transcription result for debugging
         logger.info(
             f"Transcription result: '{transcription.text}' (length: {len(transcription.text)})"
         )
+
+        # Check if transcription is empty
+        if not transcription.text or not transcription.text.strip():
+            logger.warning(
+                "Transcription returned empty text - possible causes: "
+                "1) No speech in audio, 2) Audio quality too low, "
+                "3) Background noise, 4) Unsupported audio format/codec"
+            )
+            st.warning(
+                "⚠️ No speech detected in audio. Possible issues:\n"
+                "- Audio quality too low or too much background noise\n"
+                "- Microphone not working properly\n"
+                "- Speech was too quiet or unclear\n\n"
+                "Please try again, speak more clearly, or type your message."
+            )
+            return None
+
     except Exception as e:
         # Check for specific API errors
         error_str = str(e)
@@ -219,7 +249,7 @@ def generate_speech(text: str, voice_id: str) -> bytes | None:
         audio_generator = st.session_state.elevenlabs_client.text_to_speech.convert(
             text=text,
             voice_id=voice_id,
-            model_id="eleven_multilingual_v2",
+            model_id=TTS_MODEL,
             output_format="mp3_44100_128",
         )
         # Convert generator to bytes

@@ -203,7 +203,7 @@ def render() -> None:
             accept_file=True,
             file_type=["png", "jpg", "jpeg", "gif", "webp", "pdf"],
             accept_audio=accept_audio,
-            audio_sample_rate=16000,  # Optimal for speech recognition
+            audio_sample_rate=44100,  # Higher quality for better transcription (ElevenLabs recommended)
         )
 
         # Determine what to process: canvas export > pending suggestion > chat input
