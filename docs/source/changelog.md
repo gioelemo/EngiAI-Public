@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Database schema update with `voice_provider` column for conversations
   - Environment variables for OpenAI voice configuration (`VOICE_PROVIDER`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`, `OPENAI_STT_MODEL`)
   - Provider-agnostic routing system maintaining backward compatibility
+  - Comprehensive test suite (`test_voice.py`) covering all voice functionality
 - **Interactive Whiteboard Feature (Excalidraw Integration)**
   - Native Excalidraw canvas integrated into chat interface
   - Real-time drawing and sketching capabilities for design discussions

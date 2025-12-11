@@ -63,9 +63,6 @@ class Config:
         logger.info(
             f"Loaded LLM configuration: model={self.llm_model}, temperature={self.llm_temperature}"
         )
-        self.embeddings_model: str = os.getenv(
-            "EMBEDDINGS_MODEL", "text-embedding-3-small"
-        )
 
         # HPC/SLURM configuration
         self.hpc_host_alias: str = os.getenv("HPC_HOST_ALIAS", "euler")
