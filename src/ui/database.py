@@ -137,6 +137,9 @@ class Message(Base):  # type: ignore[valid-type,misc]
     suggested_prompts = Column(
         JSON, nullable=True
     )  # List of suggested follow-up prompts
+    audio = Column(
+        JSON, nullable=True
+    )  # Audio data (base64 encoded) for voice messages
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -299,7 +302,7 @@ class DatabaseManager:
         role: str,
         content: str,
         suggested_prompts: list[str] | None = None,
-        images: list[dict[str, Any]] | None = None,
+        attachments: dict[str, Any] | None = None,
     ) -> None:
         """Add a message to a conversation.
 
@@ -308,8 +311,13 @@ class DatabaseManager:
             role: 'user' or 'assistant'
             content: Message content
             suggested_prompts: Optional list of suggested follow-up prompts
-            images: Optional list of image data dictionaries with 'data' (base64) and 'type' keys
+            attachments: Optional dict with 'images' (list of dicts with 'data' and 'type')
+                        and/or 'audio' (dict with 'data' and 'format') keys
         """
+        # Extract images and audio from attachments dict
+        images = attachments.get("images") if attachments else None
+        audio = attachments.get("audio") if attachments else None
+
         with self.get_session() as session:
             message = Message(
                 conversation_id=conversation_id,
@@ -317,6 +325,7 @@ class DatabaseManager:
                 content=content,
                 suggested_prompts=suggested_prompts,
                 images=images,
+                audio=audio,
             )
             session.add(message)
 
@@ -352,6 +361,7 @@ class DatabaseManager:
                     "created_at": msg.created_at,
                     "suggested_prompts": msg.suggested_prompts,
                     "images": msg.images,
+                    "audio": msg.audio,
                 }
                 for msg in messages
             ]

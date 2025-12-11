@@ -120,6 +120,12 @@ def _load_settings_from_db() -> None:
         "slurm_wandb_project": "engiopt",
         "hf_home_remote": "$SCRATCH/models",
         "hf_datasets_cache_remote": "$SCRATCH/datasets",
+        # Voice interaction settings
+        "voice_enabled": False,
+        "voice_auto_play": True,
+        "voice_selected": "George",
+        "voice_input_enabled": True,
+        "voice_output_enabled": True,
     }
 
     # Load settings from database or use defaults
@@ -433,6 +439,71 @@ def _render_stl_quick_settings() -> None:
         )
         if stl_auto_rotate != st.session_state.stl_auto_rotate:
             _save_setting_to_db("stl_auto_rotate", stl_auto_rotate)
+
+
+def _render_voice_settings_card() -> None:
+    """Render voice interaction settings for card layout."""
+    from src.ui.voices import VOICE_IDS  # noqa: PLC0415
+
+    # Voice enabled toggle
+    voice_enabled = st.checkbox(
+        "Enable voice features",
+        value=st.session_state.get("voice_enabled", False),
+        help="Enable voice input (STT) and output (TTS) using ElevenLabs",
+        key="voice_enabled_card_widget",
+    )
+    if voice_enabled != st.session_state.get("voice_enabled"):
+        _save_setting_to_db("voice_enabled", voice_enabled)
+
+    if voice_enabled:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Voice selection
+            selected_voice = st.selectbox(
+                "Assistant Voice",
+                options=list(VOICE_IDS.keys()),
+                index=list(VOICE_IDS.keys()).index(
+                    st.session_state.get("voice_selected", "George")
+                ),
+                help="Choose the voice for AI responses",
+                key="voice_selected_card_widget",
+            )
+            if selected_voice != st.session_state.get("voice_selected"):
+                _save_setting_to_db("voice_selected", selected_voice)
+
+            # Voice input toggle
+            voice_input = st.checkbox(
+                "Enable microphone input",
+                value=st.session_state.get("voice_input_enabled", True),
+                help="Allow sending voice messages via microphone",
+                key="voice_input_card_widget",
+            )
+            if voice_input != st.session_state.get("voice_input_enabled"):
+                _save_setting_to_db("voice_input_enabled", voice_input)
+
+        with col2:
+            # Auto-play toggle
+            auto_play = st.checkbox(
+                "Auto-play responses",
+                value=st.session_state.get("voice_auto_play", True),
+                help="Automatically play audio when assistant responds",
+                key="voice_auto_play_card_widget",
+            )
+            if auto_play != st.session_state.get("voice_auto_play"):
+                _save_setting_to_db("voice_auto_play", auto_play)
+
+            # Voice output toggle
+            voice_output = st.checkbox(
+                "Enable voice responses",
+                value=st.session_state.get("voice_output_enabled", True),
+                help="Generate audio for AI responses (text-to-speech)",
+                key="voice_output_card_widget",
+            )
+            if voice_output != st.session_state.get("voice_output_enabled"):
+                _save_setting_to_db("voice_output_enabled", voice_output)
+    else:
+        st.info("Enable voice features to access voice settings")
 
 
 def _render_media_quick_settings() -> None:
@@ -1137,6 +1208,21 @@ def render() -> None:
             '<div class="card-title">🎨 3D Viewer</div>', unsafe_allow_html=True
         )
         _render_stl_quick_settings()
+
+    st.markdown("")  # Spacing
+
+    # === VOICE SETTINGS (2-column cards) ===
+    col5, col6 = st.columns(2, gap="medium")
+
+    with col5, st.container():
+        st.markdown(
+            '<div class="card-title">🎤 Voice Interaction</div>', unsafe_allow_html=True
+        )
+        _render_voice_settings_card()
+
+    with col6, st.container():
+        # Empty column for symmetry
+        pass
 
     st.markdown("")  # Spacing
 

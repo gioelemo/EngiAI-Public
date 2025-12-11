@@ -585,6 +585,45 @@ def _display_media_files(message: dict, message_idx: int) -> None:
         display_log_file(log_path, button_key_prefix=f"msg_{message_idx}_log")
 
 
+def _display_audio(message: dict, message_idx: int) -> None:
+    """Display audio player if message has audio.
+
+    Args:
+        message: Message dictionary
+        message_idx: Index of the message for unique keys
+    """
+    audio = message.get("audio")
+    if not audio or not audio.get("data"):
+        return
+
+    # Decode base64 to bytes
+    try:
+        audio_bytes = base64.b64decode(audio["data"])
+    except Exception as e:
+        st.error(f"Failed to decode audio: {e}")
+        return
+
+    audio_format = audio.get("format", "mp3")
+    mime_type = f"audio/{audio_format}"
+
+    # Show indicators
+    if message.get("role") == "user" and audio.get("transcribed"):
+        st.caption("🎤 Voice message (transcribed)")
+    elif message.get("role") == "assistant":
+        voice_name = st.session_state.get("voice_selected", "George")
+        st.caption(f"🔊 {voice_name}")
+
+    # Auto-play for latest assistant message
+    is_latest = message_idx == len(st.session_state.get("messages", [])) - 1
+    auto_play = (
+        message.get("role") == "assistant"
+        and is_latest
+        and st.session_state.get("voice_auto_play", False)
+    )
+
+    st.audio(audio_bytes, format=mime_type, autoplay=auto_play)
+
+
 def _display_suggested_prompts(message: dict, message_idx: int) -> None:
     """Display suggested prompts for assistant messages.
 
@@ -653,4 +692,5 @@ def display_message(message: dict, message_idx: int = 0) -> None:
         # Display all file types
         _display_uploaded_files(message, message_idx)
         _display_media_files(message, message_idx)
+        _display_audio(message, message_idx)
         _display_suggested_prompts(message, message_idx)

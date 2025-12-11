@@ -7,6 +7,7 @@ This provides a web-based chat interface for interacting with the multi-agent sy
 import base64
 import datetime
 import logging
+import os
 import re
 import secrets
 import sys
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import streamlit as st
+from elevenlabs.client import ElevenLabs
 from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,7 @@ from src.ui.file_processing import (  # noqa: E402
 from src.ui.message_processing import (  # noqa: E402
     format_and_display_messages,
 )
+from src.ui.voices import DEFAULT_VOICE, VOICE_IDS  # noqa: E402
 from src.utils.api_usage import (  # noqa: E402
     UNLIMITED_LIMIT_VALUE,
     USAGE_THRESHOLD_CRITICAL,
@@ -125,6 +128,78 @@ def initialize_session_state() -> None:
     # Initialize STL viewer settings
     _initialize_stl_settings()
 
+    # Initialize ElevenLabs client for voice features
+    if "elevenlabs_client" not in st.session_state:
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        if api_key:
+            st.session_state.elevenlabs_client = ElevenLabs(api_key=api_key)
+        else:
+            st.session_state.elevenlabs_client = None
+
+
+def transcribe_audio(audio_data) -> str | None:
+    """Transcribe audio using ElevenLabs STT.
+
+    Args:
+        audio_data: Audio file object (UploadedFile from Streamlit) or bytes
+
+    Returns:
+        Transcribed text or None if failed
+    """
+    if not st.session_state.elevenlabs_client:
+        logger.warning("ElevenLabs client not initialized, skipping transcription")
+        return None
+
+    try:
+        # Pass the audio_data directly to ElevenLabs
+        # It can handle both UploadedFile objects and BytesIO
+        transcription = st.session_state.elevenlabs_client.speech_to_text.convert(
+            file=audio_data,
+            model_id="scribe_v2",
+        )
+
+        # Log the transcription result for debugging
+        logger.info(
+            f"Transcription result: '{transcription.text}' (length: {len(transcription.text)})"
+        )
+    except Exception:
+        logger.exception("STT failed")
+        st.error("Voice transcription failed")
+        return None
+    else:
+        return transcription.text
+
+
+def generate_speech(text: str, voice_id: str) -> bytes | None:
+    """Generate speech audio using ElevenLabs TTS.
+
+    Args:
+        text: Text to convert to speech
+        voice_id: ElevenLabs voice ID
+
+    Returns:
+        Audio bytes (MP3) or None if failed
+    """
+    if not st.session_state.elevenlabs_client:
+        logger.warning("ElevenLabs client not initialized, skipping TTS")
+        return None
+
+    try:
+        audio_generator = st.session_state.elevenlabs_client.text_to_speech.convert(
+            text=text,
+            voice_id=voice_id,
+            model_id="eleven_multilingual_v2",
+            output_format="mp3_44100_128",
+        )
+        # Convert generator to bytes
+        audio_bytes = b"".join(audio_generator)
+    except Exception:
+        logger.exception("TTS failed")
+        st.error("Voice generation failed")
+        return None
+    else:
+        return audio_bytes
+
 
 def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa: PLR0912, PLR0915
     """Process user input and generate response.
@@ -137,23 +212,69 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     if isinstance(user_input, str):
         text_content = user_input
         files = []
+        audio_data = None
     elif hasattr(user_input, "text") and hasattr(user_input, "files"):
         # ChatInputValue object from Streamlit
         text_content = str(user_input.text) if user_input.text else ""
         files = list(user_input.files) if user_input.files else []
+        # Check for audio attribute (Streamlit chat_input with accept_audio=True)
+        audio_data = user_input.audio if hasattr(user_input, "audio") else None
     elif isinstance(user_input, dict):
         text_content = user_input.get("text", "")
         files = user_input.get("files", [])
+        audio_data = user_input.get("audio")
     else:
         # Fallback: convert to string
         text_content = str(user_input)
         files = []
+        audio_data = None
 
     # Process images if any
     images_for_display: list[dict[str, str]] = []
     images_for_agent: list[dict[str, Any]] = []
     if files:
         images_for_display, images_for_agent = process_uploaded_images(files)
+
+    # Handle voice input (STT)
+    audio_base64 = None
+    transcribed_text = None
+    if (
+        audio_data
+        and st.session_state.get("voice_enabled")
+        and st.session_state.get("voice_input_enabled")
+    ):
+        with st.spinner("🎤 Transcribing your audio..."):
+            # Log audio info for debugging
+            logger.info(f"Audio data type: {type(audio_data)}")
+            if hasattr(audio_data, "type"):
+                logger.info(f"Audio MIME type: {audio_data.type}")
+            if hasattr(audio_data, "name"):
+                logger.info(f"Audio name: {audio_data.name}")
+            if hasattr(audio_data, "size"):
+                logger.info(f"Audio size: {audio_data.size} bytes")
+
+            # Pass the audio_data directly to ElevenLabs (it expects UploadedFile)
+            transcribed_text = transcribe_audio(audio_data)
+
+            if transcribed_text is not None:
+                # Use transcription as text content (even if empty)
+                text_content = transcribed_text
+
+                # Read audio bytes for storage (after transcription)
+                if hasattr(audio_data, "read"):
+                    # Reset file pointer if it was read during transcription
+                    if hasattr(audio_data, "seek"):
+                        audio_data.seek(0)
+                    audio_bytes = audio_data.read()
+                else:
+                    audio_bytes = audio_data
+
+                # Convert audio to base64 for storage
+                audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+                # If transcription is empty, notify user
+                if not text_content.strip():
+                    text_content = "[Voice message - no speech detected]"
 
     # Check if we're waiting for confirmation from a previous interrupt
     if st.session_state.waiting_for_confirmation:
@@ -176,6 +297,12 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     message_dict: dict[str, Any] = {"role": "user", "content": text_content}
     if images_for_display:
         message_dict["images"] = images_for_display
+    if audio_base64:
+        message_dict["audio"] = {
+            "data": audio_base64,
+            "format": "audio/wav",
+            "transcribed": True,
+        }
     st.session_state.messages.append(message_dict)
 
     # Save user message to database (strip 'bytes' field - only store base64)
@@ -190,11 +317,20 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             if images_for_display
             else None
         )
+        audio_for_db = (
+            {"data": audio_base64, "format": "audio/wav"} if audio_base64 else None
+        )
+        # Prepare attachments dict
+        attachments: dict[str, Any] = {}
+        if images_for_db:
+            attachments["images"] = images_for_db
+        if audio_for_db:
+            attachments["audio"] = audio_for_db
         db.add_message(
             conversation_id=st.session_state.active_chat_id,
             role="user",
             content=text_content,
-            images=images_for_db,
+            attachments=attachments if attachments else None,
         )
 
     # Filter out PDFs from images_for_agent (PDFs are handled separately via text extraction)
@@ -423,6 +559,7 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                         conversation_id=st.session_state.active_chat_id,
                         role="assistant",
                         content=response_text,
+                        attachments=None,
                     )
 
                 # Save chat state
@@ -476,23 +613,62 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             )
 
             if full_response:
+                # Generate voice output (TTS)
+                assistant_audio_base64 = None
+                if (
+                    st.session_state.get("voice_enabled")
+                    and st.session_state.get("voice_output_enabled")
+                    and st.session_state.elevenlabs_client
+                ):
+                    with st.spinner("🔊 Generating audio response..."):
+                        # Get voice settings
+                        selected_voice_name = st.session_state.get(
+                            "voice_selected", DEFAULT_VOICE
+                        )
+                        voice_id = VOICE_IDS.get(
+                            selected_voice_name, VOICE_IDS[DEFAULT_VOICE]
+                        )
+
+                        # Generate audio
+                        audio_bytes = generate_speech(full_response, voice_id)
+                        if audio_bytes:
+                            assistant_audio_base64 = base64.b64encode(
+                                audio_bytes
+                            ).decode("utf-8")
+
                 # Save to display history
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": full_response,
-                        "suggested_prompts": suggested_prompts,
+                assistant_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": full_response,
+                    "suggested_prompts": suggested_prompts,
+                }
+                if assistant_audio_base64:
+                    assistant_msg["audio"] = {
+                        "data": assistant_audio_base64,
+                        "format": "mp3",
                     }
-                )
+                st.session_state.messages.append(assistant_msg)
 
                 # Save assistant message to database
                 if st.session_state.active_chat_id:
                     db = get_db()
+                    audio_for_db = (
+                        {"data": assistant_audio_base64, "format": "mp3"}
+                        if assistant_audio_base64
+                        else None
+                    )
+                    # Prepare attachments dict
+                    assistant_attachments: dict[str, Any] = {}
+                    if audio_for_db:
+                        assistant_attachments["audio"] = audio_for_db
                     db.add_message(
                         conversation_id=st.session_state.active_chat_id,
                         role="assistant",
                         content=full_response,
                         suggested_prompts=suggested_prompts,
+                        attachments=assistant_attachments
+                        if assistant_attachments
+                        else None,
                     )
             else:
                 st.info("Agent is processing... (no response yet)")
