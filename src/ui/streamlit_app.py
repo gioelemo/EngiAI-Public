@@ -79,8 +79,9 @@ def _initialize_stl_settings() -> None:
 
     db = st.session_state.db_manager
 
-    # Default values
+    # Default values - consolidated from all settings
     defaults: dict[str, Any] = {
+        # STL and media settings
         "stl_color": "#0069B4",
         "stl_material": "material",
         "stl_height": 400,
@@ -89,9 +90,26 @@ def _initialize_stl_settings() -> None:
         "stl_shininess": 100,
         "media_save_dir": str(Path(__file__).parent.parent.parent / "outputs"),
         "media_auto_save": False,
+        # Chat and streaming
         "enable_streaming": True,
+        # Job monitoring
         "job_monitor_refresh_interval": 60,  # seconds
         "job_monitor_auto_add": False,  # Ask before monitoring by default
+        # SLURM/HPC configuration
+        "slurm_venv_path": "~/venvs/engineer_assistant",
+        "slurm_project_path": "$HOME/EngiOpt",
+        "slurm_email_user": "",
+        "slurm_logs_dir": "$SCRATCH/logs",
+        "slurm_wandb_entity": "",
+        "slurm_wandb_project": "engiopt",
+        "hf_home_remote": "$SCRATCH/models",
+        "hf_datasets_cache_remote": "$SCRATCH/datasets",
+        # Voice interaction settings
+        "voice_enabled": False,
+        "voice_auto_play": True,
+        "voice_selected": "George",
+        "voice_input_enabled": True,
+        "voice_output_enabled": True,
     }
 
     # Load from database or use defaults
