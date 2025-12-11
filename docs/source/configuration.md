@@ -82,6 +82,48 @@ DATABASE_URL=sqlite:///data/engineer_assistant.db
   ```
 - Set `SKIP_MCP=false` and configure `PRUSA_MCP_PATH`
 
+### Voice Integration
+
+The assistant supports voice interaction (speech-to-text and text-to-speech) using two providers:
+
+```bash
+# Voice Provider Selection
+VOICE_PROVIDER=elevenlabs  # Options: "elevenlabs" or "openai"
+
+# ElevenLabs Configuration (default provider)
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+ELEVENLABS_STT_MODEL=eleven_multilingual_v2
+ELEVENLABS_TTS_MODEL=eleven_multilingual_v2
+ELEVENLABS_DEFAULT_VOICE=George
+ELEVENLABS_VOICES=Rachel:21m00Tcm4TlvDq8ikWAM,Domi:AZnzlk1XvdvUeBnXmlld,Bella:EXAVITQu4vr4xnSDxMaL,Antoni:ErXwobaYiN019PkySvjV,Josh:TxGEqnHWrfWFTfGW9XjX,George:JBFqnCBsd6RMkjVDRZzb
+
+# OpenAI Voice Configuration (alternative provider)
+OPENAI_TTS_MODEL=tts-1      # Options: "tts-1" (standard) or "tts-1-hd" (high quality)
+OPENAI_TTS_VOICE=alloy      # Options: alloy, echo, fable, onyx, nova, shimmer
+OPENAI_STT_MODEL=whisper-1  # OpenAI Whisper for speech-to-text
+```
+
+**Voice Provider Options:**
+
+**ElevenLabs** (Recommended for quality):
+- High-quality, natural-sounding voices
+- Supports 6 preset voices (Rachel, Domi, Bella, Antoni, Josh, George)
+- Multilingual support with `eleven_multilingual_v2` model
+- Get API key at [elevenlabs.io](https://elevenlabs.io)
+
+**OpenAI** (Good for simplicity):
+- Uses OpenAI Whisper for accurate speech-to-text
+- Two quality levels for TTS:
+  - `tts-1`: Standard quality, faster, cheaper
+  - `tts-1-hd`: High definition quality
+- 6 voice options: alloy, echo, fable, onyx, nova, shimmer
+- Requires OpenAI API key (same as `OPENAI_API_KEY`)
+
+**Usage:**
+- Select provider in Settings UI (⚙️ Settings > Voice Interaction)
+- Provider and voice selection persist per conversation
+- Switch providers anytime without losing conversation history
+
 ### Document Processing Variables
 
 For PDF and document processing features:

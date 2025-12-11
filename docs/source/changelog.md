@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dual Voice Provider Support (ElevenLabs + OpenAI)**
+  - Extended existing ElevenLabs voice integration with OpenAI as alternative provider
+  - Voice provider selection in settings to switch between ElevenLabs and OpenAI
+  - **ElevenLabs** (existing provider):
+    - High-quality STT/TTS using `eleven_multilingual_v2` model
+    - 6 voices: Rachel, Domi, Bella, Antoni, Josh, George
+  - **OpenAI** (new provider):
+    - OpenAI Whisper for speech-to-text (STT)
+    - OpenAI TTS for text-to-speech with 6 voices (alloy, echo, fable, onyx, nova, shimmer)
+    - Two TTS quality models: `tts-1` (standard, faster, cheaper) and `tts-1-hd` (high definition)
+  - Per-conversation voice provider and voice selection persistence
+  - Database schema update with `voice_provider` column for conversations
+  - Environment variables for OpenAI voice configuration (`VOICE_PROVIDER`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`, `OPENAI_STT_MODEL`)
+  - Provider-agnostic routing system maintaining backward compatibility
 - **Interactive Whiteboard Feature (Excalidraw Integration)**
   - Native Excalidraw canvas integrated into chat interface
   - Real-time drawing and sketching capabilities for design discussions
@@ -49,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Database tracking of uploaded documents
 
 ### Changed
+- **Settings UI Reorganization**
+  - Reorganized voice settings layout for better balance (voice selection full-width, options in 2 columns)
+  - Moved Media Saving settings next to Voice Interaction for logical grouping
+  - Swapped File Management and Media Saving positions for improved layout
 - **UI/UX Improvements**
   - Replaced internal canvas button with native Streamlit button for consistency
   - Improved chat layout with better spacing on welcome screen
@@ -61,6 +79,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated all documentation to reflect MMORE integration
 
 ### Fixed
+- **Audio Playback Fix**
+  - Fixed MP3 audio playback by using correct MIME type (`audio/mpeg` instead of `audio/mp3`)
+  - Added proper MIME type mapping for all audio formats (mp3, wav, ogg, flac)
+- **Code Quality Improvements**
+  - Refactored OpenAI transcription function to reduce complexity (reduced branches from 13 to acceptable level)
+  - Fixed linting issues: moved imports to top-level, used context managers for file operations
+  - Replaced deprecated `tempfile.mktemp()` with `NamedTemporaryFile(delete=False)`
+  - Used `Path.open()` and `Path.unlink()` instead of built-in `open()` and `os.unlink()`
 - Deployment fix for SSH configuration (do not work for the moment)
 - Fixed canvas export message ordering in chat display
 - Corrected Docker build warning (changed `as` to `AS` in Dockerfile for consistency)
