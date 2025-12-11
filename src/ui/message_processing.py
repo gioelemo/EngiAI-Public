@@ -604,7 +604,14 @@ def _display_audio(message: dict, message_idx: int) -> None:
         return
 
     audio_format = audio.get("format", "mp3")
-    mime_type = f"audio/{audio_format}"
+    # Map audio format to correct MIME type
+    mime_type_map = {
+        "mp3": "audio/mpeg",
+        "wav": "audio/wav",
+        "ogg": "audio/ogg",
+        "flac": "audio/flac",
+    }
+    mime_type = mime_type_map.get(audio_format, f"audio/{audio_format}")
 
     # Show indicators
     if message.get("role") == "user" and audio.get("transcribed"):

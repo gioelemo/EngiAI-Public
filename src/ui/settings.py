@@ -443,32 +443,94 @@ def _render_stl_quick_settings() -> None:
 
 def _render_voice_settings_card() -> None:
     """Render voice interaction settings for card layout."""
-    from src.ui.voices import VOICE_IDS  # noqa: PLC0415
+    from src.ui.voices import (  # noqa: PLC0415
+        ELEVENLABS_DEFAULT_VOICE,
+        ELEVENLABS_VOICE_IDS,
+        OPENAI_TTS_VOICE,
+        OPENAI_TTS_VOICES,
+        VOICE_PROVIDER,
+    )
 
     # Voice enabled toggle
     voice_enabled = st.checkbox(
         "Enable voice features",
         value=st.session_state.get("voice_enabled", False),
-        help="Enable voice input (STT) and output (TTS) using ElevenLabs",
+        help="Enable voice input (STT) and output (TTS) using ElevenLabs or OpenAI",
         key="voice_enabled_card_widget",
     )
     if voice_enabled != st.session_state.get("voice_enabled"):
         _save_setting_to_db("voice_enabled", voice_enabled)
 
     if voice_enabled:
+        # Voice provider selection (top level)
+        st.markdown("**Voice Provider**")
+        provider_options = ["ElevenLabs", "OpenAI"]
+        current_provider = st.session_state.get("voice_provider", VOICE_PROVIDER)
+        # Map internal format to display format
+        provider_display = (
+            "ElevenLabs" if current_provider.lower() == "elevenlabs" else "OpenAI"
+        )
+
+        selected_provider_display = st.radio(
+            "Select voice provider",
+            options=provider_options,
+            index=provider_options.index(provider_display),
+            horizontal=True,
+            help="Choose between ElevenLabs or OpenAI for voice services",
+            key="voice_provider_card_widget",
+            label_visibility="collapsed",
+        )
+
+        # Convert display format back to internal format
+        selected_provider = selected_provider_display.lower()
+        if (
+            selected_provider
+            != st.session_state.get("voice_provider", VOICE_PROVIDER).lower()
+        ):
+            _save_setting_to_db("voice_provider", selected_provider)
+            # Reset voice selection when provider changes
+            if selected_provider == "openai":
+                _save_setting_to_db("voice_selected", OPENAI_TTS_VOICE)
+            else:
+                _save_setting_to_db("voice_selected", ELEVENLABS_DEFAULT_VOICE)
+
+        st.markdown("---")
+
         col1, col2 = st.columns(2)
 
         with col1:
-            # Voice selection
-            selected_voice = st.selectbox(
-                "Assistant Voice",
-                options=list(VOICE_IDS.keys()),
-                index=list(VOICE_IDS.keys()).index(
-                    st.session_state.get("voice_selected", "George")
-                ),
-                help="Choose the voice for AI responses",
-                key="voice_selected_card_widget",
-            )
+            # Voice selection (based on provider)
+            if selected_provider == "openai":
+                # OpenAI voices
+                selected_voice = st.selectbox(
+                    "Assistant Voice",
+                    options=OPENAI_TTS_VOICES,
+                    index=OPENAI_TTS_VOICES.index(
+                        st.session_state.get("voice_selected", OPENAI_TTS_VOICE)
+                        if st.session_state.get("voice_selected", OPENAI_TTS_VOICE)
+                        in OPENAI_TTS_VOICES
+                        else OPENAI_TTS_VOICE
+                    ),
+                    help="Choose the OpenAI voice for AI responses",
+                    key="voice_selected_card_widget",
+                )
+            else:
+                # ElevenLabs voices
+                selected_voice = st.selectbox(
+                    "Assistant Voice",
+                    options=list(ELEVENLABS_VOICE_IDS.keys()),
+                    index=list(ELEVENLABS_VOICE_IDS.keys()).index(
+                        st.session_state.get("voice_selected", ELEVENLABS_DEFAULT_VOICE)
+                        if st.session_state.get(
+                            "voice_selected", ELEVENLABS_DEFAULT_VOICE
+                        )
+                        in ELEVENLABS_VOICE_IDS
+                        else ELEVENLABS_DEFAULT_VOICE
+                    ),
+                    help="Choose the ElevenLabs voice for AI responses",
+                    key="voice_selected_card_widget",
+                )
+
             if selected_voice != st.session_state.get("voice_selected"):
                 _save_setting_to_db("voice_selected", selected_voice)
 
@@ -476,7 +538,7 @@ def _render_voice_settings_card() -> None:
             voice_input = st.checkbox(
                 "Enable microphone input",
                 value=st.session_state.get("voice_input_enabled", True),
-                help="Allow sending voice messages via microphone",
+                help="Allow sending voice messages via microphone (Speech-to-Text)",
                 key="voice_input_card_widget",
             )
             if voice_input != st.session_state.get("voice_input_enabled"):
@@ -497,7 +559,7 @@ def _render_voice_settings_card() -> None:
             voice_output = st.checkbox(
                 "Enable voice responses",
                 value=st.session_state.get("voice_output_enabled", True),
-                help="Generate audio for AI responses (text-to-speech)",
+                help="Generate audio for AI responses (Text-to-Speech)",
                 key="voice_output_card_widget",
             )
             if voice_output != st.session_state.get("voice_output_enabled"):

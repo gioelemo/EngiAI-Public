@@ -122,7 +122,12 @@ class Conversation(Base):  # type: ignore[valid-type,misc]
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     message_count = Column(Integer, default=0)
     pinned = Column(Boolean, default=False)
-    voice_id = Column(String, nullable=True)  # ElevenLabs voice name (e.g., "George")
+    voice_id = Column(
+        String, nullable=True
+    )  # Voice name (e.g., "George" for ElevenLabs, "alloy" for OpenAI)
+    voice_provider = Column(
+        String, nullable=True
+    )  # Voice provider: "elevenlabs" or "openai"
 
 
 class Message(Base):  # type: ignore[valid-type,misc]
@@ -219,14 +224,19 @@ class DatabaseManager:
         return self.SessionLocal()
 
     def create_conversation(
-        self, name: str, session_id: str | None = None, voice_id: str | None = None
+        self,
+        name: str,
+        session_id: str | None = None,
+        voice_id: str | None = None,
+        voice_provider: str | None = None,
     ) -> str:
         """Create a new conversation.
 
         Args:
             name: Name of the conversation
             session_id: Optional UUID for the conversation. Auto-generated if None
-            voice_id: Optional ElevenLabs voice name (e.g., "George")
+            voice_id: Optional voice name (e.g., "George" for ElevenLabs, "alloy" for OpenAI)
+            voice_provider: Optional voice provider ("elevenlabs" or "openai")
 
         Returns:
             The conversation ID (UUID)
@@ -241,6 +251,7 @@ class DatabaseManager:
                 created_at=datetime.utcnow(),
                 message_count=0,
                 voice_id=voice_id,
+                voice_provider=voice_provider,
             )
             session.add(conversation)
 
@@ -279,6 +290,7 @@ class DatabaseManager:
                     "message_count": conv.message_count,
                     "pinned": conv.pinned,
                     "voice_id": conv.voice_id,
+                    "voice_provider": conv.voice_provider,
                 }
                 for conv in conversations
             ]
@@ -303,6 +315,7 @@ class DatabaseManager:
                     "message_count": conv.message_count,
                     "pinned": conv.pinned,
                     "voice_id": conv.voice_id,
+                    "voice_provider": conv.voice_provider,
                 }
         return None
 
@@ -488,18 +501,24 @@ class DatabaseManager:
                 session.commit()
 
     def update_conversation_voice(
-        self, conversation_id: str, voice_id: str | None
+        self,
+        conversation_id: str,
+        voice_id: str | None,
+        voice_provider: str | None = None,
     ) -> None:
         """Update a conversation's voice selection.
 
         Args:
             conversation_id: The conversation UUID
-            voice_id: Voice name (e.g., "George") or None
+            voice_id: Voice name (e.g., "George" for ElevenLabs, "alloy" for OpenAI) or None
+            voice_provider: Voice provider ("elevenlabs" or "openai") or None
         """
         with self.get_session() as session:
             conv = session.query(Conversation).filter_by(id=conversation_id).first()
             if conv:
                 conv.voice_id = voice_id  # type: ignore[assignment]
+                if voice_provider is not None:
+                    conv.voice_provider = voice_provider  # type: ignore[assignment]
                 conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
                 session.commit()
 
