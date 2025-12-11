@@ -103,8 +103,6 @@ def test_config_sets_environment_variables():
         {
             "OPENAI_API_KEY": "test-openai",
             "TAVILY_API_KEY": "test-tavily",
-            "MATHPIX_API_ID": "test-mathpix-id",
-            "MATHPIX_API_KEY": "test-mathpix-key",
         },
         clear=True,
     ):
@@ -113,8 +111,6 @@ def test_config_sets_environment_variables():
         # Verify env vars are set
         assert os.environ["OPENAI_API_KEY"] == "test-openai"
         assert os.environ["TAVILY_API_KEY"] == "test-tavily"
-        assert os.environ["MATHPIX_API_ID"] == "test-mathpix-id"
-        assert os.environ["MATHPIX_API_KEY"] == "test-mathpix-key"
 
 
 @pytest.mark.unit

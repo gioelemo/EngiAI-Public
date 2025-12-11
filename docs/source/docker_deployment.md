@@ -163,8 +163,7 @@ If you build the image on your local machine and want to deploy on Windows Serve
   - Set to `false` only if you have the Prusa MCP server set up
 
 ### Optional Variables
-- `MATHPIX_API_ID`: MathPix API ID (for PDF text extraction)
-- `MATHPIX_API_KEY`: MathPix API key
+
 - `LLM_MODEL`: Model to use (default: `openai:gpt-4o`)
 - `EMBEDDINGS_MODEL`: Embeddings model (default: `text-embedding-3-small`)
 - `DATABASE_URL`: Database connection string (default: `sqlite:///data/conversations.db`)

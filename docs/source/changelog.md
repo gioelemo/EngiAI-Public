@@ -82,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI interface for command-line usage
 - Docker build system (2 separate containers: Chatbot + MCP server for Prusa)
 - Support to change model temperature
-- Warning on API key usage (Tavily and Mathpix)
+- Warning on API key usage (Tavily)
 - Open Application from Docker into local GUI using host_service.py
 - Enhanced suggested prompts extraction with fallback patterns for malformed output
 - Improved Prusa agent system prompts with explicit formatting requirements

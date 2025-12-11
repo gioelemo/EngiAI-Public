@@ -9,13 +9,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.utils.api_usage import (
-    MATHPIX_RESET_DAY,
     UNLIMITED_LIMIT_VALUE,
     USAGE_THRESHOLD_CRITICAL,
     USAGE_THRESHOLD_WARNING,
-    MathpixUsageStats,
     TavilyUsageStats,
-    get_mathpix_usage,
     get_tavily_usage,
 )
 
@@ -129,70 +126,6 @@ def test_tavily_usage_stats_is_critical():
 
 
 # ============================================================================
-# MATHPIX USAGE STATS TESTS
-# ============================================================================
-
-
-@pytest.mark.unit
-def test_mathpix_usage_stats_creation():
-    """Test MathpixUsageStats dataclass creation."""
-    stats = MathpixUsageStats(
-        pages_usage=100,
-        pages_limit=5000,
-        pages_percentage=2.0,
-        rate_limit=50,
-    )
-
-    assert stats.pages_usage == 100
-    assert stats.pages_limit == 5000
-    assert stats.rate_limit == 50
-
-
-@pytest.mark.unit
-def test_mathpix_usage_stats_is_approaching_limit():
-    """Test is_approaching_limit property for Mathpix."""
-    # Under threshold
-    stats_under = MathpixUsageStats(
-        pages_usage=3000,
-        pages_limit=5000,
-        pages_percentage=60.0,
-        rate_limit=50,
-    )
-    assert not stats_under.is_approaching_limit
-
-    # Over threshold
-    stats_over = MathpixUsageStats(
-        pages_usage=4200,
-        pages_limit=5000,
-        pages_percentage=84.0,
-        rate_limit=50,
-    )
-    assert stats_over.is_approaching_limit
-
-
-@pytest.mark.unit
-def test_mathpix_usage_stats_is_critical():
-    """Test is_critical property for Mathpix."""
-    # Under threshold
-    stats_under = MathpixUsageStats(
-        pages_usage=4500,
-        pages_limit=5000,
-        pages_percentage=90.0,
-        rate_limit=50,
-    )
-    assert not stats_under.is_critical
-
-    # Over threshold
-    stats_over = MathpixUsageStats(
-        pages_usage=4800,
-        pages_limit=5000,
-        pages_percentage=96.0,
-        rate_limit=50,
-    )
-    assert stats_over.is_critical
-
-
-# ============================================================================
 # GET TAVILY USAGE TESTS
 # ============================================================================
 
@@ -287,73 +220,6 @@ def test_get_tavily_usage_parse_error():
 
 
 # ============================================================================
-# GET MATHPIX USAGE TESTS
-# ============================================================================
-
-
-@pytest.mark.unit
-def test_get_mathpix_usage_no_credentials():
-    """Test get_mathpix_usage with no credentials."""
-    result = get_mathpix_usage("", "")
-    assert result is None
-
-    result = get_mathpix_usage("key", "")
-    assert result is None
-
-    result = get_mathpix_usage("", "app_id")
-    assert result is None
-
-
-@pytest.mark.unit
-def test_get_mathpix_usage_success():
-    """Test successful Mathpix usage fetch."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "ocr_usage": [
-            {"usage_type": "pdf", "count": 100},
-            {"usage_type": "image", "count": 50},
-        ]
-    }
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("src.utils.api_usage.requests.get", return_value=mock_response):
-        result = get_mathpix_usage("test_key", "test_app_id")
-
-    assert result is not None
-    assert result.pages_usage == 150  # 100 + 50
-    assert result.pages_limit == 5000
-    assert result.rate_limit == 50
-
-
-@pytest.mark.unit
-def test_get_mathpix_usage_empty_response():
-    """Test Mathpix usage with empty ocr_usage list."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"ocr_usage": []}
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("src.utils.api_usage.requests.get", return_value=mock_response):
-        result = get_mathpix_usage("test_key", "test_app_id")
-
-    assert result is not None
-    assert result.pages_usage == 0
-
-
-@pytest.mark.unit
-def test_get_mathpix_usage_request_error():
-    """Test Mathpix usage fetch with request error."""
-    import requests
-
-    with patch(
-        "src.utils.api_usage.requests.get",
-        side_effect=requests.exceptions.RequestException("Connection error"),
-    ):
-        result = get_mathpix_usage("test_key", "test_app_id")
-
-    assert result is None
-
-
-# ============================================================================
 # CONSTANTS TESTS
 # ============================================================================
 
@@ -370,10 +236,3 @@ def test_usage_thresholds():
 def test_unlimited_limit_value():
     """Test unlimited limit constant."""
     assert UNLIMITED_LIMIT_VALUE == 2147483647  # Max int32
-
-
-@pytest.mark.unit
-def test_mathpix_reset_day():
-    """Test Mathpix reset day constant."""
-    assert MATHPIX_RESET_DAY == 5
-    assert 1 <= MATHPIX_RESET_DAY <= 28  # Valid day range

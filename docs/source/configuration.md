@@ -87,19 +87,12 @@ DATABASE_URL=sqlite:///data/engineer_assistant.db
 For PDF and document processing features:
 
 ```bash
-# MathPix API (for PDF text extraction)
-MATHPIX_API_ID=your-mathpix-api-id
-MATHPIX_API_KEY=your-mathpix-api-key
+
 
 # Paper Import Configuration
 PAPERS_SOURCE_DIR=/path/to/papers  # Directory containing PDFs to import
 PAPERS_STATE_FILE=data/local_import_state.json  # Tracks imported papers
 ```
-
-**Getting MathPix API:**
-1. Sign up at [mathpix.com](https://mathpix.com/)
-2. Get API credentials from your dashboard
-3. Free tier available for testing
 
 **Paper Import:**
 - `PAPERS_SOURCE_DIR`: Point to your local papers directory (or network share)
