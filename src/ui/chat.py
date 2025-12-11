@@ -157,6 +157,10 @@ def _render_chat_history() -> None:
         # Show job monitoring prompt if there are pending jobs
         if st.session_state.get("pending_job_monitor"):
             _render_job_monitoring_prompt()
+
+        # Clear the switching chat flag after rendering
+        if st.session_state.get("_switching_chat"):
+            st.session_state._switching_chat = False
     else:
         # Welcome message for empty chat
         st.space(100)  # Fixed spacing to push content down

@@ -170,6 +170,8 @@ def sync_active_chat_to_session() -> None:
         # Restore voice selection for this conversation
         if "voice_id" in active_chat and active_chat["voice_id"] is not None:
             st.session_state.voice_selected = active_chat["voice_id"]
+        # Set flag to prevent auto-playing audio when switching chats
+        st.session_state._switching_chat = True
 
 
 def save_active_chat_to_storage() -> None:

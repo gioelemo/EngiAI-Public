@@ -613,12 +613,15 @@ def _display_audio(message: dict, message_idx: int) -> None:
         voice_name = st.session_state.get("voice_selected", "George")
         st.caption(f"🔊 {voice_name}")
 
-    # Auto-play for latest assistant message
+    # Auto-play for latest assistant message only when it's a newly generated message
+    # Not when switching chats or loading history
     is_latest = message_idx == len(st.session_state.get("messages", [])) - 1
+    is_switching_chat = st.session_state.get("_switching_chat", False)
     auto_play = (
         message.get("role") == "assistant"
         and is_latest
         and st.session_state.get("voice_auto_play", False)
+        and not is_switching_chat
     )
 
     st.audio(audio_bytes, format=mime_type, autoplay=auto_play)

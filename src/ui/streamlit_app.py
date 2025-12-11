@@ -180,9 +180,22 @@ def transcribe_audio(audio_data) -> str | None:
         logger.info(
             f"Transcription result: '{transcription.text}' (length: {len(transcription.text)})"
         )
-    except Exception:
-        logger.exception("STT failed")
-        st.error("Voice transcription failed")
+    except Exception as e:
+        # Check for specific API errors
+        error_str = str(e)
+        if "quota_exceeded" in error_str or "401" in error_str:
+            logger.warning(f"ElevenLabs quota exceeded: {e}")
+            st.warning(
+                "⚠️ ElevenLabs quota exceeded. Voice input disabled for this message."
+            )
+        elif "Unauthorized" in error_str or "401" in error_str:
+            logger.exception("ElevenLabs authentication failed")
+            st.error("❌ ElevenLabs API authentication failed. Check your API key.")
+        else:
+            logger.exception("STT failed")
+            st.warning(
+                "⚠️ Voice transcription failed. Please try again or type your message."
+            )
         return None
     else:
         return transcription.text
@@ -211,9 +224,20 @@ def generate_speech(text: str, voice_id: str) -> bytes | None:
         )
         # Convert generator to bytes
         audio_bytes = b"".join(audio_generator)
-    except Exception:
-        logger.exception("TTS failed")
-        st.error("Voice generation failed")
+    except Exception as e:
+        # Check if it's an API error with quota exceeded
+        error_str = str(e)
+        if "quota_exceeded" in error_str or "401" in error_str:
+            logger.warning(f"ElevenLabs quota exceeded: {e}")
+            st.warning(
+                "⚠️ ElevenLabs quota exceeded. Voice output disabled for this message."
+            )
+        elif "Unauthorized" in error_str or "401" in error_str:
+            logger.exception("ElevenLabs authentication failed")
+            st.error("❌ ElevenLabs API authentication failed. Check your API key.")
+        else:
+            logger.exception("TTS failed")
+            st.warning("⚠️ Voice generation failed. Continuing without audio.")
         return None
     else:
         return audio_bytes
