@@ -494,46 +494,43 @@ def _render_voice_settings_card() -> None:
             else:
                 _save_setting_to_db("voice_selected", ELEVENLABS_DEFAULT_VOICE)
 
-        st.markdown("---")
+        # Voice selection (based on provider)
+        if selected_provider == "openai":
+            # OpenAI voices
+            selected_voice = st.selectbox(
+                "Assistant Voice",
+                options=OPENAI_TTS_VOICES,
+                index=OPENAI_TTS_VOICES.index(
+                    st.session_state.get("voice_selected", OPENAI_TTS_VOICE)
+                    if st.session_state.get("voice_selected", OPENAI_TTS_VOICE)
+                    in OPENAI_TTS_VOICES
+                    else OPENAI_TTS_VOICE
+                ),
+                help="Choose the OpenAI voice for AI responses",
+                key="voice_selected_card_widget",
+            )
+        else:
+            # ElevenLabs voices
+            selected_voice = st.selectbox(
+                "Assistant Voice",
+                options=list(ELEVENLABS_VOICE_IDS.keys()),
+                index=list(ELEVENLABS_VOICE_IDS.keys()).index(
+                    st.session_state.get("voice_selected", ELEVENLABS_DEFAULT_VOICE)
+                    if st.session_state.get("voice_selected", ELEVENLABS_DEFAULT_VOICE)
+                    in ELEVENLABS_VOICE_IDS
+                    else ELEVENLABS_DEFAULT_VOICE
+                ),
+                help="Choose the ElevenLabs voice for AI responses",
+                key="voice_selected_card_widget",
+            )
 
+        if selected_voice != st.session_state.get("voice_selected"):
+            _save_setting_to_db("voice_selected", selected_voice)
+
+        st.markdown("**Options**")
         col1, col2 = st.columns(2)
 
         with col1:
-            # Voice selection (based on provider)
-            if selected_provider == "openai":
-                # OpenAI voices
-                selected_voice = st.selectbox(
-                    "Assistant Voice",
-                    options=OPENAI_TTS_VOICES,
-                    index=OPENAI_TTS_VOICES.index(
-                        st.session_state.get("voice_selected", OPENAI_TTS_VOICE)
-                        if st.session_state.get("voice_selected", OPENAI_TTS_VOICE)
-                        in OPENAI_TTS_VOICES
-                        else OPENAI_TTS_VOICE
-                    ),
-                    help="Choose the OpenAI voice for AI responses",
-                    key="voice_selected_card_widget",
-                )
-            else:
-                # ElevenLabs voices
-                selected_voice = st.selectbox(
-                    "Assistant Voice",
-                    options=list(ELEVENLABS_VOICE_IDS.keys()),
-                    index=list(ELEVENLABS_VOICE_IDS.keys()).index(
-                        st.session_state.get("voice_selected", ELEVENLABS_DEFAULT_VOICE)
-                        if st.session_state.get(
-                            "voice_selected", ELEVENLABS_DEFAULT_VOICE
-                        )
-                        in ELEVENLABS_VOICE_IDS
-                        else ELEVENLABS_DEFAULT_VOICE
-                    ),
-                    help="Choose the ElevenLabs voice for AI responses",
-                    key="voice_selected_card_widget",
-                )
-
-            if selected_voice != st.session_state.get("voice_selected"):
-                _save_setting_to_db("voice_selected", selected_voice)
-
             # Voice input toggle
             voice_input = st.checkbox(
                 "Enable microphone input",
@@ -543,6 +540,16 @@ def _render_voice_settings_card() -> None:
             )
             if voice_input != st.session_state.get("voice_input_enabled"):
                 _save_setting_to_db("voice_input_enabled", voice_input)
+
+            # Voice output toggle
+            voice_output = st.checkbox(
+                "Enable voice responses",
+                value=st.session_state.get("voice_output_enabled", True),
+                help="Generate audio for AI responses (Text-to-Speech)",
+                key="voice_output_card_widget",
+            )
+            if voice_output != st.session_state.get("voice_output_enabled"):
+                _save_setting_to_db("voice_output_enabled", voice_output)
 
         with col2:
             # Auto-play toggle
@@ -554,16 +561,6 @@ def _render_voice_settings_card() -> None:
             )
             if auto_play != st.session_state.get("voice_auto_play"):
                 _save_setting_to_db("voice_auto_play", auto_play)
-
-            # Voice output toggle
-            voice_output = st.checkbox(
-                "Enable voice responses",
-                value=st.session_state.get("voice_output_enabled", True),
-                help="Generate audio for AI responses (Text-to-Speech)",
-                key="voice_output_card_widget",
-            )
-            if voice_output != st.session_state.get("voice_output_enabled"):
-                _save_setting_to_db("voice_output_enabled", voice_output)
     else:
         st.info("Enable voice features to access voice settings")
 
@@ -1273,7 +1270,7 @@ def render() -> None:
 
     st.markdown("")  # Spacing
 
-    # === VOICE SETTINGS (2-column cards) ===
+    # === VOICE & MEDIA SETTINGS (2-column cards) ===
     col5, col6 = st.columns(2, gap="medium")
 
     with col5, st.container():
@@ -1283,26 +1280,19 @@ def render() -> None:
         _render_voice_settings_card()
 
     with col6, st.container():
-        # Empty column for symmetry
-        pass
-
-    st.markdown("")  # Spacing
-
-    # === MEDIA & FILE MANAGEMENT (2-column cards) ===
-    col3, col4 = st.columns(2, gap="medium")
-
-    with col3, st.container():
         st.markdown(
             '<div class="card-title">💾 Media Saving</div>', unsafe_allow_html=True
         )
         _render_media_quick_settings()
 
-    with col4, st.container():
         st.markdown(
             '<div class="card-title">🗂️ File Management</div>',
             unsafe_allow_html=True,
         )
+
         _render_file_management_card()
+
+    st.markdown("")  # Spacing
 
     st.markdown("---")
 
