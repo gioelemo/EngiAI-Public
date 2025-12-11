@@ -122,6 +122,7 @@ class Conversation(Base):  # type: ignore[valid-type,misc]
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     message_count = Column(Integer, default=0)
     pinned = Column(Boolean, default=False)
+    voice_id = Column(String, nullable=True)  # ElevenLabs voice name (e.g., "George")
 
 
 class Message(Base):  # type: ignore[valid-type,misc]
@@ -217,12 +218,15 @@ class DatabaseManager:
         """Get a new database session."""
         return self.SessionLocal()
 
-    def create_conversation(self, name: str, session_id: str | None = None) -> str:
+    def create_conversation(
+        self, name: str, session_id: str | None = None, voice_id: str | None = None
+    ) -> str:
         """Create a new conversation.
 
         Args:
             name: Name of the conversation
             session_id: Optional UUID for the conversation. Auto-generated if None
+            voice_id: Optional ElevenLabs voice name (e.g., "George")
 
         Returns:
             The conversation ID (UUID)
@@ -232,7 +236,11 @@ class DatabaseManager:
 
         with self.get_session() as session:
             conversation = Conversation(
-                id=session_id, name=name, created_at=datetime.utcnow(), message_count=0
+                id=session_id,
+                name=name,
+                created_at=datetime.utcnow(),
+                message_count=0,
+                voice_id=voice_id,
             )
             session.add(conversation)
 
@@ -270,6 +278,7 @@ class DatabaseManager:
                     "updated_at": conv.updated_at,
                     "message_count": conv.message_count,
                     "pinned": conv.pinned,
+                    "voice_id": conv.voice_id,
                 }
                 for conv in conversations
             ]
@@ -293,6 +302,7 @@ class DatabaseManager:
                     "updated_at": conv.updated_at,
                     "message_count": conv.message_count,
                     "pinned": conv.pinned,
+                    "voice_id": conv.voice_id,
                 }
         return None
 
@@ -474,6 +484,22 @@ class DatabaseManager:
             conv = session.query(Conversation).filter_by(id=conversation_id).first()
             if conv:
                 conv.name = name  # type: ignore[assignment]
+                conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
+                session.commit()
+
+    def update_conversation_voice(
+        self, conversation_id: str, voice_id: str | None
+    ) -> None:
+        """Update a conversation's voice selection.
+
+        Args:
+            conversation_id: The conversation UUID
+            voice_id: Voice name (e.g., "George") or None
+        """
+        with self.get_session() as session:
+            conv = session.query(Conversation).filter_by(id=conversation_id).first()
+            if conv:
+                conv.voice_id = voice_id  # type: ignore[assignment]
                 conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
                 session.commit()
 

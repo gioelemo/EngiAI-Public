@@ -128,6 +128,9 @@ def create_new_chat(name: str | None = None) -> str:
     # DON'T create in database yet - wait until first message
     # We'll create it when the first message is added
 
+    # Get current voice selection from session state
+    current_voice = st.session_state.get("voice_selected", None)
+
     # Create new chat data in session
     st.session_state.chats[session_id] = {
         "id": session_id,
@@ -140,6 +143,7 @@ def create_new_chat(name: str | None = None) -> str:
         "waiting_for_confirmation": False,
         "saved_to_db": False,  # Track if this chat has been saved to DB yet
         "pinned": False,
+        "voice_id": current_voice,  # Store voice selection
     }
 
     # Set as active chat and sync (this will clear the display)
@@ -163,6 +167,9 @@ def sync_active_chat_to_session() -> None:
         st.session_state.waiting_for_confirmation = active_chat[
             "waiting_for_confirmation"
         ]
+        # Restore voice selection for this conversation
+        if "voice_id" in active_chat and active_chat["voice_id"] is not None:
+            st.session_state.voice_selected = active_chat["voice_id"]
 
 
 def save_active_chat_to_storage() -> None:
@@ -179,6 +186,8 @@ def save_active_chat_to_storage() -> None:
         active_chat["waiting_for_confirmation"] = (
             st.session_state.waiting_for_confirmation
         )
+        # Save current voice selection
+        active_chat["voice_id"] = st.session_state.get("voice_selected", None)
 
         # Only save to database if chat has at least 1 message
         if len(active_chat["messages"]) < 1:
@@ -208,9 +217,16 @@ def save_active_chat_to_storage() -> None:
         # Create in database if not already saved
         if not active_chat.get("saved_to_db", False):
             db.create_conversation(
-                name=active_chat["title"], session_id=st.session_state.active_chat_id
+                name=active_chat["title"],
+                session_id=st.session_state.active_chat_id,
+                voice_id=active_chat.get("voice_id"),
             )
             active_chat["saved_to_db"] = True
+        else:
+            # Update voice if it changed
+            db.update_conversation_voice(
+                st.session_state.active_chat_id, active_chat.get("voice_id")
+            )
 
         # Update title if changed
         if new_title:
@@ -286,6 +302,8 @@ def load_chats_from_database() -> None:
                     display_msg["images"] = msg["images"]
                 if msg.get("suggested_prompts"):
                     display_msg["suggested_prompts"] = msg["suggested_prompts"]
+                if msg.get("audio"):
+                    display_msg["audio"] = msg["audio"]
                 display_messages.append(display_msg)
 
             # Load state
@@ -311,6 +329,7 @@ def load_chats_from_database() -> None:
                 "waiting_for_confirmation": waiting_for_confirmation,
                 "saved_to_db": True,  # Already in database
                 "pinned": conv.get("pinned", False),
+                "voice_id": conv.get("voice_id"),  # Restore voice selection
             }
 
         # Set the most recently updated as active
