@@ -1547,9 +1547,7 @@ def _resolve_slurm_config(cfg: TrainingConfig) -> dict[str, str]:
     from config import get_setting_from_db
 
     # Get email from settings database (fresh read)
-    slurm_email = get_setting_from_db(
-        "slurm_email_user", os.getenv("SLURM_EMAIL_USER", "alpha@gmail.com")
-    )
+    slurm_email = get_setting_from_db("slurm_email_user", "alpha@gmail.com")
 
     slurm = {
         "ntasks": os.getenv("SLURM_NTASKS", "1"),
@@ -1598,11 +1596,9 @@ def _build_slurm_script(
     paths = {
         "venv": get_setting_from_db(
             "slurm_venv_path",
-            os.getenv("SLURM_VENV_PATH", "~/venvs/engineer_assistant"),
+            "~/venvs/engineer_assistant",
         ),
-        "project": get_setting_from_db(
-            "slurm_project_path", os.getenv("SLURM_PROJECT_PATH", "$HOME/EngiOpt")
-        ),
+        "project": get_setting_from_db("slurm_project_path", "$HOME/EngiOpt"),
     }
 
     keys = {
@@ -1610,23 +1606,17 @@ def _build_slurm_script(
         "wandb_entity": get_setting_from_db(
             "slurm_wandb_entity", os.getenv("WANDB_ENTITY", "")
         ),
-        "wandb_project": get_setting_from_db(
-            "slurm_wandb_project", os.getenv("WANDB_PROJECT", "engiopt")
-        ),
-        "hf_home": get_setting_from_db(
-            "hf_home_remote", os.getenv("HF_HOME_REMOTE", "$SCRATCH/models")
-        ),
+        "wandb_project": get_setting_from_db("slurm_wandb_project", "engiopt"),
+        "hf_home": get_setting_from_db("hf_home_remote", "$SCRATCH/models"),
         "hf_datasets": get_setting_from_db(
             "hf_datasets_cache_remote",
-            os.getenv("HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"),
+            "$SCRATCH/datasets",
         ),
         "hf_token": os.getenv("HF_TOKEN", ""),
     }
 
     # Get logs directory from settings
-    logs_dir = get_setting_from_db(
-        "slurm_logs_dir", os.getenv("SLURM_LOGS_DIR", "$SCRATCH/logs")
-    )
+    logs_dir = get_setting_from_db("slurm_logs_dir", "$SCRATCH/logs")
 
     return f"""#!/bin/bash
 #SBATCH --job-name={cfg.algorithm}_{cfg.problem_id}

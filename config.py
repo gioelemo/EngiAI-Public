@@ -127,49 +127,47 @@ class Config:
 
     @property
     def slurm_email_user(self) -> str:
-        """Get SLURM email user from database or env var."""
+        """Get SLURM email user from database or use default."""
         if self._slurm_email_user is None:
-            self._slurm_email_user = get_setting_from_db(
-                "slurm_email_user", os.getenv("SLURM_EMAIL_USER", "")
-            )
+            self._slurm_email_user = get_setting_from_db("slurm_email_user", "")
         return self._slurm_email_user
 
     @property
     def slurm_venv_path(self) -> str:
-        """Get SLURM venv path from database or env var."""
+        """Get SLURM venv path from database or use default."""
         if self._slurm_venv_path is None:
             self._slurm_venv_path = get_setting_from_db(
                 "slurm_venv_path",
-                os.getenv("SLURM_VENV_PATH", "~/venvs/engineer_assistant"),
+                "~/venvs/engineer_assistant",
             )
         return self._slurm_venv_path
 
     @property
     def slurm_project_path(self) -> str:
-        """Get SLURM project path from database or env var."""
+        """Get SLURM project path from database or use default."""
         if self._slurm_project_path is None:
             self._slurm_project_path = get_setting_from_db(
-                "slurm_project_path", os.getenv("SLURM_PROJECT_PATH", "$HOME/EngiOpt")
+                "slurm_project_path", "$HOME/EngiOpt"
             )
         return self._slurm_project_path
 
     @property
     def hf_home_remote(self) -> str:
-        """Get HuggingFace home remote path from database or env var."""
+        """Get HuggingFace home remote path from database or use default."""
         if self._hf_home_remote is None:
             self._hf_home_remote = get_setting_from_db(
                 "hf_home_remote",
-                os.getenv("HF_HOME_REMOTE", "$SCRATCH/models"),
+                "$SCRATCH/models",
             )
         return self._hf_home_remote
 
     @property
     def hf_datasets_cache_remote(self) -> str:
-        """Get HuggingFace datasets cache remote path from database or env var."""
+        """Get HuggingFace datasets cache remote path from database or use default."""
         if self._hf_datasets_cache_remote is None:
             self._hf_datasets_cache_remote = get_setting_from_db(
                 "hf_datasets_cache_remote",
-                os.getenv("HF_DATASETS_CACHE_REMOTE", "$SCRATCH/datasets"),
+                "$SCRATCH/datasets",
             )
         return self._hf_datasets_cache_remote
 

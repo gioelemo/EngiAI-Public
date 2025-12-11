@@ -218,6 +218,5 @@ HPC_PRIVATE_KEY_PATH=/path/to/ssh/key
 
 # W&B Integration
 WANDB_REPORT_URL=https://wandb.ai/your-project/...
-WANDB_PROJECT=engineer-assistant
 WANDB_ENTITY=your-username
 ```

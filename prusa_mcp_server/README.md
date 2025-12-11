@@ -184,7 +184,6 @@ env:
 | `PRUSA_MCP_PORT` | Port to run the server on | `8765` |
 | `PRUSA_EMAIL` | Prusa Connect email (optional) | - |
 | `PRUSA_PASSWORD` | Prusa Connect password (optional) | - |
-| `PRUSA_CONNECT_URL` | Prusa Connect API URL | `https://connect.prusa3d.com` |
 | `HEADLESS` | Run browser in headless mode | `1` |
 
 ### Chatbot Client Variables

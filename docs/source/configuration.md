@@ -62,7 +62,6 @@ HPC_WORKSPACE=/cluster/scratch/username  # Workspace directory
 
 # Weights & Biases (for ML tracking)
 WANDB_API_KEY=your-wandb-key
-WANDB_PROJECT=engineer-assistant
 WANDB_ENTITY=your-team
 
 # Prusa 3D Printer Integration (optional)
@@ -197,8 +196,7 @@ SLURM_GCC_MODULE=gcc/12.2.0
 SLURM_PYTHON_MODULE=python_cuda/3.11.6
 SLURM_CUDA_MODULE=cuda/12.8.0
 
-# Email Notifications
-SLURM_EMAIL_USER=your@email.com
+
 ```
 
 **Note:** Many SLURM settings can be configured via the Settings UI (⚙️ Settings > SLURM Cluster Configuration). Environment variables serve as fallback defaults.
@@ -272,7 +270,6 @@ For experiment tracking:
 3. Add to `.env`:
    ```bash
    WANDB_API_KEY=your-key-here
-   WANDB_PROJECT=engineer-assistant
    WANDB_ENTITY=your-username-or-team
    ```
 

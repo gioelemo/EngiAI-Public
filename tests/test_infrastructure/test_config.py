@@ -121,7 +121,6 @@ def test_config_property_slurm_email_user():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
-            "SLURM_EMAIL_USER": "test@example.com",
         },
         clear=True,
     ):
@@ -129,27 +128,8 @@ def test_config_property_slurm_email_user():
         email = config.slurm_email_user
 
         assert isinstance(email, str)
-        # Should get from env var or database
-        assert email in {"test@example.com", ""}
-
-
-@pytest.mark.unit
-def test_config_property_slurm_venv_path():
-    """Test slurm_venv_path property with database fallback."""
-    with patch.dict(
-        "os.environ",
-        {
-            "OPENAI_API_KEY": "test-key",
-            "TAVILY_API_KEY": "test-key",
-            "SLURM_VENV_PATH": "/test/venv/path",
-        },
-        clear=True,
-    ):
-        config = Config()
-        venv_path = config.slurm_venv_path
-
-        assert isinstance(venv_path, str)
-        assert len(venv_path) > 0
+        # Should get from database or use empty string default
+        assert email == ""
 
 
 @pytest.mark.unit
@@ -160,7 +140,6 @@ def test_config_property_slurm_project_path():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
-            "SLURM_PROJECT_PATH": "/test/project",
         },
         clear=True,
     ):
@@ -169,6 +148,8 @@ def test_config_property_slurm_project_path():
 
         assert isinstance(project_path, str)
         assert len(project_path) > 0
+        # Should use default value from database or hardcoded default
+        assert project_path == "$HOME/EngiOpt"
 
 
 @pytest.mark.unit
@@ -179,7 +160,6 @@ def test_config_property_hf_home_remote():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
-            "HF_HOME_REMOTE": "/test/hf/home",
         },
         clear=True,
     ):
@@ -188,6 +168,8 @@ def test_config_property_hf_home_remote():
 
         assert isinstance(hf_home, str)
         assert len(hf_home) > 0
+        # Should use default value from database or hardcoded default
+        assert hf_home == "$SCRATCH/models"
 
 
 @pytest.mark.unit
@@ -198,7 +180,6 @@ def test_config_property_hf_datasets_cache_remote():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
-            "HF_DATASETS_CACHE_REMOTE": "/test/datasets",
         },
         clear=True,
     ):
@@ -207,6 +188,8 @@ def test_config_property_hf_datasets_cache_remote():
 
         assert isinstance(datasets_cache, str)
         assert len(datasets_cache) > 0
+        # Should use default value from database or hardcoded default
+        assert datasets_cache == "$SCRATCH/datasets"
 
 
 @pytest.mark.unit
