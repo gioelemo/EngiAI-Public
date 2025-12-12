@@ -1285,12 +1285,13 @@ def render() -> None:
         )
         _render_media_quick_settings()
 
-        st.markdown(
-            '<div class="card-title">🗂️ File Management</div>',
-            unsafe_allow_html=True,
-        )
+        with st.container():
+            st.markdown(
+                '<div class="card-title">🗂️ File Management</div>',
+                unsafe_allow_html=True,
+            )
 
-        _render_file_management_card()
+            _render_file_management_card()
 
     st.markdown("")  # Spacing
 
