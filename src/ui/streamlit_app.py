@@ -1173,30 +1173,6 @@ def get_job_status_display(
         }
 
 
-def _render_add_job_form(form_key: str) -> None:
-    """Render form to add a new job to monitor."""
-    with st.form(form_key):
-        st.markdown("**Add Job to Monitor**")
-        job_id_input = st.text_input(
-            "Job ID", placeholder="Enter SLURM job ID (e.g., 12345678)"
-        )
-        col_submit, col_cancel = st.columns(2)
-        with col_submit:
-            submitted = st.form_submit_button(
-                "✓ Add", type="primary", use_container_width=True
-            )
-        with col_cancel:
-            cancelled = st.form_submit_button("✕ Cancel", use_container_width=True)
-
-        if submitted and job_id_input:
-            add_job_to_monitor(job_id_input.strip())
-            st.session_state[f"show_{form_key}"] = False
-            st.rerun()
-        elif cancelled:
-            st.session_state[f"show_{form_key}"] = False
-            st.rerun()
-
-
 def add_job_to_monitor(job_id: str, initial_state: str = "SUBMITTED") -> None:
     """Add a job to the monitoring list."""
     if "monitored_jobs" not in st.session_state:
@@ -1270,21 +1246,12 @@ def render_job_monitor_compact() -> None:
         f"🚀 SLURM Job Monitor ({len(st.session_state.monitored_jobs)} jobs)",
         expanded=False,
     ):
-        # Buttons row
-        col1, col2 = st.columns([5, 1])
-        with col1:
-            refresh_interval = st.session_state.get("job_monitor_refresh_interval", 60)
-            local_time = time.strftime("%H:%M:%S", time.localtime())
-            st.caption(
-                f"*Auto-refreshing every {refresh_interval}s... (Last update: {local_time})*"
-            )
-        with col2:
-            if st.button("+", key="add_job_btn_compact", help="Add job to monitor"):
-                st.session_state.show_add_job_form_compact = True
-
-        # Show add job form if requested
-        if st.session_state.get("show_add_job_form_compact", False):
-            _render_add_job_form("add_job_form_compact")
+        # Display refresh info
+        refresh_interval = st.session_state.get("job_monitor_refresh_interval", 60)
+        local_time = time.strftime("%H:%M:%S", time.localtime())
+        st.caption(
+            f"*Auto-refreshing every {refresh_interval}s... (Last update: {local_time})*"
+        )
 
         # Display jobs in a table-like format
         for job_id, _job_info in list(st.session_state.monitored_jobs.items()):
