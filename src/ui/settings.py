@@ -507,7 +507,7 @@ def _render_voice_settings_card() -> None:
                     else OPENAI_TTS_VOICE
                 ),
                 help="Choose the OpenAI voice for AI responses",
-                key="voice_selected_card_widget",
+                key="voice_selected_openai_card_widget",
             )
         else:
             # ElevenLabs voices
@@ -521,7 +521,7 @@ def _render_voice_settings_card() -> None:
                     else ELEVENLABS_DEFAULT_VOICE
                 ),
                 help="Choose the ElevenLabs voice for AI responses",
-                key="voice_selected_card_widget",
+                key="voice_selected_elevenlabs_card_widget",
             )
 
         if selected_voice != st.session_state.get("voice_selected"):

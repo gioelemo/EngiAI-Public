@@ -604,7 +604,12 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             else None
         )
         audio_for_db = (
-            {"data": audio_base64, "format": "audio/wav"} if audio_base64 else None
+            {
+                "data": audio_base64,
+                "format": getattr(audio_data, "type", "audio/wav").split("/")[-1],
+            }
+            if audio_base64
+            else None
         )
         # Prepare attachments dict
         attachments: dict[str, Any] = {}

@@ -193,9 +193,9 @@ def save_active_chat_to_storage() -> None:
         active_chat["waiting_for_confirmation"] = (
             st.session_state.waiting_for_confirmation
         )
-        # Save current voice selection
+        # Save current voice selection and provider
         active_chat["voice_id"] = st.session_state.get("voice_selected", None)
-
+        active_chat["voice_provider"] = st.session_state.get("voice_provider", None)
         # Only save to database if chat has at least 1 message
         if len(active_chat["messages"]) < 1:
             return
@@ -233,7 +233,9 @@ def save_active_chat_to_storage() -> None:
         else:
             # Update voice if it changed
             db.update_conversation_voice(
-                st.session_state.active_chat_id, active_chat.get("voice_id")
+                st.session_state.active_chat_id,
+                active_chat.get("voice_id"),
+                active_chat.get("voice_provider"),
             )
 
         # Update title if changed
