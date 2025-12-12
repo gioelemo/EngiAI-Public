@@ -154,9 +154,7 @@ def format_tool_calls_for_display(tool_calls: list) -> str:
     # Safe tools that don't require user confirmation
     safe_tools = {
         "open_gui_application",
-        "check_cli_tool_available",
         "list_directory_contents",
-        "get_prusa_slicer_path",
     }
 
     info_lines = []

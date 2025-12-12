@@ -196,49 +196,6 @@ def execute_cli_command(
 
 
 @tool
-def check_cli_tool_available(tool_name: str) -> str:
-    """Check if a CLI tool is available on the system.
-
-    Args:
-        tool_name: Name of the command/tool to check (e.g., "PrusaSlicer", "meshlab.meshlabserver")
-
-    Returns:
-        String indicating whether the tool is available and its path if found.
-
-    Example:
-        >>> check_cli_tool_available("PrusaSlicer")
-        >>> check_cli_tool_available("git")
-    """
-    try:
-        tool_path = which(tool_name)
-
-        if tool_path:
-            # Try to get version info
-            try:
-                version_result = subprocess.run(
-                    [tool_name, "--version"],
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                version_info = (
-                    version_result.stdout.strip() or version_result.stderr.strip()
-                )
-            except Exception as e:
-                # If version check fails, still report tool is available
-                logger.debug("Version check failed for %s: %s", tool_name, e)
-                return f"✓ Tool '{tool_name}' is available at: {tool_path}"
-            else:
-                return f"✓ Tool '{tool_name}' is available at: {tool_path}\nVersion info:\n{version_info}"
-        else:
-            return f"✗ Tool '{tool_name}' is NOT available in PATH. Please ensure it's installed."
-
-    except Exception as e:
-        return f"Error checking tool availability: {e!s}"
-
-
-@tool
 def list_directory_contents(directory_path: str, pattern: str | None = None) -> str:
     """List contents of a directory, optionally filtering by file pattern.
 
@@ -417,81 +374,6 @@ def open_gui_application(
         return f"Error: Application '{app_name}' not found. Please provide the full path or ensure it's installed."
     except Exception as e:
         return f"Error opening application: {e!s}"
-
-
-def _check_macos_prusa_paths() -> list[str]:
-    """Check common PrusaSlicer paths on macOS."""
-    suggestions = ["macOS common locations:"]
-    common_paths = [
-        "/Applications/Original Prusa Drivers/PrusaSlicer.app",
-        "/Applications/PrusaSlicer.app",
-        "~/Applications/PrusaSlicer.app",
-    ]
-    for path in common_paths:
-        expanded = Path(path).expanduser()
-        status = "✓ FOUND" if expanded.exists() else "✗ Not found"
-        suggestions.append(f"  {status}: {path}")
-    return suggestions
-
-
-def _check_windows_prusa_paths() -> list[str]:
-    """Check common PrusaSlicer paths on Windows."""
-    suggestions = ["Windows common locations:"]
-    common_paths = [
-        r"C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer.exe",
-        r"C:\Program Files (x86)\Prusa3D\PrusaSlicer\prusa-slicer.exe",
-    ]
-    for path in common_paths:
-        status = "✓ FOUND" if Path(path).exists() else "✗ Not found"
-        suggestions.append(f"  {status}: {path}")
-    return suggestions
-
-
-def _check_linux_prusa_paths() -> list[str]:
-    """Check common PrusaSlicer paths on Linux."""
-    prusa_in_path = which("prusa-slicer")
-    if prusa_in_path:
-        return [f"✓ PrusaSlicer found in PATH: {prusa_in_path}"]
-    return [
-        "PrusaSlicer not found in PATH",
-        "Try: sudo apt install prusa-slicer  (Ubuntu/Debian)",
-        "Or download from: https://www.prusa3d.com/page/prusaslicer_424/",
-    ]
-
-
-@tool
-def get_prusa_slicer_path() -> str:
-    """Get the configured PrusaSlicer path from environment or suggest common locations.
-
-    This tool helps locate PrusaSlicer on your system for GUI operations.
-
-    Returns:
-        The PrusaSlicer path or suggestions for common installation locations.
-
-    Example:
-        >>> get_prusa_slicer_path()
-    """
-    # Check environment variable
-    prusa_path = os.getenv("PRUSA_SLICER_PATH")
-    if prusa_path and Path(prusa_path).exists():
-        return f"✓ PrusaSlicer configured at: {prusa_path}\n\nUse open_gui_application('{prusa_path}') to launch it."
-
-    # Check common locations based on OS
-    system = platform.system()
-    path_checkers = {
-        "Darwin": _check_macos_prusa_paths,
-        "Windows": _check_windows_prusa_paths,
-        "Linux": _check_linux_prusa_paths,
-    }
-
-    suggestions = (
-        path_checkers[system]()
-        if system in path_checkers
-        else [f"Unknown operating system: {system}"]
-    )
-
-    suggestions.append("\nTo configure, set PRUSA_SLICER_PATH in your .env file")
-    return "\n".join(suggestions)
 
 
 @tool

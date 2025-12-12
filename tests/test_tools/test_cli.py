@@ -16,9 +16,7 @@ from src.tools.cli import (
     _get_host_service_url,
     _is_running_in_docker,
     _open_via_host_service,
-    check_cli_tool_available,
     execute_cli_command,
-    get_prusa_slicer_path,
     list_directory_contents,
     open_gui_application,
 )
@@ -163,80 +161,6 @@ def test_execute_cli_command_without_check_exists():
         )
 
         assert "SUCCESS" in result
-
-
-# ============================================================================
-# CHECK CLI TOOL AVAILABLE TESTS
-# ============================================================================
-
-
-@pytest.mark.unit
-def test_check_cli_tool_available_found_with_version():
-    """Test checking available tool with version info."""
-    mock_version = Mock()
-    mock_version.returncode = 0
-    mock_version.stdout = "tool version 1.2.3"
-    mock_version.stderr = ""
-
-    with (
-        patch("src.tools.cli.which", return_value="/usr/bin/tool"),
-        patch("src.tools.cli.subprocess.run", return_value=mock_version),
-    ):
-        result = check_cli_tool_available.invoke({"tool_name": "tool"})
-
-        assert "available" in result
-        assert "/usr/bin/tool" in result
-        assert "version 1.2.3" in result
-
-
-@pytest.mark.unit
-def test_check_cli_tool_available_found_without_version():
-    """Test checking available tool without version info."""
-    with (
-        patch("src.tools.cli.which", return_value="/usr/local/bin/tool"),
-        patch("src.tools.cli.subprocess.run", side_effect=Exception("No version")),
-    ):
-        result = check_cli_tool_available.invoke({"tool_name": "tool"})
-
-        assert "available" in result
-        assert "/usr/local/bin/tool" in result
-
-
-@pytest.mark.unit
-def test_check_cli_tool_available_not_found():
-    """Test checking unavailable tool."""
-    with patch("src.tools.cli.which", return_value=None):
-        result = check_cli_tool_available.invoke({"tool_name": "missing_tool"})
-
-        assert "NOT available" in result
-        assert "missing_tool" in result
-
-
-@pytest.mark.unit
-def test_check_cli_tool_available_exception():
-    """Test exception handling in tool availability check."""
-    with patch("src.tools.cli.which", side_effect=Exception("System error")):
-        result = check_cli_tool_available.invoke({"tool_name": "tool"})
-
-        assert "Error checking tool availability" in result
-
-
-@pytest.mark.unit
-def test_check_cli_tool_available_version_in_stderr():
-    """Test tool that outputs version info to stderr."""
-    mock_version = Mock()
-    mock_version.returncode = 0
-    mock_version.stdout = ""
-    mock_version.stderr = "tool 2.0.0"
-
-    with (
-        patch("src.tools.cli.which", return_value="/usr/bin/tool"),
-        patch("src.tools.cli.subprocess.run", return_value=mock_version),
-    ):
-        result = check_cli_tool_available.invoke({"tool_name": "tool"})
-
-        assert "available" in result
-        assert "2.0.0" in result
 
 
 # ============================================================================
@@ -483,101 +407,6 @@ def test_open_gui_application_different_platforms(system):
 
 
 # ============================================================================
-# GET PRUSA SLICER PATH TESTS
-# ============================================================================
-
-
-@pytest.mark.unit
-def test_get_prusa_slicer_path_from_env():
-    """Test getting PrusaSlicer path from environment variable."""
-    with (
-        tempfile.TemporaryDirectory() as tmpdir,
-        patch.dict("os.environ", {"PRUSA_SLICER_PATH": tmpdir}),
-    ):
-        result = get_prusa_slicer_path.invoke({})
-
-        assert "configured at" in result
-        assert tmpdir in result
-
-
-@pytest.mark.unit
-def test_get_prusa_slicer_path_env_not_exists():
-    """Test when environment path doesn't exist."""
-    with patch.dict(
-        "os.environ", {"PRUSA_SLICER_PATH": "/nonexistent/path"}, clear=False
-    ):
-        result = get_prusa_slicer_path.invoke({})
-
-        # Should fall back to checking common locations
-        assert "common locations" in result or "configure" in result
-
-
-@pytest.mark.unit
-def test_get_prusa_slicer_path_no_env_macos():
-    """Test getting PrusaSlicer suggestions on macOS."""
-    with (
-        patch.dict("os.environ", {}, clear=True),
-        patch("src.tools.cli.platform.system", return_value="Darwin"),
-    ):
-        result = get_prusa_slicer_path.invoke({})
-
-        assert "macOS common locations" in result
-        assert "/Applications" in result
-
-
-@pytest.mark.unit
-def test_get_prusa_slicer_path_no_env_windows():
-    """Test getting PrusaSlicer suggestions on Windows."""
-    with (
-        patch.dict("os.environ", {}, clear=True),
-        patch("src.tools.cli.platform.system", return_value="Windows"),
-    ):
-        result = get_prusa_slicer_path.invoke({})
-
-        assert "Windows common locations" in result
-        assert "Program Files" in result
-
-
-@pytest.mark.unit
-def test_get_prusa_slicer_path_no_env_linux():
-    """Test getting PrusaSlicer suggestions on Linux."""
-    with (
-        patch.dict("os.environ", {}, clear=True),
-        patch("src.tools.cli.platform.system", return_value="Linux"),
-        patch("src.tools.cli.which", return_value=None),
-    ):
-        result = get_prusa_slicer_path.invoke({})
-
-        assert "not found in PATH" in result or "download" in result
-
-
-@pytest.mark.unit
-def test_get_prusa_slicer_path_linux_in_path():
-    """Test finding PrusaSlicer in PATH on Linux."""
-    with (
-        patch.dict("os.environ", {}, clear=True),
-        patch("src.tools.cli.platform.system", return_value="Linux"),
-        patch("src.tools.cli.which", return_value="/usr/bin/prusa-slicer"),
-    ):
-        result = get_prusa_slicer_path.invoke({})
-
-        assert "found in PATH" in result
-        assert "/usr/bin/prusa-slicer" in result
-
-
-@pytest.mark.unit
-def test_get_prusa_slicer_path_unknown_os():
-    """Test handling unknown operating system."""
-    with (
-        patch.dict("os.environ", {}, clear=True),
-        patch("src.tools.cli.platform.system", return_value="FreeBSD"),
-    ):
-        result = get_prusa_slicer_path.invoke({})
-
-        assert "Unknown operating system" in result or "configure" in result
-
-
-# ============================================================================
 # EDGE CASE AND ERROR HANDLING TESTS
 # ============================================================================
 
@@ -651,13 +480,9 @@ def test_all_functions_work_without_external_dependencies():
     ):
         mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
 
-        # Test execute_cli_command
-        result1 = check_cli_tool_available.invoke({"tool_name": "fake_tool"})
-        assert "NOT available" in result1
-
         # Test open_gui_application
-        result2 = open_gui_application.invoke({"app_name": "FakeApp"})
-        assert "not found" in result2 or mock_popen.called
+        result = open_gui_application.invoke({"app_name": "FakeApp"})
+        assert "not found" in result or mock_popen.called
 
 
 @pytest.mark.smoke
