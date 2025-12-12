@@ -340,7 +340,7 @@ def transcribe_audio_elevenlabs(audio_data) -> str | None:
     except Exception as e:
         # Check for specific API errors
         error_str = str(e)
-        if "quota_exceeded" in error_str or "401" in error_str:
+        if "quota_exceeded" in error_str:
             logger.warning(f"ElevenLabs quota exceeded: {e}")
             st.warning(
                 "⚠️ ElevenLabs quota exceeded. Voice input disabled for this message."
@@ -448,7 +448,7 @@ def generate_speech_elevenlabs(text: str, voice_id: str) -> bytes | None:
     except Exception as e:
         # Check if it's an API error with quota exceeded
         error_str = str(e)
-        if "quota_exceeded" in error_str or "401" in error_str:
+        if "quota_exceeded" in error_str:
             logger.warning(f"ElevenLabs quota exceeded: {e}")
             st.warning(
                 "⚠️ ElevenLabs quota exceeded. Voice output disabled for this message."
@@ -538,7 +538,7 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             if hasattr(audio_data, "size"):
                 logger.info(f"Audio size: {audio_data.size} bytes")
 
-            # Pass the audio_data directly to ElevenLabs (it expects UploadedFile)
+            # Pass the audio_data to transcribe_audio(), which routes to ElevenLabs or OpenAI based on the provider setting
             transcribed_text = transcribe_audio(audio_data)
 
             if transcribed_text is not None:
@@ -583,9 +583,10 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     if images_for_display:
         message_dict["images"] = images_for_display
     if audio_base64:
+        audio_format = getattr(audio_data, "type", "audio/wav")
         message_dict["audio"] = {
             "data": audio_base64,
-            "format": "audio/wav",
+            "format": audio_format,
             "transcribed": True,
         }
     st.session_state.messages.append(message_dict)
@@ -926,10 +927,9 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                                 else OPENAI_TTS_VOICE
                             )
                         else:
-                            # For ElevenLabs, map voice name to voice ID
                             voice_id = VOICE_IDS.get(
-                                selected_voice_name, VOICE_IDS[DEFAULT_VOICE]
-                            )
+                                selected_voice_name
+                            ) or VOICE_IDS.get(DEFAULT_VOICE)
 
                         # Generate audio
                         audio_bytes = generate_speech(full_response, voice_id)

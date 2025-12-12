@@ -170,6 +170,11 @@ def sync_active_chat_to_session() -> None:
         # Restore voice selection for this conversation
         if "voice_id" in active_chat and active_chat["voice_id"] is not None:
             st.session_state.voice_selected = active_chat["voice_id"]
+        if (
+            "voice_provider" in active_chat
+            and active_chat["voice_provider"] is not None
+        ):
+            st.session_state.voice_provider = active_chat["voice_provider"]
         # Set flag to prevent auto-playing audio when switching chats
         st.session_state._switching_chat = True
 
@@ -222,6 +227,7 @@ def save_active_chat_to_storage() -> None:
                 name=active_chat["title"],
                 session_id=st.session_state.active_chat_id,
                 voice_id=active_chat.get("voice_id"),
+                voice_provider=active_chat.get("voice_provider"),
             )
             active_chat["saved_to_db"] = True
         else:
@@ -332,6 +338,7 @@ def load_chats_from_database() -> None:
                 "saved_to_db": True,  # Already in database
                 "pinned": conv.get("pinned", False),
                 "voice_id": conv.get("voice_id"),  # Restore voice selection
+                "voice_provider": conv.get("voice_provider"),  # Restore voice provider
             }
 
         # Set the most recently updated as active
