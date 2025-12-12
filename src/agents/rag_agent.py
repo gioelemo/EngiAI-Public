@@ -8,7 +8,7 @@ Now powered by MMORE for advanced multimodal document processing.
 import logging
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 from urllib.parse import urlparse
 
 import requests
@@ -19,9 +19,6 @@ from src.tools import MMOREClient
 from src.tools.mmore_client import _report_progress
 from src.tools.web_crawler import WebCrawler
 from src.utils.prompts import RAG_AGENT_SYSTEM_PROMPT
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

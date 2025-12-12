@@ -4,6 +4,7 @@ CLI command confirmation handling for the Streamlit UI.
 Handles the confirmation flow when the agent wants to execute CLI commands.
 """
 
+import logging
 import uuid
 from typing import cast
 
@@ -12,6 +13,8 @@ import streamlit as st
 from src.agents.cli_agent import CLIAgent
 from src.models.state import MessagesState
 from src.ui.message_processing import format_and_display_messages
+
+logger = logging.getLogger(__name__)
 
 
 def check_streamlit_interrupt() -> tuple[bool, str]:
@@ -45,7 +48,8 @@ def check_streamlit_interrupt() -> tuple[bool, str]:
                             break
                 return True, user_request
     except Exception as e:
-        st.error(f"[DEBUG] Exception: {e}")
+        # Log error internally without exposing details to user
+        logger.error("Error checking streamlit interrupt: %s", e, exc_info=True)
 
     return False, ""
 

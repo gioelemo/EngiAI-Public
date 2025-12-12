@@ -33,6 +33,8 @@ from stl import mesh
 
 from src.ui.media_display import find_images_in_text, find_stl_files_in_text
 
+logger = logging.getLogger(__name__)
+
 # Page configuration
 PAGE_WIDTH = A4[0]
 PAGE_HEIGHT = A4[1]
@@ -85,9 +87,9 @@ def _register_fonts() -> None:
             pdfmetrics.registerFont(
                 TTFont("SpaceMono-Italic", static_dir / "SpaceMono-Italic.ttf")
             )
-    except Exception:
+    except Exception as e:
         # If font registration fails, fall back to default fonts
-        pass
+        logger.debug("Font registration failed, using defaults: %s", e)
 
 
 def create_pdf_from_conversation(
@@ -324,9 +326,9 @@ def _add_pdf_header(
                 logo_img.drawWidth = 13 * mm
                 story.append(logo_img)
                 story.append(Spacer(1, 3 * mm))
-        except Exception:
+        except Exception as e:
             # If logo fails to load, continue without it
-            pass
+            logger.debug("Logo failed to load: %s", e)
 
     # Add title
     story.append(Paragraph(f"Chat Export: {conversation_name}", pdf_styles["title"]))
@@ -363,8 +365,9 @@ def _add_uploaded_images(story: list[Any], images: list[dict[str, Any]]) -> None
                 if img_obj:
                     story.append(img_obj)
                     story.append(Spacer(1, 3 * mm))
-            except Exception:
-                pass  # Skip images that can't be decoded
+            except Exception as e:
+                # Skip images that can't be decoded
+                logger.debug("Failed to decode embedded image: %s", e)
 
 
 def _add_referenced_images(

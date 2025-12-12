@@ -318,9 +318,6 @@ class HPCConnection:
 
 
 if __name__ == "__main__":
-    # Example usage
-    import sys
-
     min_args = 2
     if len(sys.argv) < min_args:
         print("Usage:")

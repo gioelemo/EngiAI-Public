@@ -31,8 +31,9 @@ def _is_running_in_docker() -> bool:
     try:
         with Path("/proc/self/cgroup").open() as f:
             return any("docker" in line for line in f)
-    except Exception:
-        pass
+    except Exception as e:
+        # Expected on non-Linux systems or if file doesn't exist
+        logger.debug("Could not read cgroup file for Docker detection: %s", e)
 
     return False
 
@@ -224,8 +225,9 @@ def check_cli_tool_available(tool_name: str) -> str:
                 version_info = (
                     version_result.stdout.strip() or version_result.stderr.strip()
                 )
-            except Exception:
+            except Exception as e:
                 # If version check fails, still report tool is available
+                logger.debug("Version check failed for %s: %s", tool_name, e)
                 return f"✓ Tool '{tool_name}' is available at: {tool_path}"
             else:
                 return f"✓ Tool '{tool_name}' is available at: {tool_path}\nVersion info:\n{version_info}"

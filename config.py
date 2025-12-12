@@ -5,14 +5,15 @@ Handles loading of environment variables and configuration settings.
 
 import logging
 import os
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from dotenv import load_dotenv
 
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger(__name__)
+
+# Constants for LLM configuration validation
+MIN_TEMPERATURE = 0.0
+MAX_TEMPERATURE = 2.0
 
 
 def get_setting_from_db(key: str, default: Any = None) -> Any:
@@ -60,6 +61,14 @@ class Config:
         # Model configuration
         self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4o")
         self.llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+
+        # Validate temperature is in valid range
+        if not MIN_TEMPERATURE <= self.llm_temperature <= MAX_TEMPERATURE:
+            raise ValueError(  # noqa: TRY003
+                f"LLM_TEMPERATURE must be between {MIN_TEMPERATURE} and {MAX_TEMPERATURE}, "
+                f"got {self.llm_temperature}"
+            )
+
         logger.info(
             f"Loaded LLM configuration: model={self.llm_model}, temperature={self.llm_temperature}"
         )
@@ -118,7 +127,10 @@ class Config:
 
         missing_vars = [var for var, value in required_vars.items() if not value]
         if missing_vars:
-            raise ValueError
+            raise ValueError(  # noqa: TRY003
+                f"Missing required environment variables: {', '.join(missing_vars)}. "
+                "Please set them in your .env file."
+            )
 
     def _set_env_vars(self) -> None:
         """Set environment variables for compatibility with existing code."""

@@ -335,7 +335,7 @@ LLM_MODEL=openai:gpt-4.1
 SKIP_MCP=true
 PRUSA_MCP_URL=http://localhost:8765
 
-# CLI Tools
+# PrusaSlicer Path
 PRUSA_SLICER_PATH=prusa-slicer
 ```
 
@@ -362,7 +362,6 @@ The system includes specialized agents coordinated by a supervisor:
 - **ArXiv Agent**: Scientific paper search and analysis
 - **Prusa Agent**: 3D printer management via Prusa Connect (optional)
 - **HPC Agent**: HPC cluster job management via SSH
-- **CLI Agent**: Local command-line tool execution
 
 The supervisor intelligently routes your requests to the appropriate agent!
 
@@ -740,7 +739,7 @@ python connection.py submit outputs/test.slurm
 
 ### Core Features
 - **🐳 Docker Deployment**: Production-ready containerized deployment with Docker Compose
-- **🤖 Multi-Agent System**: Supervisor coordinates specialized agents (Engineering, Search, RAG, HPC, Prusa, CLI)
+- **🤖 Multi-Agent System**: Supervisor coordinates specialized agents (Engineering, Search, RAG, HPC, Prusa)
 - **💬 Interactive UI**: Streamlit web interface with chat, Excalidraw whiteboard, file uploads, and visualization
 - **🔧 Engineering Tools**: EngiBench integration for structural, multi-physics, and photonics topology optimization (beams2d, ThermoElastic2D, Photonics2D)
 - **🔍 RAG System**: Document Q&A with MMORE multimodal RAG service
@@ -758,7 +757,7 @@ python connection.py submit outputs/test.slurm
 - **Environment variable management** with `.env` support
 
 ### Architecture
-- **Modular design** with clear separation of agents, tools, and CLI
+- **Modular design** with clear separation of agents, tools, and UI
 - **LangGraph workflows** for agent orchestration
 - **LangChain integration** for LLM interactions
 - **Extensible tool system** for easy feature additions
@@ -787,8 +786,6 @@ python connection.py submit outputs/test.slurm
 │   │   ├── rag_agent.py         # Document Q&A
 │   │   ├── search_agent.py      # Web search
 │   │   └── supervisor_agent.py  # Coordinates specialized agents
-│   ├── cli/                     # Command-line interfaces
-│   │   └── chat.py              # Interactive CLI chat
 │   ├── models/                  # State definitions
 │   │   └── state.py             # Conversation state
 │   ├── tools/                   # Custom tools
@@ -808,7 +805,6 @@ python connection.py submit outputs/test.slurm
 │   │   └── chat_management.py   # Multi-chat DB management
 │   ├── utils/                   # Utilities
 │   │   └── prompts.py           # System prompts
-│   └── main.py                  # CLI entry point
 ├── scripts/                     # Utility scripts
 │   ├── 2D_heatmap_to_stl_extruded.py  # Convert heatmaps to 3D
 │   ├── 2D_heatmap_to_stl.py     # Convert heatmaps to 3D STL
