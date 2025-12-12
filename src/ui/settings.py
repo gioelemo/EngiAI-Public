@@ -120,6 +120,12 @@ def _load_settings_from_db() -> None:
         "slurm_wandb_project": "engiopt",
         "hf_home_remote": "$SCRATCH/models",
         "hf_datasets_cache_remote": "$SCRATCH/datasets",
+        # Voice interaction settings
+        "voice_enabled": False,
+        "voice_auto_play": True,
+        "voice_selected": "George",
+        "voice_input_enabled": True,
+        "voice_output_enabled": True,
     }
 
     # Load settings from database or use defaults
@@ -433,6 +439,130 @@ def _render_stl_quick_settings() -> None:
         )
         if stl_auto_rotate != st.session_state.stl_auto_rotate:
             _save_setting_to_db("stl_auto_rotate", stl_auto_rotate)
+
+
+def _render_voice_settings_card() -> None:
+    """Render voice interaction settings for card layout."""
+    from src.ui.voices import (  # noqa: PLC0415
+        ELEVENLABS_DEFAULT_VOICE,
+        ELEVENLABS_VOICE_IDS,
+        OPENAI_TTS_VOICE,
+        OPENAI_TTS_VOICES,
+        VOICE_PROVIDER,
+    )
+
+    # Voice enabled toggle
+    voice_enabled = st.checkbox(
+        "Enable voice features",
+        value=st.session_state.get("voice_enabled", False),
+        help="Enable voice input (STT) and output (TTS) using ElevenLabs or OpenAI",
+        key="voice_enabled_card_widget",
+    )
+    if voice_enabled != st.session_state.get("voice_enabled"):
+        _save_setting_to_db("voice_enabled", voice_enabled)
+
+    if voice_enabled:
+        # Voice provider selection (top level)
+        st.markdown("**Voice Provider**")
+        provider_options = ["ElevenLabs", "OpenAI"]
+        current_provider = st.session_state.get("voice_provider", VOICE_PROVIDER)
+        # Map internal format to display format
+        provider_display = (
+            "ElevenLabs" if current_provider.lower() == "elevenlabs" else "OpenAI"
+        )
+
+        selected_provider_display = st.radio(
+            "Select voice provider",
+            options=provider_options,
+            index=provider_options.index(provider_display),
+            horizontal=True,
+            help="Choose between ElevenLabs or OpenAI for voice services",
+            key="voice_provider_card_widget",
+            label_visibility="collapsed",
+        )
+
+        # Convert display format back to internal format
+        selected_provider = selected_provider_display.lower()
+        if (
+            selected_provider
+            != st.session_state.get("voice_provider", VOICE_PROVIDER).lower()
+        ):
+            _save_setting_to_db("voice_provider", selected_provider)
+            # Reset voice selection when provider changes
+            if selected_provider == "openai":
+                _save_setting_to_db("voice_selected", OPENAI_TTS_VOICE)
+            else:
+                _save_setting_to_db("voice_selected", ELEVENLABS_DEFAULT_VOICE)
+
+        # Voice selection (based on provider)
+        if selected_provider == "openai":
+            # OpenAI voices
+            selected_voice = st.selectbox(
+                "Assistant Voice",
+                options=OPENAI_TTS_VOICES,
+                index=OPENAI_TTS_VOICES.index(
+                    st.session_state.get("voice_selected", OPENAI_TTS_VOICE)
+                    if st.session_state.get("voice_selected", OPENAI_TTS_VOICE)
+                    in OPENAI_TTS_VOICES
+                    else OPENAI_TTS_VOICE
+                ),
+                help="Choose the OpenAI voice for AI responses",
+                key="voice_selected_openai_card_widget",
+            )
+        else:
+            # ElevenLabs voices
+            selected_voice = st.selectbox(
+                "Assistant Voice",
+                options=list(ELEVENLABS_VOICE_IDS.keys()),
+                index=list(ELEVENLABS_VOICE_IDS.keys()).index(
+                    st.session_state.get("voice_selected", ELEVENLABS_DEFAULT_VOICE)
+                    if st.session_state.get("voice_selected", ELEVENLABS_DEFAULT_VOICE)
+                    in ELEVENLABS_VOICE_IDS
+                    else ELEVENLABS_DEFAULT_VOICE
+                ),
+                help="Choose the ElevenLabs voice for AI responses",
+                key="voice_selected_elevenlabs_card_widget",
+            )
+
+        if selected_voice != st.session_state.get("voice_selected"):
+            _save_setting_to_db("voice_selected", selected_voice)
+
+        st.markdown("**Options**")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Voice input toggle
+            voice_input = st.checkbox(
+                "Enable microphone input",
+                value=st.session_state.get("voice_input_enabled", True),
+                help="Allow sending voice messages via microphone (Speech-to-Text)",
+                key="voice_input_card_widget",
+            )
+            if voice_input != st.session_state.get("voice_input_enabled"):
+                _save_setting_to_db("voice_input_enabled", voice_input)
+
+            # Voice output toggle
+            voice_output = st.checkbox(
+                "Enable voice responses",
+                value=st.session_state.get("voice_output_enabled", True),
+                help="Generate audio for AI responses (Text-to-Speech)",
+                key="voice_output_card_widget",
+            )
+            if voice_output != st.session_state.get("voice_output_enabled"):
+                _save_setting_to_db("voice_output_enabled", voice_output)
+
+        with col2:
+            # Auto-play toggle
+            auto_play = st.checkbox(
+                "Auto-play responses",
+                value=st.session_state.get("voice_auto_play", True),
+                help="Automatically play audio when assistant responds",
+                key="voice_auto_play_card_widget",
+            )
+            if auto_play != st.session_state.get("voice_auto_play"):
+                _save_setting_to_db("voice_auto_play", auto_play)
+    else:
+        st.info("Enable voice features to access voice settings")
 
 
 def _render_media_quick_settings() -> None:
@@ -1140,21 +1270,30 @@ def render() -> None:
 
     st.markdown("")  # Spacing
 
-    # === MEDIA & FILE MANAGEMENT (2-column cards) ===
-    col3, col4 = st.columns(2, gap="medium")
+    # === VOICE & MEDIA SETTINGS (2-column cards) ===
+    col5, col6 = st.columns(2, gap="medium")
 
-    with col3, st.container():
+    with col5, st.container():
+        st.markdown(
+            '<div class="card-title">🎤 Voice Interaction</div>', unsafe_allow_html=True
+        )
+        _render_voice_settings_card()
+
+    with col6, st.container():
         st.markdown(
             '<div class="card-title">💾 Media Saving</div>', unsafe_allow_html=True
         )
         _render_media_quick_settings()
 
-    with col4, st.container():
-        st.markdown(
-            '<div class="card-title">🗂️ File Management</div>',
-            unsafe_allow_html=True,
-        )
-        _render_file_management_card()
+        with st.container():
+            st.markdown(
+                '<div class="card-title">🗂️ File Management</div>',
+                unsafe_allow_html=True,
+            )
+
+            _render_file_management_card()
+
+    st.markdown("")  # Spacing
 
     st.markdown("---")
 

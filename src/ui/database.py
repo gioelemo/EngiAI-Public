@@ -122,6 +122,12 @@ class Conversation(Base):  # type: ignore[valid-type,misc]
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     message_count = Column(Integer, default=0)
     pinned = Column(Boolean, default=False)
+    voice_id = Column(
+        String, nullable=True
+    )  # Voice name (e.g., "George" for ElevenLabs, "alloy" for OpenAI)
+    voice_provider = Column(
+        String, nullable=True
+    )  # Voice provider: "elevenlabs" or "openai"
 
 
 class Message(Base):  # type: ignore[valid-type,misc]
@@ -137,6 +143,9 @@ class Message(Base):  # type: ignore[valid-type,misc]
     suggested_prompts = Column(
         JSON, nullable=True
     )  # List of suggested follow-up prompts
+    audio = Column(
+        JSON, nullable=True
+    )  # Audio data (base64 encoded) for voice messages
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -214,12 +223,20 @@ class DatabaseManager:
         """Get a new database session."""
         return self.SessionLocal()
 
-    def create_conversation(self, name: str, session_id: str | None = None) -> str:
+    def create_conversation(
+        self,
+        name: str,
+        session_id: str | None = None,
+        voice_id: str | None = None,
+        voice_provider: str | None = None,
+    ) -> str:
         """Create a new conversation.
 
         Args:
             name: Name of the conversation
             session_id: Optional UUID for the conversation. Auto-generated if None
+            voice_id: Optional voice name (e.g., "George" for ElevenLabs, "alloy" for OpenAI)
+            voice_provider: Optional voice provider ("elevenlabs" or "openai")
 
         Returns:
             The conversation ID (UUID)
@@ -229,7 +246,12 @@ class DatabaseManager:
 
         with self.get_session() as session:
             conversation = Conversation(
-                id=session_id, name=name, created_at=datetime.utcnow(), message_count=0
+                id=session_id,
+                name=name,
+                created_at=datetime.utcnow(),
+                message_count=0,
+                voice_id=voice_id,
+                voice_provider=voice_provider,
             )
             session.add(conversation)
 
@@ -267,6 +289,8 @@ class DatabaseManager:
                     "updated_at": conv.updated_at,
                     "message_count": conv.message_count,
                     "pinned": conv.pinned,
+                    "voice_id": conv.voice_id,
+                    "voice_provider": conv.voice_provider,
                 }
                 for conv in conversations
             ]
@@ -290,6 +314,8 @@ class DatabaseManager:
                     "updated_at": conv.updated_at,
                     "message_count": conv.message_count,
                     "pinned": conv.pinned,
+                    "voice_id": conv.voice_id,
+                    "voice_provider": conv.voice_provider,
                 }
         return None
 
@@ -299,7 +325,7 @@ class DatabaseManager:
         role: str,
         content: str,
         suggested_prompts: list[str] | None = None,
-        images: list[dict[str, Any]] | None = None,
+        attachments: dict[str, Any] | None = None,
     ) -> None:
         """Add a message to a conversation.
 
@@ -308,8 +334,13 @@ class DatabaseManager:
             role: 'user' or 'assistant'
             content: Message content
             suggested_prompts: Optional list of suggested follow-up prompts
-            images: Optional list of image data dictionaries with 'data' (base64) and 'type' keys
+            attachments: Optional dict with 'images' (list of dicts with 'data' and 'type')
+                        and/or 'audio' (dict with 'data' and 'format') keys
         """
+        # Extract images and audio from attachments dict
+        images = attachments.get("images") if attachments else None
+        audio = attachments.get("audio") if attachments else None
+
         with self.get_session() as session:
             message = Message(
                 conversation_id=conversation_id,
@@ -317,6 +348,7 @@ class DatabaseManager:
                 content=content,
                 suggested_prompts=suggested_prompts,
                 images=images,
+                audio=audio,
             )
             session.add(message)
 
@@ -352,6 +384,7 @@ class DatabaseManager:
                     "created_at": msg.created_at,
                     "suggested_prompts": msg.suggested_prompts,
                     "images": msg.images,
+                    "audio": msg.audio,
                 }
                 for msg in messages
             ]
@@ -464,6 +497,28 @@ class DatabaseManager:
             conv = session.query(Conversation).filter_by(id=conversation_id).first()
             if conv:
                 conv.name = name  # type: ignore[assignment]
+                conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
+                session.commit()
+
+    def update_conversation_voice(
+        self,
+        conversation_id: str,
+        voice_id: str | None,
+        voice_provider: str | None = None,
+    ) -> None:
+        """Update a conversation's voice selection.
+
+        Args:
+            conversation_id: The conversation UUID
+            voice_id: Voice name (e.g., "George" for ElevenLabs, "alloy" for OpenAI) or None
+            voice_provider: Voice provider ("elevenlabs" or "openai") or None
+        """
+        with self.get_session() as session:
+            conv = session.query(Conversation).filter_by(id=conversation_id).first()
+            if conv:
+                conv.voice_id = voice_id  # type: ignore[assignment]
+                if voice_provider is not None:
+                    conv.voice_provider = voice_provider  # type: ignore[assignment]
                 conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
                 session.commit()
 

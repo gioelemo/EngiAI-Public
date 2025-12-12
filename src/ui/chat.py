@@ -157,6 +157,10 @@ def _render_chat_history() -> None:
         # Show job monitoring prompt if there are pending jobs
         if st.session_state.get("pending_job_monitor"):
             _render_job_monitoring_prompt()
+
+        # Clear the switching chat flag after rendering
+        if st.session_state.get("_switching_chat"):
+            st.session_state._switching_chat = False
     else:
         # Welcome message for empty chat
         st.space(100)  # Fixed spacing to push content down
@@ -188,11 +192,18 @@ def render() -> None:
         # Create a placeholder for new messages BEFORE the chat input
         new_message_placeholder = st.empty()
 
-        # Chat input with image upload support
+        # Chat input with image upload support and optional audio
+        voice_enabled = st.session_state.get("voice_enabled", False)
+        voice_input_enabled = st.session_state.get("voice_input_enabled", True)
+        accept_audio = voice_enabled and voice_input_enabled
+
         message = st.chat_input(
-            "Ask me anything about engineering design...",
+            "Ask me anything about engineering design..."
+            + (" 🎤" if accept_audio else ""),
             accept_file=True,
             file_type=["png", "jpg", "jpeg", "gif", "webp", "pdf"],
+            accept_audio=accept_audio,
+            audio_sample_rate=44100,  # Higher quality for better transcription (ElevenLabs recommended)
         )
 
         # Determine what to process: canvas export > pending suggestion > chat input

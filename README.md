@@ -679,14 +679,10 @@ SLURM_NTASKS=1                 # Number of tasks
 SLURM_CPUS_PER_TASK=8          # CPUs per task
 SLURM_MEM_PER_CPU=4G           # Memory per CPU
 SLURM_GPUS=rtx4090:1           # GPU specification
-SLURM_PARTITION=gpu.4d         # Cluster partition
-SLURM_EMAIL_USER=your@email.com # Email for job notifications
 
 # Module/Environment Configuration
 SLURM_PYTHON_MODULE=gcc/12.2.0
 SLURM_CUDA_MODULE=cuda/12.2.2
-SLURM_VENV_PATH=/cluster/scratch/$USER/venv
-SLURM_PROJECT_PATH=/cluster/scratch/$USER/engineer-assistant
 ```
 
 ### Features

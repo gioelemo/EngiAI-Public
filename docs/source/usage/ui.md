@@ -67,17 +67,42 @@ Draw and sketch designs directly in the chat:
 
 The canvas automatically clears after sending, and visual indicators show the current state.
 
-### 6. Settings
+### 6. Voice Interaction
+
+Speak to the assistant and hear responses:
+
+- **Speech-to-Text (STT)**: Use your microphone to send voice messages
+- **Text-to-Speech (TTS)**: Hear AI responses in natural voice
+- **Dual Provider Support**:
+  - **ElevenLabs**: High-quality, natural-sounding voices (6 voices: Rachel, Domi, Bella, Antoni, Josh, George)
+  - **OpenAI**: Accurate Whisper STT + TTS (6 voices: alloy, echo, fable, onyx, nova, shimmer)
+- **Per-Conversation Settings**: Voice provider and voice selection persist for each chat
+- **Auto-play Option**: Automatically play AI responses
+- **Microphone Toggle**: Enable/disable voice input as needed
+
+**Voice Features:**
+- 🎤 Click microphone icon to record voice messages
+- 🔊 AI responses automatically generate audio when voice output is enabled
+- Voice messages are transcribed and saved with audio for playback
+- Switch between providers and voices in Settings without losing history
+
+### 7. Settings
 
 Configure the assistant:
 
 - **API Keys**: Set LangChain, OpenAI, or other API keys
 - **Model Selection**: Choose LLM models
+- **Voice Interaction**:
+  - Select voice provider (ElevenLabs or OpenAI)
+  - Choose assistant voice
+  - Enable/disable microphone input
+  - Enable/disable voice responses
+  - Toggle auto-play for responses
 - **HPC Configuration**: Set cluster credentials
 - **RAG Settings**: Configure MMORE service and retrieval
 - **Output Management**: Clear generated files from the outputs folder with one click
 
-### 7. Database Browser
+### 8. Database Browser
 
 Explore your knowledge base:
 

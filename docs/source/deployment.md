@@ -105,7 +105,6 @@ PRUSA_PASSWORD=your-password
 
 # LLM Configuration
 LLM_MODEL=openai:gpt-4o
-EMBEDDINGS_MODEL=text-embedding-3-small
 
 # Database Configuration
 DATABASE_URL=postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant

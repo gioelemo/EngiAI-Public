@@ -165,7 +165,6 @@ If you build the image on your local machine and want to deploy on Windows Serve
 ### Optional Variables
 
 - `LLM_MODEL`: Model to use (default: `openai:gpt-4o`)
-- `EMBEDDINGS_MODEL`: Embeddings model (default: `text-embedding-3-small`)
 - `DATABASE_URL`: Database connection string (default: `sqlite:///data/conversations.db`)
 - `LANGCHAIN_TRACING`: Enable LangSmith tracing (default: `false`)
 

@@ -7,6 +7,7 @@ This provides a web-based chat interface for interacting with the multi-agent sy
 import base64
 import datetime
 import logging
+import os
 import re
 import secrets
 import sys
@@ -17,7 +18,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import streamlit as st
+from elevenlabs.client import ElevenLabs
 from langchain_core.messages import HumanMessage
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,17 @@ from src.ui.file_processing import (  # noqa: E402
 from src.ui.message_processing import (  # noqa: E402
     format_and_display_messages,
 )
+from src.ui.voices import (  # noqa: E402
+    DEFAULT_VOICE,
+    OPENAI_STT_MODEL,
+    OPENAI_TTS_MODEL,
+    OPENAI_TTS_VOICE,
+    OPENAI_TTS_VOICES,
+    STT_MODEL,
+    TTS_MODEL,
+    VOICE_IDS,
+    VOICE_PROVIDER,
+)
 from src.utils.api_usage import (  # noqa: E402
     UNLIMITED_LIMIT_VALUE,
     USAGE_THRESHOLD_CRITICAL,
@@ -76,8 +90,9 @@ def _initialize_stl_settings() -> None:
 
     db = st.session_state.db_manager
 
-    # Default values
+    # Default values - consolidated from all settings
     defaults: dict[str, Any] = {
+        # STL and media settings
         "stl_color": "#0069B4",
         "stl_material": "material",
         "stl_height": 400,
@@ -86,9 +101,27 @@ def _initialize_stl_settings() -> None:
         "stl_shininess": 100,
         "media_save_dir": str(Path(__file__).parent.parent.parent / "outputs"),
         "media_auto_save": False,
+        # Chat and streaming
         "enable_streaming": True,
+        # Job monitoring
         "job_monitor_refresh_interval": 60,  # seconds
         "job_monitor_auto_add": False,  # Ask before monitoring by default
+        # SLURM/HPC configuration
+        "slurm_venv_path": "~/venvs/engineer_assistant",
+        "slurm_project_path": "$HOME/EngiOpt",
+        "slurm_email_user": "",
+        "slurm_logs_dir": "$SCRATCH/logs",
+        "slurm_wandb_entity": "",
+        "slurm_wandb_project": "engiopt",
+        "hf_home_remote": "$SCRATCH/models",
+        "hf_datasets_cache_remote": "$SCRATCH/datasets",
+        # Voice interaction settings
+        "voice_enabled": False,
+        "voice_provider": VOICE_PROVIDER,  # "elevenlabs" or "openai"
+        "voice_auto_play": True,
+        "voice_selected": DEFAULT_VOICE,  # Default voice name (provider-dependent)
+        "voice_input_enabled": True,
+        "voice_output_enabled": True,
     }
 
     # Load from database or use defaults
@@ -125,6 +158,333 @@ def initialize_session_state() -> None:
     # Initialize STL viewer settings
     _initialize_stl_settings()
 
+    # Initialize ElevenLabs client for voice features
+    if "elevenlabs_client" not in st.session_state:
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        if api_key:
+            st.session_state.elevenlabs_client = ElevenLabs(api_key=api_key)
+        else:
+            st.session_state.elevenlabs_client = None
+
+    # Initialize OpenAI client for voice features
+    if "openai_client" not in st.session_state:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
+            st.session_state.openai_client = OpenAI(api_key=api_key)
+        else:
+            st.session_state.openai_client = None
+
+
+def transcribe_audio_openai(audio_data) -> str | None:
+    """Transcribe audio using OpenAI Whisper STT.
+
+    Args:
+        audio_data: Audio file object (UploadedFile from Streamlit) or bytes
+
+    Returns:
+        Transcribed text or None if failed
+    """
+    if not st.session_state.openai_client:
+        logger.warning("OpenAI client not initialized, skipping transcription")
+        return None
+
+    try:
+        # Log audio properties before transcription
+        if hasattr(audio_data, "read"):
+            audio_data.seek(0, 2)  # Seek to end
+            file_size = audio_data.tell()
+            audio_data.seek(0)  # Reset to beginning
+            logger.info(f"Audio file size before transcription: {file_size} bytes")
+
+        # Prepare file for transcription
+        transcription = _transcribe_with_openai(audio_data)
+
+        # Validate transcription result
+        return _validate_transcription_result(transcription)
+
+    except Exception as e:
+        _handle_openai_error(e, "transcription")
+        return None
+
+
+def _transcribe_with_openai(audio_data) -> Any:
+    """Helper to transcribe audio with OpenAI, handling temporary files."""
+    # OpenAI Whisper expects file-like objects with a name attribute
+    if hasattr(audio_data, "name"):
+        # It's already a file-like object with a name
+        return st.session_state.openai_client.audio.transcriptions.create(
+            model=OPENAI_STT_MODEL,
+            file=audio_data,
+        )
+
+    # Create a temporary file for bytes data
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+        # Write audio data to temp file
+        if hasattr(audio_data, "read"):
+            audio_data.seek(0)
+            temp_file.write(audio_data.read())
+        else:
+            temp_file.write(audio_data)
+        temp_path = Path(temp_file.name)
+
+    try:
+        # Transcribe using temp file
+        with temp_path.open("rb") as f:
+            return st.session_state.openai_client.audio.transcriptions.create(
+                model=OPENAI_STT_MODEL,
+                file=f,
+            )
+    finally:
+        # Clean up temp file
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def _validate_transcription_result(transcription: Any) -> str | None:
+    """Validate and log transcription result."""
+    logger.info(
+        f"Transcription result: '{transcription.text}' (length: {len(transcription.text)})"
+    )
+
+    if not transcription.text or not transcription.text.strip():
+        logger.warning(
+            "Transcription returned empty text - possible causes: "
+            "1) No speech in audio, 2) Audio quality too low, "
+            "3) Background noise, 4) Unsupported audio format/codec"
+        )
+        st.warning(
+            "⚠️ No speech detected in audio. Possible issues:\n"
+            "- Audio quality too low or too much background noise\n"
+            "- Microphone not working properly\n"
+            "- Speech was too quiet or unclear\n\n"
+            "Please try again, speak more clearly, or type your message."
+        )
+        return None
+
+    return transcription.text
+
+
+def _handle_openai_error(e: Exception, operation: str) -> None:
+    """Handle OpenAI API errors with appropriate user messages."""
+    error_str = str(e)
+    if "quota_exceeded" in error_str or "insufficient_quota" in error_str:
+        logger.warning(f"OpenAI quota exceeded: {e}")
+        st.warning(
+            f"⚠️ OpenAI quota exceeded. Voice {operation} disabled for this message."
+        )
+    elif "Unauthorized" in error_str or "401" in error_str:
+        logger.exception("OpenAI authentication failed")
+        st.error("❌ OpenAI API authentication failed. Check your API key.")
+    else:
+        logger.exception(f"OpenAI {operation} failed")
+        st.warning(
+            f"⚠️ Voice {operation} failed. Please try again or type your message."
+        )
+
+
+def transcribe_audio_elevenlabs(audio_data) -> str | None:
+    """Transcribe audio using ElevenLabs STT.
+
+    Args:
+        audio_data: Audio file object (UploadedFile from Streamlit) or bytes
+
+    Returns:
+        Transcribed text or None if failed
+    """
+    if not st.session_state.elevenlabs_client:
+        logger.warning("ElevenLabs client not initialized, skipping transcription")
+        return None
+
+    try:
+        # Log audio properties before transcription
+        if hasattr(audio_data, "read"):
+            # Get file size
+            audio_data.seek(0, 2)  # Seek to end
+            file_size = audio_data.tell()
+            audio_data.seek(0)  # Reset to beginning
+            logger.info(f"Audio file size before transcription: {file_size} bytes")
+
+        # Pass the audio_data directly to ElevenLabs
+        # It can handle both UploadedFile objects and BytesIO
+        # Note: ElevenLabs STT may struggle with:
+        # - Very short audio clips (< 1 second)
+        # - Low sample rates (< 16kHz recommended)
+        # - High background noise
+        # - Non-standard WAV formats
+        transcription = st.session_state.elevenlabs_client.speech_to_text.convert(
+            file=audio_data,
+            model_id=STT_MODEL,
+        )
+
+        # Log the transcription result for debugging
+        logger.info(
+            f"Transcription result: '{transcription.text}' (length: {len(transcription.text)})"
+        )
+
+        # Check if transcription is empty
+        if not transcription.text or not transcription.text.strip():
+            logger.warning(
+                "Transcription returned empty text - possible causes: "
+                "1) No speech in audio, 2) Audio quality too low, "
+                "3) Background noise, 4) Unsupported audio format/codec"
+            )
+            st.warning(
+                "⚠️ No speech detected in audio. Possible issues:\n"
+                "- Audio quality too low or too much background noise\n"
+                "- Microphone not working properly\n"
+                "- Speech was too quiet or unclear\n\n"
+                "Please try again, speak more clearly, or type your message."
+            )
+            return None
+
+    except Exception as e:
+        # Check for specific API errors
+        error_str = str(e)
+        if "quota_exceeded" in error_str:
+            logger.warning(f"ElevenLabs quota exceeded: {e}")
+            st.warning(
+                "⚠️ ElevenLabs quota exceeded. Voice input disabled for this message."
+            )
+        elif "Unauthorized" in error_str or "401" in error_str:
+            logger.exception("ElevenLabs authentication failed")
+            st.error("❌ ElevenLabs API authentication failed. Check your API key.")
+        else:
+            logger.exception("STT failed")
+            st.warning(
+                "⚠️ Voice transcription failed. Please try again or type your message."
+            )
+        return None
+    else:
+        return transcription.text
+
+
+def transcribe_audio(audio_data) -> str | None:
+    """Transcribe audio using the configured voice provider (ElevenLabs or OpenAI).
+
+    Args:
+        audio_data: Audio file object (UploadedFile from Streamlit) or bytes
+
+    Returns:
+        Transcribed text or None if failed
+    """
+    # Get voice provider from session state, fallback to env variable
+    provider = st.session_state.get("voice_provider", VOICE_PROVIDER).lower()
+
+    logger.info(f"Using voice provider for STT: {provider}")
+
+    if provider == "openai":
+        return transcribe_audio_openai(audio_data)
+    else:  # Default to ElevenLabs
+        return transcribe_audio_elevenlabs(audio_data)
+
+
+def generate_speech_openai(text: str, voice: str) -> bytes | None:
+    """Generate speech audio using OpenAI TTS.
+
+    Args:
+        text: Text to convert to speech
+        voice: OpenAI voice name (e.g., "alloy", "echo", "fable", "onyx", "nova", "shimmer")
+
+    Returns:
+        Audio bytes (MP3) or None if failed
+    """
+    if not st.session_state.openai_client:
+        logger.warning("OpenAI client not initialized, skipping TTS")
+        return None
+
+    try:
+        # Generate speech using OpenAI TTS
+        response = st.session_state.openai_client.audio.speech.create(
+            model=OPENAI_TTS_MODEL,
+            voice=voice,  # type: ignore[arg-type]
+            input=text,
+        )
+
+        # Convert response to bytes
+        audio_bytes = response.content
+
+    except Exception as e:
+        # Check if it's an API error with quota exceeded
+        error_str = str(e)
+        if "quota_exceeded" in error_str or "insufficient_quota" in error_str:
+            logger.warning(f"OpenAI quota exceeded: {e}")
+            st.warning(
+                "⚠️ OpenAI quota exceeded. Voice output disabled for this message."
+            )
+        elif "Unauthorized" in error_str or "401" in error_str:
+            logger.exception("OpenAI authentication failed")
+            st.error("❌ OpenAI API authentication failed. Check your API key.")
+        else:
+            logger.exception("TTS failed")
+            st.warning("⚠️ Voice generation failed. Continuing without audio.")
+        return None
+    else:
+        return audio_bytes
+
+
+def generate_speech_elevenlabs(text: str, voice_id: str) -> bytes | None:
+    """Generate speech audio using ElevenLabs TTS.
+
+    Args:
+        text: Text to convert to speech
+        voice_id: ElevenLabs voice ID
+
+    Returns:
+        Audio bytes (MP3) or None if failed
+    """
+    if not st.session_state.elevenlabs_client:
+        logger.warning("ElevenLabs client not initialized, skipping TTS")
+        return None
+
+    try:
+        audio_generator = st.session_state.elevenlabs_client.text_to_speech.convert(
+            text=text,
+            voice_id=voice_id,
+            model_id=TTS_MODEL,
+            output_format="mp3_44100_128",
+        )
+        # Convert generator to bytes
+        audio_bytes = b"".join(audio_generator)
+    except Exception as e:
+        # Check if it's an API error with quota exceeded
+        error_str = str(e)
+        if "quota_exceeded" in error_str:
+            logger.warning(f"ElevenLabs quota exceeded: {e}")
+            st.warning(
+                "⚠️ ElevenLabs quota exceeded. Voice output disabled for this message."
+            )
+        elif "Unauthorized" in error_str or "401" in error_str:
+            logger.exception("ElevenLabs authentication failed")
+            st.error("❌ ElevenLabs API authentication failed. Check your API key.")
+        else:
+            logger.exception("TTS failed")
+            st.warning("⚠️ Voice generation failed. Continuing without audio.")
+        return None
+    else:
+        return audio_bytes
+
+
+def generate_speech(text: str, voice_id: str) -> bytes | None:
+    """Generate speech audio using the configured voice provider (ElevenLabs or OpenAI).
+
+    Args:
+        text: Text to convert to speech
+        voice_id: Voice ID or name (depends on provider)
+
+    Returns:
+        Audio bytes (MP3) or None if failed
+    """
+    # Get voice provider from session state, fallback to env variable
+    provider = st.session_state.get("voice_provider", VOICE_PROVIDER).lower()
+
+    logger.info(f"Using voice provider for TTS: {provider} with voice: {voice_id}")
+
+    if provider == "openai":
+        # For OpenAI, voice_id is actually the voice name (e.g., "alloy")
+        return generate_speech_openai(text, voice_id)
+    else:  # Default to ElevenLabs
+        return generate_speech_elevenlabs(text, voice_id)
+
 
 def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa: PLR0912, PLR0915
     """Process user input and generate response.
@@ -137,23 +497,69 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     if isinstance(user_input, str):
         text_content = user_input
         files = []
+        audio_data = None
     elif hasattr(user_input, "text") and hasattr(user_input, "files"):
         # ChatInputValue object from Streamlit
         text_content = str(user_input.text) if user_input.text else ""
         files = list(user_input.files) if user_input.files else []
+        # Check for audio attribute (Streamlit chat_input with accept_audio=True)
+        audio_data = user_input.audio if hasattr(user_input, "audio") else None
     elif isinstance(user_input, dict):
         text_content = user_input.get("text", "")
         files = user_input.get("files", [])
+        audio_data = user_input.get("audio")
     else:
         # Fallback: convert to string
         text_content = str(user_input)
         files = []
+        audio_data = None
 
     # Process images if any
     images_for_display: list[dict[str, str]] = []
     images_for_agent: list[dict[str, Any]] = []
     if files:
         images_for_display, images_for_agent = process_uploaded_images(files)
+
+    # Handle voice input (STT)
+    audio_base64 = None
+    transcribed_text = None
+    if (
+        audio_data
+        and st.session_state.get("voice_enabled")
+        and st.session_state.get("voice_input_enabled")
+    ):
+        with st.spinner("🎤 Transcribing your audio..."):
+            # Log audio info for debugging
+            logger.info(f"Audio data type: {type(audio_data)}")
+            if hasattr(audio_data, "type"):
+                logger.info(f"Audio MIME type: {audio_data.type}")
+            if hasattr(audio_data, "name"):
+                logger.info(f"Audio name: {audio_data.name}")
+            if hasattr(audio_data, "size"):
+                logger.info(f"Audio size: {audio_data.size} bytes")
+
+            # Pass the audio_data to transcribe_audio(), which routes to ElevenLabs or OpenAI based on the provider setting
+            transcribed_text = transcribe_audio(audio_data)
+
+            if transcribed_text is not None:
+                # Use transcription as text content (even if empty)
+                text_content = transcribed_text
+
+                # Read audio bytes for storage (after transcription)
+                if hasattr(audio_data, "read"):
+                    # Reset file pointer if it was read during transcription
+                    if hasattr(audio_data, "seek"):
+                        audio_data.seek(0)
+                    audio_bytes = audio_data.read()
+                else:
+                    audio_bytes = audio_data
+
+                # Convert audio to base64 for storage
+                audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+                # If transcription is empty, notify user
+                if not text_content.strip():
+                    text_content = "[Voice message - no speech detected]"
 
     # Check if we're waiting for confirmation from a previous interrupt
     if st.session_state.waiting_for_confirmation:
@@ -176,6 +582,13 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     message_dict: dict[str, Any] = {"role": "user", "content": text_content}
     if images_for_display:
         message_dict["images"] = images_for_display
+    if audio_base64:
+        audio_format = getattr(audio_data, "type", "audio/wav")
+        message_dict["audio"] = {
+            "data": audio_base64,
+            "format": audio_format,
+            "transcribed": True,
+        }
     st.session_state.messages.append(message_dict)
 
     # Save user message to database (strip 'bytes' field - only store base64)
@@ -190,11 +603,25 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             if images_for_display
             else None
         )
+        audio_for_db = (
+            {
+                "data": audio_base64,
+                "format": getattr(audio_data, "type", "audio/wav").split("/")[-1],
+            }
+            if audio_base64
+            else None
+        )
+        # Prepare attachments dict
+        attachments: dict[str, Any] = {}
+        if images_for_db:
+            attachments["images"] = images_for_db
+        if audio_for_db:
+            attachments["audio"] = audio_for_db
         db.add_message(
             conversation_id=st.session_state.active_chat_id,
             role="user",
             content=text_content,
-            images=images_for_db,
+            attachments=attachments if attachments else None,
         )
 
     # Filter out PDFs from images_for_agent (PDFs are handled separately via text extraction)
@@ -423,6 +850,7 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                         conversation_id=st.session_state.active_chat_id,
                         role="assistant",
                         content=response_text,
+                        attachments=None,
                     )
 
                 # Save chat state
@@ -476,23 +904,78 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             )
 
             if full_response:
+                # Generate voice output (TTS)
+                assistant_audio_base64 = None
+                provider = st.session_state.get(
+                    "voice_provider", VOICE_PROVIDER
+                ).lower()
+                has_client = (
+                    provider == "openai" and st.session_state.openai_client
+                ) or (provider == "elevenlabs" and st.session_state.elevenlabs_client)
+
+                if (
+                    st.session_state.get("voice_enabled")
+                    and st.session_state.get("voice_output_enabled")
+                    and has_client
+                ):
+                    with st.spinner("🔊 Generating audio response..."):
+                        # Get voice settings based on provider
+                        selected_voice_name = st.session_state.get(
+                            "voice_selected", DEFAULT_VOICE
+                        )
+
+                        if provider == "openai":
+                            # For OpenAI, use the voice name directly
+                            voice_id = (
+                                selected_voice_name
+                                if selected_voice_name in OPENAI_TTS_VOICES
+                                else OPENAI_TTS_VOICE
+                            )
+                        else:
+                            voice_id = VOICE_IDS.get(
+                                selected_voice_name
+                            ) or VOICE_IDS.get(DEFAULT_VOICE)
+
+                        # Generate audio
+                        audio_bytes = generate_speech(full_response, voice_id)
+                        if audio_bytes:
+                            assistant_audio_base64 = base64.b64encode(
+                                audio_bytes
+                            ).decode("utf-8")
+
                 # Save to display history
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": full_response,
-                        "suggested_prompts": suggested_prompts,
+                assistant_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": full_response,
+                    "suggested_prompts": suggested_prompts,
+                }
+                if assistant_audio_base64:
+                    assistant_msg["audio"] = {
+                        "data": assistant_audio_base64,
+                        "format": "mp3",
                     }
-                )
+                st.session_state.messages.append(assistant_msg)
 
                 # Save assistant message to database
                 if st.session_state.active_chat_id:
                     db = get_db()
+                    audio_for_db = (
+                        {"data": assistant_audio_base64, "format": "mp3"}
+                        if assistant_audio_base64
+                        else None
+                    )
+                    # Prepare attachments dict
+                    assistant_attachments: dict[str, Any] = {}
+                    if audio_for_db:
+                        assistant_attachments["audio"] = audio_for_db
                     db.add_message(
                         conversation_id=st.session_state.active_chat_id,
                         role="assistant",
                         content=full_response,
                         suggested_prompts=suggested_prompts,
+                        attachments=assistant_attachments
+                        if assistant_attachments
+                        else None,
                     )
             else:
                 st.info("Agent is processing... (no response yet)")
