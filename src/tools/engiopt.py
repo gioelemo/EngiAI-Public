@@ -625,7 +625,7 @@ def load_wandb_model(  # noqa: PLR0913
 def _validate_sampling_inputs(
     algorithm: str,
     problem_id: str,
-    conditions: list[dict[str, float]] | None,
+    conditions: list[dict[str, float | bool]] | None,
     n_samples: int,
 ) -> dict[str, Any] | None:
     """Validate inputs for design sampling. Returns error dict or None if valid."""
@@ -643,12 +643,30 @@ def _validate_sampling_inputs(
             "error": f"Unsupported problem_id '{problem_id}'. Supported problems: {', '.join(SUPPORTED_PROBLEMS)}",
         }
 
-    # Validate conditions
-    if conditions is not None and len(conditions) != n_samples:
-        return {
-            "success": False,
-            "error": f"Number of conditions ({len(conditions)}) must match n_samples ({n_samples})",
-        }
+    # Validate conditions type and structure
+    if conditions is not None:
+        # Determine error message based on validation failures
+        error_msg = None
+
+        if not isinstance(conditions, list):
+            # Check if it's a dataclass (like Conditions object from problem.conditions)
+            if hasattr(conditions, "__dataclass_fields__"):
+                error_msg = (
+                    "'Conditions' object is not iterable. "
+                    "Please pass conditions as a list of dictionaries, not as a Conditions object. "
+                    f"Expected: list[dict[str, float | bool]], got: {type(conditions).__name__}. "
+                    "Example: conditions=[{{'volfrac': 0.35, 'rmin': 2.0, 'overhang_constraint': False}}] "
+                    "or leave as None to use default conditions."
+                )
+            else:
+                error_msg = f"conditions must be a list of dictionaries or None. Got: {type(conditions).__name__}"
+        elif conditions and not isinstance(conditions[0], dict):
+            error_msg = f"conditions must be a list of dictionaries. Got list of: {type(conditions[0]).__name__}"
+        elif len(conditions) != n_samples:
+            error_msg = f"Number of conditions ({len(conditions)}) must match n_samples ({n_samples})"
+
+        if error_msg:
+            return {"success": False, "error": error_msg}
 
     return None
 
@@ -858,7 +876,7 @@ def _save_designs(  # noqa: PLR0913
     output_path: Path,
     problem: Any,
     problem_id: str = "unknown",
-    conditions: list[dict[str, float]] | None = None,
+    conditions: list[dict[str, float | bool]] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Save generated designs as .npy and .png files. Returns (design_files, render_files)."""
     import numpy as np
@@ -909,7 +927,15 @@ def _save_designs(  # noqa: PLR0913
             output_path / f"{problem_id}_design_generated_{i}_{timestamp}.png"
         )
         try:
-            fig = render_problem.render(design)
+            render_result = render_problem.render(design)
+
+            # Extract figure from render result (handles both tuple and single figure)
+            if isinstance(render_result, tuple):
+                # Beams2D returns (fig, ax)
+                fig, _ = render_result
+            else:
+                # ThermoElastic2D returns just fig
+                fig = render_result
 
             # Save to file
             fig.savefig(str(render_filename), dpi=150, bbox_inches="tight")
@@ -1212,7 +1238,7 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     checkpoint_path: str | None = None,
     problem_id: ProblemId = "beams2d",
     algorithm: str = "cgan_cnn_2d",
-    conditions: list[dict[str, float]] | None = None,
+    conditions: list[dict[str, float | bool]] | None = None,
     n_samples: int = 3,
     latent_dim: int = 32,
     device: str = "cpu",
@@ -1237,9 +1263,11 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d", "photonics2d"
         algorithm: Model architecture type (default: "cgan_cnn_2d")
         conditions: List of condition dictionaries for conditional models. Each dict should have:
-            For beams2d: volfrac, rmin, forcedist, overhang_constraint
+            For beams2d: volfrac, rmin, forcedist, overhang_constraint (bool)
             For thermoelastic2d: volfrac, rmin, weight
             For photonics2d: lambda1, lambda2, blur_radius
+            IMPORTANT: Must be a list[dict[str, float | bool]], NOT a Conditions object.
+            Do NOT pass problem.conditions directly - convert to list of dicts first.
             If None, will use default conditions. Length should match n_samples.
         n_samples: Number of designs to generate (default: 3)
         latent_dim: Latent dimension of the model (default: 32)
@@ -1349,9 +1377,11 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
         # Set default conditions if not provided - extract from problem dynamically
         if conditions is None:
             import random
+            from dataclasses import asdict
 
             # Get default conditions from the problem
-            default_conditions = dict(problem.conditions)
+            # Note: problem.conditions is a dataclass, need to convert to dict
+            default_conditions = asdict(problem.conditions)
             condition_keys = problem.conditions_keys
 
             logger.info(
@@ -1361,19 +1391,39 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
             conditions = []
             for _ in range(n_samples):
                 # Create varied conditions by adding small variations to defaults
-                varied_cond = {}
+                varied_cond: dict[str, float | bool] = {}
                 for key in condition_keys:
                     base_value = default_conditions[key]
 
-                    # Add variation based on value type and magnitude
-                    if isinstance(base_value, (int, float)):
+                    # Check for boolean first (before int/float, since bool is subclass of int)
+                    if isinstance(base_value, bool):
+                        # Keep boolean values as-is (no variation)
+                        varied_cond[key] = base_value
+                    elif isinstance(base_value, (int, float)):
                         # Add 10% variation for numeric values
                         variation = base_value * 0.1 if base_value != 0 else 0.1
-                        varied_cond[key] = base_value + random.uniform(
-                            -variation, variation
-                        )
+                        new_value = base_value + random.uniform(-variation, variation)
+
+                        # Clip to valid ranges based on parameter name
+                        if key == "volfrac":
+                            # Volume fraction must be in [0, 1], keep reasonable range
+                            new_value = max(0.1, min(0.8, new_value))
+                        elif key == "forcedist":
+                            # Force distribution must be in [0, 1]
+                            new_value = max(0.0, min(1.0, new_value))
+                        elif key == "rmin":
+                            # Filter radius must be positive, keep reasonable
+                            new_value = max(0.5, min(5.0, new_value))
+                        elif key in ["weight", "lambda1", "lambda2"]:
+                            # These are typically in [0, 1] or positive
+                            new_value = max(0.0, min(1.0, new_value))
+                        elif key == "blur_radius":
+                            # Positive value
+                            new_value = max(0.1, new_value)
+
+                        varied_cond[key] = new_value
                     else:
-                        # Keep non-numeric values as-is
+                        # Keep other non-numeric values as-is
                         varied_cond[key] = base_value
 
                 conditions.append(varied_cond)

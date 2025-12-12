@@ -133,7 +133,9 @@ Use `get_problem_details` to see available conditions for any problem type.
   - The message includes important warnings about seed mismatches and download details
 - **load_wandb_model**: Load downloaded model checkpoints for inference
 - **sample_designs_from_model**: Generate new designs using a pre-trained model
-  - Takes a checkpoint and problem-specific conditions (automatically extracted from problem.conditions)
+  - Takes a checkpoint and problem-specific conditions as a list of dicts
+  - IMPORTANT: Pass conditions as list[dict[str, float | bool]], NOT problem.conditions object
+  - If conditions=None, default conditions will be automatically generated
   - Generates multiple designs at once based on specified performance targets
   - Automatically saves designs as .npy files and renders visualizations as .png
   - Much faster than traditional optimization for generating candidate designs
