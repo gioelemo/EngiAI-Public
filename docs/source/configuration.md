@@ -67,7 +67,6 @@ WANDB_ENTITY=your-team
 # Prusa 3D Printer Integration (optional)
 SKIP_MCP=true                    # Set to false to enable Prusa integration
 PRUSA_MCP_PATH=/path/to/prusa-mcp  # Path to cloned Prusa MCP server
-PRUSA_SLICER_PATH=/Applications/PrusaSlicer.app/Contents/MacOS/PrusaSlicer
 
 # Database (optional, uses SQLite by default)
 DATABASE_URL=sqlite:///data/engineer_assistant.db

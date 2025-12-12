@@ -12,7 +12,6 @@ from src.tools.cli import (
     execute_cli_command,
     list_directory_contents,
     open_gui_application,
-    open_terminal,
 )
 from src.utils.prompts import CLI_AGENT_SYSTEM_PROMPT
 
@@ -49,7 +48,6 @@ class CLIAgent(BaseAgent):
             execute_cli_command,
             list_directory_contents,
             open_gui_application,
-            open_terminal,
         ]
 
     def _get_system_prompt(self) -> str:

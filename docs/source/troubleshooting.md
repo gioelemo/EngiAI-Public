@@ -350,19 +350,7 @@ docker exec engineer-assistant-chatbot curl http://host.docker.internal:9999/hea
 **Solutions**:
 1. Verify PrusaSlicer is installed on host machine
 
-2. Check application path in `.env`:
-   ```bash
-   # macOS
-   PRUSA_SLICER_PATH=/Applications/Original\ Prusa\ Drivers/PrusaSlicer.app/Contents/MacOS/PrusaSlicer
-
-   # Windows
-   PRUSA_SLICER_PATH=C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer.exe
-
-   # Linux
-   PRUSA_SLICER_PATH=prusa-slicer
-   ```
-
-3. Verify host service whitelist includes the app (in `host_service.py`)
+2. Verify host service whitelist includes the app (in `host_service.py`)
 
 ### Port 9999 Already in Use
 

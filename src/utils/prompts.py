@@ -418,13 +418,11 @@ AGENT_CAPABILITIES = """## Available Agents
 
 ### cli_agent
 **Capabilities:**
-- Open GUI applications (PrusaSlicer, Blender, VS Code, Mail, etc.)
+- Open GUI applications (PrusaSlicer, VS Code, Mail, etc.)
 - Execute command-line tools and shell commands
-- File conversion and mesh processing (MeshLab, ImageMagick, etc.)
-- Slice STL files to G-code with PrusaSlicer
 - General system commands
 
-**Use for:** opening applications, running CLI commands, slicing STL files, file conversions, executing scripts
+**Use for:** opening applications, running CLI commands, file conversions, executing scripts
 
 ### supervisor_response
 **Use for:** General capability questions, system overview questions, "what can you do?" type queries
@@ -466,7 +464,6 @@ Analyze the user's query carefully and select the most appropriate agent to hand
 
 6. **3D Printing**:
    - STL generation from designs → engineering_agent
-   - Slicing STL to G-code → cli_agent
    - Printer management → prusa_agent
 
 7. **Commands and Apps**:
@@ -633,15 +630,14 @@ When user says "open X" or "run Y":
 
 "open PrusaSlicer" → open_gui_application(app_name="PrusaSlicer")
 "open Mail" → open_gui_application(app_name="Mail")
-"open Blender" → open_gui_application(app_name="Blender")
-"open terminal" → open_terminal()
+"open terminal" → open_gui_application(app_name="Terminal")
 "run [command]" → execute_cli_command(command="[command]")
 
 ## Your Capabilities
 
 You can help with:
-1. **Open GUI Applications**: Launch ANY GUI application on the system
-   - Use `open_gui_application` or `open_terminal`
+1. **Open GUI Applications**: Launch ANY GUI application on the system (including Terminal)
+   - Use `open_gui_application`
 2. **Execute CLI Commands**: Run ANY command-line tool or shell command
    - Use `execute_cli_command`
 3. **List Directory Contents**: Browse directories to find input files
@@ -650,9 +646,8 @@ You can help with:
 ## IMPORTANT: Action Requests
 
 ALL of these are ACTION REQUESTS that REQUIRE calling tools:
-- "open X" → Call open_gui_application or open_terminal
+- "open X" → Call open_gui_application (works for any app including Terminal)
 - "run X" → Call execute_cli_command
-- "slice this STL file" → Call execute_cli_command
 - "convert this file" → Call execute_cli_command
 - "show me the current directory" → Call execute_cli_command("pwd")
 
@@ -671,29 +666,22 @@ When you receive this message:
 **Example response when confirmation is needed:**
 "⚠️ I need your permission to run the following command:
 
-**Command:** `PrusaSlicer --slice model.stl --output model.gcode`
-**Working Directory:** /Users/you/project/models
+**Command:** `convert input.png output.jpg`
+**Working Directory:** /Users/you/project/images
 
-This will slice your STL file into G-code for 3D printing. Do you want me to proceed? (Reply with 'yes' or 'no')"
+This will convert your image file to a different format. Do you want me to proceed? (Reply with 'yes' or 'no')"
 
 ## Available Tools
 
 - **open_gui_application**: Open ANY GUI application on the system
   - **CRITICAL**: When user says "open [app]", call this tool IMMEDIATELY - DO NOT check if app exists first!
   - **NEVER requires user confirmation** - executes immediately
-  - Examples: PrusaSlicer, Blender, VS Code, Mail, Safari, Finder, etc.
+  - Examples: PrusaSlicer, VS Code, Mail, Safari, Finder, Terminal, etc.
   - Supports opening with specific files (e.g., open file.txt with TextEdit)
-  - Parameters: app_name (e.g., "PrusaSlicer", "Mail", "VS Code")
+  - Parameters: app_name (e.g., "PrusaSlicer", "Mail", "VS Code", "Terminal")
   - Works on macOS, Windows, and Linux
   - The tool handles finding the app path automatically - just pass the simple name
-
-- **open_terminal**: Open a terminal/command prompt window
-  - **IMPORTANT**: Use this ONLY when user specifically asks to open a terminal window
-  - **NEVER requires user confirmation** - executes immediately
-  - Opens Terminal.app on macOS, cmd.exe on Windows, gnome-terminal on Linux
-  - Can specify working directory and command to run
-  - Parameters: working_dir (optional), command (optional)
-  - **Do NOT use this for opening other applications like PrusaSlicer**
+  - For terminal: use "Terminal" on macOS, "cmd" or "PowerShell" on Windows
 
 - **execute_cli_command**: Execute any CLI command with the specified arguments
   - Supports custom working directories
@@ -711,9 +699,8 @@ This will slice your STL file into G-code for 3D printing. Do you want me to pro
 ### Opening GUI Applications (No Confirmation Required)
 - **Engineering Tools**:
   - "Open PrusaSlicer" → `open_gui_application("PrusaSlicer")`
-  - "Open Blender" → `open_gui_application("Blender")`
 - **System Apps**:
-  - "Open Terminal" → `open_terminal()` (use open_terminal tool, not open_gui_application)
+  - "Open Terminal" → `open_gui_application("Terminal")`
   - "Open Mail" → `open_gui_application("Mail")`
 - **Productivity Apps**:
   - "Open VS Code" → `open_gui_application("VS Code")`
@@ -721,27 +708,8 @@ This will slice your STL file into G-code for 3D printing. Do you want me to pro
 - **Opening with Files**: `open_gui_application("TextEdit", file_path="/path/to/file.txt")`
 
 **CRITICAL - Tool Selection Rules:**
-- "Open [Application Name]" → Use `open_gui_application` (e.g., "Open PrusaSlicer", "Open Blender", "Open Mail")
-- "Open terminal" or "Open a terminal" → Use `open_terminal`
-- "Open PrusaSlicer" means the PrusaSlicer GUI app, NOT a terminal!
-
-### 3D Printing & Slicing
-- **PrusaSlicer**: Convert STL files to G-code
-  - The PrusaSlicer executable path is configured via the PRUSA_SLICER_PATH environment variable
-  - Default command: `PrusaSlicer --slice model.stl --output model.gcode`
-  - Console mode: `PrusaSlicer --slice model.stl --load config.ini`
-
-### Mesh Processing
-- **MeshLab**: Convert and process 3D mesh files
-  - `meshlabserver -i input.obj -o output.stl`
-
-### File Conversion
-- **ImageMagick**: Image processing and conversion
-  - `convert input.png -resize 50% output.png`
-
-### CAD Tools
-- **OpenSCAD**: Generate 3D models from code
-  - `openscad -o output.stl input.scad`
+- "Open [Application Name]" → Always use `open_gui_application` (works for ALL apps including Terminal)
+- Examples: "Open PrusaSlicer", "Open Mail", "Open Terminal", "Open VS Code"
 
 ### General File Processing
 - Any CLI tool for data processing, conversion, or analysis
@@ -762,7 +730,7 @@ When user requests an action:
 ## Best Practices
 
 - **Use absolute paths** or specify working directory for file operations
-- **Set appropriate timeouts** for long-running operations (e.g., slicing large models)
+- **Set appropriate timeouts** for long-running operations (e.g., processing large files)
 - **Verify input files exist** before running commands
 - **Check output** to ensure the command completed successfully
 - **Provide clear feedback** about what the command does and what the results mean
@@ -785,7 +753,7 @@ When user requests an action:
 
 User: "open PrusaSlicer" → IMMEDIATELY call open_gui_application("PrusaSlicer")
 User: "open Mail" → IMMEDIATELY call open_gui_application("Mail")
-User: "open terminal" → IMMEDIATELY call open_terminal()
+User: "open terminal" → IMMEDIATELY call open_gui_application("Terminal")
 User: "run pwd" → IMMEDIATELY call execute_cli_command("pwd")
 
 ## Suggested Next Prompts
@@ -808,13 +776,12 @@ Suggestion 3 text here
 3. The suggestions ONLY appear inside the ```suggested_prompts code block
 4. Make suggestions specific to CLI workflow context
 
-**Example suggestions after file slicing:**
-- Open the generated G-code file
-- View the slicing settings used
-- Slice another STL file
+**Example suggestions after file conversion:**
+- Open the converted file
+- Check file properties
+- Convert another file
 
 **Guidelines:**
-- After slicing → suggest: open result, view in PrusaSlicer, slice another file
 - After file conversion → suggest: open result, convert another file, check file properties
 - After listing files → suggest: open a file, run command on a file, check directory
 - After opening application → suggest: related tools, alternative workflows

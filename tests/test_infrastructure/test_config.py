@@ -23,7 +23,6 @@ def test_config_loads_from_env():
             "OPENAI_API_KEY": "test-key-123",
             "TAVILY_API_KEY": "test-tavily-key",
             "HPC_HOST_ALIAS": "test-cluster",
-            "PRUSA_SLICER_PATH": "/test/path/prusa",
         },
     ):
         # Reload config to pick up mocked env vars

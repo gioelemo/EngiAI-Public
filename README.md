@@ -334,9 +334,6 @@ LLM_MODEL=openai:gpt-4.1
 # Prusa MCP Integration (set to false to disable)
 SKIP_MCP=true
 PRUSA_MCP_URL=http://localhost:8765
-
-# PrusaSlicer Path
-PRUSA_SLICER_PATH=prusa-slicer
 ```
 
 **Available LLM Models:**
@@ -344,11 +341,6 @@ PRUSA_SLICER_PATH=prusa-slicer
 - `openai:gpt-4o` (most capable OpenAI model)
 - `openai:gpt-3.5-turbo` (legacy, cheaper option)
 - `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
-
-**PrusaSlicer Path by Platform:**
-- **macOS:** `/Applications/Original Prusa Drivers/PrusaSlicer.app/Contents/MacOS/PrusaSlicer`
-- **Windows:** `C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe`
-- **Linux:** `prusa-slicer` (if in PATH)
 
 ---
 

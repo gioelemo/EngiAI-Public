@@ -95,9 +95,6 @@ class Config:
             "WANDB_OFFICIAL_PROJECT", "engibench/engiopt"
         )
 
-        # CLI Tools configuration
-        self.prusa_slicer_path: str = os.getenv("PRUSA_SLICER_PATH", "PrusaSlicer")
-
         # Database configuration for persistent checkpointing
         self.database_url: str = os.getenv(
             "DATABASE_URL", "sqlite:///data/conversations.db"
