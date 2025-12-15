@@ -1252,7 +1252,7 @@ def _render_about_section() -> None:
         """
         **EngiAI - Engineering Design Assistant**
 
-        Version: 1.0.0
+        Version: 1.1.0
 
         This application uses:
         - Multi-agent AI system for specialized tasks

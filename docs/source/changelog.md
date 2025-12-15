@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-12-15
+
 ### Added
 - **Dual Voice Provider Support (ElevenLabs + OpenAI)**
   - Extended existing ElevenLabs voice integration with OpenAI as alternative provider
@@ -138,6 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vector store for document retrieval
 - Support for various LLM backends
 
-[Unreleased]: https://github.com/gioelemo/engineer-assistant/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/gioelemo/engineer-assistant/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/gioelemo/engineer-assistant/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/gioelemo/engineer-assistant/compare/v0.0.1...v1.0.0
 [0.0.1]: https://github.com/gioelemo/engineer-assistant/releases/tag/v0.0.1
