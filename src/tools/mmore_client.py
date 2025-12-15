@@ -22,7 +22,7 @@ HTTP_OK = 200
 _progress_callback: Callable[[str, str], None] | None = None
 
 
-def set_progress_callback(callback: Callable[[str, str], None] | None) -> None:
+def set_mmore_progress_callback(callback: Callable[[str, str], None] | None) -> None:
     """
     Set the progress callback for MMORE operations.
 
@@ -33,14 +33,14 @@ def set_progress_callback(callback: Callable[[str, str], None] | None) -> None:
     _progress_callback = callback
 
 
-def get_progress_callback() -> Callable[[str, str], None] | None:
-    """Get the current progress callback."""
+def get_mmore_progress_callback() -> Callable[[str, str], None] | None:
+    """Get the current MMORE progress callback."""
     return _progress_callback
 
 
 def _report_progress(step: str, message: str) -> None:
     """Report progress if callback is set."""
-    callback = get_progress_callback()
+    callback = get_mmore_progress_callback()
     if callback:
         callback(step, message)
 

@@ -31,10 +31,11 @@ if str(project_root) not in sys.path:
 
 from config import config  # noqa: E402
 from src.tools import MMOREClient  # noqa: E402
-from src.tools.hpc import set_current_session_id, set_progress_callback  # noqa: E402
-from src.tools.mmore_client import (  # noqa: E402
-    set_progress_callback as set_mmore_progress_callback,
+from src.tools.hpc import (  # noqa: E402
+    set_current_session_id,
+    set_hpc_progress_callback,
 )
+from src.tools.mmore_client import set_mmore_progress_callback  # noqa: E402
 from src.ui import chat, home, settings, wandb_report  # noqa: E402
 from src.ui.chat_management import (  # noqa: E402
     create_new_chat,
@@ -749,7 +750,7 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                     st.info("\n\n".join(mmore_progress_messages))
 
             # Set progress callback for HPC operations
-            set_progress_callback(hpc_progress_callback)
+            set_hpc_progress_callback(hpc_progress_callback)
 
             # Set progress callback for MMORE operations
             set_mmore_progress_callback(mmore_progress_callback)
@@ -864,7 +865,7 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                 )
             finally:
                 # Clear progress callbacks after invocation
-                set_progress_callback(None)
+                set_hpc_progress_callback(None)
                 set_mmore_progress_callback(None)
                 # Clear the status placeholders
                 hpc_status_placeholder.empty()

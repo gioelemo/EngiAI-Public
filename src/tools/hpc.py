@@ -69,7 +69,7 @@ def set_current_session_id(session_id: str | None) -> None:
     _current_session_id = session_id
 
 
-def set_progress_callback(callback: Any | None) -> None:
+def set_hpc_progress_callback(callback: Any | None) -> None:
     """
     Set the progress callback for HPC operations.
 
@@ -82,8 +82,8 @@ def set_progress_callback(callback: Any | None) -> None:
     _progress_callback = callback
 
 
-def get_progress_callback() -> Any | None:
-    """Get the current progress callback."""
+def get_hpc_progress_callback() -> Any | None:
+    """Get the current HPC progress callback."""
     return _progress_callback
 
 
@@ -298,7 +298,7 @@ def _create_hpc_connection(host_alias: str) -> HPCConnection:
     cleanup_expired_credentials()
 
     # Get progress callback if set
-    progress_callback = get_progress_callback()
+    progress_callback = get_hpc_progress_callback()
 
     # Use secure context manager to ensure password is cleared after use
     with get_ssh_credentials_secure() as creds:

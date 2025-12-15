@@ -15,8 +15,8 @@ from langchain_core.documents import Document
 from src.tools.mmore_client import (
     MMOREClient,
     MMOREFileNotFoundError,
-    get_progress_callback,
-    set_progress_callback,
+    get_mmore_progress_callback,
+    set_mmore_progress_callback,
 )
 
 
@@ -177,7 +177,7 @@ class TestMMOREFileUpload:
         def progress_cb(step, message):
             progress_calls.append((step, message))
 
-        set_progress_callback(progress_cb)
+        set_mmore_progress_callback(progress_cb)
 
         try:
             with patch("requests.post") as mock_post:
@@ -193,7 +193,7 @@ class TestMMOREFileUpload:
                 assert progress_calls[0][0] == "prepare"
                 assert progress_calls[1][0] == "upload"
         finally:
-            set_progress_callback(None)
+            set_mmore_progress_callback(None)
 
 
 class TestMMORERetrieve:
@@ -336,17 +336,17 @@ class TestProgressCallback:
         """Test setting and getting progress callback."""
         callback = Mock()
 
-        set_progress_callback(callback)
+        set_mmore_progress_callback(callback)
 
-        assert get_progress_callback() == callback
+        assert get_mmore_progress_callback() == callback
 
         # Clear callback
-        set_progress_callback(None)
-        assert get_progress_callback() is None
+        set_mmore_progress_callback(None)
+        assert get_mmore_progress_callback() is None
 
     def test_callback_not_called_when_not_set(self, mmore_client, temp_file):
         """Test that progress isn't reported when callback not set."""
-        set_progress_callback(None)
+        set_mmore_progress_callback(None)
 
         with patch("requests.post") as mock_post:
             mock_response = Mock()
