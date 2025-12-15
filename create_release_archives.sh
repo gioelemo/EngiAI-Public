@@ -83,7 +83,7 @@ if [ -d "$MMORE_DIR" ]; then
         -x "*mmore/.env" \
         -x "*mmore/.env.local" \
         -x "*mmore/.venv/*" \
-        -x "*mmore/venv/*" \
+        -x "*mmore/venv/*")
 
     echo -e "${GREEN}✓ Created: ${RELEASE_DIR}/${MMORE_ARCHIVE}${NC}"
 else
