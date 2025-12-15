@@ -43,7 +43,8 @@ zip -r "${RELEASE_DIR}/${MAIN_ARCHIVE}" . \
     -x "*data/*.db" \
     -x "*data/*.sqlite" \
     -x "*data/*.json" \
-    -x "*.env.local"
+    -x "*.env.local" \
+    -x "data/*"
 
 echo -e "${GREEN}✓ Created: ${RELEASE_DIR}/${MAIN_ARCHIVE}${NC}"
 
@@ -60,6 +61,9 @@ if [ -d "$PRUSA_MCP_DIR" ]; then
         -x "*prusa-mcp/__pycache__/*" \
         -x "*prusa-mcp/.pytest_cache/*" \
         -x "*prusa-mcp/*.DS_Store" \
+        -x "*.mypy_cache/*" \
+        -x "*.ruff_cache/*" \
+        -x "*__pycache__/*" \
         -x "*prusa-mcp/.env.local")
 
     echo -e "${GREEN}✓ Created: ${RELEASE_DIR}/${PRUSA_ARCHIVE}${NC}"
@@ -83,7 +87,11 @@ if [ -d "$MMORE_DIR" ]; then
         -x "*mmore/.env" \
         -x "*mmore/.env.local" \
         -x "*mmore/.venv/*" \
-        -x "*mmore/venv/*")
+        -x "*mmore/venv/*" \
+        -x "*.mypy_cache/*" \
+        -x "*.ruff_cache/*" \
+        -x "*__pycache__/*" \
+        -x "*data")
 
     echo -e "${GREEN}✓ Created: ${RELEASE_DIR}/${MMORE_ARCHIVE}${NC}"
 else

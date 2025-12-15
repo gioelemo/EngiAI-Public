@@ -59,8 +59,8 @@ services:
       dockerfile: Dockerfile
       args:
         PLATFORM: cpu  # Use CPU-only build for macOS (smaller image, no GPU support)
-      platforms:
-        - linux/arm64  # Build for Apple Silicon
+      #platforms:
+      #  - linux/arm64  # Build for Apple Silicon
     image: mmore-rag-service:latest
     pull_policy: never
     container_name: mmore-rag-service
@@ -76,24 +76,25 @@ services:
       # Mount config
       - ${MMORE_PATH:-~/Desktop/mmore}/examples/retriever_api/config.yaml:/app/config/retriever_config.yaml:ro
       # Persist uploads and cache (correct path for mmoreuser home)
-      - ./data/mmore/uploads:/app/uploads
-      - ./data/mmore/cache:/home/mmoreuser/.cache
+      - mmore_uploads:/app/uploads
+      - mmore_cache:/home/mmoreuser/.cache
     # Removed memory limits - let Docker use available resources for model loading
+    user: root  # Run as root to fix volume permissions, then switch to mmoreuser
     entrypoint: ["/bin/sh", "-c"]
     command: >
-      "cd /app &&
-      . .venv/bin/activate &&
+      "chown -R mmoreuser:mmoreuser /app/uploads /home/mmoreuser/.cache &&
+      su mmoreuser -c 'cd /app && . .venv/bin/activate &&
       python -m mmore.run_live_retrieval
       --config-file /app/config/retriever_config.yaml
       --host 0.0.0.0
-      --port 8000"
+      --port 8000'"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 180s  # 3 minutes for model downloads on first start
+      start_period: 240s  # 4 minutes for model downloads on first start
     networks:
       - engineer-assistant
 
@@ -149,3 +150,5 @@ networks:
 
 volumes:
   postgres_data:
+  mmore_cache:
+  mmore_uploads:

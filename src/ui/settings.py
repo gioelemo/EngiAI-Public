@@ -291,6 +291,57 @@ def _get_pdf_export_data() -> tuple[str, datetime | None]:
     return conversation_name, created_at
 
 
+def _sanitize_for_json(messages):
+    """Remove non-JSON-serializable data like bytes objects."""
+    sanitized = []
+    for msg in messages:
+        msg_copy = msg.copy()
+        # Remove or convert bytes objects
+        if isinstance(msg_copy.get("content"), list):
+            msg_copy["content"] = [
+                item
+                for item in msg_copy["content"]
+                if not isinstance(item.get("audio"), bytes)
+            ]
+        sanitized.append(msg_copy)
+    return sanitized
+
+
+def _get_json_export_data(has_messages: bool) -> str:
+    """Get JSON export data for chat messages."""
+    if not has_messages:
+        return ""
+    try:
+        sanitized_messages = _sanitize_for_json(st.session_state.messages)
+        return json.dumps(sanitized_messages, indent=2)
+    except (TypeError, AttributeError):
+        return json.dumps([], indent=2)  # Fallback to empty array
+
+
+def _get_markdown_export_data(has_messages: bool) -> str:
+    """Get Markdown export data for chat messages."""
+    if not has_messages:
+        return ""
+    md_content = "# Chat Export\n\n"
+    for msg in st.session_state.messages:
+        role = msg.get("role", "unknown").capitalize()
+        content = msg.get("content", "")
+        md_content += f"## {role}\n\n{content}\n\n---\n\n"
+    return md_content
+
+
+def _get_pdf_export_data_bytes(has_messages: bool) -> bytes:
+    """Get PDF export data for chat messages."""
+    if not has_messages:
+        return b""
+    conversation_name, created_at = _get_pdf_export_data()
+    return create_pdf_from_conversation(
+        conversation_name=conversation_name,
+        messages=st.session_state.messages,
+        created_at=created_at,
+    )
+
+
 def _render_chat_quick_settings() -> None:
     """Render compact chat settings for card layout."""
     # Streaming text toggle
@@ -338,10 +389,7 @@ def _render_chat_quick_settings() -> None:
     has_messages = bool(st.session_state.get("messages"))
 
     with col1:
-        # JSON export
-        json_data = (
-            json.dumps(st.session_state.messages, indent=2) if has_messages else ""
-        )
+        json_data = _get_json_export_data(has_messages)
         _render_export_button(
             "📥 Export JSON",
             json_data,
@@ -351,28 +399,13 @@ def _render_chat_quick_settings() -> None:
         )
 
     with col2:
-        # Markdown export
-        md_content = ""
-        if has_messages:
-            md_content = "# Chat Export\n\n"
-            for msg in st.session_state.messages:
-                role = msg.get("role", "unknown").capitalize()
-                content = msg.get("content", "")
-                md_content += f"## {role}\n\n{content}\n\n---\n\n"
+        md_content = _get_markdown_export_data(has_messages)
         _render_export_button(
             "📄 Export MD", md_content, "chat_export.md", "text/markdown", has_messages
         )
 
     with col3:
-        # PDF export
-        pdf_bytes = b""
-        if has_messages:
-            conversation_name, created_at = _get_pdf_export_data()
-            pdf_bytes = create_pdf_from_conversation(
-                conversation_name=conversation_name,
-                messages=st.session_state.messages,
-                created_at=created_at,
-            )
+        pdf_bytes = _get_pdf_export_data_bytes(has_messages)
         _render_export_button(
             "📑 Export PDF",
             pdf_bytes,
