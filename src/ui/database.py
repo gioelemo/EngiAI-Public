@@ -4,6 +4,7 @@ import logging
 import os
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -202,6 +203,15 @@ class DatabaseManager:
                 "sqlite:///data/conversations.db",  # Fallback to SQLite
             )
 
+        # Ensure directory exists for file-based SQLite databases
+        if database_url.startswith("sqlite:///") and not database_url.endswith(
+            ":memory:"
+        ):
+            db_path = database_url.replace("sqlite:///", "")
+            db_dir = Path(db_path).parent
+            if str(db_dir) not in ("", ".") and not db_dir.exists():
+                db_dir.mkdir(parents=True, exist_ok=True)
+
         # Try to connect and create tables
         try:
             self.engine = create_engine(database_url, echo=False)
@@ -215,6 +225,13 @@ class DatabaseManager:
                 f"Could not connect to database ({e}). Falling back to SQLite."
             )
             sqlite_url = "sqlite:///data/conversations.db"
+
+            # Ensure directory exists for fallback SQLite database
+            db_path = sqlite_url.replace("sqlite:///", "")
+            db_dir = Path(db_path).parent
+            if str(db_dir) not in ("", ".") and not db_dir.exists():
+                db_dir.mkdir(parents=True, exist_ok=True)
+
             self.engine = create_engine(sqlite_url, echo=False)
             self.SessionLocal = sessionmaker(bind=self.engine)
             Base.metadata.create_all(self.engine)

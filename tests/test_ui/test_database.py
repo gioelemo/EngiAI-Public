@@ -377,6 +377,29 @@ def test_database_fallback_to_sqlite():
         assert db is not None
 
 
+@pytest.mark.unit
+def test_database_creates_directory_for_sqlite():
+    """Test that DatabaseManager creates directory for file-based SQLite databases."""
+    import tempfile
+    from pathlib import Path
+
+    # Create a temporary directory for testing
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a database path in a subdirectory that doesn't exist yet
+        db_path = Path(tmpdir) / "test_subdir" / "test.db"
+        db_url = f"sqlite:///{db_path}"
+
+        # Verify the subdirectory doesn't exist yet
+        assert not db_path.parent.exists()
+
+        # Create the DatabaseManager
+        db = DatabaseManager(database_url=db_url)
+
+        # Verify the directory was created
+        assert db_path.parent.exists()
+        assert db is not None
+
+
 # ============================================================================
 # INTEGRATION TESTS
 # ============================================================================
