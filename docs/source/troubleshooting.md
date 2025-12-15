@@ -312,12 +312,7 @@ curl http://localhost:8765/sse
 
 ### prusa-mcp Folder Not Found
 
-**Symptom**: Docker build fails with "prusa-mcp not found"
 
-**Solution**: Update `PRUSA_MCP_LOCAL_PATH` in `.env`:
-```bash
-PRUSA_MCP_LOCAL_PATH=/path/to/your/prusa-mcp
-```
 
 Or use basic deployment without MCP:
 ```bash

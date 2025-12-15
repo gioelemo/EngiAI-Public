@@ -112,8 +112,7 @@ DATABASE_URL=postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_as
 # Papers Directory (optional, for bulk import)
 PAPERS_SOURCE_DIR=/path/to/papers
 
-# Prusa MCP Local Path
-PRUSA_MCP_LOCAL_PATH=/home/your-user/deployments/prusa-mcp
+
 
 # MCP Configuration
 SKIP_MCP=false
@@ -128,16 +127,10 @@ Update the `docker-compose.mcp.yml` to point to your extracted Prusa MCP directo
 # Edit docker-compose.mcp.yml
 nano docker-compose.mcp.yml
 
-# Update the PRUSA_MCP_LOCAL_PATH volume mount:
-# From: ${PRUSA_MCP_LOCAL_PATH:-~/Desktop/prusa-mcp}:/app/prusa-mcp:ro
-# To: ${PRUSA_MCP_LOCAL_PATH:-/home/your-user/deployments/prusa-mcp}:/app/prusa-mcp:ro
+
 ```
 
-Or set it in your `.env` file:
 
-```bash
-PRUSA_MCP_LOCAL_PATH=/home/your-user/deployments/prusa-mcp
-```
 
 ### Step 5: Build and Start the Application
 
