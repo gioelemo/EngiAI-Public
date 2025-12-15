@@ -189,7 +189,7 @@ class TestArXivAgentInitialization:
 class TestArXivAgentSearchTool:
     """Test the search_arxiv tool."""
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_arxiv_success(
@@ -219,7 +219,7 @@ class TestArXivAgentSearchTool:
         assert "John Doe" in result
         mock_search_cls.assert_called_once()
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_arxiv_max_results(
@@ -246,7 +246,7 @@ class TestArXivAgentSearchTool:
         call_args = mock_search_cls.call_args
         assert call_args.kwargs["max_results"] == 10
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_arxiv_no_results(
@@ -272,7 +272,7 @@ class TestArXivAgentSearchTool:
 
         assert "No papers found" in result
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_search_arxiv_error_handling(
@@ -300,7 +300,7 @@ class TestArXivAgentSearchTool:
 class TestArXivAgentGetPaperTool:
     """Test the get_arxiv_paper tool."""
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_get_arxiv_paper_success(
@@ -330,7 +330,7 @@ class TestArXivAgentGetPaperTool:
         assert "Abstract:" in result
         mock_search_cls.assert_called_once()
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_get_arxiv_paper_with_prefix(
@@ -356,7 +356,7 @@ class TestArXivAgentGetPaperTool:
         call_args = mock_search_cls.call_args
         assert call_args.kwargs["id_list"] == ["1605.08386"]
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_get_arxiv_paper_not_found(
@@ -386,7 +386,7 @@ class TestArXivAgentGetPaperTool:
 class TestArXivAgentDownloadAndAnalyzeTool:
     """Test the download_and_analyze_paper tool."""
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_download_and_analyze_success(
@@ -406,8 +406,7 @@ class TestArXivAgentDownloadAndAnalyzeTool:
         mock_search_cls.return_value = mock_arxiv_search
         mock_mmore_cls.return_value = mock_mmore_client
 
-        agent = ArXivAgent()
-        agent.db = mock_database  # Inject mock database
+        agent = ArXivAgent(db_manager=mock_database)
 
         download_tool = agent.tools_by_name["download_and_analyze_paper"]
 
@@ -420,7 +419,7 @@ class TestArXivAgentDownloadAndAnalyzeTool:
         mock_mmore_client.upload_file.assert_called_once()
         mock_database.add_mmore_document.assert_called_once()
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_download_and_analyze_paper_not_found(
@@ -446,7 +445,7 @@ class TestArXivAgentDownloadAndAnalyzeTool:
 
         assert "not found" in result
 
-    @patch("src.agents.arxiv_agent.arxiv.Search")
+    @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_download_and_analyze_error_handling(
@@ -575,8 +574,7 @@ class TestArXivAgentListPapersTool:
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_mmore_cls.return_value = mock_mmore_client
 
-        agent = ArXivAgent()
-        agent.db = mock_database  # Inject mock database
+        agent = ArXivAgent(db_manager=mock_database)
 
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 
@@ -604,8 +602,7 @@ class TestArXivAgentListPapersTool:
         mock_db = Mock()
         mock_db.get_all_mmore_documents.return_value = []
 
-        agent = ArXivAgent()
-        agent.db = mock_db
+        agent = ArXivAgent(db_manager=mock_db)
 
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 
@@ -631,8 +628,7 @@ class TestArXivAgentListPapersTool:
         mock_db = Mock()
         mock_db.get_all_mmore_documents.side_effect = Exception("Database error")
 
-        agent = ArXivAgent()
-        agent.db = mock_db
+        agent = ArXivAgent(db_manager=mock_db)
 
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 

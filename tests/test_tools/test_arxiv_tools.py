@@ -13,7 +13,6 @@ from src.tools.arxiv_tools import (
     MAX_AUTHORS_DISPLAY,
     SUMMARY_PREVIEW_LENGTH,
     create_arxiv_tools,
-    download_arxiv_paper,
     get_arxiv_paper,
     search_arxiv,
 )
@@ -227,102 +226,38 @@ def test_get_arxiv_paper_no_doi(mock_paper):
 
 
 # ============================================================================
-# DOWNLOAD ARXIV PAPER TESTS
-# ============================================================================
-
-
-@pytest.mark.unit
-def test_download_arxiv_paper_success(mock_paper, tmp_path):
-    """Test successful paper download."""
-    mock_paper.download_pdf.return_value = str(tmp_path / "paper.pdf")
-
-    mock_search = MagicMock()
-    mock_search.results.return_value = iter([mock_paper])
-
-    with patch("src.tools.arxiv_tools.arxiv.Search", return_value=mock_search):
-        result = download_arxiv_paper.invoke(
-            {
-                "arxiv_id": "1706.03762",
-                "download_dir": str(tmp_path),
-            }
-        )
-
-    assert "Downloaded" in result
-    assert "Attention Is All You Need" in result
-
-
-@pytest.mark.unit
-def test_download_arxiv_paper_default_dir(mock_paper):
-    """Test download to default temp directory."""
-    mock_paper.download_pdf.return_value = "/tmp/arxiv_papers/paper.pdf"
-
-    mock_search = MagicMock()
-    mock_search.results.return_value = iter([mock_paper])
-
-    with patch("src.tools.arxiv_tools.arxiv.Search", return_value=mock_search):
-        result = download_arxiv_paper.invoke({"arxiv_id": "1706.03762"})
-
-    assert "Downloaded" in result
-
-
-@pytest.mark.unit
-def test_download_arxiv_paper_not_found():
-    """Test download when paper not found."""
-    mock_search = MagicMock()
-    mock_search.results.return_value = iter([])
-
-    with patch("src.tools.arxiv_tools.arxiv.Search", return_value=mock_search):
-        result = download_arxiv_paper.invoke({"arxiv_id": "0000.00000"})
-
-    assert "not found" in result
-
-
-@pytest.mark.unit
-def test_download_arxiv_paper_error():
-    """Test download with error."""
-    with patch(
-        "src.tools.arxiv_tools.arxiv.Search", side_effect=Exception("Download Error")
-    ):
-        result = download_arxiv_paper.invoke({"arxiv_id": "1234.5678"})
-
-    assert "Error downloading paper" in result
-
-
-@pytest.mark.unit
-def test_download_arxiv_paper_creates_directory(mock_paper, tmp_path):
-    """Test that download creates directory if it doesn't exist."""
-    new_dir = tmp_path / "new_subdir" / "papers"
-    mock_paper.download_pdf.return_value = str(new_dir / "paper.pdf")
-
-    mock_search = MagicMock()
-    mock_search.results.return_value = iter([mock_paper])
-
-    with patch("src.tools.arxiv_tools.arxiv.Search", return_value=mock_search):
-        result = download_arxiv_paper.invoke(
-            {
-                "arxiv_id": "1706.03762",
-                "download_dir": str(new_dir),
-            }
-        )
-
-    assert new_dir.exists()
-
-
-# ============================================================================
 # CREATE ARXIV TOOLS TESTS
 # ============================================================================
 
 
 @pytest.mark.unit
-def test_create_arxiv_tools():
-    """Test that create_arxiv_tools returns all tools."""
+def test_create_arxiv_tools_without_dependencies():
+    """Test that create_arxiv_tools returns basic tools without dependencies."""
     tools = create_arxiv_tools()
 
-    assert len(tools) == 3
+    assert len(tools) == 2
     tool_names = [tool.name for tool in tools]
     assert "search_arxiv" in tool_names
     assert "get_arxiv_paper" in tool_names
-    assert "download_arxiv_paper" in tool_names
+
+
+@pytest.mark.unit
+def test_create_arxiv_tools_with_dependencies():
+    """Test that create_arxiv_tools returns all tools with MMORE dependencies."""
+    mock_mmore_client = MagicMock()
+    mock_db_manager = MagicMock()
+
+    tools = create_arxiv_tools(
+        mmore_client=mock_mmore_client, db_manager=mock_db_manager
+    )
+
+    assert len(tools) == 5
+    tool_names = [tool.name for tool in tools]
+    assert "search_arxiv" in tool_names
+    assert "get_arxiv_paper" in tool_names
+    assert "download_and_analyze_paper" in tool_names
+    assert "ask_about_papers" in tool_names
+    assert "list_analyzed_papers" in tool_names
 
 
 @pytest.mark.unit

@@ -6,7 +6,6 @@ This module contains all custom tools that can be used by agents.
 
 from src.tools.arxiv_tools import (
     create_arxiv_tools,
-    download_arxiv_paper,
     get_arxiv_paper,
     search_arxiv,
 )
@@ -38,7 +37,6 @@ __all__ = [
     "create_arxiv_tools",
     "create_problem",
     "create_search_tool",
-    "download_arxiv_paper",
     "download_wandb_model",
     "get_arxiv_paper",
     "get_dataset_info",
