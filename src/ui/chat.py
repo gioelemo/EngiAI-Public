@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+from streamlit_adjustable_columns import adjustable_columns
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -174,8 +175,14 @@ def _render_chat_history() -> None:
 
 def render() -> None:
     """Render the chat page with Excalidraw canvas."""
-    # Create two columns: 2/3 for chat, 1/3 for canvas
-    chat_col, canvas_col = st.columns([2, 1], vertical_alignment="bottom")
+    # Create two adjustable columns: 2/3 for chat, 1/3 for canvas
+    chat_col, canvas_col = adjustable_columns(
+        [2, 1],
+        gap="small",
+        vertical_alignment="bottom",
+        labels=["💬 Chat", "🎨 Whiteboard"],
+        key="chat_canvas_columns",
+    )
 
     # Render canvas column
     with canvas_col:
