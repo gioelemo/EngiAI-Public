@@ -22,6 +22,7 @@ mkdir -p "$RELEASE_DIR"
 # Archive name with version
 MAIN_ARCHIVE="engineer-assistant-v${VERSION}.zip"
 PRUSA_ARCHIVE="prusa-mcp-server-v${VERSION}.zip"
+MMORE_ARCHIVE="mmore-rag-service-v${VERSION}.zip"
 
 echo -e "${BLUE}Creating main application archive...${NC}"
 
@@ -42,7 +43,6 @@ zip -r "${RELEASE_DIR}/${MAIN_ARCHIVE}" . \
     -x "*data/*.db" \
     -x "*data/*.sqlite" \
     -x "*data/*.json" \
-    -x "*.env" \
     -x "*.env.local"
 
 echo -e "${GREEN}✓ Created: ${RELEASE_DIR}/${MAIN_ARCHIVE}${NC}"
@@ -60,12 +60,34 @@ if [ -d "$PRUSA_MCP_DIR" ]; then
         -x "*prusa-mcp/__pycache__/*" \
         -x "*prusa-mcp/.pytest_cache/*" \
         -x "*prusa-mcp/*.DS_Store" \
-        -x "*prusa-mcp/.env" \
         -x "*prusa-mcp/.env.local")
 
     echo -e "${GREEN}✓ Created: ${RELEASE_DIR}/${PRUSA_ARCHIVE}${NC}"
 else
     echo -e "${BLUE}Prusa MCP directory not found at ${PRUSA_MCP_DIR}, skipping...${NC}"
+fi
+
+# Check if MMORE directory exists
+MMORE_DIR="${HOME}/Desktop/mmore"
+if [ -d "$MMORE_DIR" ]; then
+    echo -e "${BLUE}Creating MMORE RAG service archive...${NC}"
+
+    # Create MMORE archive
+    (cd "$MMORE_DIR/.." && zip -r \
+        "${OLDPWD}/${RELEASE_DIR}/${MMORE_ARCHIVE}" \
+        "mmore" \
+        -x "*mmore/.git/*" \
+        -x "*mmore/__pycache__/*" \
+        -x "*mmore/.pytest_cache/*" \
+        -x "*mmore/*.DS_Store" \
+        -x "*mmore/.env" \
+        -x "*mmore/.env.local" \
+        -x "*mmore/.venv/*" \
+        -x "*mmore/venv/*" \
+
+    echo -e "${GREEN}✓ Created: ${RELEASE_DIR}/${MMORE_ARCHIVE}${NC}"
+else
+    echo -e "${BLUE}MMORE directory not found at ${MMORE_DIR}, skipping...${NC}"
 fi
 
 # Calculate file sizes
@@ -77,6 +99,11 @@ if [ -f "${RELEASE_DIR}/${PRUSA_ARCHIVE}" ]; then
     echo -e "${GREEN}Prusa MCP archive size: ${PRUSA_SIZE}${NC}"
 fi
 
+if [ -f "${RELEASE_DIR}/${MMORE_ARCHIVE}" ]; then
+    MMORE_SIZE=$(du -h "${RELEASE_DIR}/${MMORE_ARCHIVE}" | cut -f1)
+    echo -e "${GREEN}MMORE RAG service archive size: ${MMORE_SIZE}${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Release archives created successfully!${NC}"
@@ -86,6 +113,9 @@ echo -e "Archives location: ${BLUE}${RELEASE_DIR}/${NC}"
 echo -e "  - ${MAIN_ARCHIVE}"
 if [ -f "${RELEASE_DIR}/${PRUSA_ARCHIVE}" ]; then
     echo -e "  - ${PRUSA_ARCHIVE}"
+fi
+if [ -f "${RELEASE_DIR}/${MMORE_ARCHIVE}" ]; then
+    echo -e "  - ${MMORE_ARCHIVE}"
 fi
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
