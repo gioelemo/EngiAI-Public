@@ -44,7 +44,12 @@ zip -r "${RELEASE_DIR}/${MAIN_ARCHIVE}" . \
     -x "*data/*.sqlite" \
     -x "*data/*.json" \
     -x "*.env.local" \
-    -x "data/*"
+    -x "data/*" \
+    -x "assets/*" \
+    -x "tests/*" \
+    -x "docs/*" \
+    -x "artifacts/*" \
+    -x "outputs/*"
 
 echo -e "${GREEN}✓ Created: ${RELEASE_DIR}/${MAIN_ARCHIVE}${NC}"
 
