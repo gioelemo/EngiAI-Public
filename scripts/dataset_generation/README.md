@@ -39,8 +39,20 @@ Design a 2D beam structure with the following constraints:
 The beam should be designed on a 50x100 grid.
 ```
 
-### 3. Validation (TODO)
-Validate generated prompts match the beam conditions.
+### 3. Validation ✅
+```bash
+python scripts/dataset_generation/validate_prompts.py
+```
+
+Validates that generated prompts are correct and consistent:
+- **Numerical accuracy**: Prompt text matches numerical conditions
+- **Parameter ranges**: Values are within expected bounds
+- **Completeness**: All required fields are present
+- **Consistency**: Descriptions align with parameter values
+
+Saves validation report to `data/datasets/beam_prompts/validated/validation_report.json`
+
+**Current Results:** 100% validation success (50/50 prompts passed all checks)
 
 ### 4. Evaluation (TODO)
 Run engineering agent on prompts and compare outputs to targets.
