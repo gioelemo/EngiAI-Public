@@ -274,6 +274,7 @@ module = [
   "mpl_toolkits.*",
   "nest_asyncio",
   "openai",
+  "openai.*",
   "PIL",
   "pillow",
   "pydantic",
