@@ -59,22 +59,22 @@ Saves validation report to `data/datasets/beam_prompts/validated/validation_repo
 python scripts/dataset_generation/evaluate_agent.py
 ```
 
-Evaluates the **complete multi-agent system** (SupervisorAgent + specialized agents) on beam design prompts:
-- **Multi-agent routing**: Tests the supervisor's ability to route beam design tasks to appropriate agents (likely EngineeringAgent)
-- **Task completion rate**: Agent successfully responds to all prompts
-- **Response quality**: Structured, comprehensive responses
-- **Numerical accuracy**: Correct acknowledgment of constraints
-- **Domain knowledge**: Understanding of topology optimization and beam design
+Evaluates the **complete multi-agent system** (SupervisorAgent + specialized agents) on beam design prompts by validating agent outputs against **ground truth optimal designs** from the dataset.
 
-Uses the **production model configuration** (`config.llm_model` and `config.llm_temperature`) to test the actual chatbot multi-agent system. Tracks metrics using Weave evaluation framework:
-- Acknowledges volume fraction and minimum radius
-- Mentions compliance and optimization
-- Shows structural understanding
-- Provides substantial guidance
+Uses the **production model configuration** (`config.llm_model` and `config.llm_temperature`) to test the actual chatbot multi-agent system.
 
-Results are visible in the Weave dashboard with full traceability of agent routing and tool usage.
+**Evaluation Metrics** (validated against ground truth):
+1. **Constraint Accuracy** - Agent correctly references all constraint values (volfrac, rmin) from the prompt
+2. **Target Awareness** - Agent mentions the target compliance value or optimization objective
+3. **Understands Tradeoffs** - Agent acknowledges material limitations and design trade-offs
+4. **Actionable Guidance** - Agent provides concrete, implementable steps (not just restating constraints)
+5. **No Contradictions** - Agent avoids giving information that contradicts the ground truth design properties
+6. **Design Match** ⭐ - Agent's output design matches the optimal design from HuggingFace dataset
+   - Extracts design array from agent output (numpy array or JSON format)
+   - Compares to ground truth using IoU, pixel accuracy, MSE, and volume fraction error
+   - Overall score: weighted combination (50% IoU + 30% pixel accuracy + 20% volfrac match)
 
-**Current Results:** 100% quality score (5/5 samples, all metrics passed)
+Results are visible in the Weave dashboard with full traceability of agent routing, tool usage, and detailed scorer metrics.
 
 ## Directory Structure
 
