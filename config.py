@@ -204,6 +204,9 @@ class Config:
         """
         Set up Weave tracing for LLM calls and benchmarking.
 
+        Automatically instruments LangChain components for tracing.
+        See: https://docs.wandb.ai/weave/guides/integrations/langchain
+
         Returns:
             True if Weave was successfully initialized, False otherwise.
         """
@@ -215,8 +218,12 @@ class Config:
             import weave  # noqa: PLC0415
 
             # Initialize Weave with the configured project
+            # This automatically instruments LangChain - no decorators needed
             weave.init(self.weave_project)
-            logger.info(f"Weave tracing initialized for project: {self.weave_project}")
+            logger.info(
+                f"Weave tracing initialized for project: {self.weave_project} "
+                "(LangChain auto-instrumentation enabled)"
+            )
         except ImportError:
             logger.warning("Weave is not installed. Install with: pip install weave")
             return False
