@@ -46,6 +46,7 @@ dependencies = [
     "torchvision==0.23.0",
     "wandb==0.22.0",
     "watchdog==6.0.0",
+    "weave==0.52.22",
 ]
 
 [project.optional-dependencies]
@@ -292,5 +293,7 @@ module = [
   "wandb",
   "wandb.*",
   "watchdog",
+  "weave",
+  "weave.*",
 ]
 ignore_missing_imports = true

@@ -59,6 +59,7 @@ Quick Links
    :caption: Advanced Topics
 
    paper_import_guide
+   weave_integration
 
 .. toctree::
    :hidden:

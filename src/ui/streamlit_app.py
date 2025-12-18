@@ -76,6 +76,7 @@ from src.utils.api_usage import (  # noqa: E402
     USAGE_THRESHOLD_WARNING,
     get_tavily_usage,
 )
+from src.utils.weave_integration import init_weave  # noqa: E402
 
 # Suppress Pydantic warnings from LangChain
 warnings.filterwarnings(
@@ -1403,6 +1404,11 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",  # Show sidebar for chat management
     )
+
+    # Initialize Weave tracing for LLM calls and benchmarking (only once per session)
+    if "weave_initialized" not in st.session_state:
+        init_weave()
+        st.session_state.weave_initialized = True
 
     # Custom CSS for sidebar and chat management
     st.markdown(
