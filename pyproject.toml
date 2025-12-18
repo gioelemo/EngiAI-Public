@@ -249,6 +249,7 @@ module = [
   "bs4",
   "beautifulsoup4",
   "cryptography.*",
+  "datasets",
   "diffusers",
   "dotenv",
   "elevenlabs",

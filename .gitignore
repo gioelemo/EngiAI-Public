@@ -210,6 +210,9 @@ data/*.log
 data/connect_state.json
 data/mmore/
 
+# Dataset generation (large files)
+data/datasets/
+
 # External prusa-mcp folder (mounted from ~/Desktop/prusa-mcp)
 prusa-mcp/
 *.zip
