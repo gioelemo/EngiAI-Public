@@ -342,6 +342,35 @@ PRUSA_MCP_URL=http://localhost:8765
 - `openai:gpt-3.5-turbo` (legacy, cheaper option)
 - `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
 
+**LLM Tracing and Monitoring:**
+
+The system supports two options for tracking LLM calls and performance:
+
+1. **LangSmith Tracing** (LangChain's official tracing tool):
+   ```env
+   LANGSMITH_TRACING=true
+   LANGSMITH_API_KEY=your-langsmith-api-key
+   LANGSMITH_PROJECT=engineer-assistant
+   LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+   ```
+
+2. **Weave Tracing** (Weights & Biases Weave for LLM benchmarking):
+   ```env
+   USE_WEAVE=true
+   WEAVE_PROJECT="your-wandb-entity/engineer-assistant-benchmarks"
+   WANDB_API_KEY=your-wandb-api-key
+   ```
+
+**Note:** Weave uses a separate project from the `engiopt` W&B project to keep LLM benchmark traces isolated from model training experiments.
+
+Both tracing systems automatically capture:
+- Input and output data from LLM calls
+- Latency and token usage
+- Model parameters and configurations
+- Full execution traces
+
+See [docs/source/weave_integration.md](docs/source/weave_integration.md) for detailed Weave usage and benchmarking examples.
+
 ---
 
 ### 🤖 Available Agents
@@ -738,6 +767,7 @@ python connection.py submit outputs/test.slurm
 - **🖨️ 3D Printer Integration**: Prusa Connect integration via MCP (Model Context Protocol)
 - **🖥️ HPC Integration**: SLURM job management for remote compute clusters
 - **📊 Database Support**: PostgreSQL and SQLite for conversation persistence
+- **📈 LLM Tracing**: Built-in support for LangSmith and Weave (W&B) for tracking LLM performance and benchmarking
 
 ### Development Tools
 - **Python 3.11+** with conda-forge

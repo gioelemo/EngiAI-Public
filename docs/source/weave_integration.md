@@ -58,60 +58,43 @@ else:
     print("Weave tracing is disabled or unavailable")
 ```
 
-### Tracing Functions
+### Automatic Tracing
 
-Use the `@traced` decorator to automatically track function inputs and outputs:
+**Important:** After calling `init_weave()`, all LangChain components are automatically traced. No decorators or manual instrumentation needed!
 
-```python
-from src.utils.weave_integration import traced
-
-@traced
-def generate_response(prompt: str, temperature: float = 0.7) -> str:
-    """Generate a response using an LLM."""
-    # Your LLM call here
-    response = llm.invoke(prompt, temperature=temperature)
-    return response
-
-# Use the function normally - it will be automatically traced
-result = generate_response("What is the capital of France?")
-```
-
-### Tracing Async Functions
-
-For async functions, use `@traced_async`:
+Weave automatically captures:
+- All LangChain agent executions
+- LLM calls (OpenAI, Anthropic, etc.)
+- Chain invocations
+- Tool usage
+- Retriever queries
 
 ```python
-from src.utils.weave_integration import traced_async
+from src.utils.weave_integration import init_weave
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor
 
-@traced_async
-async def async_generate_response(prompt: str) -> str:
-    """Async LLM call with tracing."""
-    response = await async_llm.ainvoke(prompt)
-    return response
+# Initialize Weave once at startup
+init_weave()
 
-# Use with await
-result = await async_generate_response("What is 2+2?")
-```
+# All LangChain operations are now automatically traced
+llm = ChatOpenAI(model="gpt-4")
+response = llm.invoke("What is the capital of France?")  # Automatically traced!
 
-### Using Context Managers
-
-For more granular control, use the `WeaveContext` context manager:
-
-```python
-from src.utils.weave_integration import WeaveContext
-
-with WeaveContext("my_custom_operation"):
-    # Code in this block will be traced
-    result = complex_operation()
-    processed = post_process(result)
-```
+# Agent executions are also traced
+agent = create_agent(llm, tools)
+result = agent.invoke({"input": "Design a beam"})  # Fully traced!
 
 ## Creating Evaluation Datasets
 
-Create datasets for benchmarking your LLM applications:
+Create datasets for benchmarking using Weave's native API:
 
 ```python
-from src.utils.weave_integration import create_dataset
+import weave
+from src.utils.weave_integration import init_weave
+
+# Initialize Weave
+init_weave()
 
 # Define your benchmark data
 benchmark_data = [
@@ -132,43 +115,44 @@ benchmark_data = [
     }
 ]
 
-# Create the dataset
-dataset = create_dataset(
-    name="engineering_qa_benchmark_v1",
-    rows=benchmark_data
-)
+# Publish the dataset to Weave
+dataset = weave.Dataset(name="engineering_qa_benchmark_v1", rows=benchmark_data)
+weave.publish(dataset)
 ```
 
 ## Running Evaluations
 
-Log evaluation results to track performance over time:
+Evaluate your agents using Weave's evaluation framework:
 
 ```python
-from src.utils.weave_integration import log_evaluation, traced
+import weave
+from src.utils.weave_integration import init_weave
+from src.agents.engineering_agent import engineering_agent
 
-@traced
-def evaluate_model(dataset):
-    """Evaluate the model on a dataset."""
-    predictions = []
+# Initialize Weave
+init_weave()
 
-    for item in dataset:
-        response = generate_response(item["input"])
-        predictions.append(response)
+# Define evaluation function
+@weave.op()
+def evaluate_engineering_qa(input: str, expected_output: str) -> dict:
+    """Evaluate engineering agent response."""
+    response = engineering_agent.invoke({"input": input})
 
-    # Calculate scores (example)
-    scores = {
-        "accuracy": calculate_accuracy(predictions, dataset),
-        "avg_latency_ms": calculate_avg_latency(predictions)
+    # Calculate metrics (example)
+    return {
+        "response": response["output"],
+        "matches_expected": expected_output.lower() in response["output"].lower()
     }
 
-    # Log to Weave
-    log_evaluation(
-        dataset_name="engineering_qa_benchmark_v1",
-        predictions=predictions,
-        scores=scores
-    )
+# Load dataset and run evaluation
+dataset = weave.ref("engineering_qa_benchmark_v1").get()
+evaluation = weave.Evaluation(
+    dataset=dataset,
+    scorers=[evaluate_engineering_qa]
+)
 
-    return predictions, scores
+results = evaluation.evaluate(engineering_agent)
+print(f"Evaluation results: {results}")
 ```
 
 ## Automatic LLM Provider Instrumentation
@@ -214,22 +198,38 @@ Click the link to view:
 
 ### Adding to Agent Workflows
 
-Integrate Weave tracing into your existing agent workflows:
+Weave automatically traces all agent workflows after initialization - no code changes needed:
 
 ```python
-from src.utils.weave_integration import traced
-from src.agents.engineering_agent import EngineeringAgent
+from src.utils.weave_integration import init_weave
+from src.agents.engineering_agent import engineering_agent
 
-class TracedEngineeringAgent(EngineeringAgent):
-    @traced
-    def generate_design(self, requirements: str) -> dict:
-        """Generate a design with Weave tracing."""
-        return super().generate_design(requirements)
+# Initialize Weave once at application startup
+init_weave()
 
-    @traced
-    def analyze_cad_model(self, model_path: str) -> dict:
-        """Analyze CAD model with Weave tracing."""
-        return super().analyze_cad_model(model_path)
+# All agent operations are now automatically traced
+result = engineering_agent.invoke({"input": "Design a beam with 30% volume fraction"})
+# ✅ Automatically traced - no decorators needed!
+
+# Multi-agent workflows are also traced
+from src.agents.supervisor import supervisor_agent
+result = supervisor_agent.invoke({"messages": [HumanMessage(content="Optimize this structure")]})
+# ✅ Full execution trace captured automatically!
+```
+
+### Custom Operations with Weave
+
+For custom operations not automatically traced, use Weave's `@weave.op()` decorator:
+
+```python
+import weave
+
+@weave.op()
+def custom_optimization(design: dict, constraints: dict) -> dict:
+    """Custom optimization function with Weave tracing."""
+    # Your custom logic here
+    optimized = run_optimization(design, constraints)
+    return optimized
 ```
 
 ### Conditional Tracing
@@ -291,56 +291,49 @@ WEAVE_PROJECT="your-entity/your-project-name"
 Here's a complete example of setting up and running a benchmark:
 
 ```python
-from src.utils.weave_integration import (
-    init_weave,
-    traced,
-    create_dataset,
-    log_evaluation
-)
+import weave
+from src.utils.weave_integration import init_weave
+from src.agents.engineering_agent import engineering_agent
 
 # 1. Initialize Weave
 init_weave()
 
 # 2. Create a benchmark dataset
-dataset = create_dataset(
+dataset = weave.Dataset(
     name="engineering_qa_v1",
     rows=[
         {"input": "What is Young's modulus?", "expected": "A measure of stiffness"},
         {"input": "Define stress", "expected": "Force per unit area"},
     ]
 )
+weave.publish(dataset)
 
-# 3. Define traced evaluation function
-@traced
-def evaluate_engineering_agent(question: str) -> str:
-    """Evaluate the engineering agent's response."""
-    from src.agents.engineering_agent import agent
-    response = agent.invoke(question)
-    return response
+# 3. Define evaluation scorer
+@weave.op()
+def evaluate_answer(input: str, expected: str, output: str) -> dict:
+    """Score the agent's response."""
+    # Simple keyword matching (replace with your scoring logic)
+    keywords = expected.lower().split()
+    matches = sum(1 for word in keywords if word in output.lower())
+    score = matches / len(keywords)
+
+    return {
+        "keyword_match_score": score,
+        "response": output
+    }
 
 # 4. Run evaluation
-predictions = []
-for item in dataset.rows:
-    pred = evaluate_engineering_agent(item["input"])
-    predictions.append(pred)
-
-# 5. Calculate metrics
-from src.evaluation.metrics import calculate_similarity
-scores = {
-    "avg_similarity": sum(
-        calculate_similarity(pred, item["expected"])
-        for pred, item in zip(predictions, dataset.rows)
-    ) / len(dataset.rows)
-}
-
-# 6. Log results
-log_evaluation(
-    dataset_name="engineering_qa_v1",
-    predictions=predictions,
-    scores=scores
+evaluation = weave.Evaluation(
+    dataset=dataset,
+    scorers=[evaluate_answer]
 )
 
-print(f"Evaluation complete! Scores: {scores}")
+results = evaluation.evaluate(engineering_agent)
+
+# 5. View results
+print(f"Evaluation complete!")
+print(f"Results: {results}")
+print(f"View full traces at: https://wandb.ai/your-entity/engineer-assistant-benchmarks/weave")
 ```
 
 ## Further Reading
