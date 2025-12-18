@@ -10,21 +10,40 @@ This directory contains scripts for generating benchmark datasets for Weave eval
 
 ## Workflow
 
-### 1. Exploration (Current)
+### 1. Exploration ✅
 ```bash
 python scripts/dataset_generation/explore_beams_dataset.py
 ```
 
 Explores the dataset structure and saves sample data to `data/datasets/beam_prompts/raw/`.
 
-### 2. Generation (TODO)
-Generate prompts from beam conditions.
+### 2. Prompt Generation ✅
+```bash
+python scripts/dataset_generation/generate_beam_prompts.py
+```
+
+Generates natural language prompts from beam conditions:
+- Transforms numerical parameters into readable descriptions
+- Creates structured prompts for benchmarking
+- Saves locally to `data/datasets/beam_prompts/generated/`
+- Publishes to Weave for tracking and evaluation
+
+**Output Example:**
+```
+Design a 2D beam structure with the following constraints:
+- Volume fraction: 23.8% (use only 23.8% of available material)
+- Minimum feature size (rmin): 3.5
+- Load condition: a uniformly distributed force
+- Target: Minimize compliance (maximize stiffness)
+
+The beam should be designed on a 50x100 grid.
+```
 
 ### 3. Validation (TODO)
 Validate generated prompts match the beam conditions.
 
-### 4. Upload to Weave (TODO)
-Publish validated dataset to Weave for benchmarking.
+### 4. Evaluation (TODO)
+Run engineering agent on prompts and compare outputs to targets.
 
 ## Directory Structure
 
