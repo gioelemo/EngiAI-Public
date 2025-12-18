@@ -101,3 +101,4 @@ def test_full_initialization_workflow(mock_config):
     mock_config.setup_weave_tracing.return_value = True
 
     assert init_weave() is True
+    assert is_weave_enabled() is True
