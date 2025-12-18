@@ -48,7 +48,6 @@ class ValidationError(Exception):
     """Custom exception for validation errors."""
 
 
-
 @weave.op()
 def validate_numerical_accuracy(prompt_data: dict[str, Any]) -> dict[str, Any]:
     """
@@ -262,9 +261,14 @@ def validate_prompt_dataset(prompts: list[dict[str, Any]]) -> dict[str, Any]:
         all_results.extend(results)
 
         # Track failed prompts
-        failed_checks = [r for r in results if not r["passed"]]
-        if failed_checks:
-            failed_prompts.append({"example_id": prompt_data.get("example_id", i), "failures": failed_checks})
+        failed_results = [r for r in results if not r["passed"]]
+        if failed_results:
+            failed_prompts.append(
+                {
+                    "example_id": prompt_data.get("example_id", i),
+                    "failures": failed_results,
+                }
+            )
 
         # Progress indicator
         if (i + 1) % 10 == 0:
@@ -284,10 +288,14 @@ def validate_prompt_dataset(prompts: list[dict[str, Any]]) -> dict[str, Any]:
         "failed_prompts": failed_prompts,
         "checks_per_prompt": {
             "numerical_accuracy": sum(
-                1 for r in all_results if r["check"] == "numerical_accuracy" and r["passed"]
+                1
+                for r in all_results
+                if r["check"] == "numerical_accuracy" and r["passed"]
             ),
             "parameter_ranges": sum(
-                1 for r in all_results if r["check"] == "parameter_ranges" and r["passed"]
+                1
+                for r in all_results
+                if r["check"] == "parameter_ranges" and r["passed"]
             ),
             "completeness": sum(
                 1 for r in all_results if r["check"] == "completeness" and r["passed"]
@@ -360,7 +368,9 @@ def main() -> None:
     print()
 
     # Load generated prompts
-    input_file = Path("data/datasets/beam_prompts/generated/beam_prompts_50_samples.json")
+    input_file = Path(
+        "data/datasets/beam_prompts/generated/beam_prompts_50_samples.json"
+    )
     print(f"📂 Loading prompts from: {input_file}")
 
     if not input_file.exists():

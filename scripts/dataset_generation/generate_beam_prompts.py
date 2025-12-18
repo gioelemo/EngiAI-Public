@@ -61,7 +61,9 @@ def describe_compliance(compliance: float) -> str:
 
 
 @weave.op()
-def create_prompt_from_conditions(example: dict[str, Any], include_target: bool = True) -> dict[str, Any]:
+def create_prompt_from_conditions(
+    example: dict[str, Any], include_target: bool = True
+) -> dict[str, Any]:
     """
     Create a benchmark prompt from beam design conditions.
 
@@ -142,7 +144,9 @@ def generate_prompt_dataset(
     prompts = []
     for i in range(num_samples):
         example = data[i]
-        prompt_data = create_prompt_from_conditions(example, include_target=include_targets)
+        prompt_data = create_prompt_from_conditions(
+            example, include_target=include_targets
+        )
         prompt_data["example_id"] = i
         prompts.append(prompt_data)
 

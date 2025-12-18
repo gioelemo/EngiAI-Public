@@ -54,8 +54,27 @@ Saves validation report to `data/datasets/beam_prompts/validated/validation_repo
 
 **Current Results:** 100% validation success (50/50 prompts passed all checks)
 
-### 4. Evaluation (TODO)
-Run engineering agent on prompts and compare outputs to targets.
+### 4. Evaluation ✅
+```bash
+python scripts/dataset_generation/evaluate_agent.py
+```
+
+Evaluates the **complete multi-agent system** (SupervisorAgent + specialized agents) on beam design prompts:
+- **Multi-agent routing**: Tests the supervisor's ability to route beam design tasks to appropriate agents (likely EngineeringAgent)
+- **Task completion rate**: Agent successfully responds to all prompts
+- **Response quality**: Structured, comprehensive responses
+- **Numerical accuracy**: Correct acknowledgment of constraints
+- **Domain knowledge**: Understanding of topology optimization and beam design
+
+Uses the **production model configuration** (`config.llm_model` and `config.llm_temperature`) to test the actual chatbot multi-agent system. Tracks metrics using Weave evaluation framework:
+- Acknowledges volume fraction and minimum radius
+- Mentions compliance and optimization
+- Shows structural understanding
+- Provides substantial guidance
+
+Results are visible in the Weave dashboard with full traceability of agent routing and tool usage.
+
+**Current Results:** 100% quality score (5/5 samples, all metrics passed)
 
 ## Directory Structure
 
@@ -63,7 +82,8 @@ Run engineering agent on prompts and compare outputs to targets.
 data/datasets/beam_prompts/
 ├── raw/          # Downloaded HF data samples
 ├── generated/    # Generated prompts
-└── validated/    # Validated datasets ready for Weave
+├── validated/    # Validation reports
+└── evaluated/    # Agent evaluation results
 ```
 
 ## Requirements
