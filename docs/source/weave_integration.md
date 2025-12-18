@@ -238,13 +238,19 @@ Check if Weave is enabled before performing Weave-specific operations:
 
 ```python
 from src.utils.weave_integration import is_weave_enabled
+import weave
 
 if is_weave_enabled():
     # Perform Weave-specific operations
-    log_evaluation(...)
+    dataset = weave.Dataset(name="my_dataset", rows=data)
+    weave.publish(dataset)
 else:
     # Fall back to alternative logging
     print("Weave is disabled, using console logging")
+    # Save data locally instead
+    import json
+    with open("dataset.json", "w") as f:
+        json.dump(data, f)
 ```
 
 ## Best Practices
