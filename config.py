@@ -95,6 +95,12 @@ class Config:
             "WANDB_OFFICIAL_PROJECT", "engibench/engiopt"
         )
 
+        # Weave configuration (for LLM tracing and benchmarking)
+        self.use_weave: bool = os.getenv("USE_WEAVE", "false").lower() == "true"
+        self.weave_project: str = os.getenv(
+            "WEAVE_PROJECT", "gioelemo-ethz/engineer-assistant-benchmarks"
+        )
+
         # Database configuration for persistent checkpointing
         self.database_url: str = os.getenv(
             "DATABASE_URL", "sqlite:///data/conversations.db"
@@ -193,6 +199,39 @@ class Config:
         os.environ["LANGCHAIN_TRACING_V2"] = "true"
         os.environ["LANGCHAIN_ENDPOINT"] = self.langchain_endpoint
         os.environ["LANGCHAIN_PROJECT"] = project_name
+
+    def setup_weave_tracing(self) -> bool:
+        """
+        Set up Weave tracing for LLM calls and benchmarking.
+
+        Automatically instruments LangChain components for tracing.
+        See: https://docs.wandb.ai/weave/guides/integrations/langchain
+
+        Returns:
+            True if Weave was successfully initialized, False otherwise.
+        """
+        if not self.use_weave:
+            logger.info("Weave tracing is disabled (USE_WEAVE=false)")
+            return False
+
+        try:
+            import weave  # noqa: PLC0415
+
+            # Initialize Weave with the configured project
+            # This automatically instruments LangChain - no decorators needed
+            weave.init(self.weave_project)
+            logger.info(
+                f"Weave tracing initialized for project: {self.weave_project} "
+                "(LangChain auto-instrumentation enabled)"
+            )
+        except ImportError:
+            logger.warning("Weave is not installed. Install with: pip install weave")
+            return False
+        except Exception:
+            logger.exception("Failed to initialize Weave tracing")
+            return False
+        else:
+            return True
 
 
 # Create a global config instance

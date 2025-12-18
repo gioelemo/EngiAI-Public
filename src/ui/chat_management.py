@@ -10,7 +10,6 @@ import uuid
 from typing import Any
 
 import streamlit as st
-from langchain.chat_models import init_chat_model
 
 from config import config
 from src.agents.supervisor_agent import SupervisorAgent
@@ -52,8 +51,16 @@ def generate_chat_title(user_message: str) -> str:
     truncate_at = 47
 
     try:
-        # Use a fast model to generate title (with lower temperature for consistency)
-        llm = init_chat_model(config.llm_model, temperature=0.3)
+        # Use raw HTTP requests to bypass Weave auto-instrumentation
+        # This prevents title generation from cluttering Weave traces
+        import requests  # noqa: PLC0415
+
+        # Extract model name from config (e.g., "openai:gpt-4.1" -> "gpt-4.1")
+        model = (
+            config.llm_model.split(":")[-1]
+            if ":" in config.llm_model
+            else config.llm_model
+        )
 
         prompt = f"""Generate a very short title (maximum 4-5 words) that summarizes this question or request:
 
@@ -61,14 +68,25 @@ def generate_chat_title(user_message: str) -> str:
 
 Reply with ONLY the title, nothing else. No quotes, no punctuation at the end."""
 
-        response = llm.invoke(prompt)
-        # Ensure content is a string
-        content = response.content
-        if isinstance(content, list):
-            # Handle list content by joining
-            title = " ".join(str(item) for item in content).strip()
-        else:
-            title = str(content).strip()
+        # Direct OpenAI API call without LangChain instrumentation
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {config.openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 20,
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+
+        # Extract title from response
+        title = response.json()["choices"][0]["message"]["content"].strip()
 
         # Remove quotes if present
         title = title.strip("\"'")
