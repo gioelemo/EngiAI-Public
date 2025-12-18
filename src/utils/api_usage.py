@@ -91,7 +91,7 @@ def get_tavily_usage(api_key: str) -> TavilyUsageStats | None:
         # Try to parse JSON, handle empty response case
         try:
             data = response.json()
-        except ValueError:
+        except requests.exceptions.JSONDecodeError:
             # JSON decode failed - likely empty response
             logger.warning(
                 "Tavily API returned empty or invalid JSON response "
