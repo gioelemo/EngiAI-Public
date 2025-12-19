@@ -498,6 +498,7 @@ def _format_optimization_result(
         "success": True,
         "problem_type": problem_key,
         "design_shape": optimized_design.shape,
+        "optimized_design": optimized_design.tolist(),  # Convert to list for JSON serialization
         "optimization_info": optimization_info,
     }
 

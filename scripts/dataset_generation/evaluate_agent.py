@@ -7,22 +7,28 @@ agent performance on beam design tasks.
 Reference: https://docs.wandb.ai/weave/guides/core-types/evaluations
 """
 
+import ast
 import asyncio
 import base64
 import io
 import json
 import os
+import re
 import sys
 import uuid
 from pathlib import Path
 from typing import Any
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import weave
 from datasets import load_dataset
 from langchain_core.messages import HumanMessage
 from PIL import Image
+
+# Use Agg backend for matplotlib to avoid threading issues in parallel evaluation
+matplotlib.use("Agg")
 
 # Set SKIP_MCP to avoid Prusa MCP server connection issues during evaluation
 os.environ["SKIP_MCP"] = "true"
@@ -50,6 +56,10 @@ FLEXIBLE_COMPLIANCE_THRESHOLD = (
     80  # Compliance above which design is considered flexible
 )
 BINARY_THRESHOLD = 0.5  # Threshold for converting density to binary (material vs void)
+
+# Debug output configuration
+DEBUG_PREVIEW_LENGTH = 200  # Characters to show in debug preview for design messages
+DEBUG_PREVIEW_SHORT = 150  # Characters to show in debug preview for other messages
 
 
 class BeamDesignAgent(weave.Model):
@@ -91,11 +101,37 @@ class BeamDesignAgent(weave.Model):
         final_message = result["messages"][-1]
         response_content = final_message.content
 
+        # Debug logging: Extract and log tool calls to see what config is being used
+        tool_calls_info = [
+            {
+                "name": tool_call.get("name", "unknown"),
+                "args": tool_call.get("args", {}),
+            }
+            for msg in result["messages"]
+            if hasattr(msg, "tool_calls") and msg.tool_calls
+            for tool_call in msg.tool_calls
+        ]
+
+        # Log optimize_design calls to see what config is being passed
+        for tc in tool_calls_info:
+            if tc["name"] == "optimize_design":
+                config_used = tc["args"].get("config", None)
+                print("\n[DEBUG] optimize_design called with:")
+                print(f"  config: {config_used}")
+                if config_used is None:
+                    print(
+                        "  ⚠️  NO CONFIG - agent is not passing constraint parameters!"
+                    )
+
         return {
             "response": response_content,
             "model": self.model_name,
             "response_length": len(response_content),
             "agent_type": getattr(final_message, "name", "unknown"),
+            "messages": result[
+                "messages"
+            ],  # Include full message history for design extraction
+            "tool_calls_info": tool_calls_info,  # Debug info
         }
 
 
@@ -328,6 +364,112 @@ def score_no_contradictions(
 _hf_dataset_cache = None
 
 
+def _extract_design_from_tool_messages(
+    messages: list, example_id: int
+) -> np.ndarray | None:
+    """Extract optimized design array from tool message history.
+
+    Args:
+        messages: List of messages from agent conversation
+        example_id: Example identifier for debug logging
+
+    Returns:
+        Design array if found, None otherwise
+    """
+    design_array = None
+    tool_messages_count = 0
+
+    for msg in messages:
+        # Check if this is a tool message (has tool_call_id)
+        if not hasattr(msg, "tool_call_id"):
+            continue
+
+        tool_messages_count += 1
+        content = msg.content
+
+        if not isinstance(content, str):
+            continue
+
+        if "optimized_design" not in content:
+            # Debug: show what the content looks like
+            content_preview = (
+                content[:DEBUG_PREVIEW_SHORT]
+                if len(content) > DEBUG_PREVIEW_SHORT
+                else content
+            )
+            print(
+                f"[DEBUG] Example {example_id}: Tool msg #{tool_messages_count}: {content_preview}..."
+            )
+            continue
+
+        # Found optimized_design in message
+        content_preview = (
+            content[:DEBUG_PREVIEW_LENGTH]
+            if len(content) > DEBUG_PREVIEW_LENGTH
+            else content
+        )
+        print(f"[DEBUG] Example {example_id}: Found optimized_design in tool message")
+        print(f"[DEBUG] Content preview: {content_preview}...")
+
+        # Parse the tool response - try multiple approaches
+        result = None
+
+        # Approach 1: Try converting Python repr to JSON
+        try:
+            # Replace Python-specific syntax with JSON equivalents
+            json_content = content.replace("'", '"')
+            json_content = json_content.replace("True", "true")
+            json_content = json_content.replace("False", "false")
+            json_content = json_content.replace("None", "null")
+
+            # Remove array() calls by extracting just the content inside
+            json_content = re.sub(r"array\((.*?)\)", r"\1", json_content)
+
+            result = json.loads(json_content)
+            print(f"[DEBUG] Example {example_id}: Parsed with JSON conversion ✓")
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"[DEBUG] Example {example_id}: JSON conversion failed: {e}")
+
+            # Approach 2: Try ast.literal_eval on a simplified version
+            try:
+                # Extract just the optimized_design field using regex
+                match = re.search(
+                    r"'optimized_design':\s*(\[\[.*?\]\])", content, re.DOTALL
+                )
+                if match:
+                    design_list_str = match.group(1)
+                    design_list = ast.literal_eval(design_list_str)
+                    result = {"optimized_design": design_list}
+                    print(
+                        f"[DEBUG] Example {example_id}: Extracted optimized_design with regex ✓"
+                    )
+                else:
+                    print(
+                        f"[DEBUG] Example {example_id}: Could not find optimized_design pattern"
+                    )
+            except (ValueError, SyntaxError) as e2:
+                print(f"[DEBUG] Example {example_id}: Regex extraction failed: {e2}")
+
+        # Extract design array if parsing succeeded
+        if result and isinstance(result, dict) and "optimized_design" in result:
+            design_array = np.array(result["optimized_design"])
+            print(
+                f"[DEBUG] Example {example_id}: Design extracted from message history ✓ (shape: {design_array.shape})"
+            )
+            break
+
+        print(
+            f"[DEBUG] Example {example_id}: Result parsed but no optimized_design field found"
+        )
+
+    if tool_messages_count == 0:
+        print(
+            f"[DEBUG] Example {example_id}: No tool messages found in {len(messages)} total messages"
+        )
+
+    return design_array
+
+
 def get_hf_dataset():
     """Load HuggingFace dataset with caching."""
     global _hf_dataset_cache  # noqa: PLW0603
@@ -360,13 +502,13 @@ def _create_design_comparison(
             f"Agent Design (Example {example_id})", fontsize=12, fontweight="bold"
         )
         axes[0].axis("off")
-        plt.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
+        fig.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
 
         # Plot ground truth
         im1 = axes[1].imshow(ground_truth, cmap="gray_r", vmin=0, vmax=1)
         axes[1].set_title("Ground Truth", fontsize=12, fontweight="bold")
         axes[1].axis("off")
-        plt.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
+        fig.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
 
         # Plot absolute difference
         diff = np.abs(agent_design - ground_truth)
@@ -375,15 +517,17 @@ def _create_design_comparison(
             f"Difference (MAE: {diff.mean():.3f})", fontsize=12, fontweight="bold"
         )
         axes[2].axis("off")
-        plt.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
+        fig.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
 
-        plt.tight_layout()
+        fig.tight_layout()
 
         # Convert matplotlib figure to PIL Image
+        # Use figure-level methods to avoid global state issues with parallel execution
         buf = io.BytesIO()
-        plt.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+        fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
         buf.seek(0)
         pil_image = Image.open(buf).copy()
+        buf.close()
         plt.close(fig)
 
     except Exception as e:
@@ -397,31 +541,39 @@ def _create_design_comparison(
 def score_design_match(
     prompt: str,  # noqa: ARG001
     conditions: dict[str, Any],  # noqa: ARG001
-    output: dict[str, Any],  # noqa: ARG001
+    output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Score if the agent's design output matches the ground truth optimal design.
 
-    Extracts design array from agent's internal cache (not from text response).
+    Extracts design array from agent's tool call results in message history.
     Uses multiple metrics: IoU, pixel accuracy, and topology similarity.
     """
-    # Try to get the design from the internal cache
-    # The optimize_design tool stores the result here
-    problem_type = metadata.get("problem_type", "beams2d")
-    design_array = get_unified_last_design(problem_type)
+    # Extract design from tool call results in message history
+    messages = output.get("messages", [])
+    example_id = metadata.get("example_id", 0)
 
-    # If no design found in cache, return 0 score
+    # Use helper function to extract design from messages
+    design_array = _extract_design_from_tool_messages(messages, example_id)
+
+    # If no design found in messages, try the global cache as fallback
+    if design_array is None:
+        problem_type = metadata.get("problem_type", "beams2d")
+        design_array = get_unified_last_design(problem_type)
+        print(f"[DEBUG] Example {example_id}: Design from global cache (FALLBACK) ⚠️")
+
+    # If still no design found, return 0 score
     if design_array is None:
         return {
             "score": 0.0,
             "design_found": False,
-            "reason": "No design array found in internal cache",
+            "reason": "No design array found in tool results or cache",
+            "num_messages": len(messages),
         }
 
     # Load ground truth design from HuggingFace dataset
-    example_id = metadata.get("example_id", 0)
     hf_dataset = get_hf_dataset()
 
     if example_id >= len(hf_dataset):
