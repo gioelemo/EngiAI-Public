@@ -8,6 +8,8 @@ Reference: https://docs.wandb.ai/weave/guides/core-types/evaluations
 """
 
 import asyncio
+import base64
+import io
 import json
 import os
 import sys
@@ -15,10 +17,12 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 import weave
 from datasets import load_dataset
 from langchain_core.messages import HumanMessage
+from PIL import Image
 
 # Set SKIP_MCP to avoid Prusa MCP server connection issues during evaluation
 os.environ["SKIP_MCP"] = "true"
@@ -332,6 +336,63 @@ def get_hf_dataset():
     return _hf_dataset_cache
 
 
+def _create_design_comparison(
+    agent_design: np.ndarray, ground_truth: np.ndarray, example_id: int
+) -> Image.Image | None:
+    """
+    Create a side-by-side comparison visualization of agent and ground truth designs.
+
+    Args:
+        agent_design: Agent's optimized design array
+        ground_truth: Ground truth optimal design from dataset
+        example_id: Example identifier for title
+
+    Returns:
+        PIL Image object for Weave visualization, or None if creation fails
+    """
+    try:
+        # Create figure with 3 subplots: agent design, ground truth, difference
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+        # Plot agent design
+        im0 = axes[0].imshow(agent_design, cmap="gray_r", vmin=0, vmax=1)
+        axes[0].set_title(
+            f"Agent Design (Example {example_id})", fontsize=12, fontweight="bold"
+        )
+        axes[0].axis("off")
+        plt.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
+
+        # Plot ground truth
+        im1 = axes[1].imshow(ground_truth, cmap="gray_r", vmin=0, vmax=1)
+        axes[1].set_title("Ground Truth", fontsize=12, fontweight="bold")
+        axes[1].axis("off")
+        plt.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
+
+        # Plot absolute difference
+        diff = np.abs(agent_design - ground_truth)
+        im2 = axes[2].imshow(diff, cmap="Reds", vmin=0, vmax=1)
+        axes[2].set_title(
+            f"Difference (MAE: {diff.mean():.3f})", fontsize=12, fontweight="bold"
+        )
+        axes[2].axis("off")
+        plt.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
+
+        plt.tight_layout()
+
+        # Convert matplotlib figure to PIL Image
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+        buf.seek(0)
+        pil_image = Image.open(buf).copy()
+        plt.close(fig)
+
+    except Exception as e:
+        print(f"Warning: Failed to create comparison visualization: {e}")
+        return None
+    else:
+        return pil_image
+
+
 @weave.op()
 def score_design_match(
     prompt: str,  # noqa: ARG001
@@ -407,7 +468,10 @@ def score_design_match(
     # IoU is most important for topology, then pixel accuracy
     score = 0.5 * iou + 0.3 * pixel_accuracy + 0.2 * (1.0 - min(volfrac_error * 2, 1.0))
 
-    return {
+    # Create visualization for Weave UI
+    comparison_image = _create_design_comparison(design_array, ground_truth, example_id)
+
+    result = {
         "score": score,
         "design_found": True,
         "iou": float(iou),
@@ -417,6 +481,23 @@ def score_design_match(
         "agent_volfrac": float(agent_volfrac),
         "gt_volfrac": float(gt_volfrac),
     }
+
+    # Save and add comparison image if available
+    if comparison_image is not None:
+        # Save to outputs directory for local viewing
+        output_dir = project_root / "outputs" / "eval_comparisons"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        image_path = output_dir / f"comparison_example_{example_id}.png"
+        comparison_image.save(image_path)
+        result["comparison_image_path"] = str(image_path)
+
+        # Also encode as base64 data URL for potential inline display
+        buffered = io.BytesIO()
+        comparison_image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        result["comparison_image_base64"] = f"data:image/png;base64,{img_str}"
+
+    return result
 
 
 def prepare_evaluation_dataset(
