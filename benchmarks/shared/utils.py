@@ -9,6 +9,7 @@ import re
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from langchain_core.messages import ToolMessage
 from PIL import Image
 
 # Use Agg backend for matplotlib to avoid threading issues in parallel evaluation
@@ -134,6 +135,226 @@ def extract_design_from_tool_messages(
         )
 
     return design_array
+
+
+def extract_compliance_from_tool_messages(
+    messages: list, example_id: int
+) -> dict[str, float] | None:
+    """Extract compliance values from optimize_design tool message.
+
+    Args:
+        messages: List of messages from agent conversation
+        example_id: Example identifier for debug logging
+
+    Returns:
+        Dictionary with initial_compliance, final_compliance, improvement if found
+    """
+    tool_messages_checked = 0
+
+    # First, let's see what types of messages we have
+    message_types = [type(msg).__name__ for msg in messages]
+    logger.debug("Example %s: Message types in conversation: %s", example_id, message_types)
+
+    for msg in messages:
+        # Check if this is a tool message using isinstance
+        if not isinstance(msg, ToolMessage):
+            continue
+
+        tool_messages_checked += 1
+
+        # Debug: Log which tool this message is from
+        tool_name = getattr(msg, "name", "unknown")
+        logger.debug(
+            "Example %s: Tool message #%s - tool name: %s, content type: %s",
+            example_id,
+            tool_messages_checked,
+            tool_name,
+            type(msg.content).__name__
+        )
+
+        content = msg.content
+
+        # Log the raw content for optimize_design messages
+        if tool_name == "optimize_design":
+            logger.info(
+                "Example %s: Found optimize_design tool message! Content type: %s",
+                example_id,
+                type(content).__name__
+            )
+            logger.debug("Example %s: optimize_design content: %s", example_id, str(content)[:500])
+
+        # Handle both string and dict content
+        if isinstance(content, dict):
+            # Content is already a dict - extract directly
+            # Try both full names and abbreviated names (c, initial_c, final_c)
+            compliance_data = {}
+
+            if "final_compliance" in content:
+                compliance_data["final_compliance"] = float(content["final_compliance"])
+            elif "final_c" in content:
+                compliance_data["final_compliance"] = float(content["final_c"])
+
+            if "initial_compliance" in content:
+                compliance_data["initial_compliance"] = float(content["initial_compliance"])
+            elif "initial_c" in content:
+                compliance_data["initial_compliance"] = float(content["initial_c"])
+
+            if "compliance_improvement" in content:
+                compliance_data["improvement"] = float(content["compliance_improvement"])
+            elif "c_improvement" in content:
+                compliance_data["improvement"] = float(content["c_improvement"])
+
+            if compliance_data:
+                logger.info(
+                    "Example %s: Extracted compliance from dict: %s",
+                    example_id,
+                    compliance_data,
+                )
+                return compliance_data
+            continue
+
+        if not isinstance(content, str):
+            continue
+
+        # Log what we found for non-optimize_design tools
+        if tool_name != "optimize_design":
+            continue
+
+        # At this point, we have the optimize_design tool message!
+        logger.info(
+            "Example %s: Processing optimize_design tool message (content type: %s)",
+            example_id,
+            type(content).__name__
+        )
+
+        # Check if compliance is in the content
+        has_compliance = "compliance" in content.lower()
+        logger.info(
+            "Example %s: optimize_design content length: %s chars, contains 'compliance': %s",
+            example_id,
+            len(content),
+            has_compliance,
+        )
+
+        # Show both start and end of content
+        start_preview = content[:300]
+        end_preview = content[-500:] if len(content) > 500 else content
+        logger.info("Example %s: Content START: %s...", example_id, start_preview)
+        logger.info("Example %s: Content END: ...%s", example_id, end_preview)
+
+        # Try multiple parsing approaches
+        # Approach 1: Try ast.literal_eval (for Python dict string representation)
+        try:
+            result = ast.literal_eval(content)
+
+            # Extract compliance values if available
+            # Note: The tool may use abbreviated names (c, initial_c, final_c) or full names
+            if isinstance(result, dict):
+                compliance_data = {}
+
+                # Try full names first, then abbreviated names
+                if "final_compliance" in result:
+                    compliance_data["final_compliance"] = float(result["final_compliance"])
+                elif "final_c" in result:
+                    compliance_data["final_compliance"] = float(result["final_c"])
+
+                if "initial_compliance" in result:
+                    compliance_data["initial_compliance"] = float(result["initial_compliance"])
+                elif "initial_c" in result:
+                    compliance_data["initial_compliance"] = float(result["initial_c"])
+
+                if "compliance_improvement" in result:
+                    compliance_data["improvement"] = float(result["compliance_improvement"])
+                elif "c_improvement" in result:
+                    compliance_data["improvement"] = float(result["c_improvement"])
+
+                if compliance_data:
+                    logger.info(
+                        "Example %s: Extracted compliance via ast.literal_eval: %s",
+                        example_id,
+                        compliance_data,
+                    )
+                    return compliance_data
+
+        except (ValueError, SyntaxError) as e:
+            logger.debug(
+                "Example %s: ast.literal_eval failed: %s, trying JSON...", example_id, e
+            )
+
+        # Approach 2: Try JSON parsing (fallback)
+        try:
+            # Replace Python-specific syntax with JSON equivalents
+            json_content = content.replace("'", '"')
+            json_content = json_content.replace("True", "true")
+            json_content = json_content.replace("False", "false")
+            json_content = json_content.replace("None", "null")
+
+            result = json.loads(json_content)
+
+            # Extract compliance values if available
+            if isinstance(result, dict):
+                compliance_data = {}
+                if "final_compliance" in result:
+                    compliance_data["final_compliance"] = float(
+                        result["final_compliance"]
+                    )
+                if "initial_compliance" in result:
+                    compliance_data["initial_compliance"] = float(
+                        result["initial_compliance"]
+                    )
+                if "improvement" in result:
+                    compliance_data["improvement"] = float(result["improvement"])
+
+                if compliance_data:
+                    logger.info(
+                        "Example %s: Successfully extracted compliance: %s",
+                        example_id,
+                        compliance_data,
+                    )
+                    return compliance_data
+
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            logger.debug(
+                "Example %s: JSON parsing failed: %s, trying regex...", example_id, e
+            )
+
+        # Approach 3: Try regex extraction for numeric values
+        # Try both full names (final_compliance) and abbreviated names (final_c)
+        try:
+            # Look for patterns like "final_compliance": 123.45 or 'final_c': 123.45
+            final_match = re.search(
+                r"['\"]?(final_compliance|final_c)['\"]?\s*:\s*([0-9.eE+-]+)", content
+            )
+            initial_match = re.search(
+                r"['\"]?(initial_compliance|initial_c)['\"]?\s*:\s*([0-9.eE+-]+)", content
+            )
+            improvement_match = re.search(
+                r"['\"]?(compliance_improvement|c_improvement)['\"]?\s*:\s*([0-9.eE+-]+)", content
+            )
+
+            if final_match:
+                compliance_data = {"final_compliance": float(final_match.group(2))}
+                if initial_match:
+                    compliance_data["initial_compliance"] = float(initial_match.group(2))
+                if improvement_match:
+                    compliance_data["improvement"] = float(improvement_match.group(2))
+
+                logger.info(
+                    "Example %s: Extracted compliance via regex: %s",
+                    example_id,
+                    compliance_data,
+                )
+                return compliance_data
+
+        except (ValueError, AttributeError) as e:
+            logger.debug("Example %s: Regex extraction failed: %s", example_id, e)
+
+    logger.warning(
+        "Example %s: No compliance values found in %s tool messages",
+        example_id,
+        tool_messages_checked,
+    )
+    return None
 
 
 def create_design_comparison(

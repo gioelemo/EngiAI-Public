@@ -12,6 +12,7 @@ from datasets import load_dataset
 
 from benchmarks.shared.utils import (
     create_design_comparison,
+    extract_compliance_from_tool_messages,
     extract_design_from_tool_messages,
 )
 
@@ -44,14 +45,27 @@ def score_design_match(
     prompt: str,  # noqa: ARG001
     conditions: dict[str, Any],  # noqa: ARG001
     output: dict[str, Any],
-    target: dict[str, Any],  # noqa: ARG001
+    target: dict[str, Any],
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Score if the agent's design output matches the ground truth optimal design.
 
     Extracts design array from agent's tool call results in message history.
-    Uses multiple metrics: IoU, pixel accuracy, and topology similarity.
+    Uses multiple metrics: IoU, pixel accuracy, topology similarity, and compliance performance.
+
+    Metrics:
+    - IoU (Intersection over Union): Binary topology match
+    - Pixel accuracy: Pixel-wise density match
+    - MSE: Mean squared error of density values
+    - Volume fraction error: Difference in material usage
+    - Compliance performance: How close agent's achieved compliance is to target optimal
+
+    Overall score weights (when compliance available):
+    - 40% IoU (topology match)
+    - 25% pixel accuracy
+    - 15% volume fraction match
+    - 20% compliance performance
 
     NOTE: This scorer requires get_unified_last_design to be imported from src.tools.engibench
     and assumes a HuggingFace dataset is specified in metadata.
@@ -70,6 +84,12 @@ def score_design_match(
     # Extract design from tool call results in message history
     messages = output.get("messages", [])
     example_id = metadata.get("example_id", 0)
+
+    # Debug: Log what's in the output dict
+    logger.debug("Example %s: Output dict keys: %s", example_id, list(output.keys()))
+    logger.debug("Example %s: Output dict (excluding messages): %s",
+                 example_id,
+                 {k: v for k, v in output.items() if k != "messages"})
 
     # Use helper function to extract design from messages
     design_array = extract_design_from_tool_messages(messages, example_id)
@@ -133,9 +153,82 @@ def score_design_match(
     gt_volfrac = np.mean(ground_truth)
     volfrac_error = abs(agent_volfrac - gt_volfrac)
 
+    # 5. Compliance performance match (compare agent's achieved vs target optimal)
+    compliance_score = 0.0
+    agent_compliance = None
+    target_compliance = None
+    compliance_relative_error = None
+
+    # Debug: Log all tool messages to see what we have
+    from langchain_core.messages import ToolMessage  # noqa: PLC0415
+
+    tool_msg_names = [
+        getattr(msg, "name", "unknown")
+        for msg in messages
+        if isinstance(msg, ToolMessage)
+    ]
+    logger.info(
+        "Example %s: Tool messages found: %s",
+        example_id,
+        tool_msg_names if tool_msg_names else "NONE",
+    )
+
+    # Extract agent's achieved compliance from tool messages
+    compliance_data = extract_compliance_from_tool_messages(messages, example_id)
+
+    # Debug: Log if compliance extraction failed
+    if not compliance_data:
+        logger.warning(
+            "Example %s: Failed to extract compliance from %s messages (tool messages: %s)",
+            example_id,
+            len(messages),
+            tool_msg_names,
+        )
+
+    if compliance_data and "final_compliance" in compliance_data:
+        agent_compliance = compliance_data["final_compliance"]
+
+        # Get target optimal compliance
+        if target and "compliance" in target:
+            target_compliance = target["compliance"]
+
+            # Calculate relative error (lower compliance is better, so both should be close)
+            # Relative error = |achieved - target| / target
+            compliance_relative_error = abs(
+                agent_compliance - target_compliance
+            ) / target_compliance
+
+            # Convert to 0-1 score where:
+            # - 0% error = 1.0 score
+            # - 10% error = 0.5 score
+            # - 20%+ error = 0.0 score
+            # Formula: max(0, 1 - relative_error / 0.2)
+            compliance_score = max(0.0, 1.0 - compliance_relative_error / 0.2)
+
+            logger.debug(
+                "Example %s: Compliance - Agent: %.4f, Target: %.4f, Error: %.2f%%, Score: %.3f",
+                example_id,
+                agent_compliance,
+                target_compliance,
+                compliance_relative_error * 100,
+                compliance_score,
+            )
+
     # Overall score: weighted combination
-    # IoU is most important for topology, then pixel accuracy
-    score = 0.5 * iou + 0.3 * pixel_accuracy + 0.2 * (1.0 - min(volfrac_error * 2, 1.0))
+    # IoU is most important for topology, then pixel accuracy, then compliance performance
+    # Only include compliance in overall score if it was successfully extracted
+    if compliance_score > 0:
+        score = (
+            0.4 * iou
+            + 0.25 * pixel_accuracy
+            + 0.15 * (1.0 - min(volfrac_error * 2, 1.0))
+            + 0.2 * compliance_score
+        )
+    else:
+        # Fallback to original scoring if compliance not available
+        score = (
+            0.5 * iou + 0.3 * pixel_accuracy + 0.2 * (1.0 - min(volfrac_error * 2, 1.0))
+        )
 
     # Create visualization for Weave UI
     comparison_image = create_design_comparison(design_array, ground_truth, example_id)
@@ -149,7 +242,16 @@ def score_design_match(
         "volfrac_error": float(volfrac_error),
         "agent_volfrac": float(agent_volfrac),
         "gt_volfrac": float(gt_volfrac),
+        "compliance_score": float(compliance_score),
     }
+
+    # Add compliance metrics if available
+    if agent_compliance is not None:
+        result["agent_compliance"] = float(agent_compliance)
+    if target_compliance is not None:
+        result["target_compliance"] = float(target_compliance)
+    if compliance_relative_error is not None:
+        result["compliance_relative_error"] = float(compliance_relative_error)
 
     # Save and add comparison image if available
     if comparison_image is not None:
