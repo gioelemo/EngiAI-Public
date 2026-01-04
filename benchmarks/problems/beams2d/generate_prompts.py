@@ -213,7 +213,7 @@ def main():
     print()
 
     # Save locally
-    output_dir = Path("data/datasets/beam_prompts/generated")
+    output_dir = Path(__file__).parent / "data" / "generated"
     output_file = output_dir / f"beam_prompts_{num_samples}_samples.json"
     save_prompts_locally(prompts, output_file)
 

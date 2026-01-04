@@ -218,7 +218,19 @@ class DatabaseManager:
             self.SessionLocal = sessionmaker(bind=self.engine)
 
             # Create tables if they don't exist
-            Base.metadata.create_all(self.engine)
+            # Handle race condition where multiple processes try to create tables simultaneously
+            try:
+                Base.metadata.create_all(self.engine)
+            except Exception as create_error:
+                # Check if it's a "table already exists" error (race condition)
+                error_msg = str(create_error).lower()
+                if "already exists" in error_msg:
+                    logger.debug(
+                        "Tables already exist (likely created by another process). Continuing..."
+                    )
+                else:
+                    # Re-raise if it's a different error
+                    raise
         except Exception as e:
             # If PostgreSQL fails (permissions, connection, etc), fall back to SQLite
             logger.warning(
@@ -234,7 +246,18 @@ class DatabaseManager:
 
             self.engine = create_engine(sqlite_url, echo=False)
             self.SessionLocal = sessionmaker(bind=self.engine)
-            Base.metadata.create_all(self.engine)
+
+            # Handle race condition for fallback SQLite as well
+            try:
+                Base.metadata.create_all(self.engine)
+            except Exception as create_error:
+                error_msg = str(create_error).lower()
+                if "already exists" in error_msg:
+                    logger.debug(
+                        "Tables already exist (likely created by another process). Continuing..."
+                    )
+                else:
+                    raise
 
     def get_session(self) -> Session:
         """Get a new database session."""

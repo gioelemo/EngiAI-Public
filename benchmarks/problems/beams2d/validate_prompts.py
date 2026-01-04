@@ -368,8 +368,8 @@ def main() -> None:
     print()
 
     # Load generated prompts
-    input_file = Path(
-        "data/datasets/beam_prompts/generated/beam_prompts_50_samples.json"
+    input_file = (
+        Path(__file__).parent / "data" / "generated" / "beam_prompts_50_samples.json"
     )
     print(f"📂 Loading prompts from: {input_file}")
 
@@ -391,7 +391,9 @@ def main() -> None:
     print_validation_report(summary)
 
     # Save validation report
-    output_file = Path("data/datasets/beam_prompts/validated/validation_report.json")
+    output_file = (
+        Path(__file__).parent / "data" / "validated" / "validation_report.json"
+    )
     save_validation_report(summary, output_file)
 
     print()
