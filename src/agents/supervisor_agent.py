@@ -71,24 +71,29 @@ class SupervisorAgent:
         self,
         model_name: str | None = None,
         temperature: float | None = None,
+        eval_mode: bool = False,
     ):
         """Initialize the supervisor agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
+            eval_mode: If True, uses minimal prompts for evaluations (reduces costs)
         """
         self.model_name = model_name or config.llm_model
         self.temperature = (
             temperature if temperature is not None else config.llm_temperature
         )
+        self.eval_mode = eval_mode
         self.llm = init_chat_model(self.model_name, temperature=self.temperature)
         # Create structured LLM for routing decisions
         self.routing_llm = self.llm.with_structured_output(RouteDecision)
 
         # Initialize specialized sub-agents
         self.engineering_agent = EngineeringAgent(
-            model_name=self.model_name, temperature=self.temperature
+            model_name=self.model_name,
+            temperature=self.temperature,
+            eval_mode=self.eval_mode,
         )
         self.hpc_agent = HPCAgent(
             model_name=self.model_name, temperature=self.temperature

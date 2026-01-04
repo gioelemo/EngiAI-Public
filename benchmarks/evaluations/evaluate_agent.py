@@ -92,9 +92,11 @@ class EngineeringAgent(weave.Model):
             Dictionary with response and metadata
         """
         # Initialize the supervisor agent with the configured model
+        # Use eval_mode=True to reduce token costs with minimal prompts
         supervisor = SupervisorAgent(
             model_name=self.model_name,
             temperature=self.temperature,
+            eval_mode=True,
         )
 
         # Convert prompt to message format
