@@ -10,7 +10,7 @@ Everything else (SUPPORTED_PROBLEMS, registries) is derived automatically.
 
 from typing import Literal, get_args
 
-from engibench.problems.beams2d.v0 import Beams2D  # type: ignore[import-untyped]
+from engibench.problems.beams2d.v1 import Beams2D  # type: ignore[import-untyped]
 from engibench.problems.photonics2d.v0 import (
     Photonics2D,  # type: ignore[import-untyped]
 )
