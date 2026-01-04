@@ -334,8 +334,14 @@ def optimize_design(
         # Don't use cached instance because it has default volfrac=0.35
         # EngiBench problems accept config in __init__ which sets the conditions properly
         problem_class = get_problem_class(problem_type)
-        # Pass config dict directly (even if empty), don't convert to None
-        problem = problem_class(seed=seed, config=config)
+
+        # Only pass config to problem classes that support it (e.g., Beams2D)
+        # ThermoElastic2D and others may not accept config parameter
+        try:
+            problem = problem_class(seed=seed, config=config)
+        except TypeError:
+            # Fall back to seed-only initialization if config not supported
+            problem = problem_class(seed=seed)
 
         # Update the cached instance so other tools can use the same problem
         set_unified_problem_instance(problem_type, problem)
