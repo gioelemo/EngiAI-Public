@@ -38,14 +38,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Import shared scorers and utilities
-from benchmarks.shared.scorers import (  # noqa: E402
-    score_constraint_accuracy,
-    score_design_match,
-    score_no_contradictions,
-    score_provides_actionable_guidance,
-    score_target_awareness,
-    score_understands_tradeoffs,
-)
+from benchmarks.shared.scorers import score_design_match  # noqa: E402
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.utils.weave_integration import init_weave  # noqa: E402
@@ -65,11 +58,6 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
         "dataset_name": "IDEALLab/beams_2d_50_100_v0",
         "prompt_file": "beam_prompts_50_samples.json",
         "scorers": [
-            score_constraint_accuracy,
-            score_target_awareness,
-            score_understands_tradeoffs,
-            score_provides_actionable_guidance,
-            score_no_contradictions,
             score_design_match,
         ],
     },
