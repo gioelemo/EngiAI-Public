@@ -177,3 +177,7 @@ def score_custom_metric(
 - Each example gets a unique thread_id to avoid state sharing
 - Matplotlib uses Agg backend to prevent threading issues
 - Results are cached locally to avoid re-computation
+- **No Docker containers required**: Evaluation automatically skips Prusa MCP and MMORE services
+  - `SKIP_MCP=true` - Skips Prusa MCP server connection
+  - `SKIP_MMORE=true` - Skips MMORE Docker container requirement
+  - This allows running benchmarks without any external services

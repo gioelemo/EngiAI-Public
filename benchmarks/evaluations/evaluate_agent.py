@@ -26,6 +26,9 @@ from langchain_core.messages import HumanMessage
 # Set SKIP_MCP to avoid Prusa MCP server connection issues during evaluation
 os.environ["SKIP_MCP"] = "true"
 
+# Set SKIP_MMORE to avoid MMORE Docker container requirement during evaluation
+os.environ["SKIP_MMORE"] = "true"
+
 # Add project root to path to import src modules
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
