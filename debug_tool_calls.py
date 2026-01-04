@@ -1,4 +1,5 @@
 """Debug script to see what tools are being called."""
+
 import os
 import sys
 from pathlib import Path
@@ -8,7 +9,8 @@ os.environ["SKIP_MMORE"] = "true"
 
 sys.path.insert(0, str(Path.cwd()))
 
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 from src.agents.supervisor_agent import SupervisorAgent
 
 prompt = """Design a 2D beam structure with the following constraints:
@@ -25,7 +27,9 @@ print("=" * 60)
 
 supervisor = SupervisorAgent(eval_mode=True)
 messages = [HumanMessage(content=prompt)]
-result = supervisor.invoke({"messages": messages}, {"configurable": {"thread_id": "debug_123"}})
+result = supervisor.invoke(
+    {"messages": messages}, {"configurable": {"thread_id": "debug_123"}}
+)
 
 print(f"\nTotal messages: {len(result['messages'])}\n")
 
@@ -49,10 +53,10 @@ for i, msg in enumerate(result["messages"]):
 
         # Check if this is optimize_design
         if tool_name == "optimize_design":
-            print(f"     ✅ THIS IS optimize_design!")
+            print("     ✅ THIS IS optimize_design!")
             if "compliance" in content_str.lower():
-                print(f"     ✅ Contains 'compliance'")
+                print("     ✅ Contains 'compliance'")
             else:
-                print(f"     ❌ Does NOT contain 'compliance'")
+                print("     ❌ Does NOT contain 'compliance'")
 
 print("\n" + "=" * 60)

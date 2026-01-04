@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import weave
 from datasets import load_dataset
+from PIL import Image
 
 from benchmarks.shared.utils import (
     create_design_comparison,
@@ -38,6 +39,162 @@ def get_hf_dataset(dataset_name: str):
     if dataset_name not in _hf_dataset_cache:
         _hf_dataset_cache[dataset_name] = load_dataset(dataset_name, split="train")
     return _hf_dataset_cache[dataset_name]
+
+
+def _get_design_array(
+    output: dict[str, Any], metadata: dict[str, Any], example_id: int
+) -> np.ndarray | None:
+    """Extract design array from messages or cache."""
+    from src.tools.engibench import get_unified_last_design  # noqa: PLC0415
+
+    messages = output.get("messages", [])
+    logger.debug("Example %s: Output dict keys: %s", example_id, list(output.keys()))
+    logger.debug(
+        "Example %s: Output dict (excluding messages): %s",
+        example_id,
+        {k: v for k, v in output.items() if k != "messages"},
+    )
+
+    design_array = extract_design_from_tool_messages(messages, example_id)
+
+    if design_array is None:
+        problem_type = metadata.get("problem_type", "beams2d")
+        design_array = get_unified_last_design(problem_type)
+        logger.warning("Example %s: Using global cache as fallback", example_id)
+
+    return design_array
+
+
+def _calculate_design_metrics(
+    design_array: np.ndarray, ground_truth: np.ndarray
+) -> dict[str, float]:
+    """Calculate similarity metrics between agent and ground truth designs."""
+    agent_binary = (design_array > BINARY_THRESHOLD).astype(int)
+    gt_binary = (ground_truth > BINARY_THRESHOLD).astype(int)
+
+    intersection = np.logical_and(agent_binary, gt_binary).sum()
+    union = np.logical_or(agent_binary, gt_binary).sum()
+    iou = intersection / union if union > 0 else 0.0
+
+    pixel_accuracy = np.mean(agent_binary == gt_binary)
+    mse = np.mean((design_array - ground_truth) ** 2)
+
+    agent_volfrac = np.mean(design_array)
+    gt_volfrac = np.mean(ground_truth)
+    volfrac_error = abs(agent_volfrac - gt_volfrac)
+
+    return {
+        "iou": float(iou),
+        "pixel_accuracy": float(pixel_accuracy),
+        "mse": float(mse),
+        "volfrac_error": float(volfrac_error),
+        "agent_volfrac": float(agent_volfrac),
+        "gt_volfrac": float(gt_volfrac),
+    }
+
+
+def _calculate_compliance_score(
+    messages: list,
+    target: dict[str, Any],
+    example_id: int,
+) -> tuple[float, dict[str, float | None]]:
+    """Calculate compliance score and extract compliance metrics."""
+    from langchain_core.messages import ToolMessage  # noqa: PLC0415
+
+    tool_msg_names = [
+        getattr(msg, "name", "unknown")
+        for msg in messages
+        if isinstance(msg, ToolMessage)
+    ]
+    logger.info(
+        "Example %s: Tool messages found: %s",
+        example_id,
+        tool_msg_names if tool_msg_names else "NONE",
+    )
+
+    compliance_data = extract_compliance_from_tool_messages(messages, example_id)
+
+    if not compliance_data:
+        logger.warning(
+            "Example %s: Failed to extract compliance from %s messages (tool messages: %s)",
+            example_id,
+            len(messages),
+            tool_msg_names,
+        )
+        return 0.0, {
+            "agent_compliance": None,
+            "target_compliance": None,
+            "compliance_relative_error": None,
+        }
+
+    if "final_compliance" not in compliance_data:
+        return 0.0, {
+            "agent_compliance": None,
+            "target_compliance": None,
+            "compliance_relative_error": None,
+        }
+
+    agent_compliance = compliance_data["final_compliance"]
+    target_compliance = target.get("compliance") if target else None
+
+    if not target_compliance:
+        return 0.0, {
+            "agent_compliance": agent_compliance,
+            "target_compliance": None,
+            "compliance_relative_error": None,
+        }
+
+    compliance_relative_error = (
+        abs(agent_compliance - target_compliance) / target_compliance
+    )
+    compliance_score = max(0.0, 1.0 - compliance_relative_error / 0.2)
+
+    logger.debug(
+        "Example %s: Compliance - Agent: %.4f, Target: %.4f, Error: %.2f%%, Score: %.3f",
+        example_id,
+        agent_compliance,
+        target_compliance,
+        compliance_relative_error * 100,
+        compliance_score,
+    )
+
+    return compliance_score, {
+        "agent_compliance": agent_compliance,
+        "target_compliance": target_compliance,
+        "compliance_relative_error": compliance_relative_error,
+    }
+
+
+def _save_comparison_image(
+    comparison_image: Image.Image,
+    output: dict[str, Any],
+    metadata: dict[str, Any],
+    example_id: int,
+) -> dict[str, str]:
+    """Save comparison image and return paths/encodings."""
+    problem_type = metadata.get("problem_type", "beams2d")
+    model_name = output.get("model", "unknown")
+
+    output_dir = (
+        Path(__file__).parent.parent
+        / "evaluations"
+        / "results"
+        / model_name
+        / problem_type
+        / "comparisons"
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    image_path = output_dir / f"comparison_example_{example_id}.png"
+    comparison_image.save(image_path)
+
+    buffered = io.BytesIO()
+    comparison_image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+
+    return {
+        "comparison_image_path": str(image_path),
+        "comparison_image_base64": f"data:image/png;base64,{img_str}",
+    }
 
 
 @weave.op()
@@ -79,34 +236,15 @@ def score_design_match(
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-    from src.tools.engibench import get_unified_last_design  # noqa: PLC0415
-
-    # Extract design from tool call results in message history
-    messages = output.get("messages", [])
     example_id = metadata.get("example_id", 0)
+    design_array = _get_design_array(output, metadata, example_id)
 
-    # Debug: Log what's in the output dict
-    logger.debug("Example %s: Output dict keys: %s", example_id, list(output.keys()))
-    logger.debug("Example %s: Output dict (excluding messages): %s",
-                 example_id,
-                 {k: v for k, v in output.items() if k != "messages"})
-
-    # Use helper function to extract design from messages
-    design_array = extract_design_from_tool_messages(messages, example_id)
-
-    # If no design found in messages, try the global cache as fallback
-    if design_array is None:
-        problem_type = metadata.get("problem_type", "beams2d")
-        design_array = get_unified_last_design(problem_type)
-        logger.warning("Example %s: Using global cache as fallback", example_id)
-
-    # If still no design found, return 0 score
     if design_array is None:
         return {
             "score": 0.0,
             "design_found": False,
             "reason": "No design array found in tool results or cache",
-            "num_messages": len(messages),
+            "num_messages": len(output.get("messages", [])),
         }
 
     # Load ground truth design from HuggingFace dataset
@@ -122,7 +260,6 @@ def score_design_match(
 
     ground_truth = np.array(hf_dataset[example_id]["optimal_design"])
 
-    # Validate shapes match
     if design_array.shape != ground_truth.shape:
         return {
             "score": 0.0,
@@ -132,151 +269,46 @@ def score_design_match(
             "gt_shape": str(ground_truth.shape),
         }
 
-    # Calculate similarity metrics
-
-    # 1. Intersection over Union (IoU) - treat as binary (material vs void)
-    agent_binary = (design_array > BINARY_THRESHOLD).astype(int)
-    gt_binary = (ground_truth > BINARY_THRESHOLD).astype(int)
-
-    intersection = np.logical_and(agent_binary, gt_binary).sum()
-    union = np.logical_or(agent_binary, gt_binary).sum()
-    iou = intersection / union if union > 0 else 0.0
-
-    # 2. Pixel-wise accuracy
-    pixel_accuracy = np.mean(agent_binary == gt_binary)
-
-    # 3. Mean squared error of density values
-    mse = np.mean((design_array - ground_truth) ** 2)
-
-    # 4. Volume fraction match
-    agent_volfrac = np.mean(design_array)
-    gt_volfrac = np.mean(ground_truth)
-    volfrac_error = abs(agent_volfrac - gt_volfrac)
-
-    # 5. Compliance performance match (compare agent's achieved vs target optimal)
-    compliance_score = 0.0
-    agent_compliance = None
-    target_compliance = None
-    compliance_relative_error = None
-
-    # Debug: Log all tool messages to see what we have
-    from langchain_core.messages import ToolMessage  # noqa: PLC0415
-
-    tool_msg_names = [
-        getattr(msg, "name", "unknown")
-        for msg in messages
-        if isinstance(msg, ToolMessage)
-    ]
-    logger.info(
-        "Example %s: Tool messages found: %s",
-        example_id,
-        tool_msg_names if tool_msg_names else "NONE",
+    # Calculate metrics
+    metrics = _calculate_design_metrics(design_array, ground_truth)
+    messages = output.get("messages", [])
+    compliance_score, compliance_metrics = _calculate_compliance_score(
+        messages, target, example_id
     )
 
-    # Extract agent's achieved compliance from tool messages
-    compliance_data = extract_compliance_from_tool_messages(messages, example_id)
-
-    # Debug: Log if compliance extraction failed
-    if not compliance_data:
-        logger.warning(
-            "Example %s: Failed to extract compliance from %s messages (tool messages: %s)",
-            example_id,
-            len(messages),
-            tool_msg_names,
-        )
-
-    if compliance_data and "final_compliance" in compliance_data:
-        agent_compliance = compliance_data["final_compliance"]
-
-        # Get target optimal compliance
-        if target and "compliance" in target:
-            target_compliance = target["compliance"]
-
-            # Calculate relative error (lower compliance is better, so both should be close)
-            # Relative error = |achieved - target| / target
-            compliance_relative_error = abs(
-                agent_compliance - target_compliance
-            ) / target_compliance
-
-            # Convert to 0-1 score where:
-            # - 0% error = 1.0 score
-            # - 10% error = 0.5 score
-            # - 20%+ error = 0.0 score
-            # Formula: max(0, 1 - relative_error / 0.2)
-            compliance_score = max(0.0, 1.0 - compliance_relative_error / 0.2)
-
-            logger.debug(
-                "Example %s: Compliance - Agent: %.4f, Target: %.4f, Error: %.2f%%, Score: %.3f",
-                example_id,
-                agent_compliance,
-                target_compliance,
-                compliance_relative_error * 100,
-                compliance_score,
-            )
-
-    # Overall score: weighted combination
-    # IoU is most important for topology, then pixel accuracy, then compliance performance
-    # Only include compliance in overall score if it was successfully extracted
+    # Calculate overall score
     if compliance_score > 0:
         score = (
-            0.4 * iou
-            + 0.25 * pixel_accuracy
-            + 0.15 * (1.0 - min(volfrac_error * 2, 1.0))
+            0.4 * metrics["iou"]
+            + 0.25 * metrics["pixel_accuracy"]
+            + 0.15 * (1.0 - min(metrics["volfrac_error"] * 2, 1.0))
             + 0.2 * compliance_score
         )
     else:
-        # Fallback to original scoring if compliance not available
         score = (
-            0.5 * iou + 0.3 * pixel_accuracy + 0.2 * (1.0 - min(volfrac_error * 2, 1.0))
+            0.5 * metrics["iou"]
+            + 0.3 * metrics["pixel_accuracy"]
+            + 0.2 * (1.0 - min(metrics["volfrac_error"] * 2, 1.0))
         )
 
-    # Create visualization for Weave UI
-    comparison_image = create_design_comparison(design_array, ground_truth, example_id)
-
+    # Build result
     result = {
         "score": score,
         "design_found": True,
-        "iou": float(iou),
-        "pixel_accuracy": float(pixel_accuracy),
-        "mse": float(mse),
-        "volfrac_error": float(volfrac_error),
-        "agent_volfrac": float(agent_volfrac),
-        "gt_volfrac": float(gt_volfrac),
         "compliance_score": float(compliance_score),
+        **metrics,
     }
 
     # Add compliance metrics if available
-    if agent_compliance is not None:
-        result["agent_compliance"] = float(agent_compliance)
-    if target_compliance is not None:
-        result["target_compliance"] = float(target_compliance)
-    if compliance_relative_error is not None:
-        result["compliance_relative_error"] = float(compliance_relative_error)
+    for key, value in compliance_metrics.items():
+        if value is not None:
+            result[key] = float(value)
 
-    # Save and add comparison image if available
+    # Save comparison image
+    comparison_image = create_design_comparison(design_array, ground_truth, example_id)
     if comparison_image is not None:
-        # Determine output directory based on problem type and model
-        problem_type = metadata.get("problem_type", "beams2d")
-        model_name = output.get("model", "unknown")
-
-        # Save to results directory organized by model and problem
-        output_dir = (
-            Path(__file__).parent.parent
-            / "evaluations"
-            / "results"
-            / model_name
-            / problem_type
-            / "comparisons"
+        result.update(
+            _save_comparison_image(comparison_image, output, metadata, example_id)
         )
-        output_dir.mkdir(parents=True, exist_ok=True)
-        image_path = output_dir / f"comparison_example_{example_id}.png"
-        comparison_image.save(image_path)
-        result["comparison_image_path"] = str(image_path)
-
-        # Also encode as base64 data URL for potential inline display
-        buffered = io.BytesIO()
-        comparison_image.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        result["comparison_image_base64"] = f"data:image/png;base64,{img_str}"
 
     return result

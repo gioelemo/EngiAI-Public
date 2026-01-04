@@ -129,8 +129,12 @@ class EngineeringAgent(weave.Model):
         for tc in tool_calls_info:
             if tc["name"] == "optimize_design":
                 # Check both 'constraints' (new) and 'config' (old) parameter names
-                constraints_used = tc["args"].get("constraints", tc["args"].get("config", None))
-                logger.debug("optimize_design called with constraints: %s", constraints_used)
+                constraints_used = tc["args"].get(
+                    "constraints", tc["args"].get("config", None)
+                )
+                logger.debug(
+                    "optimize_design called with constraints: %s", constraints_used
+                )
                 if constraints_used is None:
                     logger.warning(
                         "NO CONSTRAINTS - agent is not passing constraint parameters!"
