@@ -14,6 +14,7 @@ Reference: https://docs.wandb.ai/weave/guides/core-types/evaluations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 import uuid
@@ -22,6 +23,9 @@ from typing import Any, TypedDict
 
 import weave
 from langchain_core.messages import HumanMessage
+
+# Suppress Weave serialization warnings (non-critical, caused by ModelMetaclass in LangChain)
+logging.getLogger("langchain_core.callbacks.manager").setLevel(logging.ERROR)
 
 # Set SKIP_MCP to avoid Prusa MCP server connection issues during evaluation
 os.environ["SKIP_MCP"] = "true"
@@ -76,6 +80,9 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     #     "scorers": [...],  # noqa: ERA001
     # },
 }
+
+# Configure logger for this module
+logger = logging.getLogger(__name__)
 
 
 class EngineeringAgent(weave.Model):
@@ -132,11 +139,10 @@ class EngineeringAgent(weave.Model):
         for tc in tool_calls_info:
             if tc["name"] == "optimize_design":
                 config_used = tc["args"].get("config", None)
-                print("\n[DEBUG] optimize_design called with:")
-                print(f"  config: {config_used}")
+                logger.debug("optimize_design called with config: %s", config_used)
                 if config_used is None:
-                    print(
-                        "  ⚠️  NO CONFIG - agent is not passing constraint parameters!"
+                    logger.warning(
+                        "NO CONFIG - agent is not passing constraint parameters!"
                     )
 
         return {

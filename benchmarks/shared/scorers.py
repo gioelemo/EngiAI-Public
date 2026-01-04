@@ -2,6 +2,7 @@
 
 import base64
 import io
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,9 @@ from benchmarks.shared.utils import (
     create_design_comparison,
     extract_design_from_tool_messages,
 )
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Quality thresholds (can be overridden per problem type)
 MIN_RESPONSE_LENGTH = 100  # Minimum characters for substantial response
@@ -304,7 +308,7 @@ def score_design_match(
     if design_array is None:
         problem_type = metadata.get("problem_type", "beams2d")
         design_array = get_unified_last_design(problem_type)
-        print(f"[DEBUG] Example {example_id}: Design from global cache (FALLBACK) ⚠️")
+        logger.warning("Example %s: Using global cache as fallback", example_id)
 
     # If still no design found, return 0 score
     if design_array is None:

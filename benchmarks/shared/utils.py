@@ -3,6 +3,7 @@
 import ast
 import io
 import json
+import logging
 import re
 
 import matplotlib
@@ -16,6 +17,9 @@ matplotlib.use("Agg")
 # Debug output configuration
 DEBUG_PREVIEW_LENGTH = 200  # Characters to show in debug preview for design messages
 DEBUG_PREVIEW_SHORT = 150  # Characters to show in debug preview for other messages
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 def extract_design_from_tool_messages(
@@ -51,8 +55,11 @@ def extract_design_from_tool_messages(
                 if len(content) > DEBUG_PREVIEW_SHORT
                 else content
             )
-            print(
-                f"[DEBUG] Example {example_id}: Tool msg #{tool_messages_count}: {content_preview}..."
+            logger.debug(
+                "Example %s: Tool msg #%s: %s...",
+                example_id,
+                tool_messages_count,
+                content_preview,
             )
             continue
 
@@ -62,8 +69,8 @@ def extract_design_from_tool_messages(
             if len(content) > DEBUG_PREVIEW_LENGTH
             else content
         )
-        print(f"[DEBUG] Example {example_id}: Found optimized_design in tool message")
-        print(f"[DEBUG] Content preview: {content_preview}...")
+        logger.debug("Example %s: Found optimized_design in tool message", example_id)
+        logger.debug("Content preview: %s...", content_preview)
 
         # Parse the tool response - try multiple approaches
         result = None
@@ -80,9 +87,9 @@ def extract_design_from_tool_messages(
             json_content = re.sub(r"array\((.*?)\)", r"\1", json_content)
 
             result = json.loads(json_content)
-            print(f"[DEBUG] Example {example_id}: Parsed with JSON conversion ✓")
+            logger.debug("Example %s: Parsed with JSON conversion", example_id)
         except (json.JSONDecodeError, Exception) as e:
-            print(f"[DEBUG] Example {example_id}: JSON conversion failed: {e}")
+            logger.debug("Example %s: JSON conversion failed: %s", example_id, e)
 
             # Approach 2: Try ast.literal_eval on a simplified version
             try:
@@ -94,31 +101,36 @@ def extract_design_from_tool_messages(
                     design_list_str = match.group(1)
                     design_list = ast.literal_eval(design_list_str)
                     result = {"optimized_design": design_list}
-                    print(
-                        f"[DEBUG] Example {example_id}: Extracted optimized_design with regex ✓"
+                    logger.debug(
+                        "Example %s: Extracted optimized_design with regex", example_id
                     )
                 else:
-                    print(
-                        f"[DEBUG] Example {example_id}: Could not find optimized_design pattern"
+                    logger.debug(
+                        "Example %s: Could not find optimized_design pattern",
+                        example_id,
                     )
             except (ValueError, SyntaxError) as e2:
-                print(f"[DEBUG] Example {example_id}: Regex extraction failed: {e2}")
+                logger.debug("Example %s: Regex extraction failed: %s", example_id, e2)
 
         # Extract design array if parsing succeeded
         if result and isinstance(result, dict) and "optimized_design" in result:
             design_array = np.array(result["optimized_design"])
-            print(
-                f"[DEBUG] Example {example_id}: Design extracted from message history ✓ (shape: {design_array.shape})"
+            logger.debug(
+                "Example %s: Design extracted from message history (shape: %s)",
+                example_id,
+                design_array.shape,
             )
             break
 
-        print(
-            f"[DEBUG] Example {example_id}: Result parsed but no optimized_design field found"
+        logger.debug(
+            "Example %s: Result parsed but no optimized_design field found", example_id
         )
 
     if tool_messages_count == 0:
-        print(
-            f"[DEBUG] Example {example_id}: No tool messages found in {len(messages)} total messages"
+        logger.debug(
+            "Example %s: No tool messages found in %s total messages",
+            example_id,
+            len(messages),
         )
 
     return design_array
