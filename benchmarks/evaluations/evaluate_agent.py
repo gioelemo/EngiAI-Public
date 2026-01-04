@@ -179,6 +179,101 @@ def prepare_evaluation_dataset(
     ]
 
 
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Evaluate engineering agent on design tasks"
+    )
+    parser.add_argument(
+        "--problem",
+        type=str,
+        default="beams2d",
+        choices=list(PROBLEM_CONFIGS.keys()),
+        help="Problem type to evaluate",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="LLM model to use (defaults to config.llm_model)",
+    )
+    parser.add_argument(
+        "--samples",
+        type=int,
+        default=5,
+        help="Number of samples to evaluate",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=None,
+        help="Model temperature (defaults to config.llm_temperature)",
+    )
+    return parser.parse_args()
+
+
+def load_prompts(problem: str, prompt_file_name: str) -> list[dict[str, Any]] | None:
+    """Load prompts from problem-specific directory.
+
+    Args:
+        problem: Problem type
+        prompt_file_name: Name of the prompt file
+
+    Returns:
+        List of prompts or None if file not found
+    """
+    prompt_file = (
+        Path(__file__).parent.parent
+        / "problems"
+        / problem
+        / "data"
+        / "generated"
+        / prompt_file_name
+    )
+    print(f"📂 Loading prompts from: {prompt_file}")
+
+    if not prompt_file.exists():
+        print(f"❌ Error: File not found: {prompt_file}")
+        print(f"Please run generate_prompts.py for {problem} first.")
+        return None
+
+    with prompt_file.open() as f:
+        return json.load(f)
+
+
+def get_or_create_dataset(
+    eval_dataset: list[dict[str, Any]], dataset_name: str, num_samples: int
+) -> weave.Dataset:
+    """Get existing dataset or create new one if needed.
+
+    Args:
+        eval_dataset: Prepared evaluation dataset
+        dataset_name: Name for the Weave dataset
+        num_samples: Expected number of samples
+
+    Returns:
+        Weave Dataset object
+    """
+    try:
+        dataset = weave.ref(dataset_name).get()
+        if len(dataset.rows) == num_samples:
+            print(
+                f"📦 Using existing evaluation dataset from Weave ({len(dataset.rows)} samples)"
+            )
+        else:
+            print(
+                f"⚠️  Existing dataset has {len(dataset.rows)} samples, need {num_samples}. Recreating..."
+            )
+            dataset = weave.Dataset(name=dataset_name, rows=eval_dataset)  # type: ignore[arg-type]
+            weave.publish(dataset)
+            print("📦 Published new evaluation dataset to Weave")
+    except Exception:
+        dataset = weave.Dataset(name=dataset_name, rows=eval_dataset)  # type: ignore[arg-type]
+        weave.publish(dataset)
+        print(f"📦 Published new evaluation dataset to Weave ({num_samples} samples)")
+    return dataset
+
+
 def print_evaluation_summary(evaluation_results: Any, scorers: list[Any]) -> None:
     """Print a summary of evaluation results."""
     print()
@@ -213,36 +308,7 @@ def print_evaluation_summary(evaluation_results: Any, scorers: list[Any]) -> Non
 
 async def main() -> None:
     """Main execution function."""
-    parser = argparse.ArgumentParser(
-        description="Evaluate engineering agent on design tasks"
-    )
-    parser.add_argument(
-        "--problem",
-        type=str,
-        default="beams2d",
-        choices=list(PROBLEM_CONFIGS.keys()),
-        help="Problem type to evaluate",
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=None,
-        help="LLM model to use (defaults to config.llm_model)",
-    )
-    parser.add_argument(
-        "--samples",
-        type=int,
-        default=5,
-        help="Number of samples to evaluate",
-    )
-    parser.add_argument(
-        "--temperature",
-        type=float,
-        default=None,
-        help="Model temperature (defaults to config.llm_temperature)",
-    )
-
-    args = parser.parse_args()
+    args = parse_arguments()
 
     # Get problem configuration
     problem_config = PROBLEM_CONFIGS[args.problem]
@@ -269,24 +335,10 @@ async def main() -> None:
     print("✅ Weave initialized successfully!")
     print()
 
-    # Load prompts from problem-specific directory
-    prompt_file = (
-        Path(__file__).parent.parent
-        / "problems"
-        / args.problem
-        / "data"
-        / "generated"
-        / problem_config["prompt_file"]
-    )
-    print(f"📂 Loading prompts from: {prompt_file}")
-
-    if not prompt_file.exists():
-        print(f"❌ Error: File not found: {prompt_file}")
-        print(f"Please run generate_prompts.py for {args.problem} first.")
+    # Load prompts
+    prompts = load_prompts(args.problem, problem_config["prompt_file"])
+    if prompts is None:
         return
-
-    with prompt_file.open() as f:
-        prompts = json.load(f)
 
     print(f"✅ Loaded {len(prompts)} prompts")
     print(f"📊 Evaluating on {args.samples} samples")
@@ -297,13 +349,10 @@ async def main() -> None:
         prompts, args.samples, args.problem, problem_config["dataset_name"]
     )
 
-    # Create Weave dataset
-    dataset = weave.Dataset(
-        name=f"{args.problem}_eval_dataset_{model_name.replace('/', '_')}",
-        rows=eval_dataset,  # type: ignore[arg-type]
+    # Get or create Weave dataset
+    dataset = get_or_create_dataset(
+        eval_dataset, f"{args.problem}_eval_dataset", args.samples
     )
-    weave.publish(dataset)
-    print("📦 Published evaluation dataset to Weave")
     print()
 
     # Create agent model
