@@ -45,7 +45,7 @@ class RAGAgent(BaseAgent):
 
         if skip_mmore:
             logger.info("SKIP_MMORE=true: RAG Agent initialized without MMORE client")
-            self.mmore_client = None  # type: ignore[assignment]
+            self.mmore_client: MMOREClient | None = None
         else:
             # Initialize MMORE client
             self.mmore_client = MMOREClient(base_url=mmore_url)
