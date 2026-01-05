@@ -37,8 +37,8 @@ os.environ["SKIP_MMORE"] = "true"
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import shared scorers and utilities
-from benchmarks.shared.scorers import score_design_match  # noqa: E402
+# Import problem-specific scorers
+from benchmarks.problems.beams2d.scorers import score_design_match  # noqa: E402
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.utils.weave_integration import init_weave  # noqa: E402
