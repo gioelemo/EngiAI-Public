@@ -349,9 +349,14 @@ def optimize_design(
         # ThermoElastic2D and others may not accept config parameter
         try:
             problem = problem_class(seed=seed, config=config)
-        except TypeError:
-            # Fall back to seed-only initialization if config not supported
-            problem = problem_class(seed=seed)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported.
+            # Re-raise other TypeErrors so that genuine bugs are not masked.
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
 
         # Update cache so other tools (simulate_design, render_design) use the same configured instance
         set_unified_problem_instance(problem_type, problem)
