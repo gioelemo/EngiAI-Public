@@ -41,7 +41,7 @@ def get_hf_dataset(dataset_name: str):
     return _hf_dataset_cache[dataset_name]
 
 
-def extract_design_from_tool_messages(
+def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
     messages: list, example_id: int
 ) -> np.ndarray | None:
     """Extract optimized design array from tool message history.

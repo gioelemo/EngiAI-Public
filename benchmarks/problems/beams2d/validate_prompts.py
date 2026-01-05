@@ -147,7 +147,7 @@ def validate_completeness(prompt_data: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Validation result with status and details
     """
-    errors = []
+    errors: list[str] = []
     required_fields = ["prompt", "conditions", "metadata"]
 
     # Check top-level fields
@@ -206,12 +206,19 @@ def validate_consistency(prompt_data: dict[str, Any]) -> dict[str, Any]:
     forcedist = conditions.get("forcedist", 0.0)
     force_desc = metadata.get("force_description", "")
 
+    # Check concentrated force consistency
     if (
         forcedist < FORCE_CONCENTRATED_THRESHOLD
         and "concentrated" not in force_desc.lower()
-    ) or (forcedist >= FORCE_UNIFORM_THRESHOLD and "uniform" not in force_desc.lower()):
+    ):
         errors.append(
-            f"Force description '{force_desc}' inconsistent with forcedist {forcedist}"
+            f"Force description '{force_desc}' should mention 'concentrated' for forcedist {forcedist}"
+        )
+
+    # Check uniform force consistency
+    if forcedist >= FORCE_UNIFORM_THRESHOLD and "uniform" not in force_desc.lower():
+        errors.append(
+            f"Force description '{force_desc}' should mention 'uniform' for forcedist {forcedist}"
         )
 
     # Check compliance description consistency if target present

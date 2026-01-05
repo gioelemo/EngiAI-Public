@@ -284,7 +284,7 @@ def simulate_design(
 
 
 @tool
-def optimize_design(
+def optimize_design(  # noqa: PLR0912
     problem_type: str = "beams2d",
     starting_point: str = "random",
     constraints: dict[str, Any] | None = None,
