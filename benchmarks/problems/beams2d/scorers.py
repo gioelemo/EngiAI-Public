@@ -1,9 +1,7 @@
 """Beams2D-specific scorer functions for evaluating topology optimization performance."""
 
-import ast
 import base64
 import io
-import json
 import logging
 import re
 from pathlib import Path
@@ -28,7 +26,7 @@ BINARY_THRESHOLD = 0.5  # Threshold for converting density to binary (material v
 
 
 def _extract_compliance_from_dict(content: dict) -> dict[str, float]:
-    """Extract compliance values from dict content."""
+    """Extract compliance values from dict content (for dict-type tool messages)."""
     compliance_data = {}
 
     if "final_compliance" in content:
@@ -49,53 +47,15 @@ def _extract_compliance_from_dict(content: dict) -> dict[str, float]:
     return compliance_data
 
 
-def _try_parse_ast(content: str, example_id: int) -> dict[str, float] | None:
-    """Try parsing content as Python dict using ast.literal_eval."""
-    try:
-        result = ast.literal_eval(content)
-        if isinstance(result, dict):
-            compliance_data = _extract_compliance_from_dict(result)
-            if compliance_data:
-                logger.info(
-                    "Example %s: Extracted compliance via ast.literal_eval: %s",
-                    example_id,
-                    compliance_data,
-                )
-                return compliance_data
-    except (ValueError, SyntaxError) as e:
-        logger.debug(
-            "Example %s: ast.literal_eval failed: %s, trying JSON...", example_id, e
-        )
-    return None
+def _parse_string_content(content: str, example_id: int) -> dict[str, float] | None:
+    """Parse string content using regex to extract compliance values."""
+    logger.info(
+        "Example %s: optimize_design content length: %s chars, contains 'compliance': %s",
+        example_id,
+        len(content),
+        "compliance" in content.lower(),
+    )
 
-
-def _try_parse_json(content: str, example_id: int) -> dict[str, float] | None:
-    """Try parsing content as JSON after converting Python syntax."""
-    try:
-        json_content = content.replace("'", '"')
-        json_content = json_content.replace("True", "true")
-        json_content = json_content.replace("False", "false")
-        json_content = json_content.replace("None", "null")
-
-        result = json.loads(json_content)
-        if isinstance(result, dict):
-            compliance_data = _extract_compliance_from_dict(result)
-            if compliance_data:
-                logger.info(
-                    "Example %s: Successfully extracted compliance: %s",
-                    example_id,
-                    compliance_data,
-                )
-                return compliance_data
-    except (json.JSONDecodeError, ValueError, KeyError) as e:
-        logger.debug(
-            "Example %s: JSON parsing failed: %s, trying regex...", example_id, e
-        )
-    return None
-
-
-def _try_parse_regex(content: str, example_id: int) -> dict[str, float] | None:
-    """Try extracting compliance values using regex patterns."""
     try:
         final_match = re.search(
             r"['\"]?(final_compliance|final_c)['\"]?\s*:\s*([0-9.eE+-]+)", content
@@ -125,27 +85,6 @@ def _try_parse_regex(content: str, example_id: int) -> dict[str, float] | None:
     except (ValueError, AttributeError) as e:
         logger.debug("Example %s: Regex extraction failed: %s", example_id, e)
     return None
-
-
-def _parse_string_content(content: str, example_id: int) -> dict[str, float] | None:
-    """Parse string content using multiple parsing strategies."""
-    logger.info(
-        "Example %s: optimize_design content length: %s chars, contains 'compliance': %s",
-        example_id,
-        len(content),
-        "compliance" in content.lower(),
-    )
-
-    # Try different parsing approaches in order
-    result = _try_parse_ast(content, example_id)
-    if result:
-        return result
-
-    result = _try_parse_json(content, example_id)
-    if result:
-        return result
-
-    return _try_parse_regex(content, example_id)
 
 
 def extract_compliance_from_tool_messages(
