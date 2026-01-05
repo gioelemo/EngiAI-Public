@@ -395,20 +395,14 @@ def score_design_match(
         messages, target, example_id
     )
 
-    # Calculate overall score
-    if compliance_score > 0:
-        score = (
-            0.4 * metrics["iou"]
-            + 0.25 * metrics["pixel_accuracy"]
-            + 0.15 * (1.0 - min(metrics["volfrac_error"] * 2, 1.0))
-            + 0.2 * compliance_score
-        )
-    else:
-        score = (
-            0.5 * metrics["iou"]
-            + 0.3 * metrics["pixel_accuracy"]
-            + 0.2 * (1.0 - min(metrics["volfrac_error"] * 2, 1.0))
-        )
+    # Calculate overall score with consistent weights
+    # If compliance data is missing, compliance_score = 0 properly penalizes the agent
+    score = (
+        0.4 * metrics["iou"]
+        + 0.25 * metrics["pixel_accuracy"]
+        + 0.15 * (1.0 - min(metrics["volfrac_error"] * 2, 1.0))
+        + 0.2 * compliance_score
+    )
 
     # Build result
     result: dict[str, Any] = {
