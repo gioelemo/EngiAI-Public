@@ -151,23 +151,29 @@ def validate_completeness(prompt_data: dict[str, Any]) -> dict[str, Any]:
     required_fields = ["prompt", "conditions", "metadata"]
 
     # Check top-level fields
-    for field in required_fields:
-        if field not in prompt_data:
-            errors.append(f"Missing required field: {field}")  # noqa: PERF401
+    errors.extend(
+        f"Missing required field: {field}"
+        for field in required_fields
+        if field not in prompt_data
+    )
 
     # Check conditions fields
     if "conditions" in prompt_data:
         required_conditions = ["volfrac", "rmin", "forcedist"]
-        for field in required_conditions:
-            if field not in prompt_data["conditions"]:
-                errors.append(f"Missing required condition: {field}")  # noqa: PERF401
+        errors.extend(
+            f"Missing required condition: {field}"
+            for field in required_conditions
+            if field not in prompt_data["conditions"]
+        )
 
     # Check metadata fields
     if "metadata" in prompt_data:
         required_metadata = ["force_description", "expected_stiffness"]
-        for field in required_metadata:
-            if field not in prompt_data["metadata"]:
-                errors.append(f"Missing required metadata: {field}")  # noqa: PERF401
+        errors.extend(
+            f"Missing required metadata: {field}"
+            for field in required_metadata
+            if field not in prompt_data["metadata"]
+        )
 
     # Check prompt is not empty
     if "prompt" in prompt_data and not prompt_data["prompt"].strip():
