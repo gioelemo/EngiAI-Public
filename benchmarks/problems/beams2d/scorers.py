@@ -349,10 +349,9 @@ def score_design_match(
     """
     # Import here to avoid circular dependencies
     import sys  # noqa: PLC0415
-    from pathlib import Path as PathLib  # noqa: PLC0415
 
     # Add project root to path
-    project_root = PathLib(__file__).parent.parent.parent.parent
+    project_root = Path(__file__).parent.parent.parent.parent
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
