@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Complete Benchmarking Infrastructure**
+  - Built entire `benchmarks/` directory structure from scratch for systematic agent evaluation
+  - Comprehensive documentation in `benchmarks/README.md` with quick start guide and examples
+  - Support for multiple problem types, models, and configurations with results tracking via Weave
+  - ~2,800 lines of new code implementing evaluation framework, prompt generation, and scoring
+
+- **Weave Evaluation Framework Integration**
+  - Unified evaluation script (`benchmarks/evaluations/evaluate_agent.py`) for benchmarking across problem types
+  - `EngineeringAgent` Weave Model wrapper for multi-agent supervisor system
+  - Dataset creation and management with `get_or_create_dataset()` for prompt datasets
+  - Automatic evaluation results tracking and visualization in Weave dashboard
+  - Evaluation results organized by model and problem type
+  - Documentation in `benchmarks/evaluations/README.md`
+
+- **Beams2D Problem Benchmarks**
+  - Complete beams2d topology optimization benchmark suite
+  - Integration with HuggingFace dataset `IDEALLab/beams_2d_50_100_v0` (3.88k examples)
+  - Prompt generation script (`generate_prompts.py`) with Weave integration and templating
+  - Comprehensive prompt validation script (`validate_prompts.py`) with numerical accuracy checks, parameter range validation, and completeness verification
+  - Dataset exploration tool (`explore_dataset.py`) for analyzing beam design parameters and statistics
+  - Problem-specific scoring functions in `benchmarks/problems/beams2d/scorers.py`:
+    - `score_design_match()` - Multi-metric scorer with IoU, pixel accuracy, volume fraction, and compliance
+    - Compliance extraction from tool messages with regex parsing
+    - Design comparison visualization with side-by-side agent vs ground truth images
+  - Documentation in `benchmarks/problems/beams2d/README.md`
+
+- **Shared Benchmarking Utilities**
+  - `benchmarks/shared/utils.py` with reusable functions:
+    - `get_hf_dataset()` - HuggingFace dataset loading with caching
+    - `extract_design_from_tool_messages()` - Design array extraction from agent messages
+    - `create_design_comparison()` - Side-by-side visualization of designs
+  - Modular architecture for adding future problem types (thermoelastic2d, 3D structures, etc.)
+
+- **Agent Evaluation Mode**
+  - `eval_mode` parameter in `SupervisorAgent` for reduced token costs during benchmarking
+  - Minimal agent prompts optimized for evaluation tasks
+  - Skip MMORE and MCP server requirements during evaluation (`SKIP_MMORE`, `SKIP_MCP` env vars)
+  - Parallel design generation support with proper isolation
+
+- **Independent Weave Tracking Control**
+  - `USE_WEAVE_CHATBOT` configuration flag to control Weave tracking for chatbot interactions separately from evaluations
+  - Allows disabling chatbot tracking overhead while keeping evaluation tracking enabled
+  - Documented in `.env.example`, `README.md`, and `docs/source/weave_integration.md`
+
+### Changed
+- **Agent System Enhancements for Evaluation**
+  - Updated `supervisor_agent.py`, `engineering_agent.py`, and `rag_agent.py` to support eval mode
+  - Added `skip_mmore` parameter to RAG agent for running without Docker
+  - Improved logging in engineering agent for evaluation debugging
+  - Enhanced `engibench.py` to handle parallel design requests correctly
+  - Updated agent prompts to reduce token usage during evaluation
+
+- **Benchmark Code Architecture**
+  - Separated problem-specific scoring logic from shared utilities
+  - Organized code by problem type in `benchmarks/problems/` directory structure
+  - Shared utilities in `benchmarks/shared/` for cross-problem functionality
+  - Evaluation framework in `benchmarks/evaluations/` for unified benchmarking
+
+- **Scoring System Evolution**
+  - Iteratively improved scoring metrics based on evaluation results:
+    - Added IoU (Intersection over Union) for topology matching
+    - Added pixel accuracy for density comparison
+    - Added volume fraction error for material usage
+    - Added compliance performance scoring for structural mechanics
+  - Simplified compliance parsing to regex-only (removed unused AST and JSON parsing)
+  - Optimized scoring weights: 40% IoU, 25% pixel accuracy, 15% volume fraction, 20% compliance
+
+- **Dataset Management**
+  - Improved dataset creation workflow with validation and error handling
+  - Added comparison images saved to `evaluations/results/{model}/{problem}/comparisons/`
+  - Better organization of evaluation data and results
+
+### Fixed
+- Fixed parallel design generation issue preventing concurrent optimization runs
+- Fixed design configuration not being used correctly in evaluation
+- Fixed mypy type error in scorers by explicitly typing result dictionary as `dict[str, Any]`
+- Fixed test suite to support new evaluation infrastructure
+- Removed unused imports and cleaned up code (~90 lines of dead code removed)
+
 ## [1.1.0] - 2025-12-15
 
 ### Added
