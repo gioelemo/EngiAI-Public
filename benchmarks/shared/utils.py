@@ -207,8 +207,10 @@ def create_design_comparison(
         buf.close()
         plt.close(fig)
 
-    except Exception as e:
-        print(f"Warning: Failed to create comparison visualization: {e}")
+    except Exception:
+        logger.exception(
+            "Failed to create comparison visualization for example_id %s", example_id
+        )
         return None
     else:
         return pil_image

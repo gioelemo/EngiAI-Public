@@ -61,12 +61,6 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
             score_design_match,
         ],
     },
-    # Add more problem types here in the future
-    # "thermoelastic2d": {  # noqa: ERA001
-    #     "dataset_name": "...",  # noqa: ERA001
-    #     "prompt_file": "thermoelastic_prompts_50_samples.json",  # noqa: ERA001
-    #     "scorers": [...],  # noqa: ERA001
-    # },
 }
 
 # Configure logger for this module

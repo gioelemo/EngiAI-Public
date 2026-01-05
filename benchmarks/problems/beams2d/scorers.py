@@ -323,8 +323,6 @@ def _save_comparison_image(
 
 @weave.op()
 def score_design_match(
-    prompt: str,  # noqa: ARG001
-    conditions: dict[str, Any],  # noqa: ARG001
     output: dict[str, Any],
     target: dict[str, Any],
     metadata: dict[str, Any],
