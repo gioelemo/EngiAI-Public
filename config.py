@@ -97,6 +97,9 @@ class Config:
 
         # Weave configuration (for LLM tracing and benchmarking)
         self.use_weave: bool = os.getenv("USE_WEAVE", "false").lower() == "true"
+        self.use_weave_chatbot: bool = (
+            os.getenv("USE_WEAVE_CHATBOT", "false").lower() == "true"
+        )
         self.weave_project: str = os.getenv(
             "WEAVE_PROJECT", "gioelemo-ethz/engineer-assistant-benchmarks"
         )

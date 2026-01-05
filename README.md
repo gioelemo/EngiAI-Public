@@ -357,11 +357,12 @@ The system supports two options for tracking LLM calls and performance:
 2. **Weave Tracing** (Weights & Biases Weave for LLM benchmarking):
    ```env
    USE_WEAVE=true
+   USE_WEAVE_CHATBOT=false
    WEAVE_PROJECT="your-wandb-entity/engineer-assistant-benchmarks"
    WANDB_API_KEY=your-wandb-api-key
    ```
 
-**Note:** Weave uses a separate project from the `engiopt` W&B project to keep LLM benchmark traces isolated from model training experiments.
+**Note:** Weave uses a separate project from the `engiopt` W&B project to keep LLM benchmark traces isolated from model training experiments. The `USE_WEAVE` flag controls evaluation/benchmark tracing, while `USE_WEAVE_CHATBOT` separately controls chatbot interaction tracing (default: `false`).
 
 Both tracing systems automatically capture:
 - Input and output data from LLM calls

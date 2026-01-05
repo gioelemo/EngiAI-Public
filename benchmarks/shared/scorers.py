@@ -292,7 +292,7 @@ def score_design_match(
         )
 
     # Build result
-    result = {
+    result: dict[str, Any] = {
         "score": score,
         "design_found": True,
         "compliance_score": float(compliance_score),
