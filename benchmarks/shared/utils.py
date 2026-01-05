@@ -112,24 +112,59 @@ def extract_design_from_tool_messages(
 
             # Approach 2: Try ast.literal_eval on a simplified version
             try:
-                # Extract just the optimized_design field using regex
-                match = re.search(
-                    r"'optimized_design':\s*(\[\[.*?\]\])", content, re.DOTALL
-                )
-                if match:
-                    design_list_str = match.group(1)
-                    design_list = ast.literal_eval(design_list_str)
-                    result = {"optimized_design": design_list}
-                    logger.debug(
-                        "Example %s: Extracted optimized_design with regex", example_id
-                    )
+                # Extract just the optimized_design field using bracket balancing
+                key_match = re.search(r"'optimized_design'\s*:\s*", content)
+                if key_match:
+                    idx = key_match.end()
+                    # Skip any whitespace after the colon
+                    while idx < len(content) and content[idx].isspace():
+                        idx += 1
+
+                    # Expect the optimized_design value to start with a list '['
+                    if idx < len(content) and content[idx] == "[":
+                        start = idx
+                        bracket_count = 0
+                        end = None
+
+                        for i in range(start, len(content)):
+                            ch = content[i]
+                            if ch == "[":
+                                bracket_count += 1
+                            elif ch == "]":
+                                bracket_count -= 1
+                                if bracket_count == 0:
+                                    end = i + 1
+                                    break
+
+                        if end is not None and bracket_count == 0:
+                            design_list_str = content[start:end]
+                            design_list = ast.literal_eval(design_list_str)
+                            result = {"optimized_design": design_list}
+                            logger.debug(
+                                "Example %s: Extracted optimized_design with bracket balancing",
+                                example_id,
+                            )
+                        else:
+                            logger.debug(
+                                "Example %s: Unbalanced brackets when extracting optimized_design",
+                                example_id,
+                            )
+                    else:
+                        logger.debug(
+                            "Example %s: optimized_design value does not start with '['",
+                            example_id,
+                        )
                 else:
                     logger.debug(
-                        "Example %s: Could not find optimized_design pattern",
+                        "Example %s: Could not find optimized_design key pattern",
                         example_id,
                     )
             except (ValueError, SyntaxError) as e2:
-                logger.debug("Example %s: Regex extraction failed: %s", example_id, e2)
+                logger.debug(
+                    "Example %s: Bracket-balanced extraction failed: %s",
+                    example_id,
+                    e2,
+                )
 
         # Extract design array if parsing succeeded
         if result and isinstance(result, dict) and "optimized_design" in result:
