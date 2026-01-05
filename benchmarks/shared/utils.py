@@ -5,10 +5,12 @@ import io
 import json
 import logging
 import re
+from typing import Any
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from datasets import load_dataset
 from PIL import Image
 
 # Use Agg backend for matplotlib to avoid threading issues in parallel evaluation
@@ -20,6 +22,23 @@ DEBUG_PREVIEW_SHORT = 150  # Characters to show in debug preview for other messa
 
 # Configure logger
 logger = logging.getLogger(__name__)
+
+# Cache for HuggingFace datasets to avoid reloading
+_hf_dataset_cache: dict[str, Any] = {}
+
+
+def get_hf_dataset(dataset_name: str):
+    """Load HuggingFace dataset with caching.
+
+    Args:
+        dataset_name: Name of the HuggingFace dataset to load
+
+    Returns:
+        Loaded dataset
+    """
+    if dataset_name not in _hf_dataset_cache:
+        _hf_dataset_cache[dataset_name] = load_dataset(dataset_name, split="train")
+    return _hf_dataset_cache[dataset_name]
 
 
 def extract_design_from_tool_messages(

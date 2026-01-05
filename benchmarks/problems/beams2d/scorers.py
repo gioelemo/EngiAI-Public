@@ -11,13 +11,13 @@ from typing import Any
 
 import numpy as np
 import weave
-from datasets import load_dataset
 from langchain_core.messages import ToolMessage
 from PIL import Image
 
 from benchmarks.shared.utils import (
     create_design_comparison,
     extract_design_from_tool_messages,
+    get_hf_dataset,
 )
 
 # Configure logger
@@ -25,23 +25,6 @@ logger = logging.getLogger(__name__)
 
 # Quality thresholds for topology optimization
 BINARY_THRESHOLD = 0.5  # Threshold for converting density to binary (material vs void)
-
-# Cache for HuggingFace datasets to avoid reloading
-_hf_dataset_cache: dict[str, Any] = {}
-
-
-def get_hf_dataset(dataset_name: str):
-    """Load HuggingFace dataset with caching.
-
-    Args:
-        dataset_name: Name of the HuggingFace dataset to load
-
-    Returns:
-        Loaded dataset
-    """
-    if dataset_name not in _hf_dataset_cache:
-        _hf_dataset_cache[dataset_name] = load_dataset(dataset_name, split="train")
-    return _hf_dataset_cache[dataset_name]
 
 
 def _extract_compliance_from_dict(content: dict) -> dict[str, float]:
