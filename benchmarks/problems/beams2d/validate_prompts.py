@@ -222,7 +222,12 @@ def validate_consistency(prompt_data: dict[str, Any]) -> dict[str, Any]:
         if (
             compliance < COMPLIANCE_VERY_STIFF_THRESHOLD
             and "very stiff" not in stiffness_desc.lower()
-        ) or (
+        ):
+            errors.append(
+                f"Stiffness '{stiffness_desc}' inconsistent with compliance {compliance}"
+            )
+
+        if (
             compliance > COMPLIANCE_FLEXIBLE_THRESHOLD
             and "flexible" not in stiffness_desc.lower()
         ):
