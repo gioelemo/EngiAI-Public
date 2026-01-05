@@ -14,6 +14,8 @@ dependencies = [
     "cryptography==46.0.3",
     "cvxopt",
     "elevenlabs>=1.0.0",
+    # EngiBench is pinned to a specific commit for reproducibility and because the required fixes are not yet available in a tagged release.
+    # When an appropriate tagged version is available, replace this with that tag (for example: engibench==<version>).
     "engibench @ git+https://github.com/IDEALLab/EngiBench.git@4cb9d57fd0e18bdf97db7381a85f03d30e195bdb",
     "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git@2d62cd484689058fe26de9230048b49c5a548ecf",
     "fabric==3.2.2",
