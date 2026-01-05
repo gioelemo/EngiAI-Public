@@ -325,7 +325,9 @@ def optimize_design(
         >>> print(f"Improvement: {result['improvement']:.1f}%")
     """
     try:
-        # Use 'constraints' but store as 'config' for compatibility with rest of function
+        # Naming convention: User-facing parameter is 'constraints' (more intuitive), but internally
+        # we use 'config' to match EngiBench's API (problem.__init__, simulate, optimize all expect 'config').
+        # This makes the code consistent with EngiBench's naming while keeping the tool interface clear.
         config = constraints if constraints is not None else {}
         config_was_none = constraints is None
         config_was_empty = config == {}
