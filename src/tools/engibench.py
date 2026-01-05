@@ -330,9 +330,17 @@ def optimize_design(
         config_was_none = constraints is None
         config_was_empty = config == {}
 
-        # CRITICAL FIX: Create NEW problem instance with config to ensure volume fraction is set correctly!
-        # Don't use cached instance because it has default volfrac=0.35
-        # EngiBench problems accept config in __init__ which sets the conditions properly
+        # CRITICAL: Create NEW problem instance with config for each optimization
+        #
+        # Why create new instance instead of reusing cached instance?
+        # - EngiBench problem classes accept config in __init__ to set conditions properly
+        # - Cached instance may have default volfrac=0.35, but user config may specify different value
+        # - Cannot modify problem constraints after initialization, must create new instance
+        #
+        # Why update cache after creating new instance?
+        # - Other tools (simulate_design, render_design) use get_unified_problem_instance()
+        # - They need access to the same properly-configured problem instance
+        # - Cache ensures consistent problem configuration across all tool calls
         problem_class = get_problem_class(problem_type)
 
         # Only pass config to problem classes that support it (e.g., Beams2D)
@@ -343,7 +351,7 @@ def optimize_design(
             # Fall back to seed-only initialization if config not supported
             problem = problem_class(seed=seed)
 
-        # Update the cached instance so other tools can use the same problem
+        # Update cache so other tools (simulate_design, render_design) use the same configured instance
         set_unified_problem_instance(problem_type, problem)
 
         # Get starting design
