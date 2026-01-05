@@ -1,18 +1,26 @@
 """Beams2D-specific scorer functions for evaluating topology optimization performance."""
 
-import base64
-import io
-import logging
-import re
+# Add project root to path first to enable imports from src/ (avoids circular dependencies)
+import sys
 from pathlib import Path
-from typing import Any
 
-import numpy as np
-import weave
-from langchain_core.messages import ToolMessage
-from PIL import Image
+_project_root = Path(__file__).parent.parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
-from benchmarks.shared.utils import (
+# Standard library and third-party imports (noqa: E402 - imports after path setup)
+import base64  # noqa: E402
+import io  # noqa: E402
+import logging  # noqa: E402
+import re  # noqa: E402
+from typing import Any  # noqa: E402
+
+import numpy as np  # noqa: E402
+import weave  # noqa: E402
+from langchain_core.messages import ToolMessage  # noqa: E402
+from PIL import Image  # noqa: E402
+
+from benchmarks.shared.utils import (  # noqa: E402
     create_design_comparison,
     extract_design_from_tool_messages,
     get_hf_dataset,
@@ -347,14 +355,6 @@ def score_design_match(
     NOTE: This scorer requires get_unified_last_design to be imported from src.tools.engibench
     and assumes a HuggingFace beams2d dataset is specified in metadata.
     """
-    # Import here to avoid circular dependencies
-    import sys  # noqa: PLC0415
-
-    # Add project root to path
-    project_root = Path(__file__).parent.parent.parent.parent
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-
     example_id = metadata.get("example_id", 0)
     design_array = _get_design_array(output, metadata, example_id)
 
