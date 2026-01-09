@@ -159,23 +159,35 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         dataset_split = "test"  # Default split
         n_failed = 0
 
-        # Iterate through all traces and collect score_design_extracted outputs
+        # Get only the LATEST trace (most recent evaluation)
+        # scores dict keys are trace IDs - we want the last one
+        if not scores:
+            logger.error("No scores found in evaluation")
+            return {
+                "mmd": None,
+                "n_designs": 0,
+                "n_failed": 0,
+                "error": "No scores found",
+            }
+
+        # Get the last trace (most recent evaluation)
+        latest_trace_id = list(scores.keys())[-1]
+        latest_trace_scores = scores[latest_trace_id]
+        logger.info(
+            f"Using latest trace {latest_trace_id}: scorers={list(latest_trace_scores.keys())}"
+        )
+
+        # Collect outputs from the latest trace only
         all_outputs = []
-        for trace_id, trace_scores in scores.items():
+        if "score_design_extracted" in latest_trace_scores:
+            all_outputs = latest_trace_scores["score_design_extracted"]
             logger.info(
-                f"Processing trace {trace_id}: scorers={list(trace_scores.keys())}"
+                f"Found {len(all_outputs)} outputs for score_design_extracted in latest trace"
             )
+        else:
+            logger.warning(f"No score_design_extracted in latest trace {latest_trace_id}")
 
-            if "score_design_extracted" in trace_scores:
-                outputs = trace_scores["score_design_extracted"]
-                logger.info(
-                    f"Found {len(outputs)} outputs for score_design_extracted in trace {trace_id}"
-                )
-                all_outputs.extend(outputs)
-            else:
-                logger.warning(f"No score_design_extracted in trace {trace_id}")
-
-        logger.info(f"Total outputs collected: {len(all_outputs)}")
+        logger.info(f"Total outputs from current evaluation: {len(all_outputs)}")
 
         # Process each output
         for idx, scorer_output in enumerate(all_outputs):
