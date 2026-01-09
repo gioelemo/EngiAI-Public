@@ -5,7 +5,6 @@ between generated designs and optimal designs from a dataset after evaluation co
 """
 
 import logging
-import time
 from pathlib import Path
 from typing import Any
 
@@ -117,11 +116,10 @@ def score_design_extracted(
 # ======================================================================
 
 
-def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
+def compute_global_metrics(  # noqa: PLR0912, PLR0915
     evaluation: Any,
     dataset_name: str,
     sigma: float = 1.0,
-    num_expected_designs: int | None = None,
     save_comparisons: bool = True,
     comparison_output_dir: str | None = None,
 ) -> dict[str, Any]:
@@ -134,7 +132,6 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
         evaluation: Weave Evaluation object (after evaluate() has been called)
         dataset_name: HuggingFace dataset name for ground truth
         sigma: Kernel bandwidth for MMD
-        num_expected_designs: Number of designs in current evaluation (to filter from history)
         save_comparisons: Whether to save comparison images (default: True)
         comparison_output_dir: Directory to save comparison images (default: benchmarks/evaluations/results/mmd_comparisons)
 
@@ -144,98 +141,93 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
         - n_designs: int (number of valid designs)
         - n_failed: int (number of failed extractions)
     """
-    # Use the evaluation API to get scores
+    # Use evaluation.get_scores() to extract scorer outputs
     try:
-        # Give Weave time to flush all calls if needed
-        time.sleep(1)
+        # Call get_scores() to get organized scorer outputs
+        scores = evaluation.get_scores()
+        logger.info(f"Retrieved scores from evaluation: {len(scores)} trace(s)")
 
-        # Try to get score calls - might need scorer name
-        try:
-            score_calls = evaluation.get_score_calls("score_design_extracted")
-            logger.info("Retrieved score calls using scorer name 'score_design_extracted'")
-        except (TypeError, AttributeError):
-            score_calls = evaluation.get_score_calls()
-            logger.info("Retrieved score calls without scorer name")
-
-        logger.info(
-            f"Retrieved score calls: type={type(score_calls)}, len={len(score_calls)}"
+        # Get dataset rows to access metadata
+        dataset_rows = (
+            list(evaluation.dataset.rows) if hasattr(evaluation, "dataset") else []
         )
+        logger.info(f"Retrieved {len(dataset_rows)} dataset rows for metadata")
 
-        # Debug: log the actual structure
-        if isinstance(score_calls, dict):
-            logger.info(f"Score calls keys: {list(score_calls.keys())}")
-            for key, value in score_calls.items():
-                logger.info(f"Key '{key}': type={type(value)}, value={value}")
-
-        # Flatten dict structure to list of Call objects
-        if isinstance(score_calls, dict):
-            score_calls_list = []
-            for key, call_list in score_calls.items():
-                logger.info(
-                    f"Processing key={key}, value type={type(call_list)}, "
-                    f"len={len(call_list) if isinstance(call_list, list) else 'N/A'}"
-                )
-                if isinstance(call_list, list):
-                    score_calls_list.extend(call_list)
-                else:
-                    score_calls_list.append(call_list)
-            logger.info(
-                f"Flattened {len(score_calls)} dict entries to {len(score_calls_list)} Call objects"
-            )
-        else:
-            score_calls_list = list(score_calls)
-
-        # FILTER: Take only the last N designs matching current evaluation size
-        if num_expected_designs and len(score_calls_list) > num_expected_designs:
-            logger.info(
-                f"Filtering to last {num_expected_designs} designs (found {len(score_calls_list)} total)"
-            )
-            score_calls_list = score_calls_list[-num_expected_designs:]
-
-        # Extract generated designs from Call objects
+        # Extract generated designs from scorer outputs
         generated_designs = []
         example_ids = []
         dataset_split = "test"  # Default split
         n_failed = 0
 
-        for idx, score_call in enumerate(score_calls_list):
+        # Iterate through all traces and collect score_design_extracted outputs
+        all_outputs = []
+        for trace_id, trace_scores in scores.items():
+            logger.info(
+                f"Processing trace {trace_id}: scorers={list(trace_scores.keys())}"
+            )
+
+            if "score_design_extracted" in trace_scores:
+                outputs = trace_scores["score_design_extracted"]
+                logger.info(
+                    f"Found {len(outputs)} outputs for score_design_extracted in trace {trace_id}"
+                )
+                all_outputs.extend(outputs)
+            else:
+                logger.warning(f"No score_design_extracted in trace {trace_id}")
+
+        logger.info(f"Total outputs collected: {len(all_outputs)}")
+
+        # Process each output
+        for idx, scorer_output in enumerate(all_outputs):
             try:
-                output = score_call.output if hasattr(score_call, "output") else None
-
-                if output is None or not isinstance(output, dict):
+                if not isinstance(scorer_output, dict):
+                    logger.warning(
+                        f"Output {idx}: Not a dict, type={type(scorer_output)}"
+                    )
                     n_failed += 1
                     continue
 
-                if not output.get("design_found", False):
+                if not scorer_output.get("design_found", False):
+                    logger.debug(f"Output {idx}: design_found=False")
                     n_failed += 1
                     continue
 
-                design_list = output.get("design")
+                design_list = scorer_output.get("design")
                 if design_list is None:
+                    logger.warning(f"Output {idx}: design field is None")
                     n_failed += 1
                     continue
 
                 gen_design = np.array(design_list)
 
-                # Extract example_id and dataset_split for tracking/visualization
+                # Extract example_id and dataset_split from corresponding dataset row
                 example_id = idx  # Use index as fallback
-                if hasattr(score_call, "inputs") and isinstance(
-                    score_call.inputs, dict
-                ):
-                    metadata = score_call.inputs.get("metadata", {})
+                if idx < len(dataset_rows):
+                    dataset_row = dataset_rows[idx]
+                    metadata = None
+
+                    # Try to access metadata from dataset row
+                    if hasattr(dataset_row, "metadata"):
+                        metadata = dataset_row.metadata
+                    elif isinstance(dataset_row, dict) and "metadata" in dataset_row:
+                        metadata = dataset_row["metadata"]
+
                     if isinstance(metadata, dict):
                         example_id = metadata.get("example_id", idx)
                         # Extract dataset_split from first valid example
-                        if idx == 0:
+                        if len(generated_designs) == 0:
                             dataset_split = metadata.get("dataset_split", "test")
+                            logger.info(f"Extracted dataset_split: {dataset_split}")
 
-                logger.info(f"Processing design {idx}: example_id={example_id}")
+                logger.info(
+                    f"Output {idx}: Successfully extracted design for example_id={example_id}"
+                )
 
                 generated_designs.append(gen_design)
                 example_ids.append(example_id)
 
             except Exception:
-                logger.exception(f"Score call {idx}: Error processing")
+                logger.exception(f"Output {idx}: Error processing")
                 n_failed += 1
                 continue
 
@@ -261,7 +253,8 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
         try:
             hf_dataset = get_hf_dataset(dataset_name, split=dataset_split)
             gt_designs = [
-                np.array(hf_dataset[i]["optimal_design"]) for i in range(len(hf_dataset))
+                np.array(hf_dataset[i]["optimal_design"])
+                for i in range(len(hf_dataset))
             ]
             logger.info(
                 f"Loaded {len(gt_designs)} ground truth designs from full dataset ({dataset_split} split)"
@@ -289,7 +282,9 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
                 logger.warning(
                     f"Failed to load GT design for visualization: example {example_id} (split: {dataset_split})"
                 )
-                gt_designs_for_viz.append(np.zeros_like(generated_designs[0]))  # Placeholder
+                gt_designs_for_viz.append(
+                    np.zeros_like(generated_designs[0])
+                )  # Placeholder
 
     except Exception:
         logger.exception("Failed to process evaluation results")
@@ -303,7 +298,11 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
     # Compute MMD between generated and ground truth designs
     gen_batch = np.stack(generated_designs)
     gt_batch = np.stack(gt_designs)
-    gt_batch_viz = np.stack(gt_designs_for_viz) if gt_designs_for_viz else gt_batch[:len(generated_designs)]
+    gt_batch_viz = (
+        np.stack(gt_designs_for_viz)
+        if gt_designs_for_viz
+        else gt_batch[: len(generated_designs)]
+    )
 
     logger.info(f"Generated batch shape: {gen_batch.shape}")
     logger.info(f"Ground truth batch shape (full dataset): {gt_batch.shape}")
@@ -362,7 +361,9 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
                     gen_batch[i], gt_batch_viz[i], example_ids[i]
                 )
                 if comparison_img is not None:
-                    output_path = output_dir / f"comparison_example_{example_ids[i]}.png"
+                    output_path = (
+                        output_dir / f"comparison_example_{example_ids[i]}.png"
+                    )
                     comparison_img.save(output_path)
                     logger.info(f"Saved comparison image: {output_path}")
         except Exception:

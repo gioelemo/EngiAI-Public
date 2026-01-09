@@ -181,7 +181,9 @@ def prepare_evaluation_dataset(
             "metadata": {
                 **prompt_data.get("metadata", {}),
                 "example_id": prompt_data.get("example_id", i),
-                "dataset_split": prompt_data.get("dataset_split", "test"),  # Include split info
+                "dataset_split": prompt_data.get(
+                    "dataset_split", "test"
+                ),  # Include split info
                 "problem_type": problem_type,
                 "dataset_name": dataset_name,
             },
@@ -415,19 +417,6 @@ async def main() -> None:  # noqa: PLR0915
     # Run evaluation (async)
     results = await evaluation.evaluate(agent)
 
-    # Debug: check what results actually is
-    print(f"DEBUG: results type = {type(results)}")
-    print(
-        f"DEBUG: results dir = {[attr for attr in dir(results) if not attr.startswith('_')][:20]}"
-    )
-    if hasattr(results, "rows"):
-        print(f"DEBUG: results.rows exists, len = {len(results.rows)}")
-    else:
-        print("DEBUG: results has no .rows attribute")
-        print(
-            f"DEBUG: results keys (if dict) = {list(results.keys()) if isinstance(results, dict) else 'NOT A DICT'}"
-        )
-
     # Print summary
     print_evaluation_summary(results, scorers)
 
@@ -445,12 +434,11 @@ async def main() -> None:  # noqa: PLR0915
             f"benchmarks/evaluations/results/{model_name}/{args.problem}/comparisons"
         )
 
-        # Pass evaluation object to compute global metrics
+        # Pass evaluation object to compute global metrics (not results!)
         global_metrics = compute_global_metrics(
             evaluation,
             dataset_name=problem_config["dataset_name"],
             sigma=1.0,
-            num_expected_designs=len(dataset.rows),
             save_comparisons=True,
             comparison_output_dir=comparison_dir,
         )
@@ -469,9 +457,7 @@ async def main() -> None:  # noqa: PLR0915
     print("🎉 Evaluation complete!")
     print("📊 View detailed results in Weave dashboard")
     if args.scorers == "engibench":
-        print(
-            f"📁 Comparison images saved to: {comparison_dir}/"
-        )
+        print(f"📁 Comparison images saved to: {comparison_dir}/")
 
 
 if __name__ == "__main__":
