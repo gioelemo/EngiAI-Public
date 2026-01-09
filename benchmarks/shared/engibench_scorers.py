@@ -5,8 +5,10 @@ between generated designs and optimal designs from a dataset after evaluation co
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 import weave
 from scipy.spatial.distance import pdist  # type: ignore[import-untyped]
@@ -104,15 +106,63 @@ def score_design_extracted(
 
 
 # ======================================================================
+# Visualization helper
+# ======================================================================
+
+
+def _save_design_comparisons(
+    gen_batch: np.ndarray,
+    gt_batch: np.ndarray,
+    output_dir: Path,
+    example_ids: list[int],
+) -> None:
+    """Save side-by-side comparison images of generated vs ground truth designs.
+
+    Args:
+        gen_batch: Generated designs (N, H, W)
+        gt_batch: Ground truth designs (N, H, W)
+        output_dir: Directory to save comparison images
+        example_ids: List of example IDs for labeling
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for i in range(len(gen_batch)):
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+        # Generated design
+        axes[0].imshow(gen_batch[i], cmap="gray", vmin=0, vmax=1)
+        axes[0].set_title(f"Generated Design (Example {example_ids[i]})")
+        axes[0].axis("off")
+
+        # Ground truth design
+        axes[1].imshow(gt_batch[i], cmap="gray", vmin=0, vmax=1)
+        axes[1].set_title(f"Ground Truth (Example {example_ids[i]})")
+        axes[1].axis("off")
+
+        # Compute L2 distance
+        l2_dist = np.linalg.norm(gen_batch[i] - gt_batch[i])
+        fig.suptitle(f"Design Comparison - L2 Distance: {l2_dist:.2f}", fontsize=14, fontweight="bold")
+
+        plt.tight_layout()
+        output_path = output_dir / f"comparison_example_{example_ids[i]}.png"
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        logger.info(f"Saved comparison image: {output_path}")
+
+
+# ======================================================================
 # Global metrics computation (after evaluation completes)
 # ======================================================================
 
 
-def compute_global_metrics(  # noqa: PLR0912, PLR0915
+def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
     evaluation: Any,
     dataset_name: str,
     sigma: float = 1.0,
     num_expected_designs: int | None = None,
+    save_comparisons: bool = True,
+    comparison_output_dir: str | None = None,
 ) -> dict[str, Any]:
     """Compute global MMD metric from evaluation object.
 
@@ -124,6 +174,8 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         dataset_name: HuggingFace dataset name for ground truth
         sigma: Kernel bandwidth for MMD
         num_expected_designs: Number of designs in current evaluation (to filter from history)
+        save_comparisons: Whether to save comparison images (default: True)
+        comparison_output_dir: Directory to save comparison images (default: benchmarks/evaluations/results/mmd_comparisons)
 
     Returns:
         dict with:
@@ -162,6 +214,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         # Extract designs from Call objects
         generated_designs = []
         gt_designs = []
+        example_ids = []
         n_failed = 0
 
         for idx, score_call in enumerate(score_calls_list):
@@ -214,6 +267,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
                 generated_designs.append(gen_design)
                 gt_designs.append(gt_design)
+                example_ids.append(example_id)
 
             except Exception:
                 logger.exception(f"Score call {idx}: Error processing")
@@ -277,13 +331,13 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     auto_sigma = median_dist
     logger.info(f"Median pairwise distance: {median_dist:.4f}")
     logger.info(
-        f"Using auto-computed sigma: {auto_sigma:.4f} (provided sigma was {sigma})"
+        f"Auto-computed sigma would be: {auto_sigma:.4f} (using provided sigma={sigma} for comparison with paper)"
     )
 
     try:
-        # Use auto-computed sigma
-        mmd_value = mmd(gen_batch, gt_batch, sigma=auto_sigma)
-        logger.info(f"Computed MMD with sigma={auto_sigma:.4f}: {mmd_value:.6f}")
+        # Use provided sigma for comparison with original paper
+        mmd_value = mmd(gen_batch, gt_batch, sigma=sigma)
+        logger.info(f"Computed MMD with sigma={sigma:.4f}: {mmd_value:.6f}")
     except Exception:
         logger.exception("Failed to compute MMD")
         return {
@@ -292,6 +346,17 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
             "n_failed": n_failed,
             "error": "Failed to compute MMD",
         }
+
+    # Save comparison visualizations if requested
+    if save_comparisons:
+        try:
+            output_dir = (
+                comparison_output_dir
+                or "benchmarks/evaluations/results/mmd_comparisons"
+            )
+            _save_design_comparisons(gen_batch, gt_batch, Path(output_dir), example_ids)
+        except Exception:
+            logger.exception("Failed to save comparison visualizations")
 
     return {
         "mmd": mmd_value,

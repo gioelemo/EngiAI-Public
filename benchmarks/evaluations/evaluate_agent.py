@@ -439,12 +439,19 @@ async def main() -> None:  # noqa: PLR0915
         print()
         print("Computing MMD across all generated designs...")
 
+        # Setup output directory for comparison images
+        comparison_dir = (
+            f"benchmarks/evaluations/results/{model_name}/{args.problem}/comparisons"
+        )
+
         # Pass evaluation object to compute global metrics
         global_metrics = compute_global_metrics(
             evaluation,
             dataset_name=problem_config["dataset_name"],
             sigma=1.0,
             num_expected_designs=len(dataset.rows),
+            save_comparisons=True,
+            comparison_output_dir=comparison_dir,
         )
 
         print()
@@ -460,9 +467,10 @@ async def main() -> None:  # noqa: PLR0915
     print()
     print("🎉 Evaluation complete!")
     print("📊 View detailed results in Weave dashboard")
-    print(
-        f"📁 Comparison images saved to: benchmarks/evaluations/results/{model_name}/{args.problem}/comparisons/"
-    )
+    if args.scorers == "engibench":
+        print(
+            f"📁 Comparison images saved to: {comparison_dir}/"
+        )
 
 
 if __name__ == "__main__":
