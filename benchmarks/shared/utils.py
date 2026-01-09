@@ -37,7 +37,7 @@ def get_hf_dataset(dataset_name: str):
         Loaded dataset
     """
     if dataset_name not in _hf_dataset_cache:
-        _hf_dataset_cache[dataset_name] = load_dataset(dataset_name, split="train")
+        _hf_dataset_cache[dataset_name] = load_dataset(dataset_name, split="test")
     return _hf_dataset_cache[dataset_name]
 
 

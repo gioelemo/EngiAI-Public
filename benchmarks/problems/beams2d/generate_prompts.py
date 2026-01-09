@@ -16,7 +16,7 @@ import weave
 from datasets import load_dataset
 
 # Add project root to path to import src modules
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.utils.weave_integration import init_weave, is_weave_enabled  # noqa: E402
@@ -119,7 +119,7 @@ def create_prompt_from_conditions(
 @weave.op()
 def generate_prompt_dataset(
     num_samples: int = 50,
-    split: str = "train",
+    split: str = "test",
     include_targets: bool = True,
 ) -> list[dict[str, Any]]:
     """
@@ -196,7 +196,7 @@ def main():
     num_samples = 50  # Start small for testing
     prompts = generate_prompt_dataset(
         num_samples=num_samples,
-        split="train",
+        split="test",
         include_targets=True,
     )
 
