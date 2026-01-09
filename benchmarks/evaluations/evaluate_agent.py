@@ -463,9 +463,14 @@ async def main() -> None:  # noqa: PLR0915
         print()
         print("Global Metrics:")
         print(
-            f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.4f}"
+            f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.6f}"
             if global_metrics.get("mmd")
             else "  • MMD: Failed to compute"
+        )
+        print(
+            f"  • DPP Diversity (sigma={global_metrics.get('dpp_sigma', 1.0):.2f}): {global_metrics.get('dpp_diversity', 'N/A'):.6e}"
+            if global_metrics.get("dpp_diversity") is not None
+            else "  • DPP Diversity: Failed to compute"
         )
         print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
         print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")

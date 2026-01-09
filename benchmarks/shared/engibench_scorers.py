@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import weave
 
-from benchmarks.shared.metrics import mmd
+from benchmarks.shared.metrics import dpp_diversity, mmd
 from benchmarks.shared.utils import (
     create_design_comparison,
     extract_design_from_tool_messages,
@@ -329,16 +329,21 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     )
 
     try:
-        # Use provided sigma for comparison with original paper
+        # Use provided sigma (1.0) for MMD to match original paper
         mmd_value = mmd(gen_batch, gt_batch, sigma=sigma)
         logger.info(f"Computed MMD with sigma={sigma:.4f}: {mmd_value:.6f}")
+
+        # Compute DPP diversity for generated designs with auto-computed sigma
+        dpp_value = dpp_diversity(gen_batch, sigma=sigma)
+        logger.info(f"Computed DPP diversity with sigma={sigma:.4f}: {dpp_value:.6e}")
     except Exception:
-        logger.exception("Failed to compute MMD")
+        logger.exception("Failed to compute MMD or DPP")
         return {
             "mmd": None,
+            "dpp_diversity": None,
             "n_designs": len(generated_designs),
             "n_failed": n_failed,
-            "error": "Failed to compute MMD",
+            "error": "Failed to compute metrics",
         }
 
     # Save comparison visualizations if requested
@@ -365,6 +370,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
     return {
         "mmd": mmd_value,
+        "dpp_diversity": dpp_value,
         "n_designs": len(generated_designs),
         "n_failed": n_failed,
     }
