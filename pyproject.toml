@@ -246,7 +246,7 @@ exclude = [
   "^build/",
   "^docs/",
   "^prusa-mcp/",
-  "^benchmarks/shared/metrics\.py$",
+  "^benchmarks/shared/metrics\\.py$",
 ]
 [[tool.mypy.overrides]]
 module = [
