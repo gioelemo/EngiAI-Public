@@ -11,7 +11,7 @@ import numpy as np
 import weave
 
 from benchmarks.shared.utils import extract_design_from_tool_messages, get_hf_dataset
-from src.tools.metrics import mmd
+from benchmarks.shared.metrics import mmd
 
 logger = logging.getLogger(__name__)
 
