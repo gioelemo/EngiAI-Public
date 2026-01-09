@@ -241,7 +241,9 @@ def main():
 
     # Save locally with split in filename
     output_dir = Path(__file__).parent / "data" / "generated"
-    output_file = output_dir / f"beams2d_prompts_{args.samples}_samples_{args.split}.json"
+    output_file = (
+        output_dir / f"beams2d_prompts_{args.samples}_samples_{args.split}.json"
+    )
     save_prompts_locally(prompts, output_file)
 
     # Publish to Weave if available

@@ -154,10 +154,10 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         logger.info(f"Retrieved {len(dataset_rows)} dataset rows for metadata")
 
         # Extract generated designs from scorer outputs
-        generated_designs = []
-        example_ids = []
-        dataset_split = "test"  # Default split
-        n_failed = 0
+        generated_designs: list[np.ndarray] = []
+        example_ids: list[int] = []
+        dataset_split: str = "test"  # Default split
+        n_failed: int = 0
 
         # Get only the LATEST trace (most recent evaluation)
         # scores dict keys are trace IDs - we want the last one
@@ -185,7 +185,9 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
                 f"Found {len(all_outputs)} outputs for score_design_extracted in latest trace"
             )
         else:
-            logger.warning(f"No score_design_extracted in latest trace {latest_trace_id}")
+            logger.warning(
+                f"No score_design_extracted in latest trace {latest_trace_id}"
+            )
 
         logger.info(f"Total outputs from current evaluation: {len(all_outputs)}")
 
