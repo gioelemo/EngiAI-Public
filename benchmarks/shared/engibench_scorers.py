@@ -171,6 +171,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
             }
 
         # Get the last trace (most recent evaluation)
+        logger.info(f"Score keys: {list(scores.keys())}")
         latest_trace_id = list(scores.keys())[-1]
         latest_trace_scores = scores[latest_trace_id]
         logger.info(

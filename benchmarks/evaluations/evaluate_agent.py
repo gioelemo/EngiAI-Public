@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Any, TypedDict
@@ -435,6 +436,7 @@ async def main() -> None:  # noqa: PLR0915
     # Print summary
     print_evaluation_summary(results, scorers)
 
+    time.sleep(10)  # Wait for any async logging to complete
     # Compute global metrics (MMD) if using EngiBench scorers
     if args.scorers in ("engibench", "all"):
         print()
