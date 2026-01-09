@@ -241,18 +241,19 @@ exclude_lines = [
 [tool.mypy]
 warn_redundant_casts = true
 warn_unused_ignores = false
-files = ["src/", "tests/", "scripts/"]
+files = ["src/", "tests/", "scripts/", "benchmarks/"]
 exclude = [
-  "^build/",
-  "^docs/",
-  "^prusa-mcp/",
-  "^benchmarks/shared/metrics\\.py$",
+  "build",
+  "docs",
+  "prusa-mcp",
+  "benchmarks/shared/metrics.py",
 ]
 [[tool.mypy.overrides]]
 module = [
   "arxiv",
   "bs4",
   "beautifulsoup4",
+  "benchmarks.shared.metrics",
   "cryptography.*",
   "datasets",
   "diffusers",
@@ -304,3 +305,7 @@ module = [
   "weave.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "benchmarks.shared.metrics"
+ignore_errors = true
