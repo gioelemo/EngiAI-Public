@@ -64,7 +64,7 @@ class Config:
 
         # Validate temperature is in valid range
         if not MIN_TEMPERATURE <= self.llm_temperature <= MAX_TEMPERATURE:
-            raise ValueError(  # noqa: TRY003
+            raise ValueError(
                 f"LLM_TEMPERATURE must be between {MIN_TEMPERATURE} and {MAX_TEMPERATURE}, "
                 f"got {self.llm_temperature}"
             )
@@ -133,7 +133,7 @@ class Config:
 
         missing_vars = [var for var, value in required_vars.items() if not value]
         if missing_vars:
-            raise ValueError(  # noqa: TRY003
+            raise ValueError(
                 f"Missing required environment variables: {', '.join(missing_vars)}. "
                 "Please set them in your .env file."
             )

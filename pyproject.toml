@@ -159,6 +159,7 @@ ignore = [
     "D104",  # Missing docstring in public package
     "D105",  # Missing docstring in magic method
     "D107",  # Missing docstring in __init__
+    "TRY003", # long messages outside the exception class
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.

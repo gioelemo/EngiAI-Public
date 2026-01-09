@@ -71,21 +71,6 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
             score_design_match,  # Legacy scorer (includes compliance, IoU, etc.)
         ],
     },
-    # Example configuration for other problems (uncomment and adjust as needed):
-    # "thermoelastic2d": {
-    #     "dataset_name": "IDEALLab/thermoelastic_2d_v0",
-    #     "prompt_file": "thermoelastic_prompts.json",
-    #     "scorers": [
-    #         score_engibench_final_designs,  # Use EngiBench for problems without custom scorers
-    #     ],
-    # },
-    # "photonics2d": {
-    #     "dataset_name": "IDEALLab/photonics_2d_v0",
-    #     "prompt_file": "photonics_prompts.json",
-    #     "scorers": [
-    #         score_engibench_final_designs,
-    #     ],
-    # },
 }
 
 # Configure logger for this module
@@ -344,7 +329,7 @@ def print_evaluation_summary(evaluation_results: Any, scorers: list[Any]) -> Non
         print("✅ Evaluation complete! View detailed results in Weave dashboard.")
 
 
-async def main() -> None:
+async def main() -> None:  # noqa: PLR0915
     """Main execution function."""
     args = parse_arguments()
 
@@ -431,12 +416,16 @@ async def main() -> None:
 
     # Debug: check what results actually is
     print(f"DEBUG: results type = {type(results)}")
-    print(f"DEBUG: results dir = {[attr for attr in dir(results) if not attr.startswith('_')][:20]}")
+    print(
+        f"DEBUG: results dir = {[attr for attr in dir(results) if not attr.startswith('_')][:20]}"
+    )
     if hasattr(results, "rows"):
         print(f"DEBUG: results.rows exists, len = {len(results.rows)}")
     else:
-        print(f"DEBUG: results has no .rows attribute")
-        print(f"DEBUG: results keys (if dict) = {list(results.keys()) if isinstance(results, dict) else 'NOT A DICT'}")
+        print("DEBUG: results has no .rows attribute")
+        print(
+            f"DEBUG: results keys (if dict) = {list(results.keys()) if isinstance(results, dict) else 'NOT A DICT'}"
+        )
 
     # Print summary
     print_evaluation_summary(results, scorers)
@@ -454,14 +443,17 @@ async def main() -> None:
         global_metrics = compute_global_metrics(
             evaluation,
             dataset_name=problem_config["dataset_name"],
-            problem_type=args.problem,
             sigma=1.0,
             num_expected_designs=len(dataset.rows),
         )
 
         print()
         print("Global Metrics:")
-        print(f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.4f}" if global_metrics.get('mmd') else "  • MMD: Failed to compute")
+        print(
+            f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.4f}"
+            if global_metrics.get("mmd")
+            else "  • MMD: Failed to compute"
+        )
         print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
         print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")
 

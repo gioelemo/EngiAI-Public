@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 def _get_generated_design(
     output: dict[str, Any],
-    metadata: dict[str, Any],
     example_id: int,
 ) -> np.ndarray | None:
     """Extract generated design from agent output.
@@ -57,12 +56,11 @@ def _get_ground_truth_design(
         if example_id >= len(hf_dataset):
             logger.error(f"Invalid example_id {example_id} for dataset {dataset_name}")
             return None
-
-        design = np.array(hf_dataset[example_id][design_field])
-        return design
-
-    except Exception as e:
-        logger.error(f"Failed to load ground truth design: {e}")
+        else:
+            design = np.array(hf_dataset[example_id][design_field])
+            return design
+    except Exception:
+        logger.exception("Failed to load ground truth design")
         return None
 
 
@@ -74,7 +72,6 @@ def _get_ground_truth_design(
 @weave.op()
 def score_design_extracted(
     output: dict[str, Any],
-    target: dict[str, Any],
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
     """Lightweight scorer that extracts and stores the design in Weave.
@@ -84,14 +81,13 @@ def score_design_extracted(
 
     Args:
         output: Agent output with messages containing generated design
-        target: Target dict (unused)
         metadata: Must contain example_id
 
     Returns:
         dict with design_found flag, shape, and the actual design array
     """
     example_id = metadata.get("example_id", 0)
-    gen_design = _get_generated_design(output, metadata, example_id)
+    gen_design = _get_generated_design(output, example_id)
 
     if gen_design is None:
         return {
@@ -112,12 +108,11 @@ def score_design_extracted(
 # ======================================================================
 
 
-def compute_global_metrics(
+def compute_global_metrics(  # noqa: PLR0912, PLR0915
     evaluation: Any,
     dataset_name: str,
-    problem_type: str = "beams2d",
     sigma: float = 1.0,
-    num_expected_designs: int = None,
+    num_expected_designs: int | None = None,
 ) -> dict[str, Any]:
     """Compute global MMD metric from evaluation object.
 
@@ -127,7 +122,6 @@ def compute_global_metrics(
     Args:
         evaluation: Weave Evaluation object (after evaluate() has been called)
         dataset_name: HuggingFace dataset name for ground truth
-        problem_type: Problem identifier
         sigma: Kernel bandwidth for MMD
         num_expected_designs: Number of designs in current evaluation (to filter from history)
 
@@ -140,7 +134,9 @@ def compute_global_metrics(
     # Use the evaluation API to get scores
     try:
         score_calls = evaluation.get_score_calls()
-        logger.info(f"Retrieved score calls: type={type(score_calls)}, len={len(score_calls)}")
+        logger.info(
+            f"Retrieved score calls: type={type(score_calls)}, len={len(score_calls)}"
+        )
 
         # Flatten dict structure to list of Call objects
         if isinstance(score_calls, dict):
@@ -150,13 +146,17 @@ def compute_global_metrics(
                     score_calls_list.extend(call_list)
                 else:
                     score_calls_list.append(call_list)
-            logger.info(f"Flattened {len(score_calls)} dict entries to {len(score_calls_list)} Call objects")
+            logger.info(
+                f"Flattened {len(score_calls)} dict entries to {len(score_calls_list)} Call objects"
+            )
         else:
             score_calls_list = list(score_calls)
 
         # FILTER: Take only the last N designs matching current evaluation size
         if num_expected_designs and len(score_calls_list) > num_expected_designs:
-            logger.info(f"Filtering to last {num_expected_designs} designs (found {len(score_calls_list)} total)")
+            logger.info(
+                f"Filtering to last {num_expected_designs} designs (found {len(score_calls_list)} total)"
+            )
             score_calls_list = score_calls_list[-num_expected_designs:]
 
         # Extract designs from Call objects
@@ -165,7 +165,7 @@ def compute_global_metrics(
 
         for idx, score_call in enumerate(score_calls_list):
             try:
-                output = score_call.output if hasattr(score_call, 'output') else None
+                output = score_call.output if hasattr(score_call, "output") else None
 
                 if output is None or not isinstance(output, dict):
                     n_failed += 1
@@ -183,12 +183,14 @@ def compute_global_metrics(
                 gen_design = np.array(design_list)
                 generated_designs.append(gen_design)
 
-            except Exception as e:
-                logger.error(f"Score call {idx}: Error processing - {e}")
+            except Exception:
+                logger.exception(f"Score call {idx}: Error processing")
                 n_failed += 1
                 continue
 
-        logger.info(f"Successfully retrieved {len(generated_designs)} designs ({n_failed} failed)")
+        logger.info(
+            f"Successfully retrieved {len(generated_designs)} designs ({n_failed} failed)"
+        )
 
         if len(generated_designs) == 0:
             logger.warning("No valid designs extracted, cannot compute MMD")
@@ -199,29 +201,27 @@ def compute_global_metrics(
                 "error": "No valid designs extracted",
             }
 
-    except Exception as e:
-        logger.error(f"Failed to process evaluation results: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+    except Exception:
+        logger.exception("Failed to process evaluation results")
         return {
             "mmd": None,
             "n_designs": 0,
             "n_failed": 0,
-            "error": f"Failed to process results: {e}",
+            "error": "Failed to process results",
         }
 
     # Load ground truth designs from dataset
     try:
-        gt_designs = _load_all_ground_truth_designs(dataset_name, problem_type)
+        gt_designs = _load_all_ground_truth_designs(dataset_name)
         logger.info(f"Loaded {len(gt_designs)} ground truth designs from dataset")
 
-    except Exception as e:
-        logger.error(f"Failed to load ground truth: {e}")
+    except Exception:
+        logger.exception("Failed to load ground truth")
         return {
             "mmd": None,
             "n_designs": len(generated_designs),
             "n_failed": n_failed,
-            "error": f"Failed to load ground truth: {e}",
+            "error": "Failed to load ground truth",
         }
 
     # Compute MMD between generated and ground truth designs
@@ -231,13 +231,13 @@ def compute_global_metrics(
     try:
         mmd_value = mmd(gen_batch, gt_batch, sigma=sigma)
         logger.info(f"Computed MMD: {mmd_value:.4f}")
-    except Exception as e:
-        logger.error(f"Failed to compute MMD: {e}")
+    except Exception:
+        logger.exception("Failed to compute MMD")
         return {
             "mmd": None,
             "n_designs": len(generated_designs),
             "n_failed": n_failed,
-            "error": f"Failed to compute MMD: {e}",
+            "error": "Failed to compute MMD",
         }
 
     return {
@@ -247,12 +247,11 @@ def compute_global_metrics(
     }
 
 
-def _load_all_ground_truth_designs(dataset_name: str, problem_type: str) -> list[np.ndarray]:
+def _load_all_ground_truth_designs(dataset_name: str) -> list[np.ndarray]:
     """Load all ground truth designs from HuggingFace dataset.
 
     Args:
         dataset_name: HuggingFace dataset name
-        problem_type: Problem identifier
 
     Returns:
         List of numpy arrays containing ground truth designs
