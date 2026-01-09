@@ -161,6 +161,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
         # Extract designs from Call objects
         generated_designs = []
+        gt_designs = []
         n_failed = 0
 
         for idx, score_call in enumerate(score_calls_list):
@@ -181,7 +182,32 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
                     continue
 
                 gen_design = np.array(design_list)
+
+                # Load corresponding ground truth design for this example
+                # Extract example_id from the score call's inputs
+                example_id = idx  # Use index as fallback
+                if hasattr(score_call, "inputs") and isinstance(score_call.inputs, dict):
+                    metadata = score_call.inputs.get("metadata", {})
+                    if isinstance(metadata, dict):
+                        example_id = metadata.get("example_id", idx)
+
+                gt_design = _get_ground_truth_design(dataset_name, example_id)
+                if gt_design is None:
+                    logger.warning(f"Failed to load ground truth for example {example_id}")
+                    n_failed += 1
+                    continue
+
+                # Verify shapes match
+                if gen_design.shape != gt_design.shape:
+                    logger.warning(
+                        f"Shape mismatch for example {example_id}: "
+                        f"gen={gen_design.shape} vs gt={gt_design.shape}"
+                    )
+                    n_failed += 1
+                    continue
+
                 generated_designs.append(gen_design)
+                gt_designs.append(gt_design)
 
             except Exception:
                 logger.exception(f"Score call {idx}: Error processing")
@@ -210,20 +236,6 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
             "error": "Failed to process results",
         }
 
-    # Load ground truth designs from dataset
-    try:
-        gt_designs = _load_all_ground_truth_designs(dataset_name)
-        logger.info(f"Loaded {len(gt_designs)} ground truth designs from dataset")
-
-    except Exception:
-        logger.exception("Failed to load ground truth")
-        return {
-            "mmd": None,
-            "n_designs": len(generated_designs),
-            "n_failed": n_failed,
-            "error": "Failed to load ground truth",
-        }
-
     # Compute MMD between generated and ground truth designs
     gen_batch = np.stack(generated_designs)
     gt_batch = np.stack(gt_designs)
@@ -245,22 +257,3 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         "n_designs": len(generated_designs),
         "n_failed": n_failed,
     }
-
-
-def _load_all_ground_truth_designs(dataset_name: str) -> list[np.ndarray]:
-    """Load all ground truth designs from HuggingFace dataset.
-
-    Args:
-        dataset_name: HuggingFace dataset name
-
-    Returns:
-        List of numpy arrays containing ground truth designs
-    """
-    hf_dataset = get_hf_dataset(dataset_name)
-    designs = []
-
-    for example in hf_dataset:
-        design = np.array(example["optimal_design"])
-        designs.append(design)
-
-    return designs
