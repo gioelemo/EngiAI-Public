@@ -66,7 +66,7 @@ class ProblemConfig(TypedDict):
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     "beams2d": {
         "dataset_name": "IDEALLab/beams_2d_50_100_v0",
-        "prompt_file": "beam_prompts_50_samples.json",
+        "prompt_file": "{problem}_prompts_50_samples_{split}.json",  # File has 50 samples
         "scorers": [
             score_design_match,  # Legacy scorer (includes compliance, IoU, etc.)
         ],
@@ -235,6 +235,13 @@ def parse_arguments() -> argparse.Namespace:
             "'all' (legacy + global MMD)"
         ),
     )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="test",
+        choices=["train", "val", "test"],
+        help="Dataset split to use for prompts (default: test)",
+    )
     return parser.parse_args()
 
 
@@ -364,6 +371,7 @@ async def main() -> None:  # noqa: PLR0915
     print(f"Problem Type: {args.problem}")
     print(f"Model: {model_name}")
     print(f"Temperature: {temperature}")
+    print(f"Dataset Split: {args.split}")
     print(f"Samples: {args.samples}")
     print(f"Scorer Set: {args.scorers}")
     print(f"Active Scorers: {[s.__name__ for s in scorers]}")
@@ -377,8 +385,15 @@ async def main() -> None:  # noqa: PLR0915
     print("✅ Weave initialized successfully!")
     print()
 
+    # Construct prompt filename dynamically based on args
+    prompt_file_template = problem_config["prompt_file"]
+    prompt_file = prompt_file_template.format(
+        problem=args.problem,
+        split=args.split,
+    )
+
     # Load prompts
-    prompts = load_prompts(args.problem, problem_config["prompt_file"])
+    prompts = load_prompts(args.problem, prompt_file)
     if prompts is None:
         return
 

@@ -241,7 +241,7 @@ def main():
 
     # Save locally with split in filename
     output_dir = Path(__file__).parent / "data" / "generated"
-    output_file = output_dir / f"beam_prompts_{args.samples}_samples_{args.split}.json"
+    output_file = output_dir / f"beams2d_prompts_{args.samples}_samples_{args.split}.json"
     save_prompts_locally(prompts, output_file)
 
     # Publish to Weave if available
@@ -249,7 +249,7 @@ def main():
         print()
         print("📤 Publishing dataset to Weave...")
         dataset = weave.Dataset(
-            name=f"beam_design_prompts_v1_{args.samples}_{args.split}",
+            name=f"beams2d_design_prompts_v1_{args.samples}_{args.split}",
             rows=prompts,
         )
         weave.publish(dataset)

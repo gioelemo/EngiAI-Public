@@ -103,7 +103,7 @@ def save_sample_data(data, output_dir, num_samples=10):
                 example[key] = value.tolist()
         sample_data.append(example)
 
-    output_file = output_dir / "sample_10_examples.json"
+    output_file = output_dir / "beams2d_sample_10_examples.json"
     with output_file.open("w") as f:
         json.dump(sample_data, f, indent=2)
 
@@ -113,7 +113,7 @@ def save_sample_data(data, output_dir, num_samples=10):
 
 def save_dataset_info(data, stats, output_dir):
     """Save dataset information to text file."""
-    info_file = output_dir / "dataset_info.txt"
+    info_file = output_dir / "beams2d_dataset_info.txt"
     with info_file.open("w") as f:
         f.write("Dataset: IDEALLab/beams_2d_50_100_v0\n")
         f.write(f"Total examples: {len(data)}\n")
@@ -162,7 +162,7 @@ def explore_dataset():
     print("SAVING SAMPLE DATA")
     print("=" * 60)
 
-    output_dir = Path("data/datasets/beam_prompts/raw")
+    output_dir = Path(__file__).parent / "data" / "raw"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     save_sample_data(data, output_dir, num_samples=10)
