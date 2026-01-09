@@ -5,6 +5,7 @@ between generated designs and optimal designs from a dataset after evaluation co
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -185,15 +186,35 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
     """
     # Use the evaluation API to get scores
     try:
-        score_calls = evaluation.get_score_calls()
+        # Give Weave time to flush all calls if needed
+        time.sleep(1)
+
+        # Try to get score calls - might need scorer name
+        try:
+            score_calls = evaluation.get_score_calls("score_design_extracted")
+            logger.info("Retrieved score calls using scorer name 'score_design_extracted'")
+        except (TypeError, AttributeError):
+            score_calls = evaluation.get_score_calls()
+            logger.info("Retrieved score calls without scorer name")
+
         logger.info(
             f"Retrieved score calls: type={type(score_calls)}, len={len(score_calls)}"
         )
 
+        # Debug: log the actual structure
+        if isinstance(score_calls, dict):
+            logger.info(f"Score calls keys: {list(score_calls.keys())}")
+            for key, value in score_calls.items():
+                logger.info(f"Key '{key}': type={type(value)}, value={value}")
+
         # Flatten dict structure to list of Call objects
         if isinstance(score_calls, dict):
             score_calls_list = []
-            for call_list in score_calls.values():
+            for key, call_list in score_calls.items():
+                logger.info(
+                    f"Processing key={key}, value type={type(call_list)}, "
+                    f"len={len(call_list) if isinstance(call_list, list) else 'N/A'}"
+                )
                 if isinstance(call_list, list):
                     score_calls_list.extend(call_list)
                 else:
@@ -211,9 +232,8 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
             )
             score_calls_list = score_calls_list[-num_expected_designs:]
 
-        # Extract designs from Call objects
+        # Extract generated designs from Call objects
         generated_designs = []
-        gt_designs = []
         example_ids = []
         n_failed = 0
 
@@ -236,8 +256,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
 
                 gen_design = np.array(design_list)
 
-                # Load corresponding ground truth design for this example
-                # Extract example_id from the score call's inputs
+                # Extract example_id for tracking/visualization
                 example_id = idx  # Use index as fallback
                 if hasattr(score_call, "inputs") and isinstance(
                     score_call.inputs, dict
@@ -248,25 +267,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
 
                 logger.info(f"Processing design {idx}: example_id={example_id}")
 
-                gt_design = _get_ground_truth_design(dataset_name, example_id)
-                if gt_design is None:
-                    logger.warning(
-                        f"Failed to load ground truth for example {example_id}"
-                    )
-                    n_failed += 1
-                    continue
-
-                # Verify shapes match
-                if gen_design.shape != gt_design.shape:
-                    logger.warning(
-                        f"Shape mismatch for example {example_id}: "
-                        f"gen={gen_design.shape} vs gt={gt_design.shape}"
-                    )
-                    n_failed += 1
-                    continue
-
                 generated_designs.append(gen_design)
-                gt_designs.append(gt_design)
                 example_ids.append(example_id)
 
             except Exception:
@@ -287,6 +288,32 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
                 "error": "No valid designs extracted",
             }
 
+        # Load ALL ground truth designs from the dataset for MMD computation
+        # MMD compares the distribution of generated designs vs. distribution of all GT designs
+        logger.info(f"Loading all ground truth designs from dataset {dataset_name}")
+        try:
+            hf_dataset = get_hf_dataset(dataset_name)
+            gt_designs = [np.array(hf_dataset[i]["optimal_design"]) for i in range(len(hf_dataset))]
+            logger.info(f"Loaded {len(gt_designs)} ground truth designs from full dataset")
+        except Exception:
+            logger.exception("Failed to load ground truth designs from dataset")
+            return {
+                "mmd": None,
+                "n_designs": len(generated_designs),
+                "n_failed": n_failed,
+                "error": "Failed to load ground truth dataset",
+            }
+
+        # For visualization, load GT designs corresponding to generated examples
+        gt_designs_for_viz = []
+        for example_id in example_ids:
+            gt_design = _get_ground_truth_design(dataset_name, example_id)
+            if gt_design is not None:
+                gt_designs_for_viz.append(gt_design)
+            else:
+                logger.warning(f"Failed to load GT design for visualization: example {example_id}")
+                gt_designs_for_viz.append(np.zeros_like(generated_designs[0]))  # Placeholder
+
     except Exception:
         logger.exception("Failed to process evaluation results")
         return {
@@ -299,9 +326,10 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
     # Compute MMD between generated and ground truth designs
     gen_batch = np.stack(generated_designs)
     gt_batch = np.stack(gt_designs)
+    gt_batch_viz = np.stack(gt_designs_for_viz) if gt_designs_for_viz else gt_batch[:len(generated_designs)]
 
     logger.info(f"Generated batch shape: {gen_batch.shape}")
-    logger.info(f"Ground truth batch shape: {gt_batch.shape}")
+    logger.info(f"Ground truth batch shape (full dataset): {gt_batch.shape}")
     logger.info(
         f"Generated designs stats - min: {gen_batch.min():.4f}, max: {gen_batch.max():.4f}, mean: {gen_batch.mean():.4f}"
     )
@@ -309,14 +337,10 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
         f"Ground truth designs stats - min: {gt_batch.min():.4f}, max: {gt_batch.max():.4f}, mean: {gt_batch.mean():.4f}"
     )
 
-    # Check if designs are identical
-    if np.allclose(gen_batch, gt_batch):
-        logger.warning("Generated and ground truth designs are nearly identical!")
-
-    # Compute L2 distance between designs
-    for i in range(len(generated_designs)):
-        l2_dist = np.linalg.norm(gen_batch[i] - gt_batch[i])
-        logger.info(f"L2 distance for design {i}: {l2_dist:.4f}")
+    # Compute L2 distance between generated and their corresponding GT designs (for logging)
+    for i in range(min(len(generated_designs), len(gt_designs_for_viz))):
+        l2_dist = np.linalg.norm(gen_batch[i] - gt_batch_viz[i])
+        logger.info(f"L2 distance for design {i} vs its GT pair: {l2_dist:.4f}")
 
     # Compute appropriate sigma based on median pairwise distance
     # Flatten designs for distance computation
@@ -354,7 +378,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
                 comparison_output_dir
                 or "benchmarks/evaluations/results/mmd_comparisons"
             )
-            _save_design_comparisons(gen_batch, gt_batch, Path(output_dir), example_ids)
+            _save_design_comparisons(gen_batch, gt_batch_viz, Path(output_dir), example_ids)
         except Exception:
             logger.exception("Failed to save comparison visualizations")
 
