@@ -10,7 +10,6 @@ from typing import Any
 
 import numpy as np
 import weave
-from scipy.spatial.distance import pdist  # type: ignore[import-untyped]
 
 from benchmarks.shared.metrics import mmd
 from benchmarks.shared.utils import (
@@ -327,27 +326,6 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     )
     logger.info(
         f"Ground truth designs stats - min: {gt_batch.min():.4f}, max: {gt_batch.max():.4f}, mean: {gt_batch.mean():.4f}"
-    )
-
-    # Compute L2 distance between generated and their corresponding GT designs (for logging)
-    for i in range(min(len(generated_designs), len(gt_designs_for_viz))):
-        l2_dist = np.linalg.norm(gen_batch[i] - gt_batch_viz[i])
-        logger.info(f"L2 distance for design {i} vs its GT pair: {l2_dist:.4f}")
-
-    # Compute appropriate sigma based on median pairwise distance
-    # Flatten designs for distance computation
-    gen_flat = gen_batch.reshape(gen_batch.shape[0], -1)
-    gt_flat = gt_batch.reshape(gt_batch.shape[0], -1)
-
-    all_flat = np.vstack([gen_flat, gt_flat])
-    pairwise_dists = pdist(all_flat, "euclidean")
-    median_dist = np.median(pairwise_dists)
-
-    # Use median heuristic for sigma
-    auto_sigma = median_dist
-    logger.info(f"Median pairwise distance: {median_dist:.4f}")
-    logger.info(
-        f"Auto-computed sigma would be: {auto_sigma:.4f} (using provided sigma={sigma} for comparison with paper)"
     )
 
     try:
