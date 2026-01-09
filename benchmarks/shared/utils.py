@@ -27,18 +27,20 @@ logger = logging.getLogger(__name__)
 _hf_dataset_cache: dict[str, Any] = {}
 
 
-def get_hf_dataset(dataset_name: str):
+def get_hf_dataset(dataset_name: str, split: str = "test"):
     """Load HuggingFace dataset with caching.
 
     Args:
         dataset_name: Name of the HuggingFace dataset to load
+        split: Dataset split to load (default: "test")
 
     Returns:
         Loaded dataset
     """
-    if dataset_name not in _hf_dataset_cache:
-        _hf_dataset_cache[dataset_name] = load_dataset(dataset_name, split="test")
-    return _hf_dataset_cache[dataset_name]
+    cache_key = f"{dataset_name}:{split}"
+    if cache_key not in _hf_dataset_cache:
+        _hf_dataset_cache[cache_key] = load_dataset(dataset_name, split=split)
+    return _hf_dataset_cache[cache_key]
 
 
 def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915

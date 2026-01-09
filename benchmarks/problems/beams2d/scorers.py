@@ -368,13 +368,14 @@ def score_design_match(
 
     # Load ground truth design from HuggingFace dataset
     dataset_name = metadata.get("dataset_name", "IDEALLab/beams_2d_50_100_v0")
-    hf_dataset = get_hf_dataset(dataset_name)
+    dataset_split = metadata.get("dataset_split", "test")
+    hf_dataset = get_hf_dataset(dataset_name, split=dataset_split)
 
     if example_id >= len(hf_dataset):
         return {
             "score": 0.0,
             "design_found": True,
-            "reason": f"Invalid example_id: {example_id}",
+            "reason": f"Invalid example_id: {example_id} for split: {dataset_split}",
         }
 
     ground_truth = np.array(hf_dataset[example_id]["optimal_design"])

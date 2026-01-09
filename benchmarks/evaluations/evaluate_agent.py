@@ -181,6 +181,7 @@ def prepare_evaluation_dataset(
             "metadata": {
                 **prompt_data.get("metadata", {}),
                 "example_id": prompt_data.get("example_id", i),
+                "dataset_split": prompt_data.get("dataset_split", "test"),  # Include split info
                 "problem_type": problem_type,
                 "dataset_name": dataset_name,
             },

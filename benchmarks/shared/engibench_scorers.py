@@ -9,13 +9,16 @@ import time
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 import weave
 from scipy.spatial.distance import pdist  # type: ignore[import-untyped]
 
 from benchmarks.shared.metrics import mmd
-from benchmarks.shared.utils import extract_design_from_tool_messages, get_hf_dataset
+from benchmarks.shared.utils import (
+    create_design_comparison,
+    extract_design_from_tool_messages,
+    get_hf_dataset,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,19 +54,22 @@ def _get_ground_truth_design(
     dataset_name: str,
     example_id: int,
     design_field: str = "optimal_design",
+    split: str = "test",
 ) -> np.ndarray | None:
     """Load ground truth design from HuggingFace dataset."""
     try:
-        hf_dataset = get_hf_dataset(dataset_name)
+        hf_dataset = get_hf_dataset(dataset_name, split=split)
 
         if example_id >= len(hf_dataset):
-            logger.error(f"Invalid example_id {example_id} for dataset {dataset_name}")
+            logger.error(
+                f"Invalid example_id {example_id} for dataset {dataset_name} split {split}"
+            )
             return None
         else:
             design = np.array(hf_dataset[example_id][design_field])
             return design
     except Exception:
-        logger.exception("Failed to load ground truth design")
+        logger.exception(f"Failed to load ground truth design from split {split}")
         return None
 
 
@@ -104,52 +110,6 @@ def score_design_extracted(
         "design_shape": gen_design.shape,
         "design": gen_design.tolist(),  # Convert to list for JSON serialization
     }
-
-
-# ======================================================================
-# Visualization helper
-# ======================================================================
-
-
-def _save_design_comparisons(
-    gen_batch: np.ndarray,
-    gt_batch: np.ndarray,
-    output_dir: Path,
-    example_ids: list[int],
-) -> None:
-    """Save side-by-side comparison images of generated vs ground truth designs.
-
-    Args:
-        gen_batch: Generated designs (N, H, W)
-        gt_batch: Ground truth designs (N, H, W)
-        output_dir: Directory to save comparison images
-        example_ids: List of example IDs for labeling
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    for i in range(len(gen_batch)):
-        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
-        # Generated design
-        axes[0].imshow(gen_batch[i], cmap="gray", vmin=0, vmax=1)
-        axes[0].set_title(f"Generated Design (Example {example_ids[i]})")
-        axes[0].axis("off")
-
-        # Ground truth design
-        axes[1].imshow(gt_batch[i], cmap="gray", vmin=0, vmax=1)
-        axes[1].set_title(f"Ground Truth (Example {example_ids[i]})")
-        axes[1].axis("off")
-
-        # Compute L2 distance
-        l2_dist = np.linalg.norm(gen_batch[i] - gt_batch[i])
-        fig.suptitle(f"Design Comparison - L2 Distance: {l2_dist:.2f}", fontsize=14, fontweight="bold")
-
-        plt.tight_layout()
-        output_path = output_dir / f"comparison_example_{example_ids[i]}.png"
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
-
-        logger.info(f"Saved comparison image: {output_path}")
 
 
 # ======================================================================
@@ -235,6 +195,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
         # Extract generated designs from Call objects
         generated_designs = []
         example_ids = []
+        dataset_split = "test"  # Default split
         n_failed = 0
 
         for idx, score_call in enumerate(score_calls_list):
@@ -256,7 +217,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
 
                 gen_design = np.array(design_list)
 
-                # Extract example_id for tracking/visualization
+                # Extract example_id and dataset_split for tracking/visualization
                 example_id = idx  # Use index as fallback
                 if hasattr(score_call, "inputs") and isinstance(
                     score_call.inputs, dict
@@ -264,6 +225,9 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
                     metadata = score_call.inputs.get("metadata", {})
                     if isinstance(metadata, dict):
                         example_id = metadata.get("example_id", idx)
+                        # Extract dataset_split from first valid example
+                        if idx == 0:
+                            dataset_split = metadata.get("dataset_split", "test")
 
                 logger.info(f"Processing design {idx}: example_id={example_id}")
 
@@ -278,6 +242,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
         logger.info(
             f"Successfully retrieved {len(generated_designs)} designs ({n_failed} failed)"
         )
+        logger.info(f"Using dataset split: {dataset_split}")
 
         if len(generated_designs) == 0:
             logger.warning("No valid designs extracted, cannot compute MMD")
@@ -290,13 +255,21 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
 
         # Load ALL ground truth designs from the dataset for MMD computation
         # MMD compares the distribution of generated designs vs. distribution of all GT designs
-        logger.info(f"Loading all ground truth designs from dataset {dataset_name}")
+        logger.info(
+            f"Loading all ground truth designs from dataset {dataset_name} (split: {dataset_split})"
+        )
         try:
-            hf_dataset = get_hf_dataset(dataset_name)
-            gt_designs = [np.array(hf_dataset[i]["optimal_design"]) for i in range(len(hf_dataset))]
-            logger.info(f"Loaded {len(gt_designs)} ground truth designs from full dataset")
+            hf_dataset = get_hf_dataset(dataset_name, split=dataset_split)
+            gt_designs = [
+                np.array(hf_dataset[i]["optimal_design"]) for i in range(len(hf_dataset))
+            ]
+            logger.info(
+                f"Loaded {len(gt_designs)} ground truth designs from full dataset ({dataset_split} split)"
+            )
         except Exception:
-            logger.exception("Failed to load ground truth designs from dataset")
+            logger.exception(
+                f"Failed to load ground truth designs from dataset (split: {dataset_split})"
+            )
             return {
                 "mmd": None,
                 "n_designs": len(generated_designs),
@@ -307,11 +280,15 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
         # For visualization, load GT designs corresponding to generated examples
         gt_designs_for_viz = []
         for example_id in example_ids:
-            gt_design = _get_ground_truth_design(dataset_name, example_id)
+            gt_design = _get_ground_truth_design(
+                dataset_name, example_id, split=dataset_split
+            )
             if gt_design is not None:
                 gt_designs_for_viz.append(gt_design)
             else:
-                logger.warning(f"Failed to load GT design for visualization: example {example_id}")
+                logger.warning(
+                    f"Failed to load GT design for visualization: example {example_id} (split: {dataset_split})"
+                )
                 gt_designs_for_viz.append(np.zeros_like(generated_designs[0]))  # Placeholder
 
     except Exception:
@@ -374,11 +351,20 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0913, PLR0915
     # Save comparison visualizations if requested
     if save_comparisons:
         try:
-            output_dir = (
+            output_dir = Path(
                 comparison_output_dir
                 or "benchmarks/evaluations/results/mmd_comparisons"
             )
-            _save_design_comparisons(gen_batch, gt_batch_viz, Path(output_dir), example_ids)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            for i in range(len(gen_batch)):
+                comparison_img = create_design_comparison(
+                    gen_batch[i], gt_batch_viz[i], example_ids[i]
+                )
+                if comparison_img is not None:
+                    output_path = output_dir / f"comparison_example_{example_ids[i]}.png"
+                    comparison_img.save(output_path)
+                    logger.info(f"Saved comparison image: {output_path}")
         except Exception:
             logger.exception("Failed to save comparison visualizations")
 

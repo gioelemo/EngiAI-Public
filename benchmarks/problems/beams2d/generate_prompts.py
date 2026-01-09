@@ -7,6 +7,7 @@ into natural language prompts that can be used to evaluate the engineering agent
 Dataset: https://huggingface.co/datasets/IDEALLab/beams_2d_50_100_v0
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -148,6 +149,7 @@ def generate_prompt_dataset(
             example, include_target=include_targets
         )
         prompt_data["example_id"] = i
+        prompt_data["dataset_split"] = split  # Store split information
         prompts.append(prompt_data)
 
         if (i + 1) % 10 == 0:
@@ -177,11 +179,36 @@ def save_prompts_locally(prompts: list[dict[str, Any]], output_file: Path) -> No
     print(f"💾 Saved prompts to: {output_file}")
 
 
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Generate beam design prompts from HuggingFace dataset"
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="test",
+        choices=["train", "val", "test"],
+        help="Dataset split to use (default: test)",
+    )
+    parser.add_argument(
+        "--samples",
+        type=int,
+        default=50,
+        help="Number of samples to generate (default: 50)",
+    )
+    return parser.parse_args()
+
+
 def main():
     """Main execution function."""
+    args = parse_arguments()
     print("=" * 60)
     print("BEAM PROMPT GENERATION FOR WEAVE BENCHMARKING")
     print("=" * 60)
+    print()
+    print(f"Dataset split: {args.split}")
+    print(f"Number of samples: {args.samples}")
     print()
 
     # Initialize Weave
@@ -192,11 +219,10 @@ def main():
         print("⚠️  Weave not available, continuing without tracing...")
     print()
 
-    # Generate prompts (start with small sample)
-    num_samples = 50  # Start small for testing
+    # Generate prompts using command-line arguments
     prompts = generate_prompt_dataset(
-        num_samples=num_samples,
-        split="test",
+        num_samples=args.samples,
+        split=args.split,
         include_targets=True,
     )
 
@@ -210,11 +236,12 @@ def main():
     print("Conditions:", json.dumps(prompts[0]["conditions"], indent=2))
     print()
     print("Target compliance:", prompts[0]["target"]["compliance"])
+    print(f"Dataset split: {prompts[0]['dataset_split']}")
     print()
 
-    # Save locally
+    # Save locally with split in filename
     output_dir = Path(__file__).parent / "data" / "generated"
-    output_file = output_dir / f"beam_prompts_{num_samples}_samples.json"
+    output_file = output_dir / f"beam_prompts_{args.samples}_samples_{args.split}.json"
     save_prompts_locally(prompts, output_file)
 
     # Publish to Weave if available
@@ -222,7 +249,7 @@ def main():
         print()
         print("📤 Publishing dataset to Weave...")
         dataset = weave.Dataset(
-            name=f"beam_design_prompts_v1_{num_samples}",
+            name=f"beam_design_prompts_v1_{args.samples}_{args.split}",
             rows=prompts,
         )
         weave.publish(dataset)
