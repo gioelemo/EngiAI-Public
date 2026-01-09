@@ -210,6 +210,16 @@ data/*.log
 data/connect_state.json
 data/mmore/
 
+# Dataset generation (large files)
+data/datasets/
+
+# Benchmark evaluation results (comparison images, model outputs)
+benchmarks/evaluations/results/
+
+# Benchmark problem data (raw samples and generated prompts - can be regenerated)
+benchmarks/problems/*/data/raw/
+benchmarks/problems/*/data/generated/
+
 # External prusa-mcp folder (mounted from ~/Desktop/prusa-mcp)
 prusa-mcp/
 *.zip

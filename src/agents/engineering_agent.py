@@ -22,19 +22,29 @@ from src.tools.engiopt import (
     sample_designs_from_model,
 )
 from src.tools.stl_export import convert_design_to_stl
-from src.utils.prompts import ENGINEERING_AGENT_SYSTEM_PROMPT
+from src.utils.prompts import (
+    ENGINEERING_AGENT_EVAL_PROMPT,
+    ENGINEERING_AGENT_SYSTEM_PROMPT,
+)
 
 
 class EngineeringAgent(BaseAgent):
     """Agent specialized in engineering design and structural optimization."""
 
-    def __init__(self, model_name: str | None = None, temperature: float | None = None):
+    def __init__(
+        self,
+        model_name: str | None = None,
+        temperature: float | None = None,
+        eval_mode: bool = False,
+    ):
         """Initialize the engineering agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
+            eval_mode: If True, uses minimal prompt for evaluations (reduces costs)
         """
+        self.eval_mode = eval_mode
         super().__init__(model_name=model_name, temperature=temperature)
 
     def _create_tools(self) -> list:
@@ -66,6 +76,8 @@ class EngineeringAgent(BaseAgent):
         """Get the system prompt for the engineering agent.
 
         Returns:
-            System prompt string
+            System prompt string (minimal version if eval_mode=True)
         """
+        if self.eval_mode:
+            return ENGINEERING_AGENT_EVAL_PROMPT
         return ENGINEERING_AGENT_SYSTEM_PROMPT

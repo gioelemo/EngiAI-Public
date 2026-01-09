@@ -119,7 +119,9 @@ class BaseAgent(ABC):
                     observation = tool.invoke(tool_call["args"])
                     result.append(
                         ToolMessage(
-                            content=str(observation), tool_call_id=tool_call["id"]
+                            content=str(observation),
+                            tool_call_id=tool_call["id"],
+                            name=tool_call["name"],
                         )
                     )
                 except Exception as e:
@@ -129,7 +131,11 @@ class BaseAgent(ABC):
                         f"❌ Error executing tool '{tool_call['name']}': {e!s}"
                     )
                     result.append(
-                        ToolMessage(content=error_content, tool_call_id=tool_call["id"])
+                        ToolMessage(
+                            content=error_content,
+                            tool_call_id=tool_call["id"],
+                            name=tool_call["name"],
+                        )
                     )
 
         return {"messages": result}

@@ -1407,7 +1407,8 @@ def main() -> None:
 
     # Initialize Weave tracing for LLM calls and benchmarking (only once per session)
     if "weave_initialized" not in st.session_state:
-        init_weave()
+        if config.use_weave_chatbot:
+            init_weave()
         st.session_state.weave_initialized = True
 
     # Custom CSS for sidebar and chat management

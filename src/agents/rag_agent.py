@@ -6,6 +6,7 @@ Now powered by MMORE for advanced multimodal document processing.
 """
 
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Annotated
@@ -39,16 +40,26 @@ class RAGAgent(BaseAgent):
             temperature: Model temperature (defaults to config.llm_temperature)
             mmore_url: URL of MMORE service (defaults to MMORE_RAG_URL env var)
         """
-        # Initialize MMORE client
-        self.mmore_client = MMOREClient(base_url=mmore_url)
+        # Check if MMORE should be skipped (e.g., during benchmarks)
+        skip_mmore = os.getenv("SKIP_MMORE", "false").lower() == "true"
+
+        if skip_mmore:
+            logger.info("SKIP_MMORE=true: RAG Agent initialized without MMORE client")
+            self.mmore_client: MMOREClient | None = None
+        else:
+            # Initialize MMORE client
+            self.mmore_client = MMOREClient(base_url=mmore_url)
 
         super().__init__(model_name=model_name, temperature=temperature)
 
-        # Verify MMORE connection
-        if self.mmore_client.health_check():
-            logger.info("RAG Agent initialized with MMORE service")
-        else:
-            logger.warning("MMORE service not reachable - some features may not work")
+        # Verify MMORE connection if client was initialized
+        if not skip_mmore and self.mmore_client:
+            if self.mmore_client.health_check():
+                logger.info("RAG Agent initialized with MMORE service")
+            else:
+                logger.warning(
+                    "MMORE service not reachable - some features may not work"
+                )
 
     @property
     def db(self):
@@ -66,6 +77,10 @@ class RAGAgent(BaseAgent):
 
     def _create_tools(self) -> list:
         """Create LangChain tools for the RAG agent."""
+        # If MMORE is skipped, return empty tools list
+        if self.mmore_client is None:
+            return []
+
         return [
             self._create_search_tool(),
             self._create_add_document_tool(),
@@ -89,6 +104,7 @@ class RAGAgent(BaseAgent):
             or any previously uploaded files. MMORE provides advanced multimodal
             retrieval with support for images, tables, and complex layouts.
             """
+            assert self.mmore_client is not None, "MMORE client not initialized"
             try:
                 # Retrieve documents from MMORE
                 docs = self.mmore_client.retrieve(
@@ -137,6 +153,7 @@ class RAGAgent(BaseAgent):
             Supports PDF, Office docs, images, and more. MMORE automatically
             extracts text, images, tables, and other multimodal content.
             """
+            assert self.mmore_client is not None, "MMORE client not initialized"
             try:
                 path = Path(file_path)
                 if not path.exists():
@@ -209,6 +226,7 @@ class RAGAgent(BaseAgent):
             Use this when users want to add web documentation, GitHub docs, or
             online resources to the knowledge base.
             """
+            assert self.mmore_client is not None, "MMORE client not initialized"
             try:
                 # Convert GitHub URLs to raw URLs if needed
                 download_url = url
@@ -453,6 +471,7 @@ class RAGAgent(BaseAgent):
 
             Use the file ID from the list_documents tool.
             """
+            assert self.mmore_client is not None, "MMORE client not initialized"
             try:
                 # Get document info before deleting
                 doc_info = self.db.get_mmore_document(file_id)

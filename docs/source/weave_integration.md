@@ -21,6 +21,7 @@ Add the following to your `.env` file:
 ```bash
 # Weave configuration (for LLM tracing and benchmarking)
 USE_WEAVE=true
+USE_WEAVE_CHATBOT=false
 WEAVE_PROJECT="gioelemo-ethz/engineer-assistant-benchmarks"
 ```
 
@@ -28,8 +29,11 @@ WEAVE_PROJECT="gioelemo-ethz/engineer-assistant-benchmarks"
 
 ### Configuration Options
 
-- `USE_WEAVE`: Set to `true` to enable Weave tracing, `false` to disable
+- `USE_WEAVE`: Set to `true` to enable Weave tracing for evaluations and benchmarks, `false` to disable
+- `USE_WEAVE_CHATBOT`: Set to `true` to enable Weave tracing for chatbot interactions, `false` to disable (default: `false`)
 - `WEAVE_PROJECT`: The W&B project name in the format `entity/project-name`
+
+**Note**: `USE_WEAVE` and `USE_WEAVE_CHATBOT` are independent flags. You can enable Weave tracing for evaluations while disabling it for chatbot interactions, or vice versa. This allows you to control tracking overhead and keep evaluation traces separate from user interactions.
 
 ## Basic Usage
 

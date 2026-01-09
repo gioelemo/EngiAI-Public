@@ -217,7 +217,7 @@ def test_optimize_design_smoke(problem):
             {
                 "problem_type": problem,
                 "starting_point": "random",
-                "config": {},
+                "constraints": {},
                 "seed": 0,
                 "save_result": False,
             }

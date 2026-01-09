@@ -284,15 +284,15 @@ def simulate_design(
 
 
 @tool
-def optimize_design(
+def optimize_design(  # noqa: PLR0912
     problem_type: str = "beams2d",
     starting_point: str = "random",
-    config: dict[str, Any] | None = None,
+    constraints: dict[str, Any] | None = None,
     seed: int = 0,
     save_result: bool = True,
 ) -> dict[str, Any]:
     """
-    Optimize a design using gradient-based optimization.
+    Optimize a design using gradient-based optimization. ALWAYS provide constraints dict with volfrac!
 
     This unified tool works with any problem type available in EngiBench.
     Currently supported: 'beams2d', 'thermoelastic2d'.
@@ -300,9 +300,10 @@ def optimize_design(
     Args:
         problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
         starting_point: Initial design approach ("random", "uniform", or "sparse")
-        config: Problem-specific configuration parameters (optional)
-            For beams2d: {"volfrac": 0.35, "forcedist": 0.0}
-            For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
+        constraints: Problem-specific constraint parameters **REQUIRED for correct optimization**
+            For beams2d: {"volfrac": <volume_fraction>, "rmin": <filter_radius>, "forcedist": <load_position>}
+            For thermoelastic2d: {"volfrac": <volume_fraction>, "weight": 0.5, "rmin": 1.1}
+            **WARNING**: If not provided, will use default volfrac=0.35 which may not match requirements!
         seed: Random seed for optimization (default: 0 for reproducibility)
         save_result: Whether to save the optimized design to outputs/ directory
 
@@ -318,18 +319,47 @@ def optimize_design(
     Example:
         >>> result = optimize_design(
         ...     problem_type="beams2d",
-        ...     config={"volfrac": 0.4},
+        ...     constraints={"volfrac": 0.4},
         ...     seed=42
         ... )
         >>> print(f"Improvement: {result['improvement']:.1f}%")
     """
     try:
-        if config is None:
-            config = {}
+        # Naming convention: User-facing parameter is 'constraints' (more intuitive), but internally
+        # we use 'config' to match EngiBench's API (problem.__init__, simulate, optimize all expect 'config').
+        # This makes the code consistent with EngiBench's naming while keeping the tool interface clear.
+        config = constraints if constraints is not None else {}
+        config_was_none = constraints is None
+        config_was_empty = config == {}
 
-        # Get problem instance
-        problem = get_unified_problem_instance(problem_type)
-        problem.reset(seed=seed)
+        # CRITICAL: Create NEW problem instance with config for each optimization
+        #
+        # Why create new instance instead of reusing cached instance?
+        # - EngiBench problem classes accept config in __init__ to set conditions properly
+        # - Cached instance may have default volfrac=0.35, but user config may specify different value
+        # - Cannot modify problem constraints after initialization, must create new instance
+        #
+        # Why update cache after creating new instance?
+        # - Other tools (simulate_design, render_design) use get_unified_problem_instance()
+        # - They need access to the same properly-configured problem instance
+        # - Cache ensures consistent problem configuration across all tool calls
+        problem_class = get_problem_class(problem_type)
+
+        # Only pass config to problem classes that support it (e.g., Beams2D)
+        # ThermoElastic2D and others may not accept config parameter
+        try:
+            problem = problem_class(seed=seed, config=config)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported.
+            # Re-raise other TypeErrors so that genuine bugs are not masked.
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
+
+        # Update cache so other tools (simulate_design, render_design) use the same configured instance
+        set_unified_problem_instance(problem_type, problem)
 
         # Get starting design
         if starting_point.lower() == "random":
@@ -376,6 +406,12 @@ def optimize_design(
             optimized_design,
             optimization_info,
         )
+
+        # Add warning if config was not provided or was empty
+        if config_was_none or config_was_empty:
+            warning_msg = " ⚠️ WARNING: No config provided! Used default volfrac=0.35 which may not match requirements!"
+            result["message"] = result.get("message", "") + warning_msg
+            result["config_warning"] = True
 
         # Save if requested
         if save_result:
@@ -498,6 +534,7 @@ def _format_optimization_result(
         "success": True,
         "problem_type": problem_key,
         "design_shape": optimized_design.shape,
+        "optimized_design": optimized_design.tolist(),  # Convert to list for JSON serialization
         "optimization_info": optimization_info,
     }
 
