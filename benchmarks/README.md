@@ -5,7 +5,7 @@ This directory contains benchmarking and evaluation infrastructure for the engin
 ## Overview
 
 The benchmarks evaluate the agent's performance on engineering design tasks across:
-- **Multiple problem types** (beams2d, thermoelastic2d, etc.)
+- **Multiple problem types** (currently beams2d, with more planned)
 - **Multiple LLM models** (GPT-4o, Claude Sonnet, etc.)
 - **Different configurations** (temperature, parameters, etc.)
 
@@ -25,22 +25,19 @@ benchmarks/
 │   │   └── data/
 │   │       ├── generated/      # Generated prompts
 │   │       ├── validated/      # Validation reports
-│   │       └── raw/           # Raw data samples
-│   └── thermoelastic2d/       # (Future) Thermoelastic problems
+│   │       └── raw/           # Raw data samples (for exploration)
 ├── evaluations/                # Unified evaluation framework
 │   ├── README.md
 │   ├── evaluate_agent.py      # Main evaluation script
 │   └── results/               # Results organized by model and problem
-│       ├── gpt-4o/
-│       │   ├── beams2d/
-│       │   └── thermoelastic2d/
-│       └── claude-3-5-sonnet-20241022/
-│           ├── beams2d/
-│           └── thermoelastic2d/
-└── shared/                     # Shared utilities and scorers
+│       ├── {model-name}/
+│       │   └── {problem-type}/
+│       │       └── comparisons/  # Design comparison images
+└── shared/                     # Shared utilities and metrics
     ├── __init__.py
-    ├── scorers.py             # Evaluation scorer functions
-    └── utils.py               # Helper functions
+    ├── engibench_scorers.py   # Global MMD metrics scorer
+    ├── metrics.py             # MMD computation utilities
+    └── utils.py               # Shared helper functions
 ```
 
 ## Quick Start
@@ -116,25 +113,27 @@ Results are automatically organized by model for easy comparison.
 
 ## Evaluation Metrics
 
-### Qualitative Scorers
+The benchmarks use two types of scorer systems:
 
-These scorers assess the quality of the agent's reasoning and communication:
+### Problem-Specific Scorers
 
-- **Constraint Accuracy** - Does agent mention all constraint values?
-- **Target Awareness** - Does agent reference target compliance?
-- **Understands Tradeoffs** - Does agent understand material/performance tradeoffs?
-- **Actionable Guidance** - Does agent provide concrete steps?
-- **No Contradictions** - Does agent avoid incorrect statements?
+Each problem (e.g., beams2d) has dedicated scorer functions that evaluate design quality:
 
-### Quantitative Scorers
-
-These scorers measure the similarity between agent design and ground truth:
-
-- **Design Match** - Overall design similarity score
+- **Design Match** (`score_design_match`) - Overall design similarity score
   - **IoU** (Intersection over Union) - Topology overlap
   - **Pixel Accuracy** - Element-wise accuracy
   - **MSE** (Mean Squared Error) - Density field error
   - **Volume Fraction Error** - Material usage difference
+  - **Compliance Score** - Structural performance metric
+
+See [problems/beams2d/SCORING_METRICS.md](problems/beams2d/SCORING_METRICS.md) for detailed metric definitions.
+
+### Global Metrics (EngiBench)
+
+Global metrics computed after evaluation completes:
+
+- **MMD** (Maximum Mean Discrepancy) - Measures similarity between generated design distribution and dataset distribution
+- Computed via `--scorers engibench` or `--scorers all` flags
 
 ## Weave Integration
 
@@ -191,23 +190,32 @@ To add a new problem type:
 
 To create problem-specific scorers:
 
-1. Add scorer function to `shared/scorers.py`:
+1. **Add scorer function to problem directory** (e.g., `problems/your_problem/scorers.py`):
    ```python
    @weave.op()
    def score_your_metric(
-       prompt: str,
-       conditions: dict[str, Any],
        output: dict[str, Any],
        target: dict[str, Any],
        metadata: dict[str, Any],
    ) -> dict[str, Any]:
        # Your scoring logic
+       # Extract data from output, compare with target
        return {"score": 0.85, "details": "..."}
    ```
 
-2. Add to problem configuration in `evaluations/evaluate_agent.py`
+2. **Add to problem configuration** in `evaluations/evaluate_agent.py`:
+   ```python
+   from benchmarks.problems.your_problem.scorers import score_your_metric
 
-3. Import in `shared/__init__.py`
+   PROBLEM_CONFIGS = {
+       "your_problem": {
+           "scorers": [score_your_metric],
+           ...
+       }
+   }
+   ```
+
+3. **(Optional) Export from problem's `__init__.py`** for easier imports
 
 ## Requirements
 

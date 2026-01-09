@@ -5,7 +5,7 @@ This directory contains the unified evaluation infrastructure for benchmarking t
 ## Overview
 
 The evaluation framework uses [Weave](https://wandb.ai/site/weave) to track and compare agent performance across:
-- Multiple problem types (beams2d, thermoelastic2d, etc.)
+- Multiple problem types (currently beams2d, with more planned)
 - Multiple LLM models (GPT-4o, Claude, etc.)
 - Different model configurations (temperature, etc.)
 
@@ -40,8 +40,16 @@ python evaluate_agent.py \
   --problem beams2d \
   --model gpt-4o \
   --samples 20 \
-  --temperature 0.5
+  --temperature 0.5 \
+  --split test \
+  --scorers all
 ```
+
+### Scorer Options
+
+- `--scorers legacy` - Use problem-specific scorers only (e.g., `score_design_match`)
+- `--scorers engibench` - Compute global MMD metric only
+- `--scorers all` - Use both legacy scorers and global MMD metric
 
 ## Command Line Arguments
 
@@ -51,6 +59,8 @@ python evaluate_agent.py \
 | `--model` | LLM model name | From config |
 | `--samples` | Number of samples to evaluate | `5` |
 | `--temperature` | Model temperature | From config |
+| `--split` | Dataset split (train/val/test) | `test` |
+| `--scorers` | Scorer set (legacy/engibench/all) | `legacy` |
 
 ## Results Organization
 
@@ -58,36 +68,47 @@ Results are automatically organized by model and problem type:
 
 ```
 results/
+├── {model-name}/
+│   └── {problem-type}/
+│       └── comparisons/
+│           ├── comparison_example_0.png
+│           ├── comparison_example_1.png
+│           └── ...
+```
+
+Example:
+```
+results/
 ├── gpt-4o/
-│   ├── beams2d/
-│   │   └── comparisons/
-│   │       ├── comparison_example_0.png
-│   │       ├── comparison_example_1.png
-│   │       └── ...
-│   └── thermoelastic2d/
+│   └── beams2d/
 │       └── comparisons/
 └── claude-3-5-sonnet-20241022/
-    ├── beams2d/
-    └── thermoelastic2d/
+    └── beams2d/
+        └── comparisons/
 ```
 
 ## Evaluation Metrics
 
-### Qualitative Scorers
+### Problem-Specific Scorers (Legacy)
 
-- **`score_constraint_accuracy`** - Does agent mention all constraint values?
-- **`score_target_awareness`** - Does agent reference target compliance?
-- **`score_understands_tradeoffs`** - Does agent understand material/performance tradeoffs?
-- **`score_provides_actionable_guidance`** - Does agent give concrete steps?
-- **`score_no_contradictions`** - Does agent avoid incorrect statements?
+Each problem has dedicated scorer functions. For beams2d:
 
-### Quantitative Scorers
+- **`score_design_match`** - Comprehensive design quality evaluation
+  - IoU (Intersection over Union) - Topology overlap
+  - Pixel accuracy - Element-wise match
+  - MSE (Mean Squared Error) - Density field error
+  - Volume fraction error - Material usage difference
+  - Compliance score - Structural performance
 
-- **`score_design_match`** - How similar is the agent's design to ground truth?
-  - IoU (Intersection over Union)
-  - Pixel accuracy
-  - MSE (Mean Squared Error)
-  - Volume fraction error
+See [../problems/beams2d/SCORING_METRICS.md](../problems/beams2d/SCORING_METRICS.md) for detailed metric definitions.
+
+### EngiBench Global Metrics
+
+Global metrics computed after evaluation completes (use `--scorers engibench` or `--scorers all`):
+
+- **MMD** (Maximum Mean Discrepancy) - Measures how similar the distribution of generated designs is to the dataset distribution
+- Uses all generated designs vs. full ground truth dataset
+- Lower MMD = better match to dataset distribution
 
 ## Weave Integration
 
@@ -108,48 +129,66 @@ WEAVE_PROJECT="your-entity/your-project"
 
 To add support for a new problem type:
 
-1. Create the problem directory: `benchmarks/problems/{problem_name}/`
-2. Add problem configuration to `evaluate_agent.py`:
+1. **Create the problem directory:** `benchmarks/problems/{problem_name}/`
+   - Include `scorers.py` with problem-specific scoring functions
+   - Add `generate_prompts.py` and `validate_prompts.py`
+   - Create data structure: `data/{generated,validated,raw}`
+
+2. **Add problem configuration to `evaluate_agent.py`:**
 
 ```python
+from benchmarks.problems.your_problem.scorers import score_your_metric
+
 PROBLEM_CONFIGS = {
     "beams2d": {...},
     "your_problem": {
         "dataset_name": "huggingface/dataset-name",
-        "prompt_file": "your_prompts.json",
+        "prompt_file": "{problem}_prompts_50_samples_{split}.json",
         "scorers": [
-            score_constraint_accuracy,
-            score_design_match,
-            # Add problem-specific scorers
+            score_your_metric,  # Problem-specific scorer
         ],
     },
 }
 ```
 
-3. Update the `--problem` choices in the argument parser
+3. **Update the `--problem` choices** in the argument parser
 
 ## Custom Scorers
 
 To add custom scorers for specific problem types:
 
-1. Create scorer functions in `benchmarks/shared/scorers.py`
-2. Use the `@weave.op()` decorator
-3. Follow the signature: `(prompt, conditions, output, target, metadata) -> dict`
-4. Add to problem configuration in `PROBLEM_CONFIGS`
+1. **Create scorer in problem directory** (`benchmarks/problems/{problem}/scorers.py`)
+2. **Use the `@weave.op()` decorator** for Weave tracking
+3. **Follow the scorer signature:** `(output, target, metadata) -> dict`
+4. **Import and add to `PROBLEM_CONFIGS`** in `evaluate_agent.py`
 
-Example:
+Example scorer:
 ```python
+import weave
+from typing import Any
+
 @weave.op()
 def score_custom_metric(
-    prompt: str,
-    conditions: dict[str, Any],
     output: dict[str, Any],
     target: dict[str, Any],
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    # Your scoring logic
-    return {"score": 0.85, "details": "..."}
+    """Score custom metric for your problem type."""
+    # Extract data from output
+    result_value = output.get("result")
+    target_value = target.get("expected")
+
+    # Compute score
+    score = compute_similarity(result_value, target_value)
+
+    return {
+        "score": score,
+        "result_value": result_value,
+        "target_value": target_value,
+    }
 ```
+
+See [../problems/beams2d/scorers.py](../problems/beams2d/scorers.py) for a complete example.
 
 ## Troubleshooting
 
