@@ -9,12 +9,12 @@ from typing import Any
 
 import numpy as np
 import weave
+from scipy.spatial.distance import pdist  # type: ignore[import-untyped]
 
 from benchmarks.shared.metrics import mmd
 from benchmarks.shared.utils import extract_design_from_tool_messages, get_hf_dataset
 
 logger = logging.getLogger(__name__)
-
 
 # ======================================================================
 # Helper functions for design extraction
@@ -186,14 +186,20 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
                 # Load corresponding ground truth design for this example
                 # Extract example_id from the score call's inputs
                 example_id = idx  # Use index as fallback
-                if hasattr(score_call, "inputs") and isinstance(score_call.inputs, dict):
+                if hasattr(score_call, "inputs") and isinstance(
+                    score_call.inputs, dict
+                ):
                     metadata = score_call.inputs.get("metadata", {})
                     if isinstance(metadata, dict):
                         example_id = metadata.get("example_id", idx)
 
+                logger.info(f"Processing design {idx}: example_id={example_id}")
+
                 gt_design = _get_ground_truth_design(dataset_name, example_id)
                 if gt_design is None:
-                    logger.warning(f"Failed to load ground truth for example {example_id}")
+                    logger.warning(
+                        f"Failed to load ground truth for example {example_id}"
+                    )
                     n_failed += 1
                     continue
 
@@ -240,9 +246,44 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     gen_batch = np.stack(generated_designs)
     gt_batch = np.stack(gt_designs)
 
+    logger.info(f"Generated batch shape: {gen_batch.shape}")
+    logger.info(f"Ground truth batch shape: {gt_batch.shape}")
+    logger.info(
+        f"Generated designs stats - min: {gen_batch.min():.4f}, max: {gen_batch.max():.4f}, mean: {gen_batch.mean():.4f}"
+    )
+    logger.info(
+        f"Ground truth designs stats - min: {gt_batch.min():.4f}, max: {gt_batch.max():.4f}, mean: {gt_batch.mean():.4f}"
+    )
+
+    # Check if designs are identical
+    if np.allclose(gen_batch, gt_batch):
+        logger.warning("Generated and ground truth designs are nearly identical!")
+
+    # Compute L2 distance between designs
+    for i in range(len(generated_designs)):
+        l2_dist = np.linalg.norm(gen_batch[i] - gt_batch[i])
+        logger.info(f"L2 distance for design {i}: {l2_dist:.4f}")
+
+    # Compute appropriate sigma based on median pairwise distance
+    # Flatten designs for distance computation
+    gen_flat = gen_batch.reshape(gen_batch.shape[0], -1)
+    gt_flat = gt_batch.reshape(gt_batch.shape[0], -1)
+
+    all_flat = np.vstack([gen_flat, gt_flat])
+    pairwise_dists = pdist(all_flat, "euclidean")
+    median_dist = np.median(pairwise_dists)
+
+    # Use median heuristic for sigma
+    auto_sigma = median_dist
+    logger.info(f"Median pairwise distance: {median_dist:.4f}")
+    logger.info(
+        f"Using auto-computed sigma: {auto_sigma:.4f} (provided sigma was {sigma})"
+    )
+
     try:
-        mmd_value = mmd(gen_batch, gt_batch, sigma=sigma)
-        logger.info(f"Computed MMD: {mmd_value:.4f}")
+        # Use auto-computed sigma
+        mmd_value = mmd(gen_batch, gt_batch, sigma=auto_sigma)
+        logger.info(f"Computed MMD with sigma={auto_sigma:.4f}: {mmd_value:.6f}")
     except Exception:
         logger.exception("Failed to compute MMD")
         return {
