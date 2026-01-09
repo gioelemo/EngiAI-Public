@@ -115,7 +115,7 @@ def score_design_extracted(
 # Global metrics computation (after evaluation completes)
 # ======================================================================
 
-
+@weave.op()
 def compute_global_metrics(  # noqa: PLR0912, PLR0915
     evaluation: Any,
     dataset_name: str,
