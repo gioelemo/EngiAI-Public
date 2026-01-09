@@ -39,6 +39,12 @@ sys.path.insert(0, str(project_root))
 
 # Import problem-specific scorers
 from benchmarks.problems.beams2d.scorers import score_design_match  # noqa: E402
+
+# Import EngiBench scorers
+from benchmarks.shared.engibench_scorers import (  # noqa: E402
+    compute_global_metrics,  # For MMD after evaluation
+    score_design_extracted,  # Lightweight scorer to enable results access
+)
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.utils.weave_integration import init_weave  # noqa: E402
@@ -53,14 +59,33 @@ class ProblemConfig(TypedDict):
 
 
 # Problem-specific configurations
+# NOTE: You can choose between different scorer sets via --scorers flag:
+# - "legacy": Original problem-specific scorer (e.g., score_design_match for beams2d)
+# - "engibench": Use global MMD computed after evaluation
+# - "all": Both legacy scorers and EngiBench MMD
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     "beams2d": {
         "dataset_name": "IDEALLab/beams_2d_50_100_v0",
         "prompt_file": "beam_prompts_50_samples.json",
         "scorers": [
-            score_design_match,
+            score_design_match,  # Legacy scorer (includes compliance, IoU, etc.)
         ],
     },
+    # Example configuration for other problems (uncomment and adjust as needed):
+    # "thermoelastic2d": {
+    #     "dataset_name": "IDEALLab/thermoelastic_2d_v0",
+    #     "prompt_file": "thermoelastic_prompts.json",
+    #     "scorers": [
+    #         score_engibench_final_designs,  # Use EngiBench for problems without custom scorers
+    #     ],
+    # },
+    # "photonics2d": {
+    #     "dataset_name": "IDEALLab/photonics_2d_v0",
+    #     "prompt_file": "photonics_prompts.json",
+    #     "scorers": [
+    #         score_engibench_final_designs,
+    #     ],
+    # },
 }
 
 # Configure logger for this module
@@ -210,6 +235,18 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Model temperature (defaults to config.llm_temperature)",
     )
+    parser.add_argument(
+        "--scorers",
+        type=str,
+        default="legacy",
+        choices=["legacy", "engibench", "all"],
+        help=(
+            "Scorer set to use: "
+            "'legacy' (problem-specific), "
+            "'engibench' (global MMD only after eval), "
+            "'all' (legacy + global MMD)"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -318,6 +355,20 @@ async def main() -> None:
         args.temperature if args.temperature is not None else config.llm_temperature
     )
 
+    # Select scorers based on command line argument
+    if args.scorers == "legacy":
+        scorers = problem_config["scorers"]
+    elif args.scorers == "engibench":
+        # Use lightweight scorer to enable results access
+        # MMD is computed globally after evaluation completes
+        scorers = [score_design_extracted]
+    elif args.scorers == "all":
+        # Use legacy scorers + lightweight scorer
+        # MMD is computed globally after evaluation completes
+        scorers = problem_config["scorers"] + [score_design_extracted]
+    else:
+        scorers = problem_config["scorers"]
+
     print("=" * 60)
     print(f"ENGINEERING AGENT EVALUATION ({args.problem})")
     print("=" * 60)
@@ -326,6 +377,8 @@ async def main() -> None:
     print(f"Model: {model_name}")
     print(f"Temperature: {temperature}")
     print(f"Samples: {args.samples}")
+    print(f"Scorer Set: {args.scorers}")
+    print(f"Active Scorers: {[s.__name__ for s in scorers]}")
     print()
 
     # Initialize Weave
@@ -368,16 +421,49 @@ async def main() -> None:
     # Define evaluation
     print("🔍 Running evaluation...")
     evaluation = weave.Evaluation(
-        name=f"{args.problem}_agent_eval_{model_name.replace('/', '_')}",
+        name=f"{args.problem}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}",
         dataset=dataset,
-        scorers=problem_config["scorers"],
+        scorers=scorers,
     )
 
     # Run evaluation (async)
     results = await evaluation.evaluate(agent)
 
+    # Debug: check what results actually is
+    print(f"DEBUG: results type = {type(results)}")
+    print(f"DEBUG: results dir = {[attr for attr in dir(results) if not attr.startswith('_')][:20]}")
+    if hasattr(results, "rows"):
+        print(f"DEBUG: results.rows exists, len = {len(results.rows)}")
+    else:
+        print(f"DEBUG: results has no .rows attribute")
+        print(f"DEBUG: results keys (if dict) = {list(results.keys()) if isinstance(results, dict) else 'NOT A DICT'}")
+
     # Print summary
-    print_evaluation_summary(results, problem_config["scorers"])
+    print_evaluation_summary(results, scorers)
+
+    # Compute global metrics (MMD) if using EngiBench scorers
+    if args.scorers in ("engibench", "all"):
+        print()
+        print("=" * 60)
+        print("COMPUTING GLOBAL METRICS (MMD)")
+        print("=" * 60)
+        print()
+        print("Computing MMD across all generated designs...")
+
+        # Pass evaluation object to compute global metrics
+        global_metrics = compute_global_metrics(
+            evaluation,
+            dataset_name=problem_config["dataset_name"],
+            problem_type=args.problem,
+            sigma=1.0,
+            num_expected_designs=len(dataset.rows),
+        )
+
+        print()
+        print("Global Metrics:")
+        print(f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.4f}" if global_metrics.get('mmd') else "  • MMD: Failed to compute")
+        print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
+        print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")
 
     print()
     print("🎉 Evaluation complete!")
