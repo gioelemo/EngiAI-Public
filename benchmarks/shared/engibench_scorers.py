@@ -255,7 +255,9 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         logger.info(f"Using dataset split: {dataset_split}")
 
         if len(generated_designs) == 0:
-            logger.warning("No valid designs extracted, cannot compute MMD and DPP diversity")
+            logger.warning(
+                "No valid designs extracted, cannot compute MMD and DPP diversity"
+            )
             return {
                 "mmd": None,
                 "n_designs": 0,
