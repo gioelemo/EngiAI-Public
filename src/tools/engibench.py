@@ -43,7 +43,8 @@ _session_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 )
 
 # State management dictionary with session isolation.
-# Each session (identified by session_id) has isolated state for each problem type.
+# Stores only designs (last_design, initial_design) per session and problem type.
+# Problem instances are NOT cached - fresh instances are created per tool call.
 # When session_id is None, uses "default" session (for interactive use).
 _problem_states: dict[str, dict[str, dict[str, Any]]] = {}
 
@@ -85,13 +86,13 @@ def get_problem_state(problem_type: str) -> dict[str, Any]:
     """Get the state dictionary for a given problem type in the current session.
 
     This function is session-aware and prevents state leakage between evaluation examples.
-    Each session gets its own isolated state dictionary.
+    Each session gets its own isolated state dictionary for storing designs only.
 
     Args:
         problem_type: Type of problem (e.g., 'beams2d')
 
     Returns:
-        State dictionary with keys: problem_instance, last_design, initial_design
+        State dictionary with keys: last_design, initial_design
     """
     problem_key = problem_type.lower()
     session_id = get_current_session_id()
@@ -103,29 +104,11 @@ def get_problem_state(problem_type: str) -> dict[str, Any]:
     # Ensure problem type exists in session
     if problem_key not in _problem_states[session_id]:
         _problem_states[session_id][problem_key] = {
-            "problem_instance": None,
             "last_design": None,
             "initial_design": None,
         }
 
     return _problem_states[session_id][problem_key]
-
-
-def get_unified_problem_instance(
-    problem_type: str,
-) -> Problem:
-    """Get or create a problem instance for the given problem type."""
-    state = get_problem_state(problem_type)
-    if state["problem_instance"] is None:
-        problem_class = get_problem_class(problem_type)
-        state["problem_instance"] = problem_class()
-    return state["problem_instance"]  # type: ignore[return-value]
-
-
-def set_unified_problem_instance(problem_type: str, problem: Any) -> None:
-    """Set the problem instance for a given problem type."""
-    state = get_problem_state(problem_type)
-    state["problem_instance"] = problem
 
 
 def get_unified_last_design(problem_type: str) -> np.ndarray | None:
@@ -199,11 +182,7 @@ def create_problem(
     """
     try:
         problem_class = get_problem_class(problem_type)
-        problem = problem_class()
-        problem.reset(seed=seed)
-
-        # Store the problem instance for reuse by other tools
-        set_unified_problem_instance(problem_type, problem)
+        problem = problem_class(seed=seed)
 
         return {
             "problem_id": problem_type.lower(),
@@ -272,9 +251,9 @@ def simulate_design(
         if config is None:
             config = {}
 
-        # Get problem instance
-        problem = get_unified_problem_instance(problem_type)
-        problem.reset(seed=seed)
+        # Create a fresh problem instance for this simulation
+        problem_class = get_problem_class(problem_type)
+        problem = problem_class(seed=seed)
 
         # Check if we have a stored design from previous operations
         last_design = get_unified_last_design(problem_type)
@@ -385,17 +364,9 @@ def optimize_design(
         config_was_none = constraints is None
         config_was_empty = config == {}
 
-        # CRITICAL: Create NEW problem instance with config for each optimization
-        #
-        # Why create new instance instead of reusing cached instance?
-        # - EngiBench problem classes accept config in __init__ to set conditions properly
-        # - Cached instance may have default volfrac=0.35, but user config may specify different value
-        # - Cannot modify problem constraints after initialization, must create new instance
-        #
-        # Why update cache after creating new instance?
-        # - Other tools (simulate_design, render_design) use get_unified_problem_instance()
-        # - They need access to the same properly-configured problem instance
-        # - Cache ensures consistent problem configuration across all tool calls
+        # Create a fresh problem instance for this optimization.
+        # Problem instances are lightweight and creating fresh instances ensures
+        # that config parameters are properly applied without state interference.
         problem_class = get_problem_class(problem_type)
 
         # Only pass config to problem classes that support it (e.g., Beams2D)
@@ -410,9 +381,6 @@ def optimize_design(
                 problem = problem_class(seed=seed)
             else:
                 raise
-
-        # Update cache so other tools (simulate_design, render_design) use the same configured instance
-        set_unified_problem_instance(problem_type, problem)
 
         # Get starting design using random design from official API
         design, _ = problem.random_design()
@@ -580,8 +548,9 @@ def _format_optimization_result(
         "optimization_info": optimization_info,
     }
 
-    # Get problem instance to access objectives metadata
-    problem = get_unified_problem_instance(problem_type)
+    # Create a lightweight problem instance to access objectives metadata
+    problem_class = get_problem_class(problem_type)
+    problem = problem_class()
     objective_names = [name for name, _ in problem.objectives]
     objective_directions = dict(problem.objectives)
 
@@ -677,24 +646,14 @@ def render_design(
         else:
             full_save_path = save_path_obj
 
-        # Get problem instance
-        problem: Problem = get_unified_problem_instance(problem_type)
-
-        # Verify we have the correct problem type
+        # Create a fresh problem instance for rendering
         problem_class = get_problem_class(problem_type)
-        if not isinstance(problem, problem_class):
-            msg = (
-                f"Error: Problem instance mismatch! "
-                f"Expected {problem_class.__name__}, got {type(problem).__name__}. "
-                f"Please create a {problem_type} problem first using create_problem()."
-            )
-            return {"success": False, "message": msg}
 
-        # Use random seed if none provided
+        # Use random seed if none provided, otherwise use the provided seed
         if seed is None:
             seed = random.randint(0, 999999)
-        elif seed != 0:
-            problem.reset(seed=seed)  # type: ignore[attr-defined]
+
+        problem: Problem = problem_class(seed=seed)
 
         # Get the design to render based on description
         design, design_type = _get_design_to_render(
