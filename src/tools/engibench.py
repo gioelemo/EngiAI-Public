@@ -106,11 +106,6 @@ def set_initial_design(problem_type: str, design: np.ndarray) -> None:
     state["initial_design"] = design
 
 
-# ============================================================================
-# UNIFIED TOOLS - These work with any problem type
-# ============================================================================
-
-
 @tool
 def create_problem(
     problem_type: str = "beams2d",
