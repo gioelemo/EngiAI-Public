@@ -367,9 +367,9 @@ def optimize_design(
             design=design, config=config if config else None
         )
 
-        # Run optimization (design is a positional argument, not keyword)
+        # Run optimization with the starting design
         optimized_design, optimization_info = problem.optimize(
-            design, config=config if config else None
+            starting_point=design, config=config if config else None
         )
 
         # Store optimized design as the new last_design
