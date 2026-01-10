@@ -135,3 +135,4 @@ def test_optimize_design_session_isolation():
     # Clean up
     clear_session_state("opt_session_1")
     clear_session_state("opt_session_2")
+    set_session_id("default")
