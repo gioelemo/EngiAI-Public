@@ -64,9 +64,9 @@ def _get_ground_truth_design(
                 f"Invalid example_id {example_id} for dataset {dataset_name} split {split}"
             )
             return None
-
-        design = np.array(hf_dataset[example_id][design_field])
-        return design
+        else:
+            design = np.array(hf_dataset[example_id][design_field])
+            return design
     except Exception:
         logger.exception(f"Failed to load ground truth design from split {split}")
         return None
