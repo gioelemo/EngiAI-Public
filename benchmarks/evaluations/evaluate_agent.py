@@ -478,7 +478,7 @@ async def main() -> None:  # noqa: PLR0915
     print()
     print("🎉 Evaluation complete!")
     print("📊 View detailed results in Weave dashboard")
-    if args.scorers == "engibench":
+    if args.scorers in ("engibench", "all"):
         print(f"📁 Comparison images saved to: {comparison_dir}/")
 
 
