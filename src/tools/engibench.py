@@ -284,9 +284,8 @@ def simulate_design(
 
 
 @tool
-def optimize_design(  # noqa: PLR0912
+def optimize_design(
     problem_type: str = "beams2d",
-    starting_point: str = "random",
     constraints: dict[str, Any] | None = None,
     seed: int = 0,
     save_result: bool = True,
@@ -299,7 +298,6 @@ def optimize_design(  # noqa: PLR0912
 
     Args:
         problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
-        starting_point: Initial design approach ("random", "uniform", or "sparse")
         constraints: Problem-specific constraint parameters **REQUIRED for correct optimization**
             For beams2d: {"volfrac": <volume_fraction>, "rmin": <filter_radius>, "forcedist": <load_position>}
             For thermoelastic2d: {"volfrac": <volume_fraction>, "weight": 0.5, "rmin": 1.1}
@@ -361,19 +359,8 @@ def optimize_design(  # noqa: PLR0912
         # Update cache so other tools (simulate_design, render_design) use the same configured instance
         set_unified_problem_instance(problem_type, problem)
 
-        # Get starting design
-        if starting_point.lower() == "random":
-            design, _ = problem.random_design()
-        elif starting_point.lower() == "uniform":
-            volfrac = config.get("volfrac", config.get("volume_fraction", 0.3))
-            shape = problem.design_space.shape
-            design = np.full(shape, volfrac, dtype=np.float32)
-        elif starting_point.lower() == "sparse":
-            volfrac = config.get("volfrac", config.get("volume_fraction", 0.3))
-            shape = problem.design_space.shape
-            design = np.full(shape, volfrac * 0.5, dtype=np.float32)
-        else:
-            design, _ = problem.random_design()
+        # Get starting design using random design from official API
+        design, _ = problem.random_design()
 
         # Store initial design separately for later visualization
         set_initial_design(problem_type, design)
