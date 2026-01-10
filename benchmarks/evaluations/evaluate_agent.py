@@ -445,14 +445,14 @@ async def main() -> None:  # noqa: PLR0915
     print_evaluation_summary(results, scorers)
 
     await asyncio.sleep(10)  # Wait for any async logging to complete
-    # Compute global metrics (MMD) if using EngiBench scorers
+    # Compute global metrics if using EngiBench scorers
     if args.scorers in ("engibench", "all"):
         print()
         print("=" * 60)
-        print("COMPUTING GLOBAL METRICS (MMD)")
+        print("COMPUTING GLOBAL METRICS")
         print("=" * 60)
         print()
-        print("Computing MMD across all generated designs...")
+        print("Computing metrics across all generated designs...")
 
         # Setup output directory for comparison images
         comparison_dir = (
