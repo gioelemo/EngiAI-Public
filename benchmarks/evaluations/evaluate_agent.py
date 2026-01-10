@@ -47,6 +47,7 @@ from benchmarks.shared.engibench_scorers import (  # noqa: E402
 )
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
+from src.tools.engibench import clear_session_state, set_session_id  # noqa: E402
 from src.utils.weave_integration import init_weave  # noqa: E402
 
 
@@ -95,65 +96,73 @@ class EngineeringAgent(weave.Model):
         Returns:
             Dictionary with response and metadata
         """
-        # Initialize the supervisor agent with the configured model
-        # Use eval_mode=True to reduce token costs with minimal prompts
-        supervisor = SupervisorAgent(
-            model_name=self.model_name,
-            temperature=self.temperature,
-            eval_mode=True,
-        )
-
-        # Convert prompt to message format
-        messages = [HumanMessage(content=prompt)]
-        state = {"messages": messages}
-
         # Generate unique thread_id for this evaluation
         thread_id = f"eval_{uuid.uuid4().hex[:8]}"
-        config_dict = {"configurable": {"thread_id": thread_id}}
 
-        # Invoke the supervisor agent
-        result = supervisor.invoke(state, config_dict)
+        # Set session ID for state isolation - prevents data corruption in batch evaluations
+        set_session_id(thread_id)
 
-        # Extract the final response from messages
-        final_message = result["messages"][-1]
-        response_content = final_message.content
+        try:
+            # Initialize the supervisor agent with the configured model
+            # Use eval_mode=True to reduce token costs with minimal prompts
+            supervisor = SupervisorAgent(
+                model_name=self.model_name,
+                temperature=self.temperature,
+                eval_mode=True,
+            )
 
-        # Debug logging: Extract and log tool calls to see what config is being used
-        tool_calls_info = [
-            {
-                "name": tool_call.get("name", "unknown"),
-                "args": tool_call.get("args", {}),
-            }
-            for msg in result["messages"]
-            if hasattr(msg, "tool_calls") and msg.tool_calls
-            for tool_call in msg.tool_calls
-        ]
+            # Convert prompt to message format
+            messages = [HumanMessage(content=prompt)]
+            state = {"messages": messages}
 
-        # Log optimize_design calls to see what constraints are being passed
-        for tc in tool_calls_info:
-            if tc["name"] == "optimize_design":
-                # Check both 'constraints' (new) and 'config' (old) parameter names
-                constraints_used = tc["args"].get(
-                    "constraints", tc["args"].get("config", None)
-                )
-                logger.debug(
-                    "optimize_design called with constraints: %s", constraints_used
-                )
-                if constraints_used is None:
-                    logger.warning(
-                        "NO CONSTRAINTS - agent is not passing constraint parameters!"
+            config_dict = {"configurable": {"thread_id": thread_id}}
+
+            # Invoke the supervisor agent
+            result = supervisor.invoke(state, config_dict)
+
+            # Extract the final response from messages
+            final_message = result["messages"][-1]
+            response_content = final_message.content
+
+            # Debug logging: Extract and log tool calls to see what config is being used
+            tool_calls_info = [
+                {
+                    "name": tool_call.get("name", "unknown"),
+                    "args": tool_call.get("args", {}),
+                }
+                for msg in result["messages"]
+                if hasattr(msg, "tool_calls") and msg.tool_calls
+                for tool_call in msg.tool_calls
+            ]
+
+            # Log optimize_design calls to see what constraints are being passed
+            for tc in tool_calls_info:
+                if tc["name"] == "optimize_design":
+                    # Check both 'constraints' (new) and 'config' (old) parameter names
+                    constraints_used = tc["args"].get(
+                        "constraints", tc["args"].get("config", None)
                     )
+                    logger.debug(
+                        "optimize_design called with constraints: %s", constraints_used
+                    )
+                    if constraints_used is None:
+                        logger.warning(
+                            "NO CONSTRAINTS - agent is not passing constraint parameters!"
+                        )
 
-        return {
-            "response": response_content,
-            "model": self.model_name,
-            "response_length": len(response_content),
-            "agent_type": getattr(final_message, "name", "unknown"),
-            "messages": result[
-                "messages"
-            ],  # Include full message history for design extraction
-            "tool_calls_info": tool_calls_info,  # Debug info
-        }
+            return {
+                "response": response_content,
+                "model": self.model_name,
+                "response_length": len(response_content),
+                "agent_type": getattr(final_message, "name", "unknown"),
+                "messages": result[
+                    "messages"
+                ],  # Include full message history for design extraction
+                "tool_calls_info": tool_calls_info,  # Debug info
+            }
+        finally:
+            # Clean up session state to prevent memory leaks in batch evaluations
+            clear_session_state(thread_id)
 
 
 def prepare_evaluation_dataset(

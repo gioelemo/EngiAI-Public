@@ -10,6 +10,7 @@ These tools allow LLM agents to interact with EngiBench simulators.
 
 from __future__ import annotations
 
+import contextvars
 import datetime
 import random
 from pathlib import Path
@@ -20,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from langchain_core.tools import tool
 
-from src.tools.problems import PROBLEM_CLASSES, SUPPORTED_PROBLEMS
+from src.tools.problems import PROBLEM_CLASSES
 
 if TYPE_CHECKING:
     from engibench.core import Problem
@@ -35,12 +36,16 @@ EXPECTED_ARRAY_DIMENSIONS = 2  # For 2D beam design arrays
 # Build problem registry from problems.py - single source of truth
 PROBLEM_REGISTRY: dict[str, type] = PROBLEM_CLASSES
 
-# Build state management dictionary dynamically from SUPPORTED_PROBLEMS
-# Each problem type has its own instance and last_design
-_problem_states: dict[str, dict[str, Any]] = {
-    problem_id: {"problem_instance": None, "last_design": None}
-    for problem_id in SUPPORTED_PROBLEMS
-}
+# Context variable to store session ID for isolating state in batch evaluations
+# This prevents data corruption when multiple examples run in parallel or sequentially
+_session_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "session_id", default=None
+)
+
+# State management dictionary with session isolation.
+# Each session (identified by session_id) has isolated state for each problem type.
+# When session_id is None, uses "default" session (for interactive use).
+_problem_states: dict[str, dict[str, dict[str, Any]]] = {}
 
 
 # Unified helper functions for problem management
@@ -53,16 +58,57 @@ def get_problem_class(problem_type: str) -> type:
     return PROBLEM_REGISTRY[problem_key]
 
 
+def set_session_id(session_id: str) -> None:
+    """Set the session ID for state isolation in batch evaluations.
+
+    Args:
+        session_id: Unique identifier for this evaluation session/example
+
+    Example:
+        >>> set_session_id("example_42")  # In evaluation framework
+        >>> optimize_design(...)  # State is isolated to this session
+    """
+    _session_id_var.set(session_id)
+
+
+def get_current_session_id() -> str:
+    """Get the current session ID, or 'default' if not set.
+
+    Returns:
+        Session ID string (defaults to 'default' for interactive use)
+    """
+    session_id = _session_id_var.get()
+    return session_id if session_id is not None else "default"
+
+
 def get_problem_state(problem_type: str) -> dict[str, Any]:
-    """Get the state dictionary for a given problem type."""
+    """Get the state dictionary for a given problem type in the current session.
+
+    This function is session-aware and prevents state leakage between evaluation examples.
+    Each session gets its own isolated state dictionary.
+
+    Args:
+        problem_type: Type of problem (e.g., 'beams2d')
+
+    Returns:
+        State dictionary with keys: problem_instance, last_design, initial_design
+    """
     problem_key = problem_type.lower()
-    if problem_key not in _problem_states:
-        _problem_states[problem_key] = {
+    session_id = get_current_session_id()
+
+    # Ensure session exists in state dictionary
+    if session_id not in _problem_states:
+        _problem_states[session_id] = {}
+
+    # Ensure problem type exists in session
+    if problem_key not in _problem_states[session_id]:
+        _problem_states[session_id][problem_key] = {
             "problem_instance": None,
             "last_design": None,
             "initial_design": None,
         }
-    return _problem_states[problem_key]
+
+    return _problem_states[session_id][problem_key]
 
 
 def get_unified_problem_instance(
@@ -104,6 +150,20 @@ def set_initial_design(problem_type: str, design: np.ndarray) -> None:
     """Store the initial design (before optimization) for a given problem type."""
     state = get_problem_state(problem_type)
     state["initial_design"] = design
+
+
+def clear_session_state(session_id: str | None = None) -> None:
+    """Clear state for a specific session to prevent memory leaks.
+
+    Args:
+        session_id: Session ID to clear, or None to clear current session
+
+    Example:
+        >>> clear_session_state("example_42")  # Clear specific session
+        >>> clear_session_state()  # Clear current session
+    """
+    target_session = session_id if session_id is not None else get_current_session_id()
+    _problem_states.pop(target_session, None)
 
 
 @tool
