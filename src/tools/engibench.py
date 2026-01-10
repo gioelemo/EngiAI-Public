@@ -227,7 +227,7 @@ def simulate_design(
             "optimized topology", "last design"). The tool will generate or retrieve
             an appropriate design based on this description.
         config: Problem-specific configuration parameters (optional)
-            For beams2d: {"volume_fraction": 0.35, "force_distribution": 0.0}
+            For beams2d: {"volfrac": 0.35, "force_distribution": 0.0}
             For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
         seed: Random seed for reproducibility
 
@@ -242,7 +242,7 @@ def simulate_design(
         >>> result = simulate_design(
         ...     problem_type="beams2d",
         ...     design_description="random design",
-        ...     config={"volume_fraction": 0.4},
+        ...     config={"volfrac": 0.4},
         ...     seed=42
         ... )
         >>> print(f"Compliance: {result['compliance']}")
@@ -611,7 +611,7 @@ def render_design(
         design_description: Description of the design to render (e.g., "random design",
             "optimized topology", "initial design", "final design")
         config: Problem-specific configuration parameters (optional)
-            For beams2d: {"volume_fraction": 0.35, "force_distribution": 0.0}
+            For beams2d: {"volfrac": 0.35, "force_distribution": 0.0}
             For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
         save_path: Base filename for the image (will be saved in outputs/ directory)
         seed: Random seed for reproducibility (None = use random seed)
