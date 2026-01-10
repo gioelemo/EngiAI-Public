@@ -1,7 +1,8 @@
 """Global metrics computation for EngiBench evaluation.
 
-This module provides a function to compute MMD (Maximum Mean Discrepancy)
-between generated designs and optimal designs from a dataset after evaluation completes.
+This module provides a function to compute MMD (Maximum Mean Discrepancy) and
+DPP diversity metrics between generated designs and optimal designs from a dataset
+after evaluation completes.
 """
 
 import logging
@@ -123,21 +124,23 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     save_comparisons: bool = True,
     comparison_output_dir: str | None = None,
 ) -> dict[str, Any]:
-    """Compute global MMD metric from evaluation object.
+    """Compute global MMD and DPP diversity metrics from evaluation object.
 
     This function retrieves generated designs from scorer results
-    and computes MMD (similarity to dataset) across the full set.
+    and computes MMD (similarity to dataset) and DPP diversity (design variability)
+    across the full set.
 
     Args:
         evaluation: Weave Evaluation object (after evaluate() has been called)
         dataset_name: HuggingFace dataset name for ground truth
-        sigma: Kernel bandwidth for MMD
+        sigma: Kernel bandwidth for MMD and DPP diversity
         save_comparisons: Whether to save comparison images (default: True)
         comparison_output_dir: Directory to save comparison images (default: benchmarks/evaluations/results/mmd_comparisons)
 
     Returns:
         dict with:
         - mmd: float (similarity to dataset distribution)
+        - dpp_diversity: float (diversity of generated designs)
         - n_designs: int (number of valid designs)
         - n_failed: int (number of failed extractions)
     """
@@ -252,7 +255,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         logger.info(f"Using dataset split: {dataset_split}")
 
         if len(generated_designs) == 0:
-            logger.warning("No valid designs extracted, cannot compute MMD")
+            logger.warning("No valid designs extracted, cannot compute MMD and DPP diversity")
             return {
                 "mmd": None,
                 "n_designs": 0,
@@ -310,7 +313,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
             "error": "Failed to process results",
         }
 
-    # Compute MMD between generated and ground truth designs
+    # Compute MMD and DPP diversity metrics
     gen_batch = np.stack(generated_designs)
     gt_batch = np.stack(gt_designs)
     gt_batch_viz = (
@@ -333,7 +336,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         mmd_value = mmd(gen_batch, gt_batch, sigma=sigma)
         logger.info(f"Computed MMD with sigma={sigma:.4f}: {mmd_value:.6f}")
 
-        # Compute DPP diversity for generated designs with auto-computed sigma
+        # Compute DPP diversity for generated designs with provided sigma
         dpp_value = dpp_diversity(gen_batch, sigma=sigma)
         logger.info(f"Computed DPP diversity with sigma={sigma:.4f}: {dpp_value:.6e}")
     except Exception:
