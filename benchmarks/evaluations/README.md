@@ -47,9 +47,10 @@ python evaluate_agent.py \
 
 ### Scorer Options
 
-- `--scorers legacy` - Use problem-specific scorers only (e.g., `score_design_match`)
+- `--scorers legacy` - Use generic scorer (for backward compatibility)
+- `--scorers generic` - Use generic scorer that works for all problems
 - `--scorers engibench` - Compute global MMD metric only
-- `--scorers all` - Use both legacy scorers and global MMD metric
+- `--scorers all` - Use both generic scorer and global MMD metric
 
 ## Command Line Arguments
 
@@ -60,7 +61,7 @@ python evaluate_agent.py \
 | `--samples` | Number of samples to evaluate | `5` |
 | `--temperature` | Model temperature | From config |
 | `--split` | Dataset split (train/val/test) | `test` |
-| `--scorers` | Scorer set (legacy/engibench/all) | `legacy` |
+| `--scorers` | Scorer set (legacy/generic/engibench/all) | `legacy` |
 
 ## Results Organization
 
@@ -89,18 +90,23 @@ results/
 
 ## Evaluation Metrics
 
-### Problem-Specific Scorers (Legacy)
+### Generic Scorer
 
-Each problem has dedicated scorer functions. For beams2d:
+All problems now use the generic scorer (`score_design_generic`) which provides:
 
-- **`score_design_match`** - Comprehensive design quality evaluation
+- **Design Quality Metrics**
   - IoU (Intersection over Union) - Topology overlap
   - Pixel accuracy - Element-wise match
   - MSE (Mean Squared Error) - Density field error
-  - Volume fraction error - Material usage difference
-  - Compliance score - Structural performance
+- **Constraint Checking** - Based on problem configuration
+  - Volume fraction constraints (beams2d, photonics2d)
+- **Objective Evaluation** - Based on problem configuration
+  - Compliance scoring (beams2d)
+  - Total overlap scoring (photonics2d)
 
-See [../problems/beams2d/SCORING_METRICS.md](../problems/beams2d/SCORING_METRICS.md) for detailed metric definitions.
+The generic scorer is configuration-driven via `benchmarks.shared.problem_registry`, which defines objectives, constraints, and weights for each problem type.
+
+See [../problems/beams2d/SCORING_METRICS.md](../problems/beams2d/SCORING_METRICS.md) for detailed beams2d metric definitions.
 
 ### EngiBench Global Metrics
 

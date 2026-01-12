@@ -121,16 +121,18 @@ Results are automatically organized by model for easy comparison.
 
 The benchmarks use two types of scorer systems:
 
-### Problem-Specific Scorers
+### Generic Scorer
 
-Each problem (e.g., beams2d) has dedicated scorer functions that evaluate design quality:
+All problems use the generic scorer (`score_design_generic`) which evaluates design quality based on problem configuration:
 
-- **Design Match** (`score_design_match`) - Overall design similarity score
+- **Design Quality Metrics**
   - **IoU** (Intersection over Union) - Topology overlap
   - **Pixel Accuracy** - Element-wise accuracy
   - **MSE** (Mean Squared Error) - Density field error
-  - **Volume Fraction Error** - Material usage difference
-  - **Compliance Score** - Structural performance metric
+- **Constraint Checking** - Configured per problem (e.g., volume fraction)
+- **Objective Evaluation** - Configured per problem (e.g., compliance for beams2d, overlap for photonics2d)
+
+The generic scorer is configuration-driven via `benchmarks.shared.problem_registry`.
 
 See [problems/beams2d/SCORING_METRICS.md](problems/beams2d/SCORING_METRICS.md) for detailed metric definitions.
 
@@ -261,7 +263,7 @@ All benchmarks use the main project dependencies from `environment.yml`:
 
 ### Design Comparison Methodology
 
-The pixel-wise design comparison (`score_design_match`) measures how similar the agent's design is to the ground truth. Large differences are expected because:
+The pixel-wise design comparison (via the generic scorer) measures how similar the agent's design is to the ground truth. Large differences are expected because:
 
 1. **Multiple Local Optima** - Topology optimization has many valid solutions
 2. **Sensitivity to Initialization** - Different random seeds produce different designs

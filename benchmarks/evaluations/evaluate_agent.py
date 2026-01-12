@@ -37,9 +37,6 @@ os.environ["SKIP_MMORE"] = "true"
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import problem-specific scorers
-from benchmarks.problems.beams2d.scorers import score_design_match  # noqa: E402
-
 # Import EngiBench scorers
 from benchmarks.shared.engibench_scorers import (  # noqa: E402
     compute_global_metrics,  # For MMD after evaluation
@@ -62,16 +59,16 @@ class ProblemConfig(TypedDict):
 
 # Problem-specific configurations
 # NOTE: You can choose between different scorer sets via --scorers flag:
-# - "legacy": Original problem-specific scorer (e.g., score_design_match for beams2d)
-# - "generic": Use new generic scorer that works for all problems
+# - "legacy": Uses generic scorer (for backward compatibility)
+# - "generic": Use generic scorer that works for all problems
 # - "engibench": Use global MMD computed after evaluation (score_design_extracted only)
-# - "all": Both legacy/generic scorers and EngiBench MMD
+# - "all": Both generic scorer and EngiBench MMD
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     "beams2d": {
         "dataset_name": "IDEALLab/beams_2d_50_100_v0",
         "prompt_file": "{problem}_prompts_50_samples_{split}.json",  # File has 50 samples
         "scorers": [
-            score_design_match,  # Legacy scorer (includes compliance, IoU, etc.)
+            score_design_generic,  # Generic scorer (compliance, IoU, constraints)
         ],
     },
     "photonics2d": {
