@@ -155,19 +155,6 @@ def compute_rvc(
     for idx, (design, conditions, example_id) in enumerate(
         zip(designs, conditions_list, example_ids, strict=False)
     ):
-        # Debug: Log the actual volume fraction and target
-        actual_vf = np.mean(design)
-        target_vf = (
-            conditions.get("volfrac") or conditions.get("volume")
-            if conditions
-            else None
-        )
-        target_vf_str = f"{target_vf:.4f}" if target_vf is not None else "None"
-        logger.debug(
-            f"RVC check - Example {example_id} (idx {idx}): actual_vf={actual_vf:.4f}, "
-            f"target_vf={target_vf_str}, design shape={design.shape}"
-        )
-
         has_violations, violated_constraints = _check_design_constraints(
             problem_type, design, conditions, example_id
         )
@@ -473,17 +460,8 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
                 gen_design = np.array(design_list)
 
-                # Debug: Check volume fraction of extracted design
-                extracted_vf = np.mean(gen_design)
-                logger.info(
-                    f"Output {idx}: Extracted design volfrac={extracted_vf:.6f}, shape={gen_design.shape}"
-                )
-
                 # Extract example_id from scorer output (stored by score_design_extracted)
                 example_id = scorer_output.get("example_id", idx)
-                logger.info(
-                    f"Output {idx}: Using example_id={example_id} from scorer output"
-                )
 
                 # Extract dataset_split and problem_type from first valid example
                 if len(generated_designs) == 0 and idx < len(dataset_rows):
@@ -516,13 +494,8 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
                     ):
                         conditions = conditions_row["conditions"]
 
-                logger.info(
-                    f"Output {idx}: Successfully extracted design for example_id={example_id}"
-                )
-
-                # Debug: Log volume fraction of extracted design
                 logger.debug(
-                    f"Output {idx}: Extracted design volfrac={np.mean(gen_design):.4f}, shape={gen_design.shape}"
+                    f"Output {idx}: Successfully extracted design for example_id={example_id}"
                 )
 
                 generated_designs.append(gen_design)
@@ -533,12 +506,12 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
                 opt_history = scorer_output.get("optimization_history")
                 if opt_history is not None:
                     optimization_histories.append(opt_history)
-                    logger.info(
+                    logger.debug(
                         f"Output {idx}: Extracted optimization history with {len(opt_history)} steps"
                     )
                 else:
                     optimization_histories.append([])
-                    logger.info(
+                    logger.debug(
                         f"Output {idx}: No optimization history found in scorer output"
                     )
 

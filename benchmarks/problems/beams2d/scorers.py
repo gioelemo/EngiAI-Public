@@ -57,7 +57,7 @@ def _extract_compliance_from_dict(content: dict) -> dict[str, float]:
 
 def _parse_string_content(content: str, example_id: int) -> dict[str, float] | None:
     """Parse string content using regex to extract compliance values."""
-    logger.info(
+    logger.debug(
         "Example %s: optimize_design content length: %s chars, contains 'compliance': %s",
         example_id,
         len(content),
@@ -84,7 +84,7 @@ def _parse_string_content(content: str, example_id: int) -> dict[str, float] | N
             if improvement_match:
                 compliance_data["improvement"] = float(improvement_match.group(2))
 
-            logger.info(
+            logger.debug(
                 "Example %s: Extracted compliance via regex: %s",
                 example_id,
                 compliance_data,
@@ -175,13 +175,6 @@ def _get_design_array(
     from src.tools.engibench import get_unified_last_design  # noqa: PLC0415
 
     messages = output.get("messages", [])
-    logger.debug("Example %s: Output dict keys: %s", example_id, list(output.keys()))
-    logger.debug(
-        "Example %s: Output dict (excluding messages): %s",
-        example_id,
-        {k: v for k, v in output.items() if k != "messages"},
-    )
-
     design_array = extract_design_from_tool_messages(messages, example_id)
 
     if design_array is None:
@@ -189,9 +182,8 @@ def _get_design_array(
         design_array = get_unified_last_design(problem_type)
         logger.warning("Example %s: Using global cache as fallback", example_id)
     else:
-        # Log the volfrac of the extracted design for comparison with score_design_extracted
         extracted_vf = np.mean(design_array)
-        logger.info(
+        logger.debug(
             f"Example {example_id}: score_design_match extracted design volfrac={extracted_vf:.6f}"
         )
 
@@ -244,7 +236,7 @@ def _calculate_compliance_score(
         for msg in messages
         if isinstance(msg, ToolMessage)
     ]
-    logger.info(
+    logger.debug(
         "Example %s: Tool messages found: %s",
         example_id,
         tool_msg_names if tool_msg_names else "NONE",

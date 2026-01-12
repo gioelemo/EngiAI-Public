@@ -85,13 +85,7 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
             continue
 
         # Found optimized_design in message
-        content_preview = (
-            content[:DEBUG_PREVIEW_LENGTH]
-            if len(content) > DEBUG_PREVIEW_LENGTH
-            else content
-        )
         logger.debug("Example %s: Found optimized_design in tool message", example_id)
-        logger.debug("Content preview: %s...", content_preview)
 
         # Parse the tool response - try multiple approaches
         result = None
@@ -192,12 +186,6 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
             len(messages),
         )
 
-    if design_array is not None:
-        logger.debug(
-            "Example %s: Returning LAST design found in conversation (final design)",
-            example_id,
-        )
-
     return design_array
 
 
@@ -236,7 +224,7 @@ def extract_optimization_history_from_tool_messages(  # noqa: PLR0912, PLR0915
             continue
 
         # Found optimization_info in message
-        logger.info(
+        logger.debug(
             f"Example {example_id}: Found optimization_info in tool message #{tool_messages_count}"
         )
 
