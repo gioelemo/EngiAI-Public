@@ -15,7 +15,7 @@ Photonics 2D is a topology optimization problem focused on designing optical str
 
 ## Dataset
 
-- **HuggingFace**: `IDEALLab/photonics_2d` (or similar dataset name)
+- **HuggingFace**: `IDEALLab/photonics_2d_120_120_v0`
 - **Splits**: train, val, test
 - **Fields**:
   - `design`: 2D binary array (material distribution)
@@ -32,13 +32,12 @@ Photonics 2D is a topology optimization problem focused on designing optical str
 ### Generate Prompts
 
 ```bash
-python benchmarks/problems/photonics2d/generate_prompts.py
+python benchmarks/problems/photonics2d/generate_prompts.py --split test --samples 50
 ```
 
-This will create prompt files in `data/datasets/photonics2d_prompts/`:
-- `train_prompts.json`
-- `val_prompts.json`
-- `test_prompts.json`
+This will create prompt files in `data/generated/`:
+- `photonics2d_prompts_50_samples_test.json`
+- Or similar files for train/val splits
 
 ### Evaluate with Generic Scorer
 

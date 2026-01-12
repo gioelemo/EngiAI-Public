@@ -39,10 +39,12 @@ Unlike single-objective problems (beams2d, photonics2d), this problem optimizes 
 
 ### Boundary Conditions
 
-The problem includes element arrays defining:
+The dataset includes element arrays defining:
 - **Fixed elements**: Boundary conditions (supports/fixtures)
 - **Force elements (x, y)**: Applied mechanical loads
 - **Heatsink elements**: Thermal boundary conditions (heat removal locations)
+
+**Note**: These boundary condition arrays are available in the structured `conditions` data but are not currently described in the natural language prompts. The agent would need to access them from the conditions dict passed to the optimization tool.
 
 ## Usage
 

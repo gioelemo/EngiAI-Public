@@ -5,7 +5,7 @@ This directory contains benchmarking and evaluation infrastructure for the engin
 ## Overview
 
 The benchmarks evaluate the agent's performance on engineering design tasks across:
-- **Multiple problem types** (currently beams2d, with more planned)
+- **Multiple problem types** (beams2d, photonics2d, thermoelastic2d)
 - **Multiple LLM models** (GPT-4o, Claude Sonnet, etc.)
 - **Different configurations** (temperature, parameters, etc.)
 
@@ -20,30 +20,35 @@ benchmarks/
 │   ├── problem_registry.py     # Central problem definitions
 │   ├── explore_dataset.py      # Generic dataset explorer
 │   ├── generic_scorer.py       # Universal topology optimizer scorer
-│   └── utils.py                # Shared utilities
+│   ├── engibench_scorers.py   # Global MMD, DPP, RVC, optimality gap metrics
+│   ├── metrics.py             # MMD, DPP, optimality gap computation utilities
+│   └── utils.py               # Shared helper functions
 ├── problems/                    # Problem-specific prompt generation
 │   ├── beams2d/                # 2D beam topology optimization
 │   │   ├── README.md
 │   │   ├── generate_prompts.py
-│   │   ├── validate_prompts.py
+│   │   ├── validate_prompts.py  # (beams2d only)
 │   │   └── data/
 │   │       ├── generated/      # Generated prompts
 │   │       ├── validated/      # Validation reports
 │   │       └── raw/           # Raw data samples (for exploration)
-│   └── photonics2d/            # 2D photonics optimization
-│       ├── (same structure)
-├── evaluations/                # Unified evaluation framework
-│   ├── README.md
-│   ├── evaluate_agent.py      # Main evaluation script
-│   └── results/               # Results organized by model and problem
-│       ├── {model-name}/
-│       │   └── {problem-type}/
-│       │       └── comparisons/  # Design comparison images
-└── shared/                     # Shared utilities and metrics
-    ├── __init__.py
-    ├── engibench_scorers.py   # Global MMD metrics scorer
-    ├── metrics.py             # MMD computation utilities
-    └── utils.py               # Shared helper functions
+│   ├── photonics2d/            # 2D photonics optimization
+│   │   ├── README.md
+│   │   ├── generate_prompts.py
+│   │   └── data/
+│   │       └── generated/      # Generated prompts
+│   └── thermoelastic2d/        # 2D thermoelastic multi-objective
+│       ├── README.md
+│       ├── generate_prompts.py
+│       └── data/
+│           └── generated/      # Generated prompts
+└── evaluations/                # Unified evaluation framework
+    ├── README.md
+    ├── evaluate_agent.py      # Main evaluation script
+    └── results/               # Results organized by model and problem
+        └── {model-name}/
+            └── {problem-type}/
+                └── comparisons/  # Design comparison images
 ```
 
 ## Quick Start
@@ -60,7 +65,7 @@ python generate_prompts.py
 
 ### 2. (Optional) Validate Prompts
 
-Ensure the generated prompts are well-formed:
+Ensure the generated prompts are well-formed (currently only available for beams2d):
 
 ```bash
 python validate_prompts.py
@@ -95,11 +100,36 @@ python evaluate_agent.py --problem beams2d --model gpt-4o --samples 5
 python evaluations/evaluate_agent.py --problem beams2d --samples 10
 ```
 
+### Photonics 2D
+
+**Dataset:** [IDEALLab/photonics_2d_120_120_v0](https://huggingface.co/datasets/IDEALLab/photonics_2d_120_120_v0)
+
+**Description:** Optical topology optimization for maximizing field overlap in photonic structures.
+
+**Documentation:** [problems/photonics2d/README.md](problems/photonics2d/README.md)
+
+**Evaluation:**
+```bash
+python evaluations/evaluate_agent.py --problem photonics2d --samples 10
+```
+
+### Thermoelastic 2D
+
+**Dataset:** [IDEALLab/thermoelastic_2d_v0](https://huggingface.co/datasets/IDEALLab/thermoelastic_2d_v0)
+
+**Description:** Multi-objective topology optimization combining structural stiffness, thermal performance, and material efficiency.
+
+**Documentation:** [problems/thermoelastic2d/README.md](problems/thermoelastic2d/README.md)
+
+**Evaluation:**
+```bash
+python evaluations/evaluate_agent.py --problem thermoelastic2d --samples 10
+```
+
 ### Future Problems
 
-- **Thermoelastic 2D** - Coupled thermal-structural optimization
 - **3D Structures** - Three-dimensional topology optimization
-- **Multi-Physics** - Combined physics problems
+- **Multi-Physics** - Additional combined physics problems
 
 ## Comparing Models
 
@@ -138,10 +168,14 @@ See [problems/beams2d/SCORING_METRICS.md](problems/beams2d/SCORING_METRICS.md) f
 
 ### Global Metrics (EngiBench)
 
-Global metrics computed after evaluation completes:
+Global metrics computed after evaluation completes (via `--scorers engibench` or `--scorers all`):
 
-- **MMD** (Maximum Mean Discrepancy) - Measures similarity between generated design distribution and dataset distribution
-- Computed via `--scorers engibench` or `--scorers all` flags
+- **MMD** (Maximum Mean Discrepancy) - Similarity between generated designs and dataset distribution (lower is better)
+- **DPP Diversity** - Design variability using Determinantal Point Process (higher is better)
+- **RVC** (Ratio of Violated Constraints) - Fraction of designs violating constraints (lower is better)
+- **IOG** (Initial Optimality Gap) - Average gap at start of optimization
+- **COG** (Cumulative Optimality Gap) - Average gap accumulated during optimization
+- **FOG** (Final Optimality Gap) - Average gap at end of optimization
 
 ## Weave Integration
 

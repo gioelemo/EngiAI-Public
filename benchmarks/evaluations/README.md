@@ -5,7 +5,7 @@ This directory contains the unified evaluation infrastructure for benchmarking t
 ## Overview
 
 The evaluation framework uses [Weave](https://wandb.ai/site/weave) to track and compare agent performance across:
-- Multiple problem types (currently beams2d, with more planned)
+- Multiple problem types (beams2d, photonics2d, thermoelastic2d)
 - Multiple LLM models (GPT-4o, Claude, etc.)
 - Different model configurations (temperature, etc.)
 
@@ -112,9 +112,14 @@ See [../problems/beams2d/SCORING_METRICS.md](../problems/beams2d/SCORING_METRICS
 
 Global metrics computed after evaluation completes (use `--scorers engibench` or `--scorers all`):
 
-- **MMD** (Maximum Mean Discrepancy) - Measures how similar the distribution of generated designs is to the dataset distribution
-- Uses all generated designs vs. full ground truth dataset
-- Lower MMD = better match to dataset distribution
+- **MMD** (Maximum Mean Discrepancy) - Measures how similar the distribution of generated designs is to the dataset distribution (lower is better)
+- **DPP Diversity** - Design variability using Determinantal Point Process kernel (higher is better)
+- **RVC** (Ratio of Violated Constraints) - Fraction of designs violating at least one constraint (lower is better, 0-1 range)
+- **IOG** (Initial Optimality Gap) - Average gap between initial design objective and optimal objective
+- **COG** (Cumulative Optimality Gap) - Average gap accumulated across all optimization iterations
+- **FOG** (Final Optimality Gap) - Average gap between final design objective and optimal objective
+
+These metrics use all generated designs vs. the full ground truth dataset.
 
 ## Weave Integration
 
