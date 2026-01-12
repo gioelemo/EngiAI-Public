@@ -1,20 +1,20 @@
-# Weave Integration Guide
+# Benchmarking with Weave
 
-This guide explains how to use Weights & Biases Weave for LLM tracing and benchmarking in the Engineer Assistant project.
+This guide explains how to use the benchmarking system powered by Weights & Biases Weave for evaluating agent performance on engineering optimization problems.
 
 ## Overview
 
-Weave is a lightweight toolkit for tracking and evaluating LLM applications. It automatically captures:
-- Input and output data from LLM calls
-- Latency and token usage
-- Model parameters and configurations
-- Full execution traces
+The Engineer Assistant includes a comprehensive benchmarking system that evaluates agent performance on structural optimization problems using real datasets. Weave integration is already set up throughout the codebase for automatic tracking and evaluation.
 
-This integration is configured separately from the existing `engiopt` W&B project to keep benchmark traces isolated.
+**Key Features:**
+- **Automated Evaluations**: Run agents on standard problem sets with automatic scoring
+- **Multiple Problem Types**: Beams, photonics, and thermoelastic optimization
+- **Performance Metrics**: Both per-design scores and global distribution metrics
+- **Trace Visualization**: View detailed execution traces in the Weave UI
 
-## Configuration
+## Quick Start
 
-### Environment Variables
+### Configuration
 
 Add the following to your `.env` file:
 
@@ -25,205 +25,283 @@ USE_WEAVE_CHATBOT=false
 WEAVE_PROJECT="gioelemo-ethz/engineer-assistant-benchmarks"
 ```
 
-**Note**: The `WEAVE_PROJECT` uses a separate project from the existing `engiopt` project to maintain separation between model training/optimization and LLM benchmarking.
+- `USE_WEAVE`: Enable Weave tracing for evaluations and benchmarks
+- `USE_WEAVE_CHATBOT`: Enable/disable tracing for chatbot interactions (default: `false`)
+- `WEAVE_PROJECT`: W&B project name in format `entity/project-name`
 
-### Configuration Options
+### Running Benchmarks
 
-- `USE_WEAVE`: Set to `true` to enable Weave tracing for evaluations and benchmarks, `false` to disable
-- `USE_WEAVE_CHATBOT`: Set to `true` to enable Weave tracing for chatbot interactions, `false` to disable (default: `false`)
-- `WEAVE_PROJECT`: The W&B project name in the format `entity/project-name`
+The main evaluation script is located in `benchmarks/evaluations/`:
 
-**Note**: `USE_WEAVE` and `USE_WEAVE_CHATBOT` are independent flags. You can enable Weave tracing for evaluations while disabling it for chatbot interactions, or vice versa. This allows you to control tracking overhead and keep evaluation traces separate from user interactions.
+```bash
+cd benchmarks/evaluations
+python evaluate_agent.py \
+    --problem beams2d \
+    --num-samples 10 \
+    --agent-config config.yaml
+```
 
-## Basic Usage
+**📚 For complete documentation see:**
+- [**Benchmarks Overview**](../../benchmarks/README.md) - Available problems, datasets, and metrics
+- [**Evaluation Guide**](../../benchmarks/evaluations/README.md) - How to run evaluations and configure scorers
 
-### Initializing Weave
+### Available Problem Types
 
-Weave can be initialized automatically or manually:
+Three engineering optimization problems are available:
 
-#### Automatic Initialization
+| Problem | Dataset | Design Space | Metrics |
+|---------|---------|--------------|---------|
+| **beams2d** | 50×100 grids | Structural beams | Compliance, volume fraction, binary |
+| **photonics2d** | 120×120 grids | Photonic devices | Transmission efficiency, volume |
+| **thermoelastic2d** | Variable size | Thermal structures | Compliance, thermal loss, volume |
+
+See [benchmarks/README.md](../../benchmarks/README.md) for detailed problem descriptions.
+
+## Evaluation Workflow
+
+### 1. Choose Your Problem
+
+Select from the available optimization problems:
+
+```bash
+# Structural beam optimization
+python evaluate_agent.py --problem beams2d
+
+# Photonic device design
+python evaluate_agent.py --problem photonics2d
+
+# Thermoelastic optimization
+python evaluate_agent.py --problem thermoelastic2d
+```
+
+### 2. Configure Evaluation
+
+Specify the number of test samples:
+
+```bash
+# Run on 10 samples for quick testing
+python evaluate_agent.py --problem beams2d --num-samples 10
+
+# Run on full dataset (50 samples for beams2d)
+python evaluate_agent.py --problem beams2d --num-samples 50
+```
+
+### 3. Select Scorer
+
+Choose between two scoring methods:
+
+- **`generic`** (default): Per-design metrics (compliance, volume, binary)
+- **`engibench`**: Global distribution metrics (MMD, DPP, RVC, optimality gap)
+
+```bash
+# Per-design evaluation
+python evaluate_agent.py --problem beams2d --scorer generic
+
+# Global distribution evaluation
+python evaluate_agent.py --problem beams2d --scorer engibench
+```
+
+See the [Evaluation Guide](../../benchmarks/evaluations/README.md) for scorer details.
+
+### 4. View Results
+
+All evaluation runs are automatically tracked in Weave. Access your results at:
+
+```
+https://wandb.ai/your-username/engineer-assistant-benchmarks/weave
+```
+
+The Weave UI shows:
+- **Traces**: Full execution traces with timing
+- **Calls**: Individual LLM calls with inputs/outputs
+- **Metrics**: Evaluation scores and performance data
+- **Costs**: Token usage and estimated API costs
+
+## Understanding Metrics
+
+### Per-Design Metrics (generic scorer)
+
+Evaluated for each generated design:
+
+- **Compliance**: Structural flexibility (lower is better)
+- **Volume Fraction**: Material usage (target-dependent)
+- **Binary Score**: How close to binary (0/1) values
+
+### Global Metrics (engibench scorer)
+
+Evaluated across the full set of generated designs:
+
+- **MMD (Maximum Mean Discrepancy)**: Distribution similarity to reference set
+- **DPP (Determinantal Point Process)**: Design diversity
+- **RVC (Relative Volume Coverage)**: Design space coverage
+- **Optimality Gap**: Distance from optimal solutions
+
+See [benchmarks/README.md](../../benchmarks/README.md#metrics) for detailed metric definitions.
+
+## Advanced Usage
+
+### Custom Agent Configuration
+
+Create a configuration file for your agent:
+
+```yaml
+# agent_config.yaml
+model: "gpt-4"
+temperature: 0.7
+max_iterations: 10
+```
+
+Run with custom config:
+
+```bash
+python evaluate_agent.py \
+    --problem beams2d \
+    --num-samples 10 \
+    --agent-config agent_config.yaml
+```
+
+### Batch Evaluations
+
+Evaluate multiple configurations:
+
+```bash
+# Test different problems
+for problem in beams2d photonics2d thermoelastic2d; do
+    python evaluate_agent.py --problem $problem --num-samples 10
+done
+
+# Test different scorers
+for scorer in generic engibench; do
+    python evaluate_agent.py --problem beams2d --scorer $scorer
+done
+```
+
+### Programmatic Evaluation
+
+Run evaluations from Python code:
+
+```python
+import weave
+from benchmarks.evaluations.evaluate_agent import run_evaluation
+
+# Initialize Weave
+weave.init("engineer-assistant-benchmarks")
+
+# Run evaluation
+results = run_evaluation(
+    problem="beams2d",
+    num_samples=10,
+    scorer="generic"
+)
+
+print(f"Average compliance: {results['avg_compliance']}")
+```
+
+## Adding New Problem Types
+
+To add a new optimization problem to the benchmark suite:
+
+1. **Create problem directory**: `benchmarks/problems/your_problem/`
+2. **Add to registry**: Update `benchmarks/shared/problem_registry.py`
+3. **Implement generator**: Create `generate_prompts.py` for your problem
+4. **Add dataset**: Create or reference HuggingFace dataset
+
+See the [Evaluation Guide](../../benchmarks/evaluations/README.md#adding-new-problem-types) for complete instructions.
+
+## Best Practices
+
+1. **Start Small**: Test with `--num-samples 10` before running full evaluations
+2. **Use Generic Scorer**: For per-design analysis and debugging
+3. **Use EngiBench Scorer**: For comparing overall performance across agents
+4. **Track Costs**: Monitor token usage in the Weave UI to manage API costs
+5. **Version Control**: Keep track of agent configurations and model versions
+6. **Regular Testing**: Run benchmarks regularly to detect performance regressions
+
+## Troubleshooting
+
+### Weave Not Initialized
+
+**Problem**: No traces appearing in Weave UI
+
+**Solution**: Ensure `USE_WEAVE=true` in your `.env` file and `WANDB_API_KEY` is set:
+
+```bash
+export WANDB_API_KEY="your-api-key"
+echo "USE_WEAVE=true" >> .env
+```
+
+### Import Errors
+
+**Problem**: Cannot import benchmark modules
+
+**Solution**: Run from the correct directory:
+
+```bash
+cd benchmarks/evaluations
+python evaluate_agent.py --problem beams2d
+```
+
+### Dataset Loading Fails
+
+**Problem**: Cannot load HuggingFace dataset
+
+**Solution**: Check internet connection and dataset name in `problem_registry.py`:
+
+```python
+# Verify dataset names match HuggingFace
+PROBLEMS = {
+    "beams2d": ProblemConfig(
+        dataset="IDEALLab/beams_2d_50_100_v0",  # Must match exactly
+        ...
+    )
+}
+```
+
+### Scorer Not Found
+
+**Problem**: `ValueError: Unknown scorer: ...`
+
+**Solution**: Use valid scorer names: `generic` or `engibench`
+
+```bash
+# Correct
+python evaluate_agent.py --problem beams2d --scorer generic
+
+# Incorrect
+python evaluate_agent.py --problem beams2d --scorer custom  # Not supported
+```
+
+## Further Reading
+
+- [Benchmarks Overview](../../benchmarks/README.md) - Complete benchmark system documentation
+- [Evaluation Guide](../../benchmarks/evaluations/README.md) - Detailed evaluation instructions
+- [Problem Registry](../../benchmarks/shared/problem_registry.py) - Problem configuration reference
+- [Weave Documentation](https://docs.wandb.ai/weave) - Official Weave documentation
+
+## Technical Integration Details
+
+For developers who need to understand how Weave is integrated into the codebase:
+
+### Automatic Tracing
+
+Weave is initialized in `config.py` and automatically traces all LangChain operations:
 
 ```python
 from config import config
 
 # Initialize Weave based on .env configuration
-config.setup_weave_tracing()
+config.setup_weave_tracing()  # Called at startup
 ```
 
-#### Manual Initialization
-
-```python
-from src.utils.weave_integration import init_weave
-
-# Initialize Weave
-if init_weave():
-    print("Weave tracing is active")
-else:
-    print("Weave tracing is disabled or unavailable")
-```
-
-### Automatic Tracing
-
-**Important:** After calling `init_weave()`, all LangChain components are automatically traced. No decorators or manual instrumentation needed!
-
-Weave automatically captures:
-- All LangChain agent executions
+After initialization, all LangChain components are automatically traced:
+- Agent executions
 - LLM calls (OpenAI, Anthropic, etc.)
-- Chain invocations
 - Tool usage
-- Retriever queries
+- Chain invocations
 
-```python
-from src.utils.weave_integration import init_weave
-from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor
+### Custom Operations
 
-# Initialize Weave once at startup
-init_weave()
-
-# All LangChain operations are now automatically traced
-llm = ChatOpenAI(model="gpt-4")
-response = llm.invoke("What is the capital of France?")  # Automatically traced!
-
-# Agent executions are also traced
-agent = create_agent(llm, tools)
-result = agent.invoke({"input": "Design a beam"})  # Fully traced!
-
-## Creating Evaluation Datasets
-
-Create datasets for benchmarking using Weave's native API:
-
-```python
-import weave
-from src.utils.weave_integration import init_weave
-
-# Initialize Weave
-init_weave()
-
-# Define your benchmark data
-benchmark_data = [
-    {
-        "input": "What is the Young's modulus of steel?",
-        "expected_output": "Approximately 200 GPa",
-        "category": "material_properties"
-    },
-    {
-        "input": "Calculate the stress for a force of 1000N on a 10mm² area",
-        "expected_output": "100 MPa",
-        "category": "stress_calculation"
-    },
-    {
-        "input": "What is the yield strength of aluminum 6061-T6?",
-        "expected_output": "Approximately 276 MPa",
-        "category": "material_properties"
-    }
-]
-
-# Publish the dataset to Weave
-dataset = weave.Dataset(name="engineering_qa_benchmark_v1", rows=benchmark_data)
-weave.publish(dataset)
-```
-
-## Running Evaluations
-
-Evaluate your agents using Weave's evaluation framework:
-
-```python
-import weave
-from src.utils.weave_integration import init_weave
-from src.agents.engineering_agent import engineering_agent
-
-# Initialize Weave
-init_weave()
-
-# Define evaluation function
-@weave.op()
-def evaluate_engineering_qa(input: str, expected_output: str) -> dict:
-    """Evaluate engineering agent response."""
-    response = engineering_agent.invoke({"input": input})
-
-    # Calculate metrics (example)
-    return {
-        "response": response["output"],
-        "matches_expected": expected_output.lower() in response["output"].lower()
-    }
-
-# Load dataset and run evaluation
-dataset = weave.ref("engineering_qa_benchmark_v1").get()
-evaluation = weave.Evaluation(
-    dataset=dataset,
-    scorers=[evaluate_engineering_qa]
-)
-
-results = evaluation.evaluate(engineering_agent)
-print(f"Evaluation results: {results}")
-```
-
-## Automatic LLM Provider Instrumentation
-
-Weave automatically instruments calls to major LLM providers without additional configuration:
-
-- **OpenAI**: GPT-3.5, GPT-4, etc.
-- **Anthropic**: Claude models
-- **Other providers**: Cohere, Google, etc.
-
-Just use your LLM client normally with Weave initialized:
-
-```python
-from openai import OpenAI
-from src.utils.weave_integration import init_weave
-
-# Initialize Weave
-init_weave()
-
-# Use OpenAI normally - calls will be automatically traced
-client = OpenAI()
-response = client.chat.completions.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
-```
-
-## Viewing Traces
-
-After running your code, Weave will output URLs in the terminal:
-
-```
-🍩 https://wandb.ai/gioelemo-ethz/engineer-assistant-benchmarks/weave
-```
-
-Click the link to view:
-- **Traces**: Full execution traces with timing
-- **Calls**: Individual LLM calls with inputs/outputs
-- **Objects**: Datasets and evaluation results
-- **Costs**: Token usage and estimated costs
-
-## Integration with Existing Code
-
-### Adding to Agent Workflows
-
-Weave automatically traces all agent workflows after initialization - no code changes needed:
-
-```python
-from src.utils.weave_integration import init_weave
-from src.agents.engineering_agent import engineering_agent
-
-# Initialize Weave once at application startup
-init_weave()
-
-# All agent operations are now automatically traced
-result = engineering_agent.invoke({"input": "Design a beam with 30% volume fraction"})
-# ✅ Automatically traced - no decorators needed!
-
-# Multi-agent workflows are also traced
-from src.agents.supervisor import supervisor_agent
-result = supervisor_agent.invoke({"messages": [HumanMessage(content="Optimize this structure")]})
-# ✅ Full execution trace captured automatically!
-```
-
-### Custom Operations with Weave
-
-For custom operations not automatically traced, use Weave's `@weave.op()` decorator:
+Use the `@weave.op()` decorator for custom traced operations:
 
 ```python
 import weave
@@ -231,123 +309,24 @@ import weave
 @weave.op()
 def custom_optimization(design: dict, constraints: dict) -> dict:
     """Custom optimization function with Weave tracing."""
-    # Your custom logic here
     optimized = run_optimization(design, constraints)
     return optimized
 ```
 
 ### Conditional Tracing
 
-Check if Weave is enabled before performing Weave-specific operations:
+Check if Weave is enabled before Weave-specific operations:
 
 ```python
 from src.utils.weave_integration import is_weave_enabled
 import weave
 
 if is_weave_enabled():
-    # Perform Weave-specific operations
     dataset = weave.Dataset(name="my_dataset", rows=data)
     weave.publish(dataset)
 else:
-    # Fall back to alternative logging
-    print("Weave is disabled, using console logging")
-    # Save data locally instead
-    import json
-    with open("dataset.json", "w") as f:
-        json.dump(data, f)
+    # Alternative logging
+    print("Weave disabled, using local logging")
 ```
 
-## Best Practices
-
-1. **Separate Projects**: Use a separate Weave project for benchmarking vs. model training
-2. **Descriptive Names**: Use clear, descriptive names for traced functions and datasets
-3. **Consistent Datasets**: Keep benchmark datasets in version control for reproducibility
-4. **Regular Evaluation**: Run evaluations regularly to track model performance over time
-5. **Cost Monitoring**: Use Weave's cost tracking to monitor API usage and expenses
-
-## Troubleshooting
-
-### Weave Not Installed
-
-If you see "Weave is not installed", install it:
-
-```bash
-pip install weave
-```
-
-Or use the project dependencies:
-
-```bash
-pip install -e .
-```
-
-### Tracing Not Working
-
-1. Check that `USE_WEAVE=true` in your `.env` file
-2. Verify your `WANDB_API_KEY` is set
-3. Ensure you've called `init_weave()` or `config.setup_weave_tracing()`
-4. Check the console for error messages
-
-### Project Not Found
-
-Make sure your `WEAVE_PROJECT` follows the format `entity/project-name`:
-
-```bash
-WEAVE_PROJECT="your-entity/your-project-name"
-```
-
-## Example: Complete Benchmark Pipeline
-
-Here's a complete example of setting up and running a benchmark:
-
-```python
-import weave
-from src.utils.weave_integration import init_weave
-from src.agents.engineering_agent import engineering_agent
-
-# 1. Initialize Weave
-init_weave()
-
-# 2. Create a benchmark dataset
-dataset = weave.Dataset(
-    name="engineering_qa_v1",
-    rows=[
-        {"input": "What is Young's modulus?", "expected": "A measure of stiffness"},
-        {"input": "Define stress", "expected": "Force per unit area"},
-    ]
-)
-weave.publish(dataset)
-
-# 3. Define evaluation scorer
-@weave.op()
-def evaluate_answer(input: str, expected: str, output: str) -> dict:
-    """Score the agent's response."""
-    # Simple keyword matching (replace with your scoring logic)
-    keywords = expected.lower().split()
-    matches = sum(1 for word in keywords if word in output.lower())
-    score = matches / len(keywords)
-
-    return {
-        "keyword_match_score": score,
-        "response": output
-    }
-
-# 4. Run evaluation
-evaluation = weave.Evaluation(
-    dataset=dataset,
-    scorers=[evaluate_answer]
-)
-
-results = evaluation.evaluate(engineering_agent)
-
-# 5. View results
-print(f"Evaluation complete!")
-print(f"Results: {results}")
-print(f"View full traces at: https://wandb.ai/your-entity/engineer-assistant-benchmarks/weave")
-```
-
-## Further Reading
-
-- [Weave Documentation](https://docs.wandb.ai/weave)
-- [Weave Quickstart](https://docs.wandb.ai/weave/quickstart)
-- [W&B Integration Guide](https://docs.wandb.ai/guides/integrations)
+See [Weave Integration Utils](../../src/utils/weave_integration.py) for implementation details.
