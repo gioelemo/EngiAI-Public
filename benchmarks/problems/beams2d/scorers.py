@@ -33,28 +33,6 @@ logger = logging.getLogger(__name__)
 BINARY_THRESHOLD = 0.5  # Threshold for converting density to binary (material vs void)
 
 
-def _extract_compliance_from_dict(content: dict) -> dict[str, float]:
-    """Extract compliance values from dict content (for dict-type tool messages)."""
-    compliance_data = {}
-
-    if "final_compliance" in content:
-        compliance_data["final_compliance"] = float(content["final_compliance"])
-    elif "final_c" in content:
-        compliance_data["final_compliance"] = float(content["final_c"])
-
-    if "initial_compliance" in content:
-        compliance_data["initial_compliance"] = float(content["initial_compliance"])
-    elif "initial_c" in content:
-        compliance_data["initial_compliance"] = float(content["initial_c"])
-
-    if "compliance_improvement" in content:
-        compliance_data["improvement"] = float(content["compliance_improvement"])
-    elif "c_improvement" in content:
-        compliance_data["improvement"] = float(content["c_improvement"])
-
-    return compliance_data
-
-
 def _parse_string_content(content: str, example_id: int) -> dict[str, float] | None:
     """Parse string content using regex to extract compliance values."""
     logger.debug(
@@ -107,64 +85,21 @@ def extract_compliance_from_tool_messages(
     Returns:
         Dictionary with initial_compliance, final_compliance, improvement if found
     """
-    tool_messages_checked = 0
-
-    message_types = [type(msg).__name__ for msg in messages]
-    logger.debug(
-        "Example %s: Message types in conversation: %s", example_id, message_types
-    )
-
     for msg in messages:
         if not isinstance(msg, ToolMessage):
             continue
 
-        tool_messages_checked += 1
         tool_name = getattr(msg, "name", "unknown")
-        content = msg.content
-
-        logger.debug(
-            "Example %s: Tool message #%s - tool name: %s, content type: %s",
-            example_id,
-            tool_messages_checked,
-            tool_name,
-            type(content).__name__,
-        )
-
-        if tool_name == "optimize_design":
-            logger.info(
-                "Example %s: Found optimize_design tool message! Content type: %s",
-                example_id,
-                type(content).__name__,
-            )
-            logger.debug(
-                "Example %s: optimize_design content: %s",
-                example_id,
-                str(content)[:500],
-            )
-
-        # Handle dict content
-        if isinstance(content, dict):
-            compliance_data = _extract_compliance_from_dict(content)
-            if compliance_data:
-                logger.info(
-                    "Example %s: Extracted compliance from dict: %s",
-                    example_id,
-                    compliance_data,
-                )
-                return compliance_data
+        if tool_name != "optimize_design":
             continue
 
-        # Handle string content for optimize_design tool
-        if isinstance(content, str) and tool_name == "optimize_design":
-            result = _parse_string_content(content, example_id)
+        # Parse string content with regex
+        if isinstance(msg.content, str):
+            result = _parse_string_content(msg.content, example_id)
             if result:
                 return result
 
-    logger.warning(
-        "Example %s: No compliance values found in %s tool messages",
-        example_id,
-        tool_messages_checked,
-    )
+    logger.debug("Example %s: No compliance values found", example_id)
     return None
 
 
