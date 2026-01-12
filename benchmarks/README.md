@@ -16,16 +16,22 @@ Results are tracked using [Weave](https://wandb.ai/site/weave) for easy comparis
 ```
 benchmarks/
 ├── README.md                    # This file
+├── shared/                      # Shared infrastructure
+│   ├── problem_registry.py     # Central problem definitions
+│   ├── explore_dataset.py      # Generic dataset explorer
+│   ├── generic_scorer.py       # Universal topology optimizer scorer
+│   └── utils.py                # Shared utilities
 ├── problems/                    # Problem-specific prompt generation
 │   ├── beams2d/                # 2D beam topology optimization
 │   │   ├── README.md
 │   │   ├── generate_prompts.py
 │   │   ├── validate_prompts.py
-│   │   ├── explore_dataset.py
 │   │   └── data/
 │   │       ├── generated/      # Generated prompts
 │   │       ├── validated/      # Validation reports
 │   │       └── raw/           # Raw data samples (for exploration)
+│   └── photonics2d/            # 2D photonics optimization
+│       ├── (same structure)
 ├── evaluations/                # Unified evaluation framework
 │   ├── README.md
 │   ├── evaluate_agent.py      # Main evaluation script
@@ -158,26 +164,30 @@ To add a new problem type:
    mkdir -p benchmarks/problems/your_problem/data/{generated,validated,raw}
    ```
 
-2. **Create problem scripts:**
-   - Copy and adapt scripts from `problems/beams2d/`
-   - `generate_prompts.py` - Generate prompts from dataset
-   - `validate_prompts.py` - Validate prompt quality
-   - `explore_dataset.py` - (Optional) Explore dataset
-
-3. **Add to evaluation config:**
-   Edit `evaluations/evaluate_agent.py` and add to `PROBLEM_CONFIGS`:
+2. **Add to problem registry:**
+   Edit `shared/problem_registry.py` and add your problem:
    ```python
-   "your_problem": {
-       "dataset_name": "huggingface/dataset-name",
-       "prompt_file": "your_prompts.json",
-       "scorers": [...],
-   }
+   "your_problem": ProblemConfig(
+       dataset_name="IDEALLab/your_dataset_name",
+       objectives=[...],
+       conditions=[...],
+       design_metrics_weights={...},
+   )
    ```
 
-4. **Document the problem:**
+3. **Explore the dataset:**
+   ```bash
+   python -m benchmarks.shared.explore_dataset --problem your_problem
+   ```
+
+4. **Create problem scripts:**
+   - `generate_prompts.py` - Generate prompts from dataset
+   - `validate_prompts.py` - Validate prompt quality
+
+5. **Document the problem:**
    Create `problems/your_problem/README.md` with dataset info and usage
 
-5. **Test the workflow:**
+6. **Test the workflow:**
    ```bash
    cd problems/your_problem
    python generate_prompts.py
