@@ -4,11 +4,15 @@ This scorer uses problem configuration to extract objectives, check constraints,
 and compute scores without problem-specific code.
 """
 
+import base64
+import io
 import logging
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import weave
+from PIL import Image
 
 from benchmarks.shared.objective_extractor import (
     calculate_objective_score,
@@ -166,6 +170,38 @@ def _calculate_constraint_score(
     metrics["constraint_violations"] = violations
 
     return constraint_score, metrics
+
+
+def _save_comparison_image(
+    comparison_image: Image.Image,
+    output: dict[str, Any],
+    metadata: dict[str, Any],
+    example_id: int,
+) -> dict[str, str]:
+    """Save comparison image and return paths/encodings."""
+    problem_type = metadata.get("problem_type", "unknown")
+    model_name = output.get("model", "unknown")
+
+    output_dir = (
+        Path(__file__).parent.parent
+        / "evaluations"
+        / "results"
+        / model_name
+        / problem_type
+        / "comparisons"
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    image_path = output_dir / f"comparison_example_{example_id}.png"
+    comparison_image.save(image_path)
+
+    buffered = io.BytesIO()
+    comparison_image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+
+    return {
+        "comparison_image_path": str(image_path),
+        "comparison_image_base64": f"data:image/png;base64,{img_str}",
+    }
 
 
 def _create_error_result(error_info: dict[str, Any]) -> dict[str, Any]:
@@ -355,6 +391,10 @@ def score_design_generic(
             design_array, ground_truth, example_id
         )
         if comparison_image is not None:
+            image_data = _save_comparison_image(
+                comparison_image, output, metadata, example_id
+            )
+            result.update(image_data)
             result["comparison_image_generated"] = True
     except Exception as e:
         logger.debug(f"Example {example_id}: Failed to create comparison image: {e}")
