@@ -47,10 +47,9 @@ python evaluate_agent.py \
 
 ### Scorer Options
 
-- `--scorers legacy` - Use generic scorer (for backward compatibility)
-- `--scorers generic` - Use generic scorer that works for all problems
-- `--scorers engibench` - Compute global MMD metric only
-- `--scorers all` - Use both generic scorer and global MMD metric
+- `--scorers generic` - Compute per-design metrics only (default)
+- `--scorers engibench` - Compute per-design metrics + global metrics (MMD, DPP, RVC, optimality gaps)
+- `--scorers all` - Same as engibench
 
 ## Command Line Arguments
 
@@ -61,7 +60,7 @@ python evaluate_agent.py \
 | `--samples` | Number of samples to evaluate | `5` |
 | `--temperature` | Model temperature | From config |
 | `--split` | Dataset split (train/val/test) | `test` |
-| `--scorers` | Scorer set (legacy/generic/engibench/all) | `legacy` |
+| `--scorers` | Scorer set (generic/engibench/all) | `generic` |
 
 ## Results Organization
 

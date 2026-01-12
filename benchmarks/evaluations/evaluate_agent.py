@@ -40,7 +40,7 @@ sys.path.insert(0, str(project_root))
 # Import EngiBench scorers
 from benchmarks.shared.engibench_scorers import (  # noqa: E402
     compute_global_metrics,  # For MMD after evaluation
-    score_design_extracted,  # Lightweight scorer to enable results access
+    score_design_extracted,  # Lightweight scorer for engibench mode
 )
 from benchmarks.shared.generic_scorer import score_design_generic  # noqa: E402
 from config import config  # noqa: E402
@@ -58,11 +58,10 @@ class ProblemConfig(TypedDict):
 
 
 # Problem-specific configurations
-# NOTE: You can choose between different scorer sets via --scorers flag:
-# - "legacy": Uses generic scorer (for backward compatibility)
-# - "generic": Use generic scorer that works for all problems
-# - "engibench": Use global MMD computed after evaluation (score_design_extracted only)
-# - "all": Both generic scorer and EngiBench MMD
+# NOTE: The --scorers flag controls which metrics are computed:
+# - "generic": Only per-design metrics from generic scorer
+# - "engibench": Per-design metrics + global metrics (MMD, DPP, RVC, IOG, COG, FOG)
+# - "all": Same as engibench (for backward compatibility)
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     "beams2d": {
         "dataset_name": "IDEALLab/beams_2d_50_100_v0",
@@ -248,14 +247,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--scorers",
         type=str,
-        default="legacy",
-        choices=["legacy", "generic", "engibench", "all"],
+        default="generic",
+        choices=["generic", "engibench", "all"],
         help=(
-            "Scorer set to use: "
-            "'legacy' (problem-specific), "
-            "'generic' (new generic scorer), "
-            "'engibench' (global MMD only after eval), "
-            "'all' (legacy/generic + global MMD)"
+            "Metrics to compute: "
+            "'generic' (per-design metrics only), "
+            "'engibench' or 'all' (per-design + global metrics: MMD, DPP, RVC, optimality gaps)"
         ),
     )
     parser.add_argument(
@@ -374,21 +371,17 @@ async def main() -> None:  # noqa: PLR0915
     )
 
     # Select scorers based on command line argument
-    if args.scorers == "legacy":
-        scorers = problem_config["scorers"]
-    elif args.scorers == "generic":
-        # Use new generic scorer that works for all problems
+    if args.scorers == "generic":
+        # Only per-design metrics from generic scorer
         scorers = [score_design_generic]
     elif args.scorers == "engibench":
-        # Use lightweight scorer to enable results access
-        # MMD is computed globally after evaluation completes
+        # Lightweight scorer for design extraction + global metrics computed after
         scorers = [score_design_extracted]
     elif args.scorers == "all":
-        # Use legacy/generic scorers + lightweight scorer
-        # MMD is computed globally after evaluation completes
-        scorers = problem_config["scorers"] + [score_design_extracted]
+        # Both generic scorer and lightweight scorer for comprehensive metrics
+        scorers = [score_design_generic, score_design_extracted]
     else:
-        scorers = problem_config["scorers"]
+        scorers = [score_design_generic]
 
     print("=" * 60)
     print(f"ENGINEERING AGENT EVALUATION ({args.problem})")
@@ -400,7 +393,7 @@ async def main() -> None:  # noqa: PLR0915
     print(f"Dataset Split: {args.split}")
     print(f"Samples: {args.samples}")
     print(f"Scorer Set: {args.scorers}")
-    print(f"Active Scorers: {[s.__name__ for s in scorers]}")
+    print(f"Active Scorers: {[s.__name__ for s in scorers]}")  # type: ignore[attr-defined]
     print()
 
     # Initialize Weave
@@ -452,7 +445,7 @@ async def main() -> None:  # noqa: PLR0915
     evaluation = weave.Evaluation(
         name=f"{args.problem}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}",
         dataset=dataset,
-        scorers=scorers,
+        scorers=scorers,  # type: ignore[arg-type]
     )
 
     # Run evaluation (async)

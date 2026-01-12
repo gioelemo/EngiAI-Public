@@ -265,6 +265,7 @@ def _get_reference_objective_value(
 @weave.op()
 def score_design_extracted(
     output: dict[str, Any],
+    target: dict[str, Any],  # noqa: ARG001 - Unused, for signature compatibility
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
     """Lightweight scorer that extracts and stores the design in Weave.
@@ -274,6 +275,7 @@ def score_design_extracted(
 
     Args:
         output: Agent output with messages containing generated design
+        target: Target data (unused, for signature compatibility)
         metadata: Must contain example_id
 
     Returns:
