@@ -39,7 +39,7 @@ sys.path.insert(0, str(project_root))
 
 # Import EngiBench scorers
 from benchmarks.shared.engibench_scorers import (  # noqa: E402
-    compute_global_metrics,  # For MMD after evaluation
+    compute_global_metrics,  # For global metrics after evaluation
     score_design_extracted,  # Lightweight scorer for engibench mode
 )
 from benchmarks.shared.generic_scorer import score_design_generic  # noqa: E402
