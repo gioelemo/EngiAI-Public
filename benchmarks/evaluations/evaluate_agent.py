@@ -45,6 +45,7 @@ from benchmarks.shared.engibench_scorers import (  # noqa: E402
     compute_global_metrics,  # For MMD after evaluation
     score_design_extracted,  # Lightweight scorer to enable results access
 )
+from benchmarks.shared.generic_scorer import score_design_generic  # noqa: E402
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.tools.engibench import clear_session_state, set_session_id  # noqa: E402
@@ -62,14 +63,22 @@ class ProblemConfig(TypedDict):
 # Problem-specific configurations
 # NOTE: You can choose between different scorer sets via --scorers flag:
 # - "legacy": Original problem-specific scorer (e.g., score_design_match for beams2d)
-# - "engibench": Use global MMD computed after evaluation
-# - "all": Both legacy scorers and EngiBench MMD
+# - "generic": Use new generic scorer that works for all problems
+# - "engibench": Use global MMD computed after evaluation (score_design_extracted only)
+# - "all": Both legacy/generic scorers and EngiBench MMD
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     "beams2d": {
         "dataset_name": "IDEALLab/beams_2d_50_100_v0",
         "prompt_file": "{problem}_prompts_50_samples_{split}.json",  # File has 50 samples
         "scorers": [
             score_design_match,  # Legacy scorer (includes compliance, IoU, etc.)
+        ],
+    },
+    "photonics2d": {
+        "dataset_name": "IDEALLab/photonics_2d_120_120_v0",
+        "prompt_file": "{problem}_prompts_50_samples_{split}.json",
+        "scorers": [
+            score_design_generic,  # Use generic scorer for photonics2d
         ],
     },
 }
@@ -236,12 +245,13 @@ def parse_arguments() -> argparse.Namespace:
         "--scorers",
         type=str,
         default="legacy",
-        choices=["legacy", "engibench", "all"],
+        choices=["legacy", "generic", "engibench", "all"],
         help=(
             "Scorer set to use: "
             "'legacy' (problem-specific), "
+            "'generic' (new generic scorer), "
             "'engibench' (global MMD only after eval), "
-            "'all' (legacy + global MMD)"
+            "'all' (legacy/generic + global MMD)"
         ),
     )
     parser.add_argument(
@@ -362,12 +372,15 @@ async def main() -> None:  # noqa: PLR0915
     # Select scorers based on command line argument
     if args.scorers == "legacy":
         scorers = problem_config["scorers"]
+    elif args.scorers == "generic":
+        # Use new generic scorer that works for all problems
+        scorers = [score_design_generic]
     elif args.scorers == "engibench":
         # Use lightweight scorer to enable results access
         # MMD is computed globally after evaluation completes
         scorers = [score_design_extracted]
     elif args.scorers == "all":
-        # Use legacy scorers + lightweight scorer
+        # Use legacy/generic scorers + lightweight scorer
         # MMD is computed globally after evaluation completes
         scorers = problem_config["scorers"] + [score_design_extracted]
     else:
