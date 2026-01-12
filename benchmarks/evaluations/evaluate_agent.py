@@ -481,6 +481,25 @@ async def main() -> None:  # noqa: PLR0915
             else "  • DPP Diversity: Failed to compute"
         )
         print(
+            f"  • RVC (Ratio of Violated Constraints): {global_metrics.get('rvc', 'N/A'):.4f}"
+            if global_metrics.get("rvc") is not None
+            else "  • RVC: No constraints to check"
+        )
+
+        # Print detailed RVC information if available
+        rvc_details = global_metrics.get("rvc_details")
+        if rvc_details and rvc_details.get("n_violations", 0) > 0:
+            print(
+                f"    - Designs with violations: {rvc_details['n_violations']}/{rvc_details['n_total']}"
+            )
+            violation_summary = rvc_details.get("violation_summary", {})
+            if violation_summary:
+                print("    - Most common constraint violations:")
+                for constraint_name, count in sorted(
+                    violation_summary.items(), key=lambda x: x[1], reverse=True
+                )[:3]:  # Show top 3
+                    print(f"      • {constraint_name}: {count} design(s)")
+        print(
             f"  • IOG (Initial Optimality Gap): {global_metrics.get('iog', 'N/A'):.6e}"
             if global_metrics.get("iog") is not None
             else "  • IOG: No optimization history found"

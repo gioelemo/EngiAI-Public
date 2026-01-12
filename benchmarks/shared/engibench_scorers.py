@@ -27,6 +27,187 @@ logger = logging.getLogger(__name__)
 # ======================================================================
 
 
+def _extract_violation_list(violated: Any, example_id: int) -> list:
+    """Extract violations from various return types of check_constraints.
+
+    Args:
+        violated: Return value from problem.check_constraints()
+        example_id: Example ID for logging
+
+    Returns:
+        List of violation objects/messages
+    """
+    # Try common attributes first
+    for attr_name in ["violations", "errors"]:
+        if hasattr(violated, attr_name):
+            return getattr(violated, attr_name)
+
+    # Try as dictionary-like
+    if hasattr(violated, "items"):
+        return list(violated.items())
+
+    # Try as list-like
+    if hasattr(violated, "__len__") and hasattr(violated, "__iter__"):
+        try:
+            return list(violated)
+        except Exception:
+            pass
+
+    # Last resort: try to extract from truthy objects
+    if hasattr(violated, "__bool__") and bool(violated):
+        logger.debug(f"Example {example_id}: Violations object type: {type(violated)}")
+        for attr in ["messages", "data", "value"]:
+            if hasattr(violated, attr):
+                val = getattr(violated, attr)
+                try:
+                    return list(val() if callable(val) else val)
+                except Exception:
+                    pass
+
+    return []
+
+
+def _check_design_constraints(
+    problem_type: str,  # noqa: ARG001
+    design: np.ndarray,
+    conditions: dict[str, Any],
+    example_id: int = -1,  # noqa: ARG001
+) -> tuple[bool, list[str]]:
+    """Check if a design violates any constraints.
+
+    This function checks volume fraction constraints using the same tolerance-based
+    approach as the EngiBench paper's metrics.py implementation (>= tolerance means violation).
+    This differs from EngiBench's check_constraints which uses <= tolerance (no violation).
+
+    Args:
+        problem_type: Type of problem (e.g., "beams2d") - reserved for future use
+        design: Design array to check
+        conditions: Conditions dict for the design
+        example_id: Example ID for logging purposes - reserved for future use
+
+    Returns:
+        Tuple of (has_violations, list_of_violated_constraint_names)
+    """
+    constraint_names = []
+
+    # Check volume fraction constraint with tolerance (matching metrics.py from paper)
+    # Using >= tolerance for violation (paper's convention), not <= tolerance (EngiBench's convention)
+    if conditions:
+        tol = 0.01  # Tolerance for equality constraint deviation
+        target_vol = conditions.get("volfrac") or conditions.get("volume")
+        if target_vol is not None:
+            actual_vol = np.mean(design)
+            viol = np.abs(actual_vol - target_vol) >= tol
+            if viol:
+                constraint_names.append(
+                    f"volume_fraction_bound: Volume fraction of the design {actual_vol:.4f} "
+                    f"does not match target {target_vol:.4f} specified in the conditions. "
+                    f"While the optimizer might fix it, this is likely to affect objective "
+                    f"values as the initial design is not feasible given the constraints."
+                )
+
+    # Note: We do NOT call EngiBench's check_constraints for volume_fraction_bound
+    # because it uses a different tolerance convention (<= vs >=) and would give
+    # inconsistent results with the paper's metrics.py implementation.
+    # If you need to check other constraints beyond volume fraction, add them here.
+
+    has_violations = len(constraint_names) > 0
+    return has_violations, constraint_names
+
+
+def compute_rvc(
+    problem_type: str,
+    designs: list[np.ndarray],
+    conditions_list: list[dict[str, Any]],
+    example_ids: list[int] | None = None,
+) -> tuple[float, dict[str, Any]]:
+    """Compute Ratio of Violated Constraints (RVC) with detailed violation information.
+
+    RVC measures the fraction of generated designs that violate at least one constraint.
+    Lower RVC is better (closer to 0 = no violations).
+
+    Args:
+        problem_type: Type of problem
+        designs: List of generated designs
+        conditions_list: List of conditions dicts, one per design
+        example_ids: Optional list of example IDs for detailed logging
+
+    Returns:
+        Tuple of (RVC value between 0 and 1, detailed violation info dict)
+    """
+    if len(designs) == 0:
+        return 0.0, {"violations": [], "violation_summary": {}}
+
+    if len(designs) != len(conditions_list):
+        logger.warning(
+            f"Mismatch: {len(designs)} designs but {len(conditions_list)} conditions, using first condition for all"
+        )
+        # Use the first condition for all designs if mismatch
+        conditions_list = [conditions_list[0]] * len(designs)
+
+    if example_ids is None:
+        example_ids = list(range(len(designs)))
+
+    violations = 0
+    violation_details = []
+    constraint_counter: dict[str, int] = {}
+
+    for idx, (design, conditions, example_id) in enumerate(
+        zip(designs, conditions_list, example_ids, strict=False)
+    ):
+        has_violations, violated_constraints = _check_design_constraints(
+            problem_type, design, conditions, example_id
+        )
+
+        if has_violations:
+            violations += 1
+            violation_info = {
+                "example_id": example_id,
+                "design_index": idx,
+                "violated_constraints": violated_constraints,
+            }
+            violation_details.append(violation_info)
+
+            # Log detailed violation information
+            logger.info(
+                f"Example {example_id} (index {idx}): VIOLATED {len(violated_constraints)} constraint(s): {', '.join(violated_constraints)}"
+            )
+
+            # Count constraint types
+            for constraint_name in violated_constraints:
+                constraint_counter[constraint_name] = (
+                    constraint_counter.get(constraint_name, 0) + 1
+                )
+        else:
+            logger.debug(
+                f"Example {example_id} (index {idx}): No constraint violations"
+            )
+
+    rvc = violations / len(designs)
+
+    # Create detailed violation info dictionary
+    violation_info_dict = {
+        "violations": violation_details,
+        "violation_summary": constraint_counter,
+        "n_violations": violations,
+        "n_total": len(designs),
+    }
+
+    # Log summary
+    if violations > 0:
+        logger.info("Constraint violation summary:")
+        logger.info(f"  Total designs with violations: {violations}/{len(designs)}")
+        logger.info("  Constraint violation counts:")
+        for constraint_name, count in sorted(
+            constraint_counter.items(), key=lambda x: x[1], reverse=True
+        ):
+            logger.info(f"    - {constraint_name}: {count} design(s)")
+    else:
+        logger.info("No constraint violations detected across all designs")
+
+    return rvc, violation_info_dict
+
+
 def _get_generated_design(
     output: dict[str, Any],
     example_id: int,
@@ -175,11 +356,11 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     save_comparisons: bool = True,
     comparison_output_dir: str | None = None,
 ) -> dict[str, Any]:
-    """Compute global MMD, DPP diversity, and optimality gap metrics from evaluation object.
+    """Compute global MMD, DPP diversity, optimality gap, and RVC metrics from evaluation object.
 
     This function retrieves generated designs and optimization histories from scorer results
     and computes MMD (similarity to dataset), DPP diversity (design variability),
-    and optimality gap metrics (IOG, COG, FOG) across the full set.
+    optimality gap metrics (IOG, COG, FOG), and RVC (constraint violations) across the full set.
 
     Args:
         evaluation: Weave Evaluation object (after evaluate() has been called)
@@ -192,6 +373,8 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         dict with:
         - mmd: float (similarity to dataset distribution)
         - dpp_diversity: float (diversity of generated designs)
+        - rvc: float (ratio of violated constraints, 0-1, lower is better)
+        - rvc_details: dict (detailed violation info with per-design violations and summary)
         - iog: float (average Initial Optimality Gap)
         - cog: float (average Cumulative Optimality Gap)
         - fog: float (average Final Optimality Gap)
@@ -214,6 +397,8 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         generated_designs: list[np.ndarray] = []
         optimization_histories: list[list[dict[str, Any]]] = []
         example_ids: list[int] = []
+        conditions_list: list[dict[str, Any]] = []
+        problem_type: str | None = None
         dataset_split: str = "test"  # Default split
         n_failed: int = 0
 
@@ -273,8 +458,9 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
                 gen_design = np.array(design_list)
 
-                # Extract example_id and dataset_split from corresponding dataset row
+                # Extract example_id, dataset_split, conditions, and problem_type from dataset row
                 example_id = idx  # Use index as fallback
+                conditions = {}
                 if idx < len(dataset_rows):
                     dataset_row = dataset_rows[idx]
                     metadata = None
@@ -287,10 +473,19 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
                     if isinstance(metadata, dict):
                         example_id = metadata.get("example_id", idx)
-                        # Extract dataset_split from first valid example
+                        # Extract dataset_split and problem_type from first valid example
                         if len(generated_designs) == 0:
                             dataset_split = metadata.get("dataset_split", "test")
-                            logger.info(f"Extracted dataset_split: {dataset_split}")
+                            problem_type = metadata.get("problem_type")
+                            logger.info(
+                                f"Extracted dataset_split: {dataset_split}, problem_type: {problem_type}"
+                            )
+
+                    # Extract conditions from dataset row
+                    if hasattr(dataset_row, "conditions"):
+                        conditions = dataset_row.conditions
+                    elif isinstance(dataset_row, dict) and "conditions" in dataset_row:
+                        conditions = dataset_row["conditions"]
 
                 logger.info(
                     f"Output {idx}: Successfully extracted design for example_id={example_id}"
@@ -298,6 +493,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
                 generated_designs.append(gen_design)
                 example_ids.append(example_id)
+                conditions_list.append(conditions)
 
                 # Also extract optimization history
                 opt_history = scorer_output.get("optimization_history")
@@ -419,6 +615,22 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
             "error": "Failed to compute metrics",
         }
 
+    # Compute RVC (Ratio of Violated Constraints)
+    rvc_value = None
+    rvc_details = None
+    if problem_type is not None:
+        try:
+            rvc_value, rvc_details = compute_rvc(
+                problem_type, generated_designs, conditions_list, example_ids
+            )
+            logger.info(
+                f"Computed RVC (Ratio of Violated Constraints): {rvc_value:.4f} ({rvc_value * 100:.2f}%)"
+            )
+        except Exception:
+            logger.exception("Failed to compute RVC")
+    else:
+        logger.warning("Problem type not found, skipping RVC computation")
+
     # Compute optimality gap metrics (IOG, COG, FOG)
     iog_list = []
     cog_list = []
@@ -514,6 +726,8 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     return {
         "mmd": mmd_value,
         "dpp_diversity": dpp_value,
+        "rvc": rvc_value,
+        "rvc_details": rvc_details,
         "iog": average_iog,
         "cog": average_cog,
         "fog": average_fog,

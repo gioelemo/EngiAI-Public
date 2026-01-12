@@ -86,9 +86,9 @@ def create_prompt_from_conditions(
 
     prompt = (
         f"Design a 2D beam structure with the following constraints:\n"
-        f"- Volume fraction: {volfrac:.1%} (use only {volfrac:.1%} of available material)\n"
-        f"- Minimum feature size (rmin): {rmin:.1f}\n"
-        f"- Load condition: {forcedist:.2f}\n"
+        f"- Volume fraction: {volfrac:.4f} (use exactly {volfrac:.2%} of available material)\n"
+        f"- Minimum feature size (rmin): {rmin:.4f}\n"
+        f"- Load condition: {forcedist:.4f}\n"
         f"- Target: Minimize compliance (maximize stiffness)\n\n"
         f"The beam should be designed on a 50x100 grid."
     )
