@@ -43,6 +43,7 @@ from benchmarks.shared.engibench_scorers import (  # noqa: E402
     score_design_extracted,  # Lightweight scorer for engibench mode
 )
 from benchmarks.shared.generic_scorer import score_design_generic  # noqa: E402
+from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.tools.engibench import clear_session_state, set_session_id  # noqa: E402
@@ -62,28 +63,16 @@ class ProblemConfig(TypedDict):
 # - "generic": Only per-design metrics from generic scorer
 # - "engibench": Per-design metrics + global metrics (MMD, DPP, RVC, IOG, COG, FOG)
 # - "all": Same as engibench (for backward compatibility)
+# Build PROBLEM_CONFIGS from the central problem registry to avoid duplication
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
-    "beams2d": {
-        "dataset_name": "IDEALLab/beams_2d_50_100_v0",
-        "prompt_file": "{problem}_prompts_50_samples_{split}.json",  # File has 50 samples
-        "scorers": [
-            score_design_generic,  # Generic scorer (compliance, IoU, constraints)
-        ],
-    },
-    "photonics2d": {
-        "dataset_name": "IDEALLab/photonics_2d_120_120_v0",
-        "prompt_file": "{problem}_prompts_50_samples_{split}.json",
-        "scorers": [
-            score_design_generic,  # Use generic scorer for photonics2d
-        ],
-    },
-    "thermoelastic2d": {
-        "dataset_name": "IDEALLab/thermoelastic_2d_v0",
-        "prompt_file": "{problem}_prompts_50_samples_{split}.json",
-        "scorers": [
-            score_design_generic,  # Multi-objective scorer (structural, thermal, volume)
-        ],
-    },
+    name: {
+        "dataset_name": problem.dataset_name,
+        "prompt_file": problem.prompt_file_template.replace(
+            "{problem}", name
+        ),  # Replace placeholder
+        "scorers": [score_design_generic],  # All problems use generic scorer
+    }
+    for name, problem in PROBLEMS.items()
 }
 
 # Configure logger for this module
