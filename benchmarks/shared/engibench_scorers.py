@@ -155,6 +155,19 @@ def compute_rvc(
     for idx, (design, conditions, example_id) in enumerate(
         zip(designs, conditions_list, example_ids, strict=False)
     ):
+        # Debug: Log the actual volume fraction and target
+        actual_vf = np.mean(design)
+        target_vf = (
+            conditions.get("volfrac") or conditions.get("volume")
+            if conditions
+            else None
+        )
+        target_vf_str = f"{target_vf:.4f}" if target_vf is not None else "None"
+        logger.debug(
+            f"RVC check - Example {example_id} (idx {idx}): actual_vf={actual_vf:.4f}, "
+            f"target_vf={target_vf_str}, design shape={design.shape}"
+        )
+
         has_violations, violated_constraints = _check_design_constraints(
             problem_type, design, conditions, example_id
         )
@@ -318,7 +331,7 @@ def score_design_extracted(
         metadata: Must contain example_id
 
     Returns:
-        dict with design_found flag, shape, and the actual design array
+        dict with design_found flag, shape, example_id, and the actual design array
     """
     example_id = metadata.get("example_id", 0)
     gen_design = _get_generated_design(output, example_id)
@@ -332,6 +345,7 @@ def score_design_extracted(
             "design_found": False,
             "design_shape": None,
             "design": None,
+            "example_id": example_id,
             "optimization_history": None,
         }
 
@@ -339,6 +353,7 @@ def score_design_extracted(
         "design_found": True,
         "design_shape": gen_design.shape,
         "design": gen_design.tolist(),  # Convert to list for JSON serialization
+        "example_id": example_id,  # Store example_id for correct mapping
         "optimization_history": opt_history,  # Store the optimization history
     }
 
@@ -458,37 +473,56 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
                 gen_design = np.array(design_list)
 
-                # Extract example_id, dataset_split, conditions, and problem_type from dataset row
-                example_id = idx  # Use index as fallback
-                conditions = {}
-                if idx < len(dataset_rows):
+                # Debug: Check volume fraction of extracted design
+                extracted_vf = np.mean(gen_design)
+                logger.info(
+                    f"Output {idx}: Extracted design volfrac={extracted_vf:.6f}, shape={gen_design.shape}"
+                )
+
+                # Extract example_id from scorer output (stored by score_design_extracted)
+                example_id = scorer_output.get("example_id", idx)
+                logger.info(
+                    f"Output {idx}: Using example_id={example_id} from scorer output"
+                )
+
+                # Extract dataset_split and problem_type from first valid example
+                if len(generated_designs) == 0 and idx < len(dataset_rows):
+                    # Try to get from dataset row metadata
                     dataset_row = dataset_rows[idx]
                     metadata = None
 
-                    # Try to access metadata from dataset row
                     if hasattr(dataset_row, "metadata"):
                         metadata = dataset_row.metadata
                     elif isinstance(dataset_row, dict) and "metadata" in dataset_row:
                         metadata = dataset_row["metadata"]
 
                     if isinstance(metadata, dict):
-                        example_id = metadata.get("example_id", idx)
-                        # Extract dataset_split and problem_type from first valid example
-                        if len(generated_designs) == 0:
-                            dataset_split = metadata.get("dataset_split", "test")
-                            problem_type = metadata.get("problem_type")
-                            logger.info(
-                                f"Extracted dataset_split: {dataset_split}, problem_type: {problem_type}"
-                            )
+                        dataset_split = metadata.get("dataset_split", "test")
+                        problem_type = metadata.get("problem_type")
+                        logger.info(
+                            f"Extracted dataset_split: {dataset_split}, problem_type: {problem_type}"
+                        )
 
-                    # Extract conditions from dataset row
-                    if hasattr(dataset_row, "conditions"):
-                        conditions = dataset_row.conditions
-                    elif isinstance(dataset_row, dict) and "conditions" in dataset_row:
-                        conditions = dataset_row["conditions"]
+                # Now extract conditions using the example_id to get the correct row
+                conditions = {}
+                if example_id < len(dataset_rows):
+                    conditions_row = dataset_rows[example_id]
+                    # Extract conditions from the correct dataset row
+                    if hasattr(conditions_row, "conditions"):
+                        conditions = conditions_row.conditions
+                    elif (
+                        isinstance(conditions_row, dict)
+                        and "conditions" in conditions_row
+                    ):
+                        conditions = conditions_row["conditions"]
 
                 logger.info(
                     f"Output {idx}: Successfully extracted design for example_id={example_id}"
+                )
+
+                # Debug: Log volume fraction of extracted design
+                logger.debug(
+                    f"Output {idx}: Extracted design volfrac={np.mean(gen_design):.4f}, shape={gen_design.shape}"
                 )
 
                 generated_designs.append(gen_design)

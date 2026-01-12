@@ -176,17 +176,26 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
                 example_id,
                 design_array.shape,
             )
-            break
+            # Continue iterating to get the LAST occurrence (most recent design)
+            # Don't break here - we want the final design, not the first one
 
-        logger.debug(
-            "Example %s: Result parsed but no optimized_design field found", example_id
-        )
+        else:
+            logger.debug(
+                "Example %s: Result parsed but no optimized_design field found",
+                example_id,
+            )
 
     if tool_messages_count == 0:
         logger.debug(
             "Example %s: No tool messages found in %s total messages",
             example_id,
             len(messages),
+        )
+
+    if design_array is not None:
+        logger.debug(
+            "Example %s: Returning LAST design found in conversation (final design)",
+            example_id,
         )
 
     return design_array

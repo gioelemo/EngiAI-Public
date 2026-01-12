@@ -188,6 +188,12 @@ def _get_design_array(
         problem_type = metadata.get("problem_type", "beams2d")
         design_array = get_unified_last_design(problem_type)
         logger.warning("Example %s: Using global cache as fallback", example_id)
+    else:
+        # Log the volfrac of the extracted design for comparison with score_design_extracted
+        extracted_vf = np.mean(design_array)
+        logger.info(
+            f"Example {example_id}: score_design_match extracted design volfrac={extracted_vf:.6f}"
+        )
 
     return design_array
 
