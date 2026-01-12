@@ -78,6 +78,13 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
             score_design_generic,  # Use generic scorer for photonics2d
         ],
     },
+    "thermoelastic2d": {
+        "dataset_name": "IDEALLab/thermoelastic_2d_v0",
+        "prompt_file": "{problem}_prompts_50_samples_{split}.json",
+        "scorers": [
+            score_design_generic,  # Multi-objective scorer (structural, thermal, volume)
+        ],
+    },
 }
 
 # Configure logger for this module

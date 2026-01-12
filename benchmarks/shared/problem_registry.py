@@ -84,6 +84,85 @@ PROBLEMS: dict[str, ProblemConfig] = {
         },
         prompt_file_template="photonics2d_prompts_50_samples_{split}.json",
     ),
+    "thermoelastic2d": ProblemConfig(
+        name="thermoelastic2d",
+        dataset_name="IDEALLab/thermoelastic_2d_v0",
+        design_field="optimal_design",
+        tool_name="optimize_design",
+        objectives=[
+            ObjectiveConfig(
+                name="structural_compliance",
+                field_name="final_structural_compliance",  # Extract final (optimized) value
+                target_field="structural_compliance",
+                direction="minimize",
+                relative_error_threshold=0.2,
+                weight=0.4,  # Primary structural objective
+                aliases=["struct_c", "sc", "structural_compliance"],
+            ),
+            ObjectiveConfig(
+                name="thermal_compliance",
+                field_name="final_thermal_compliance",  # Extract final (optimized) value
+                target_field="thermal_compliance",
+                direction="minimize",
+                relative_error_threshold=0.2,
+                weight=0.4,  # Primary thermal objective
+                aliases=["thermal_c", "tc", "thermal_compliance"],
+            ),
+            ObjectiveConfig(
+                name="volume_fraction",
+                field_name="final_volume_fraction",  # Extract final (optimized) value
+                target_field="volume_fraction",
+                direction="minimize",
+                relative_error_threshold=0.1,
+                weight=0.2,  # Secondary objective
+                aliases=["volfrac", "vf", "volume_fraction"],
+            ),
+        ],
+        conditions=[
+            ConditionConfig(
+                name="volfrac",
+                field_name="volfrac",
+                constraint_type="none",  # Used as initial condition, not constraint
+            ),
+            ConditionConfig(
+                name="rmin",
+                field_name="rmin",
+                constraint_type="none",
+            ),
+            ConditionConfig(
+                name="weight",
+                field_name="weight",
+                constraint_type="none",  # Weighting between objectives
+            ),
+            ConditionConfig(
+                name="fixed_elements",
+                field_name="fixed_elements",
+                constraint_type="none",
+            ),
+            ConditionConfig(
+                name="force_elements_x",
+                field_name="force_elements_x",
+                constraint_type="none",
+            ),
+            ConditionConfig(
+                name="force_elements_y",
+                field_name="force_elements_y",
+                constraint_type="none",
+            ),
+            ConditionConfig(
+                name="heatsink_elements",
+                field_name="heatsink_elements",
+                constraint_type="none",
+            ),
+        ],
+        design_metrics_weights={
+            "iou": 0.4,
+            "pixel_accuracy": 0.25,
+            "constraint_match": 0.0,  # No constraints to check
+            "objective_match": 0.35,  # Higher weight for multi-objective matching
+        },
+        prompt_file_template="thermoelastic2d_prompts_50_samples_{split}.json",
+    ),
 }
 
 

@@ -96,6 +96,20 @@ class TestProblemConfig:
         assert config.objectives[0].name == "total_overlap"
         assert len(config.conditions) == 3
 
+    def test_thermoelastic2d_config(self):
+        """Test that thermoelastic2d config is valid."""
+        config = get_problem_config("thermoelastic2d")
+        assert config.name == "thermoelastic2d"
+        assert len(config.objectives) == 3  # Multi-objective problem
+        assert config.objectives[0].name == "structural_compliance"
+        assert config.objectives[1].name == "thermal_compliance"
+        assert config.objectives[2].name == "volume_fraction"
+        assert len(config.conditions) == 7  # volfrac, rmin, weight, + 4 element arrays
+
+        # Verify multi-objective weights sum to 1.0
+        objective_weights = sum(obj.weight for obj in config.objectives)
+        assert 0.99 <= objective_weights <= 1.01
+
     def test_weights_sum_to_one(self):
         """Test that design metric weights sum to approximately 1.0."""
         config = get_problem_config("beams2d")
