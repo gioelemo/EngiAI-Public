@@ -140,65 +140,60 @@ WEAVE_PROJECT="your-entity/your-project"
 To add support for a new problem type:
 
 1. **Create the problem directory:** `benchmarks/problems/{problem_name}/`
-   - Include `scorers.py` with problem-specific scoring functions
-   - Add `generate_prompts.py` and `validate_prompts.py`
-   - Create data structure: `data/{generated,validated,raw}`
+   - Add `generate_prompts.py` to create evaluation prompts from the HuggingFace dataset
+   - Create data structure: `data/generated/` for generated prompts
+   - Optionally add `validate_prompts.py` for validation (see beams2d example)
 
-2. **Add problem configuration to `evaluate_agent.py`:**
+2. **Add problem configuration to the central registry** (`benchmarks/shared/problem_registry.py`):
 
 ```python
-from benchmarks.problems.your_problem.scorers import score_your_metric
+from benchmarks.shared.problem_config import (
+    ConditionConfig,
+    ObjectiveConfig,
+    ProblemConfig,
+)
 
-PROBLEM_CONFIGS = {
-    "beams2d": {...},
-    "your_problem": {
-        "dataset_name": "huggingface/dataset-name",
-        "prompt_file": "{problem}_prompts_50_samples_{split}.json",
-        "scorers": [
-            score_your_metric,  # Problem-specific scorer
+PROBLEMS = {
+    "your_problem": ProblemConfig(
+        name="your_problem",
+        dataset_name="IDEALLab/your_dataset_name",
+        design_field="optimal_design",
+        tool_name="optimize_design",
+        objectives=[
+            ObjectiveConfig(
+                name="your_objective",
+                field_name="final_objective_value",
+                target_field="objective_value",
+                direction="minimize",  # or "maximize"
+                relative_error_threshold=0.2,
+                aliases=["obj", "objective"],
+            )
         ],
-    },
+        conditions=[
+            ConditionConfig(
+                name="your_parameter",
+                field_name="parameter_name",
+                constraint_type="equality",  # or "none" for non-constraint parameters
+                tolerance=0.01,
+            )
+        ],
+        design_metrics_weights={
+            "iou": 0.4,
+            "pixel_accuracy": 0.25,
+            "constraint_match": 0.15,
+            "objective_match": 0.2,
+        },
+        prompt_file_template="your_problem_prompts_50_samples_{split}.json",
+    ),
 }
 ```
 
-3. **Update the `--problem` choices** in the argument parser
+3. **That's it!** The problem is now automatically available:
+   - `evaluate_agent.py` will automatically include it (built from registry)
+   - The generic scorer will use your problem configuration
+   - No code changes needed in evaluation scripts
 
-## Custom Scorers
-
-To add custom scorers for specific problem types:
-
-1. **Create scorer in problem directory** (`benchmarks/problems/{problem}/scorers.py`)
-2. **Use the `@weave.op()` decorator** for Weave tracking
-3. **Follow the scorer signature:** `(output, target, metadata) -> dict`
-4. **Import and add to `PROBLEM_CONFIGS`** in `evaluate_agent.py`
-
-Example scorer:
-```python
-import weave
-from typing import Any
-
-@weave.op()
-def score_custom_metric(
-    output: dict[str, Any],
-    target: dict[str, Any],
-    metadata: dict[str, Any],
-) -> dict[str, Any]:
-    """Score custom metric for your problem type."""
-    # Extract data from output
-    result_value = output.get("result")
-    target_value = target.get("expected")
-
-    # Compute score
-    score = compute_similarity(result_value, target_value)
-
-    return {
-        "score": score,
-        "result_value": result_value,
-        "target_value": target_value,
-    }
-```
-
-See [../problems/beams2d/scorers.py](../problems/beams2d/scorers.py) for a complete example.
+See `benchmarks/shared/problem_registry.py` for complete examples of beams2d, photonics2d, and thermoelastic2d.
 
 ## Troubleshooting
 
