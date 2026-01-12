@@ -227,8 +227,14 @@ def _get_reference_objective_value(
             logger.debug(
                 f"Field '{obj_field}' not found in dataset for example {example_id}, trying fallbacks..."
             )
-            # Try common fallback field names
-            fallback_fields = ["optimal_objective_value", "compliance", "objective"]
+            # Try common fallback field names for different problems
+            fallback_fields = [
+                "optimal_objective_value",
+                "compliance",
+                "objective",
+                "total_overlap",  # photonics2d
+                "c",  # beams2d compliance
+            ]
             for fallback in fallback_fields:
                 if fallback in hf_dataset[example_id]:
                     obj_field = fallback
@@ -446,6 +452,22 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
                         and "conditions" in conditions_row
                     ):
                         conditions = conditions_row["conditions"]
+                    elif isinstance(conditions_row, dict):
+                        # For problems like photonics2d, extract top-level condition fields
+                        # Common condition fields: lambda1, lambda2, blur_radius, volume_fraction, etc.
+                        condition_keys = [
+                            "lambda1",
+                            "lambda2",
+                            "blur_radius",
+                            "volume_fraction",
+                            "max_stress",
+                            "youngs_modulus",
+                        ]
+                        conditions = {
+                            k: conditions_row.get(k)
+                            for k in condition_keys
+                            if k in conditions_row
+                        }
 
                 logger.debug(
                     f"Output {idx}: Successfully extracted design for example_id={example_id}"
@@ -455,17 +477,18 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
                 example_ids.append(example_id)
                 conditions_list.append(conditions)
 
-                # Also extract optimization history
+                # Extract optimization history from agent's tool outputs
                 opt_history = scorer_output.get("optimization_history")
-                if opt_history is not None:
+                if opt_history is not None and len(opt_history) > 0:
                     optimization_histories.append(opt_history)
-                    logger.debug(
-                        f"Output {idx}: Extracted optimization history with {len(opt_history)} steps"
+                    logger.info(
+                        f"Output {idx}: Extracted optimization history with {len(opt_history)} steps from agent"
                     )
                 else:
                     optimization_histories.append([])
-                    logger.debug(
-                        f"Output {idx}: No optimization history found in scorer output"
+                    logger.warning(
+                        f"Output {idx}: No optimization history found in agent output (example_id={example_id}). "
+                        f"Agent may not have used optimize_design tool or history extraction failed."
                     )
 
             except Exception:
@@ -671,8 +694,16 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
             output_dir.mkdir(parents=True, exist_ok=True)
 
             for i in range(len(gen_batch)):
+                # Pass problem_type and conditions for physics-based visualizations
+                design_conditions = (
+                    conditions_list[i] if i < len(conditions_list) else None
+                )
                 comparison_img = create_design_comparison(
-                    gen_batch[i], gt_batch_viz[i], example_ids[i]
+                    gen_batch[i],
+                    gt_batch_viz[i],
+                    example_ids[i],
+                    problem_type=problem_type,
+                    conditions=design_conditions,
                 )
                 if comparison_img is not None:
                     output_path = (

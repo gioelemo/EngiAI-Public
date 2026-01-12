@@ -232,9 +232,16 @@ def extract_optimization_history_from_tool_messages(  # noqa: PLR0912, PLR0915
             continue
 
         # Found optimization_info in message
-        logger.debug(
+        logger.info(
             f"Example {example_id}: Found optimization_info in tool message #{tool_messages_count}"
         )
+
+        # Log a preview of the content for debugging
+        max_preview_length = 500
+        content_preview = (
+            content[:max_preview_length] if len(content) > max_preview_length else content
+        )
+        logger.debug(f"Example {example_id}: Message content preview: {content_preview}")
 
         # Parse the tool response - try multiple approaches
         result = None
@@ -265,39 +272,54 @@ def extract_optimization_history_from_tool_messages(  # noqa: PLR0912, PLR0915
                     while idx < len(content) and content[idx].isspace():
                         idx += 1
 
-                    # Expect the optimization_info value to start with a list '['
-                    if idx < len(content) and content[idx] == "[":
+                    # Expect the optimization_info value to start with a list '[' or dict '{'
+                    if idx < len(content) and content[idx] in ["[", "{"]:
                         start = idx
                         bracket_count = 0
                         end = None
+                        open_char = content[idx]
+                        close_char = "]" if open_char == "[" else "}"
 
                         for i in range(start, len(content)):
                             ch = content[i]
-                            if ch == "[":
+                            if ch == open_char:
                                 bracket_count += 1
-                            elif ch == "]":
+                            elif ch == close_char:
                                 bracket_count -= 1
                                 if bracket_count == 0:
                                     end = i + 1
                                     break
 
                         if end is not None and bracket_count == 0:
-                            opt_history_str = content[start:end]
-                            opt_history_list = ast.literal_eval(opt_history_str)
-                            result = {"optimization_info": opt_history_list}
-                            logger.debug(
-                                "Example %s: Extracted optimization_info with bracket balancing",
-                                example_id,
-                            )
+                            opt_info_str = content[start:end]
+                            opt_info_data = ast.literal_eval(opt_info_str)
+
+                            # Check if it's a list (step-by-step history) or dict (summary)
+                            if isinstance(opt_info_data, list):
+                                result = {"optimization_info": opt_info_data}
+                                logger.info(
+                                    f"Example {example_id}: Extracted optimization_info list with {len(opt_info_data)} steps"
+                                )
+                            elif isinstance(opt_info_data, dict):
+                                # It's a summary dict, not a step-by-step history
+                                logger.warning(
+                                    f"Example {example_id}: optimization_info is a dict (summary), not a list (step history). "
+                                    f"Keys: {list(opt_info_data.keys())}"
+                                )
+                                result = {"optimization_info": opt_info_data}
+                            else:
+                                logger.warning(
+                                    f"Example {example_id}: optimization_info has unexpected type: {type(opt_info_data)}"
+                                )
                         else:
                             logger.debug(
                                 "Example %s: Unbalanced brackets when extracting optimization_info",
                                 example_id,
                             )
                     else:
-                        logger.debug(
-                            "Example %s: optimization_info value does not start with '['",
-                            example_id,
+                        logger.warning(
+                            f"Example {example_id}: optimization_info value does not start with '[' or '{{'. "
+                            f"Found: {content[idx] if idx < len(content) else 'EOF'}"
                         )
                 else:
                     logger.debug(
@@ -313,13 +335,27 @@ def extract_optimization_history_from_tool_messages(  # noqa: PLR0912, PLR0915
 
         # Extract optimization history if parsing succeeded
         if result and isinstance(result, dict) and "optimization_info" in result:
-            optimization_history = result["optimization_info"]
-            logger.debug(
-                "Example %s: Optimization history extracted from message history (%s steps)",
-                example_id,
-                len(optimization_history),
-            )
-            break
+            opt_info = result["optimization_info"]
+
+            # If it's a list, treat it as step-by-step history
+            if isinstance(opt_info, list):
+                optimization_history = opt_info
+                logger.info(
+                    f"Example {example_id}: Extracted step-by-step optimization history ({len(optimization_history)} steps)"
+                )
+                break
+            # If it's a dict with summary stats, it's not a step history
+            elif isinstance(opt_info, dict):
+                logger.warning(
+                    f"Example {example_id}: optimization_info is a summary dict, not step-by-step history. "
+                    f"Cannot compute optimality gap metrics without step history."
+                )
+                optimization_history = []
+                break
+            else:
+                logger.warning(
+                    f"Example {example_id}: optimization_info has unexpected type: {type(opt_info)}"
+                )
 
         logger.debug(
             "Example %s: Result parsed but no optimization_info field found", example_id
