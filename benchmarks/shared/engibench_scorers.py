@@ -27,51 +27,9 @@ logger = logging.getLogger(__name__)
 # ======================================================================
 
 
-def _extract_violation_list(violated: Any, example_id: int) -> list:
-    """Extract violations from various return types of check_constraints.
-
-    Args:
-        violated: Return value from problem.check_constraints()
-        example_id: Example ID for logging
-
-    Returns:
-        List of violation objects/messages
-    """
-    # Try common attributes first
-    for attr_name in ["violations", "errors"]:
-        if hasattr(violated, attr_name):
-            return getattr(violated, attr_name)
-
-    # Try as dictionary-like
-    if hasattr(violated, "items"):
-        return list(violated.items())
-
-    # Try as list-like
-    if hasattr(violated, "__len__") and hasattr(violated, "__iter__"):
-        try:
-            return list(violated)
-        except Exception:
-            pass
-
-    # Last resort: try to extract from truthy objects
-    if hasattr(violated, "__bool__") and bool(violated):
-        logger.debug(f"Example {example_id}: Violations object type: {type(violated)}")
-        for attr in ["messages", "data", "value"]:
-            if hasattr(violated, attr):
-                val = getattr(violated, attr)
-                try:
-                    return list(val() if callable(val) else val)
-                except Exception:
-                    pass
-
-    return []
-
-
 def _check_design_constraints(
-    problem_type: str,  # noqa: ARG001
     design: np.ndarray,
     conditions: dict[str, Any],
-    example_id: int = -1,  # noqa: ARG001
 ) -> tuple[bool, list[str]]:
     """Check if a design violates any constraints.
 
@@ -80,11 +38,8 @@ def _check_design_constraints(
     This differs from EngiBench's check_constraints which uses <= tolerance (no violation).
 
     Args:
-        problem_type: Type of problem (e.g., "beams2d") - reserved for future use
         design: Design array to check
         conditions: Conditions dict for the design
-        example_id: Example ID for logging purposes - reserved for future use
-
     Returns:
         Tuple of (has_violations, list_of_violated_constraint_names)
     """
@@ -116,7 +71,6 @@ def _check_design_constraints(
 
 
 def compute_rvc(
-    problem_type: str,
     designs: list[np.ndarray],
     conditions_list: list[dict[str, Any]],
     example_ids: list[int] | None = None,
@@ -127,7 +81,6 @@ def compute_rvc(
     Lower RVC is better (closer to 0 = no violations).
 
     Args:
-        problem_type: Type of problem
         designs: List of generated designs
         conditions_list: List of conditions dicts, one per design
         example_ids: Optional list of example IDs for detailed logging
@@ -156,7 +109,7 @@ def compute_rvc(
         zip(designs, conditions_list, example_ids, strict=False)
     ):
         has_violations, violated_constraints = _check_design_constraints(
-            problem_type, design, conditions, example_id
+            design, conditions
         )
 
         if has_violations:
@@ -628,7 +581,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     if problem_type is not None:
         try:
             rvc_value, rvc_details = compute_rvc(
-                problem_type, generated_designs, conditions_list, example_ids
+                generated_designs, conditions_list, example_ids
             )
             logger.info(
                 f"Computed RVC (Ratio of Violated Constraints): {rvc_value:.4f} ({rvc_value * 100:.2f}%)"
