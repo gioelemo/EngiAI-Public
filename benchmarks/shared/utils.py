@@ -192,6 +192,144 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
     return design_array
 
 
+def extract_optimization_history_from_tool_messages(  # noqa: PLR0912, PLR0915
+    messages: list, example_id: int
+) -> list[dict[str, Any]] | None:
+    """Extract optimization history from tool message history.
+
+    Args:
+        messages: List of messages from agent conversation
+        example_id: Example identifier for debug logging
+
+    Returns:
+        List of optimization steps if found, None otherwise
+    """
+    optimization_history = None
+    tool_messages_count = 0
+
+    for msg in messages:
+        # Check if this is a tool message (has tool_call_id)
+        if not hasattr(msg, "tool_call_id"):
+            continue
+
+        tool_messages_count += 1
+        content = msg.content
+
+        if not isinstance(content, str):
+            continue
+
+        if "optimization_info" not in content:
+            # Debug: Check what keys are actually in the content
+            if "optimized_design" in content or "success" in content:
+                logger.debug(
+                    f"Example {example_id}: Tool msg #{tool_messages_count}: Found tool result but no optimization_info"
+                )
+            continue
+
+        # Found optimization_info in message
+        logger.info(
+            f"Example {example_id}: Found optimization_info in tool message #{tool_messages_count}"
+        )
+
+        # Parse the tool response - try multiple approaches
+        result = None
+
+        # Approach 1: Try converting Python repr to JSON
+        try:
+            # Replace Python-specific syntax with JSON equivalents
+            json_content = content.replace("'", '"')
+            json_content = json_content.replace("True", "true")
+            json_content = json_content.replace("False", "false")
+            json_content = json_content.replace("None", "null")
+
+            # Remove array() calls by extracting just the content inside
+            json_content = re.sub(r"array\((.*?)\)", r"\1", json_content)
+
+            result = json.loads(json_content)
+            logger.debug("Example %s: Parsed with JSON conversion", example_id)
+        except (json.JSONDecodeError, Exception) as e:
+            logger.debug("Example %s: JSON conversion failed: %s", example_id, e)
+
+            # Approach 2: Try ast.literal_eval on a simplified version
+            try:
+                # Extract just the optimization_info field using bracket balancing
+                key_match = re.search(r"'optimization_info'\s*:\s*", content)
+                if key_match:
+                    idx = key_match.end()
+                    # Skip any whitespace after the colon
+                    while idx < len(content) and content[idx].isspace():
+                        idx += 1
+
+                    # Expect the optimization_info value to start with a list '['
+                    if idx < len(content) and content[idx] == "[":
+                        start = idx
+                        bracket_count = 0
+                        end = None
+
+                        for i in range(start, len(content)):
+                            ch = content[i]
+                            if ch == "[":
+                                bracket_count += 1
+                            elif ch == "]":
+                                bracket_count -= 1
+                                if bracket_count == 0:
+                                    end = i + 1
+                                    break
+
+                        if end is not None and bracket_count == 0:
+                            opt_history_str = content[start:end]
+                            opt_history_list = ast.literal_eval(opt_history_str)
+                            result = {"optimization_info": opt_history_list}
+                            logger.debug(
+                                "Example %s: Extracted optimization_info with bracket balancing",
+                                example_id,
+                            )
+                        else:
+                            logger.debug(
+                                "Example %s: Unbalanced brackets when extracting optimization_info",
+                                example_id,
+                            )
+                    else:
+                        logger.debug(
+                            "Example %s: optimization_info value does not start with '['",
+                            example_id,
+                        )
+                else:
+                    logger.debug(
+                        "Example %s: Could not find optimization_info key pattern",
+                        example_id,
+                    )
+            except (ValueError, SyntaxError) as e2:
+                logger.debug(
+                    "Example %s: Bracket-balanced extraction failed: %s",
+                    example_id,
+                    e2,
+                )
+
+        # Extract optimization history if parsing succeeded
+        if result and isinstance(result, dict) and "optimization_info" in result:
+            optimization_history = result["optimization_info"]
+            logger.debug(
+                "Example %s: Optimization history extracted from message history (%s steps)",
+                example_id,
+                len(optimization_history),
+            )
+            break
+
+        logger.debug(
+            "Example %s: Result parsed but no optimization_info field found", example_id
+        )
+
+    if tool_messages_count == 0:
+        logger.debug(
+            "Example %s: No tool messages found in %s total messages",
+            example_id,
+            len(messages),
+        )
+
+    return optimization_history
+
+
 def create_design_comparison(
     agent_design: np.ndarray, ground_truth: np.ndarray, example_id: int
 ) -> Image.Image | None:

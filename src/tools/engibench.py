@@ -527,6 +527,31 @@ def _get_design_to_render(
     return design, "random design"
 
 
+def _serialize_optimization_step(step: Any) -> dict[str, Any]:
+    """Convert a single optimization step to JSON-serializable format.
+
+    Excludes 'design' arrays to save context.
+    """
+    step_dict = {}
+
+    if hasattr(step, "__dict__"):
+        # Convert OptiStep object to dict
+        for key, value in step.__dict__.items():
+            if key == "design":
+                continue
+            step_dict[key] = value.tolist() if isinstance(value, np.ndarray) else value
+    elif isinstance(step, dict):
+        # Already a dict, just convert arrays
+        for key, value in step.items():
+            if key == "design":
+                continue
+            step_dict[key] = value.tolist() if isinstance(value, np.ndarray) else value
+    else:
+        step_dict = step
+
+    return step_dict
+
+
 def _format_optimization_result(
     problem_type: str,
     initial_objectives: Any,
@@ -540,12 +565,22 @@ def _format_optimization_result(
         Dictionary with formatted results
     """
     problem_key = problem_type.lower()
+
+    # Convert optimization_info to JSON-serializable format
+    # For context efficiency, only include objective values and step numbers (not full design arrays)
+    if isinstance(optimization_info, list):
+        serializable_opt_info = [
+            _serialize_optimization_step(step) for step in optimization_info
+        ]
+    else:
+        serializable_opt_info = optimization_info
+
     result: dict[str, Any] = {
         "success": True,
         "problem_type": problem_key,
         "design_shape": optimized_design.shape,
         "optimized_design": optimized_design.tolist(),  # Convert to list for JSON serialization
-        "optimization_info": optimization_info,
+        "optimization_info": serializable_opt_info,  # Now JSON-serializable
     }
 
     # Create a lightweight problem instance to access objectives metadata

@@ -12,10 +12,11 @@ from typing import Any
 import numpy as np
 import weave
 
-from benchmarks.shared.metrics import dpp_diversity, mmd
+from benchmarks.shared.metrics import dpp_diversity, mmd, optimality_gap
 from benchmarks.shared.utils import (
     create_design_comparison,
     extract_design_from_tool_messages,
+    extract_optimization_history_from_tool_messages,
     get_hf_dataset,
 )
 
@@ -72,6 +73,50 @@ def _get_ground_truth_design(
         return None
 
 
+def _get_reference_objective_value(
+    dataset_name: str,
+    example_id: int,
+    obj_field: str = "c",  # Default to 'c' for beams2d compliance
+    split: str = "test",
+) -> float | None:
+    """Load reference objective value from HuggingFace dataset."""
+    try:
+        hf_dataset = get_hf_dataset(dataset_name, split=split)
+
+        if example_id >= len(hf_dataset):
+            logger.error(
+                f"Invalid example_id {example_id} for dataset {dataset_name} split {split}"
+            )
+            return None
+
+        if obj_field not in hf_dataset[example_id]:
+            logger.debug(
+                f"Field '{obj_field}' not found in dataset for example {example_id}, trying fallbacks..."
+            )
+            # Try common fallback field names
+            fallback_fields = ["optimal_objective_value", "compliance", "objective"]
+            for fallback in fallback_fields:
+                if fallback in hf_dataset[example_id]:
+                    obj_field = fallback
+                    logger.debug(f"Using fallback field: {fallback}")
+                    break
+            else:
+                logger.warning(
+                    f"No objective value field found for example {example_id}. Available fields: {list(hf_dataset[example_id].keys())}"
+                )
+                return None
+
+        obj_value = hf_dataset[example_id][obj_field]
+        # Handle array values (extract first element if array)
+        if isinstance(obj_value, (list, np.ndarray)):
+            return float(obj_value[0]) if len(obj_value) > 0 else None
+
+        return float(obj_value)
+    except Exception:
+        logger.exception(f"Failed to load reference objective value from split {split}")
+        return None
+
+
 # ======================================================================
 # Lightweight scorer to enable results access
 # ======================================================================
@@ -97,17 +142,23 @@ def score_design_extracted(
     example_id = metadata.get("example_id", 0)
     gen_design = _get_generated_design(output, example_id)
 
+    # Also extract optimization history
+    messages = output.get("messages", [])
+    opt_history = extract_optimization_history_from_tool_messages(messages, example_id)
+
     if gen_design is None:
         return {
             "design_found": False,
             "design_shape": None,
             "design": None,
+            "optimization_history": None,
         }
 
     return {
         "design_found": True,
         "design_shape": gen_design.shape,
         "design": gen_design.tolist(),  # Convert to list for JSON serialization
+        "optimization_history": opt_history,  # Store the optimization history
     }
 
 
@@ -124,11 +175,11 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     save_comparisons: bool = True,
     comparison_output_dir: str | None = None,
 ) -> dict[str, Any]:
-    """Compute global MMD and DPP diversity metrics from evaluation object.
+    """Compute global MMD, DPP diversity, and optimality gap metrics from evaluation object.
 
-    This function retrieves generated designs from scorer results
-    and computes MMD (similarity to dataset) and DPP diversity (design variability)
-    across the full set.
+    This function retrieves generated designs and optimization histories from scorer results
+    and computes MMD (similarity to dataset), DPP diversity (design variability),
+    and optimality gap metrics (IOG, COG, FOG) across the full set.
 
     Args:
         evaluation: Weave Evaluation object (after evaluate() has been called)
@@ -141,6 +192,9 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         dict with:
         - mmd: float (similarity to dataset distribution)
         - dpp_diversity: float (diversity of generated designs)
+        - iog: float (average Initial Optimality Gap)
+        - cog: float (average Cumulative Optimality Gap)
+        - fog: float (average Final Optimality Gap)
         - n_designs: int (number of valid designs)
         - n_failed: int (number of failed extractions)
     """
@@ -158,6 +212,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
         # Extract generated designs from scorer outputs
         generated_designs: list[np.ndarray] = []
+        optimization_histories: list[list[dict[str, Any]]] = []
         example_ids: list[int] = []
         dataset_split: str = "test"  # Default split
         n_failed: int = 0
@@ -243,6 +298,19 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
                 generated_designs.append(gen_design)
                 example_ids.append(example_id)
+
+                # Also extract optimization history
+                opt_history = scorer_output.get("optimization_history")
+                if opt_history is not None:
+                    optimization_histories.append(opt_history)
+                    logger.info(
+                        f"Output {idx}: Extracted optimization history with {len(opt_history)} steps"
+                    )
+                else:
+                    optimization_histories.append([])
+                    logger.info(
+                        f"Output {idx}: No optimization history found in scorer output"
+                    )
 
             except Exception:
                 logger.exception(f"Output {idx}: Error processing")
@@ -351,6 +419,76 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
             "error": "Failed to compute metrics",
         }
 
+    # Compute optimality gap metrics (IOG, COG, FOG)
+    iog_list = []
+    cog_list = []
+    fog_list = []
+
+    for i, opt_history in enumerate(optimization_histories):
+        if not opt_history or len(opt_history) == 0:
+            logger.debug(
+                f"Example {example_ids[i]}: No optimization history, skipping gap computation"
+            )
+            continue
+
+        # Get reference objective value from dataset
+        reference_obj = _get_reference_objective_value(
+            dataset_name, example_ids[i], split=dataset_split
+        )
+
+        if reference_obj is None:
+            logger.debug(
+                f"Example {example_ids[i]}: No reference objective value found, skipping gap computation"
+            )
+            continue
+
+        # Create a simple object to mimic OptiStep for compatibility with optimality_gap function
+        class OptiStep:
+            def __init__(self, obj_values):
+                self.obj_values = obj_values
+
+        # Convert optimization history dicts to OptiStep objects
+        opt_steps = []
+        for step_dict in opt_history:
+            obj_values = step_dict.get("obj_values")
+            if obj_values is not None:
+                # Handle both array and scalar objective values
+                if isinstance(obj_values, (list, np.ndarray)):
+                    obj_values = float(obj_values[0]) if len(obj_values) > 0 else 0.0
+                else:
+                    obj_values = float(obj_values)
+                opt_steps.append(OptiStep(obj_values))
+
+        if len(opt_steps) == 0:
+            logger.debug(f"Example {example_ids[i]}: No valid optimization steps found")
+            continue
+
+        # Compute optimality gaps
+        gaps = optimality_gap(opt_steps, reference_obj)
+
+        # Compute IOG, COG, FOG
+        iog_list.append(gaps[0])  # Initial optimality gap
+        cog_list.append(sum(gaps))  # Cumulative optimality gap
+        fog_list.append(gaps[-1])  # Final optimality gap
+
+        logger.debug(
+            f"Example {example_ids[i]}: IOG={gaps[0]:.4f}, COG={sum(gaps):.4f}, FOG={gaps[-1]:.4f}"
+        )
+
+    # Compute average IOG, COG, FOG
+    average_iog = float(np.mean(iog_list)) if len(iog_list) > 0 else None
+    average_cog = float(np.mean(cog_list)) if len(cog_list) > 0 else None
+    average_fog = float(np.mean(fog_list)) if len(fog_list) > 0 else None
+
+    if average_iog is not None:
+        logger.info(
+            f"Computed optimality gap metrics: IOG={average_iog:.4f}, COG={average_cog:.4f}, FOG={average_fog:.4f}"
+        )
+    else:
+        logger.warning(
+            "No valid optimization histories found, optimality gap metrics not computed"
+        )
+
     # Save comparison visualizations if requested
     if save_comparisons:
         try:
@@ -376,6 +514,9 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     return {
         "mmd": mmd_value,
         "dpp_diversity": dpp_value,
+        "iog": average_iog,
+        "cog": average_cog,
+        "fog": average_fog,
         "n_designs": len(generated_designs),
         "n_failed": n_failed,
     }

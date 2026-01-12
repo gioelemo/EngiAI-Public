@@ -480,6 +480,21 @@ async def main() -> None:  # noqa: PLR0915
             if global_metrics.get("dpp_diversity") is not None
             else "  • DPP Diversity: Failed to compute"
         )
+        print(
+            f"  • IOG (Initial Optimality Gap): {global_metrics.get('iog', 'N/A'):.6e}"
+            if global_metrics.get("iog") is not None
+            else "  • IOG: No optimization history found"
+        )
+        print(
+            f"  • COG (Cumulative Optimality Gap): {global_metrics.get('cog', 'N/A'):.6e}"
+            if global_metrics.get("cog") is not None
+            else "  • COG: No optimization history found"
+        )
+        print(
+            f"  • FOG (Final Optimality Gap): {global_metrics.get('fog', 'N/A'):.6e}"
+            if global_metrics.get("fog") is not None
+            else "  • FOG: No optimization history found"
+        )
         print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
         print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")
 
