@@ -23,7 +23,9 @@ from datasets import load_dataset
 from benchmarks.shared.problem_registry import PROBLEMS
 
 # Constants for display formatting
-ARRAY_LENGTH_THRESHOLD = 10  # Length above which to show summary stats instead of full array
+ARRAY_LENGTH_THRESHOLD = (
+    10  # Length above which to show summary stats instead of full array
+)
 MULTIDIM_THRESHOLD = 2  # Dimensions threshold for multi-dimensional arrays
 STRING_PREVIEW_LENGTH = 100  # Max length for string previews
 

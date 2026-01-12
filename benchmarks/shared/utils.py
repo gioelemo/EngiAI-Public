@@ -239,9 +239,13 @@ def extract_optimization_history_from_tool_messages(  # noqa: PLR0912, PLR0915
         # Log a preview of the content for debugging
         max_preview_length = 500
         content_preview = (
-            content[:max_preview_length] if len(content) > max_preview_length else content
+            content[:max_preview_length]
+            if len(content) > max_preview_length
+            else content
         )
-        logger.debug(f"Example {example_id}: Message content preview: {content_preview}")
+        logger.debug(
+            f"Example {example_id}: Message content preview: {content_preview}"
+        )
 
         # Parse the tool response - try multiple approaches
         result = None

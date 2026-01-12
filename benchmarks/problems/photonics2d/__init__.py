@@ -1,5 +1,7 @@
-"""Photonics 2D topology optimization problem."""
+"""Photonics 2D topology optimization benchmark dataset and prompts.
 
-from benchmarks.problems.photonics2d.generate_prompts import generate_prompts
+Note: This problem uses the generic scorer from benchmarks.shared.generic_scorer.
+The scorer is configuration-driven via benchmarks.shared.problem_registry.
+"""
 
-__all__ = ["generate_prompts"]
+__all__: list[str] = []
