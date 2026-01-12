@@ -28,14 +28,17 @@ _hf_dataset_cache: dict[str, Any] = {}
 
 
 def get_hf_dataset(dataset_name: str, split: str = "test"):
-    """Load HuggingFace dataset with caching.
+    """Load a HuggingFace dataset with split-specific caching.
 
     Args:
-        dataset_name: Name of the HuggingFace dataset to load
-        split: Dataset split to load (default: "test")
+        dataset_name: Name of the HuggingFace dataset to load.
+        split: Dataset split to load (for example, "train", "validation", "test").
+            The split name is also part of the cache key, so each (dataset_name, split)
+            combination is cached separately.
 
     Returns:
-        Loaded dataset
+        The loaded dataset for the requested ``dataset_name`` and ``split``. Repeated calls
+        with the same arguments reuse the cached dataset instance instead of reloading it.
     """
     cache_key = f"{dataset_name}:{split}"
     if cache_key not in _hf_dataset_cache:
