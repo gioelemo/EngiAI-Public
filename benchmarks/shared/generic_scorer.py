@@ -387,8 +387,13 @@ def score_design_generic(
 
     # Save comparison image if possible
     try:
+        # Pass problem_type and conditions for physics-based visualizations
         comparison_image = create_design_comparison(
-            design_array, ground_truth, example_id
+            design_array,
+            ground_truth,
+            example_id,
+            problem_type=problem_name,
+            conditions=conditions,
         )
         if comparison_image is not None:
             image_data = _save_comparison_image(
