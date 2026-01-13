@@ -198,7 +198,7 @@ def prepare_evaluation_dataset(
         if seed is not None:
             prompt = (
                 f"{prompt}\n\n"
-                f"IMPORTANT: Use seed={seed} when calling the optimize_design tool."
+                f"IMPORTANT: Use seed={seed} when calling tools."
             )
 
         eval_dataset.append(
