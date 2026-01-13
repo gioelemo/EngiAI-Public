@@ -1,10 +1,10 @@
-"""Compute mean ± std for COG, MMD, RVC, and DPP metrics from CSV.
+"""Compute mean ± std for global output quality metrics (COG, MMD, RVC, DPP) from CSV.
 
 Usage:
-    python compute_metrics_stats.py <csv_file>
+    python compute_output_quality_global_stats.py <csv_file>
 
 Example:
-    python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv
+    python compute_output_quality_global_stats.py results/openai_gpt-4.1/beams2d/output_quality_global_metrics.csv
 """
 
 import sys
@@ -14,9 +14,9 @@ import pandas as pd  # type: ignore[import-untyped]
 # Check for CSV file argument
 MIN_ARGS = 2
 if len(sys.argv) < MIN_ARGS:
-    print("Usage: python compute_metrics_stats.py <csv_file>")
+    print("Usage: python compute_output_quality_global_stats.py <csv_file>")
     print(
-        "Example: python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv"
+        "Example: python compute_output_quality_global_stats.py results/openai_gpt-4.1/beams2d/output_quality_global_metrics.csv"
     )
     sys.exit(1)
 

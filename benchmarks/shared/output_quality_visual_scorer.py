@@ -277,12 +277,12 @@ def _load_dataset_and_ground_truth(
 
 
 @weave.op()
-def score_design_generic(
+def score_output_quality_visual(
     output: dict[str, Any],
     target: dict[str, Any],
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    """Generic scorer for any topology optimization problem.
+    """Visual quality scorer for topology optimization problems.
 
     Uses problem configuration to:
     - Extract design from messages

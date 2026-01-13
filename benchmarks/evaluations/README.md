@@ -72,7 +72,8 @@ Results are automatically organized by model and problem type:
 results/
 ├── {model-name}/
 │   └── {problem-type}/
-│       ├── metrics.csv           # Aggregated metrics across seeds
+│       ├── metrics.csv           # Global metrics (MMD, DPP, RVC, IOG, COG, FOG) across seeds
+│       ├── design_metrics.csv    # Per-design metrics (IoU, accuracy, etc.) for each example
 │       └── comparisons/          # Comparison visualizations
 │           ├── seed_1/           # Per-seed comparisons (if using seeds)
 │           │   ├── comparison_example_0.png
@@ -171,11 +172,78 @@ The CSV file contains (compatible with EngiOpt paper format):
 - `n_samples` - Number of samples
 - `sigma` - Kernel bandwidth (default: 10.0)
 
+## Per-Design Metrics Analysis
+
+In addition to global metrics, per-design metrics are automatically saved for granular analysis.
+
+### Design Metrics CSV Format
+
+The `design_metrics.csv` file contains per-example metrics:
+- `seed` - Random seed used
+- `example_id` - Problem instance identifier
+- `problem_id` - Problem type
+- `model_id` - Model name
+- `overall_score` - Weighted overall score (0-1)
+- `iou` - Intersection over Union (topology overlap)
+- `pixel_accuracy` - Element-wise accuracy
+- `mse` - Mean Squared Error (density field)
+- `constraint_score` - Constraint satisfaction score
+- `objective_score` - Objective value match score
+- Problem-specific metrics (volume fraction, compliance, etc.)
+
+### Computing Per-Design Statistics
+
+After running multiple seeds, compute per-design statistics:
+
+```bash
+python compute_design_stats.py results/openai_gpt-4.1/beams2d/design_metrics.csv
+```
+
+Output example:
+```
+============================================================
+Per-Design Metrics Statistics for results/openai_gpt-4.1/beams2d/design_metrics.csv
+============================================================
+
+Number of seeds: 10
+Number of examples per seed: 50
+Total rows: 500
+
+GLOBAL STATISTICS (across all seeds and examples)
+------------------------------------------------------------
+overall_score       : 0.654321 ± 0.123456
+iou                 : 0.721234 ± 0.098765
+pixel_accuracy      : 0.876543 ± 0.054321
+mse                 : 0.012345 ± 0.006789
+constraint_score    : 0.891234 ± 0.076543
+objective_score     : 0.543210 ± 0.165432
+
+PER-SEED AGGREGATED STATISTICS
+------------------------------------------------------------
+overall_score       : 0.654321 ± 0.045678
+iou                 : 0.721234 ± 0.032109
+...
+
+PER-EXAMPLE VARIANCE (how consistent are results across seeds?)
+------------------------------------------------------------
+overall_score       : mean std = 0.098765
+iou                 : mean std = 0.087654
+...
+```
+
+### Use Cases for Per-Design Metrics
+
+1. **Identify Problem Instances**: Find which specific problems the agent struggles with
+2. **Stability Analysis**: Measure consistency across seeds for each problem
+3. **Failure Mode Analysis**: Debug systematic failures on certain problem types
+4. **Model Comparison**: Compare per-design performance between different models
+5. **Statistical Significance**: Compute confidence intervals for design-level metrics
+
 ## Evaluation Metrics
 
 ### Generic Scorer
 
-All problems now use the generic scorer (`score_design_generic`) which provides:
+All problems now use the generic scorer (`score_output_quality_visual`) which provides:
 
 - **Design Quality Metrics**
   - IoU (Intersection over Union) - Topology overlap

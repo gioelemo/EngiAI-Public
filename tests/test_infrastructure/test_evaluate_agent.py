@@ -16,7 +16,9 @@ from langchain_core.messages import HumanMessage, ToolMessage
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from benchmarks.shared.generic_scorer import score_design_generic  # noqa: E402
+from benchmarks.shared.output_quality_visual_scorer import (  # noqa: E402
+    score_output_quality_visual,
+)
 
 # Set up random generator for reproducible tests
 rng = np.random.default_rng(seed=42)
@@ -160,7 +162,7 @@ class TestScorerIntegration:
         }
 
         # Run scorer
-        score_result = score_design_generic(output, target, metadata)
+        score_result = score_output_quality_visual(output, target, metadata)
 
         # Verify score structure
         assert "score" in score_result
@@ -208,7 +210,7 @@ class TestScorerIntegration:
             "dataset_name": "IDEALLab/photonics_2d_120_120_v0",
         }
 
-        score_result = score_design_generic(output, target, metadata)
+        score_result = score_output_quality_visual(output, target, metadata)
 
         # Verify photonics-specific fields
         assert "score" in score_result
@@ -235,7 +237,7 @@ class TestScorerIntegration:
             "dataset_name": "test",
         }
 
-        score_result = score_design_generic(output, target, metadata)
+        score_result = score_output_quality_visual(output, target, metadata)
 
         # Should return zero score when design not found
         assert score_result["design_found"] is False
@@ -328,7 +330,9 @@ class TestEvaluationWorkflow:
             }
 
             # Score the output
-            score = score_design_generic(output, example["target"], example["metadata"])
+            score = score_output_quality_visual(
+                output, example["target"], example["metadata"]
+            )
 
             # Verify score structure
             assert "score" in score

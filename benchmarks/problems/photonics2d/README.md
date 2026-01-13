@@ -57,7 +57,7 @@ python benchmarks/evaluations/evaluate_agent.py \
 
 ## Generic Scorer Support
 
-Photonics2D is fully supported by the generic scorer (`score_design_generic`) via the problem registry in `benchmarks/shared/problem_registry.py`:
+Photonics2D is fully supported by the generic scorer (`score_output_quality_visual`) via the problem registry in `benchmarks/shared/problem_registry.py`:
 
 ```python
 "photonics2d": ProblemConfig(

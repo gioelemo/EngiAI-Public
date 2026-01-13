@@ -263,12 +263,12 @@ def _get_reference_objective_value(
 
 
 @weave.op()
-def score_design_extracted(
+def score_output_quality_engibench(
     output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001 - Unused, for signature compatibility
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    """Lightweight scorer that extracts and stores the design in Weave.
+    """EngiBench scorer that extracts designs for global metrics computation.
 
     This scorer extracts the design from model output and stores it
     in the score results so it can be accessed later for global metrics.
@@ -386,14 +386,14 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
         # Collect outputs from the latest trace only
         all_outputs = []
-        if "score_design_extracted" in latest_trace_scores:
-            all_outputs = latest_trace_scores["score_design_extracted"]
+        if "score_output_quality_engibench" in latest_trace_scores:
+            all_outputs = latest_trace_scores["score_output_quality_engibench"]
             logger.info(
-                f"Found {len(all_outputs)} outputs for score_design_extracted in latest trace"
+                f"Found {len(all_outputs)} outputs for score_output_quality_engibench in latest trace"
             )
         else:
             logger.warning(
-                f"No score_design_extracted in latest trace {latest_trace_id}"
+                f"No score_output_quality_engibench in latest trace {latest_trace_id}"
             )
 
         logger.info(f"Total outputs from current evaluation: {len(all_outputs)}")
@@ -421,7 +421,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
 
                 gen_design = np.array(design_list)
 
-                # Extract example_id from scorer output (stored by score_design_extracted)
+                # Extract example_id from scorer output (stored by score_output_quality_engibench)
                 example_id = scorer_output.get("example_id", idx)
 
                 # Extract dataset_split and problem_type from first valid example

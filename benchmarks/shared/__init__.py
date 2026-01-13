@@ -1,10 +1,10 @@
 """Shared utilities for benchmark evaluations across different problem types."""
 
-from benchmarks.shared.generic_scorer import score_design_generic
 from benchmarks.shared.objective_extractor import (
     calculate_objective_score,
     extract_objectives_from_tool_messages,
 )
+from benchmarks.shared.output_quality_visual_scorer import score_output_quality_visual
 from benchmarks.shared.problem_config import (
     ConditionConfig,
     ObjectiveConfig,
@@ -33,5 +33,5 @@ __all__ = [
     "get_problem_config",
     "list_problems",
     "register_problem",
-    "score_design_generic",
+    "score_output_quality_visual",
 ]

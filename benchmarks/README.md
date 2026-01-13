@@ -45,13 +45,15 @@ benchmarks/
 └── evaluations/                # Unified evaluation framework
     ├── README.md
     ├── evaluate_agent.py      # Main evaluation script
-    ├── compute_metrics_stats.py  # Compute mean ± std statistics
+    ├── compute_metrics_stats.py  # Compute global metrics statistics
+    ├── compute_design_stats.py   # Compute per-design metrics statistics
     └── results/               # Results organized by model and problem
         └── {model-name}/
             └── {problem-type}/
-                ├── metrics.csv       # Aggregated metrics across seeds
-                └── comparisons/      # Design comparison images
-                    ├── seed_1/       # Per-seed comparisons
+                ├── metrics.csv           # Global metrics (MMD, DPP, RVC, gaps)
+                ├── design_metrics.csv    # Per-design metrics (IoU, accuracy, etc.)
+                └── comparisons/          # Design comparison images
+                    ├── seed_1/           # Per-seed comparisons
                     ├── seed_2/
                     └── ...
 ```
@@ -250,7 +252,7 @@ The benchmarks use two types of scorer systems:
 
 ### Generic Scorer
 
-All problems use the generic scorer (`score_design_generic`) which evaluates design quality based on problem configuration:
+All problems use the generic scorer (`score_output_quality_visual`) which evaluates design quality based on problem configuration:
 
 - **Design Quality Metrics**
   - **IoU** (Intersection over Union) - Topology overlap
@@ -273,6 +275,33 @@ Global metrics computed after evaluation completes (via `--scorers engibench` or
 - **IOG** (Initial Optimality Gap) - Average gap at start of optimization
 - **COG** (Cumulative Optimality Gap) - Average gap accumulated during optimization
 - **FOG** (Final Optimality Gap) - Average gap at end of optimization
+
+### Per-Design Metrics
+
+In addition to global metrics, every evaluation automatically saves per-design metrics to `design_metrics.csv` for granular analysis:
+
+**Automatic metrics tracked:**
+- `overall_score` - Weighted overall design score
+- `iou` - Intersection over Union (topology similarity)
+- `pixel_accuracy` - Element-wise accuracy
+- `mse` - Mean squared error (density field)
+- `constraint_score` - Constraint satisfaction score
+- `objective_score` - Objective value match score
+- Problem-specific metrics (volume fraction, compliance, etc.)
+
+**Analyze per-design metrics:**
+```bash
+python compute_design_stats.py results/openai_gpt-4.1/beams2d/design_metrics.csv
+```
+
+**Use cases:**
+- Identify which problem instances cause failures
+- Measure consistency across seeds for individual examples
+- Compare per-design performance between models
+- Debug systematic failure modes
+- Compute confidence intervals for design-level metrics
+
+See [evaluations/README.md](evaluations/README.md#per-design-metrics-analysis) for detailed documentation.
 
 ## Weave Integration
 

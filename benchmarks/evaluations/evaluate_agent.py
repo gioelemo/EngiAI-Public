@@ -38,12 +38,14 @@ os.environ["SKIP_MMORE"] = "true"
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import EngiBench scorers
-from benchmarks.shared.engibench_scorers import (  # noqa: E402
+# Import output quality scorers
+from benchmarks.shared.output_quality_engibench_scorer import (  # noqa: E402
     compute_global_metrics,  # For global metrics after evaluation
-    score_design_extracted,  # Lightweight scorer for engibench mode
+    score_output_quality_engibench,  # EngiBench scorer for global metrics
 )
-from benchmarks.shared.generic_scorer import score_design_generic  # noqa: E402
+from benchmarks.shared.output_quality_visual_scorer import (  # noqa: E402
+    score_output_quality_visual,
+)
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
@@ -71,7 +73,7 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
         "prompt_file": problem.prompt_file_template.replace(
             "{problem}", name
         ),  # Replace placeholder
-        "scorers": [score_design_generic],  # All problems use generic scorer
+        "scorers": [score_output_quality_visual],  # All problems use generic scorer
     }
     for name, problem in PROBLEMS.items()
 }
@@ -276,7 +278,7 @@ def parse_arguments() -> argparse.Namespace:
         "--output-csv",
         type=str,
         default=None,
-        help="Output CSV file to save metrics (will append if file exists). Default: benchmarks/evaluations/results/{model}/{problem}/metrics.csv",
+        help="Output CSV file to save metrics (will append if file exists). Default: benchmarks/evaluations/results/{model}/{problem}/output_quality_global_metrics.csv",
     )
     return parser.parse_args()
 
@@ -343,6 +345,109 @@ def get_or_create_dataset(
     return dataset
 
 
+def save_per_design_metrics(
+    evaluation_results: Any,
+    csv_path: str,
+    seed: int | None,
+    problem_id: str,
+    model_id: str,
+) -> None:
+    """Save per-design metrics to CSV file.
+
+    Args:
+        evaluation_results: Results from evaluation.evaluate()
+        csv_path: Path to save CSV file
+        seed: Random seed used (if any)
+        problem_id: Problem type
+        model_id: Model name
+    """
+    if not hasattr(evaluation_results, "rows"):
+        print("⚠️  No results data available for per-design metrics")
+        return
+
+    results_data = evaluation_results.rows
+    if not results_data:
+        print("⚠️  No results rows found")
+        return
+
+    # Extract per-design metrics from results
+    design_metrics_list = []
+    for row in results_data:
+        # Get the scorer results (assuming score_output_quality_visual is used)
+        scorer_result = row.get("score_output_quality_visual", {})
+        if not scorer_result:
+            continue
+
+        # Extract metadata from the input
+        input_data = row.get("input", {})
+        metadata = input_data.get("metadata", {})
+        example_id = metadata.get("example_id", "unknown")
+
+        # Build metrics row
+        metrics_row = {
+            "seed": seed if seed is not None else 0,
+            "example_id": example_id,
+            "problem_id": problem_id,
+            "model_id": model_id,
+            # Main metrics
+            "overall_score": scorer_result.get("score", 0.0),
+            "iou": scorer_result.get("iou", 0.0),
+            "pixel_accuracy": scorer_result.get("pixel_accuracy", 0.0),
+            "mse": scorer_result.get("mse", 0.0),
+            "constraint_score": scorer_result.get("constraint_score", 0.0),
+            "objective_score": scorer_result.get("objective_score", 0.0),
+        }
+
+        # Add any additional constraint/objective specific metrics
+        for key, value in scorer_result.items():
+            if key not in metrics_row and isinstance(value, (int, float)):
+                metrics_row[key] = value
+
+        design_metrics_list.append(metrics_row)
+
+    if not design_metrics_list:
+        print("⚠️  No design metrics extracted")
+        return
+
+    # Check if file exists to determine if we need header
+    csv_file = Path(csv_path)
+    csv_file.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = csv_file.exists()
+
+    # Get all possible fieldnames from all rows (in case some have extra fields)
+    all_keys: set[str] = set()
+    for row in design_metrics_list:
+        all_keys.update(row.keys())
+    fieldnames = sorted(all_keys)
+
+    # Ensure standard fields come first
+    standard_fields = [
+        "seed",
+        "example_id",
+        "problem_id",
+        "model_id",
+        "overall_score",
+        "iou",
+        "pixel_accuracy",
+        "mse",
+        "constraint_score",
+        "objective_score",
+    ]
+    fieldnames = [f for f in standard_fields if f in fieldnames] + [
+        f for f in fieldnames if f not in standard_fields
+    ]
+
+    # Append to CSV
+    with csv_file.open("a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerows(design_metrics_list)
+
+    print(f"📊 Per-design metrics saved to: {csv_path}")
+    print(f"   ({len(design_metrics_list)} designs)")
+
+
 def print_evaluation_summary(evaluation_results: Any, scorers: list[Any]) -> None:
     """Print a summary of evaluation results."""
     print()
@@ -389,15 +494,15 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Select scorers based on command line argument
     if args.scorers == "generic":
         # Only per-design metrics from generic scorer
-        scorers = [score_design_generic]
+        scorers = [score_output_quality_visual]
     elif args.scorers == "engibench":
         # Lightweight scorer for design extraction + global metrics computed after
-        scorers = [score_design_extracted]
+        scorers = [score_output_quality_engibench]
     elif args.scorers == "all":
         # Both generic scorer and lightweight scorer for comprehensive metrics
-        scorers = [score_design_generic, score_design_extracted]
+        scorers = [score_output_quality_visual, score_output_quality_engibench]
     else:
-        scorers = [score_design_generic]
+        scorers = [score_output_quality_visual]
 
     print("=" * 60)
     print(f"ENGINEERING AGENT EVALUATION ({args.problem})")
@@ -477,6 +582,20 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Print summary
     print_evaluation_summary(results, scorers)
+
+    # Save per-design metrics to CSV
+    model_safe = model_name.replace("/", "_").replace(":", "_")
+    results_dir = Path(f"benchmarks/evaluations/results/{model_safe}/{args.problem}")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    design_metrics_csv = str(results_dir / "output_quality_design_metrics.csv")
+    save_per_design_metrics(
+        results,
+        design_metrics_csv,
+        args.seed,
+        args.problem,
+        model_name,
+    )
+    print()
 
     await asyncio.sleep(10)  # Wait for any async logging to complete
     # Compute global metrics if using EngiBench scorers
@@ -564,7 +683,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
                     f"benchmarks/evaluations/results/{model_safe}/{args.problem}"
                 )
                 results_dir.mkdir(parents=True, exist_ok=True)
-                csv_path = str(results_dir / "metrics.csv")
+                csv_path = str(results_dir / "output_quality_global_metrics.csv")
 
             # Prepare metrics row
             metrics_row = {
