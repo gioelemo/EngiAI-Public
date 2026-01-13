@@ -11,8 +11,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import weave
-
 # Add project root to path to import src modules
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -22,7 +20,6 @@ from benchmarks.shared.prompt_generation import (  # noqa: E402
 )
 
 
-@weave.op()
 def create_prompt_from_conditions(
     example: dict[str, Any], include_target: bool = True
 ) -> dict[str, Any]:

@@ -10,14 +10,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import weave
 from datasets import load_dataset
 
 from benchmarks.shared.problem_registry import get_problem_config
-from src.utils.weave_integration import init_weave, is_weave_enabled
 
 
-@weave.op()
 def generate_prompts_from_huggingface(
     problem_name: str,
     num_samples: int,
@@ -161,10 +158,8 @@ def run_prompt_generation_workflow(
 
     This function orchestrates the entire process:
     - Parse arguments
-    - Initialize Weave
     - Generate prompts
     - Save prompts locally
-    - Publish to Weave
 
     Args:
         problem_name: Name of the problem (e.g., 'beams2d')
@@ -183,14 +178,6 @@ def run_prompt_generation_workflow(
     print(f"Dataset split: {args.split}")
     print(f"Number of samples: {args.samples}")
     print(f"Include targets: {not args.no_targets}")
-    print()
-
-    # Initialize Weave
-    print("🔧 Initializing Weave...")
-    if init_weave():
-        print("✅ Weave initialized successfully!")
-    else:
-        print("⚠️  Weave not available, continuing without tracing...")
     print()
 
     # Generate prompts using command-line arguments
@@ -213,11 +200,3 @@ def run_prompt_generation_workflow(
 
     print()
     print("✨ Prompt generation complete!")
-    print()
-
-    # Publish to Weave if enabled
-    if is_weave_enabled():
-        print("📤 Publishing dataset to Weave...")
-        dataset_name = f"{problem_name}_prompts_{args.samples}_samples_{args.split}"
-        weave.publish(prompts, name=dataset_name)
-        print(f"✅ Published dataset: {dataset_name}")
