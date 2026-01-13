@@ -20,6 +20,7 @@ from datasets import load_dataset
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from benchmarks.shared.problem_registry import get_problem_config  # noqa: E402
 from src.utils.weave_integration import init_weave, is_weave_enabled  # noqa: E402
 
 
@@ -103,33 +104,39 @@ def create_prompt_from_conditions(
 
 @weave.op()
 def generate_prompt_dataset(
-    dataset_split: str = "train",
-    sample_size: int | None = None,
+    num_samples: int = 50,
+    dataset_split: str = "test",
     include_targets: bool = True,
 ) -> list[dict[str, Any]]:
     """
-    Generate prompts from the thermoelastic HuggingFace dataset.
+    Generate a dataset of prompts from the HuggingFace thermoelastic dataset.
 
     Args:
-        dataset_split: Dataset split to use (train/val/test)
-        sample_size: Number of samples to generate (None = all)
+        num_samples: Number of samples to generate
+        dataset_split: Dataset split to use ('train', 'val', or 'test')
         include_targets: Whether to include target values
 
     Returns:
         List of prompt dictionaries ready for Weave evaluation
     """
-    print(f"🔄 Loading thermoelastic_2d_v0 dataset (split: {dataset_split})...")
-    dataset = load_dataset("IDEALLab/thermoelastic_2d_v0", split=dataset_split)
+    # Get dataset name from problem registry
+    problem_config = get_problem_config("thermoelastic2d")
+    dataset_name = problem_config.dataset_name
+
+    print(f"🔄 Loading {dataset_name} dataset (split: {dataset_split})...")
+    dataset = load_dataset(dataset_name, split=dataset_split)
     print(f"✅ Loaded {len(dataset)} examples")
 
-    # Limit to sample_size if specified
-    if sample_size and sample_size < len(dataset):
-        dataset = dataset.select(range(sample_size))
-        print(f"📊 Using {sample_size} samples")
+    # Limit to num_samples if specified
+    if num_samples < len(dataset):
+        dataset = dataset.select(range(num_samples))
+        print(f"📊 Using {num_samples} samples")
 
     prompts = []
     for i, example in enumerate(dataset):
-        prompt_data = create_prompt_from_conditions(example, include_targets)
+        prompt_data = create_prompt_from_conditions(
+            example, include_target=include_targets
+        )
         prompt_data["example_id"] = i
         prompt_data["dataset_split"] = dataset_split
         prompts.append(prompt_data)
@@ -137,22 +144,32 @@ def generate_prompt_dataset(
         if (i + 1) % 10 == 0:
             print(f"  Generated {i + 1}/{len(dataset)} prompts...")
 
+    print(f"✅ Generated {len(prompts)} prompts successfully!")
     return prompts
 
 
-def save_prompts(
-    prompts: list[dict[str, Any]], output_dir: Path, split: str, sample_size: int
-) -> None:
-    """Save prompts to JSON file."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = (
-        output_dir / f"thermoelastic2d_prompts_{sample_size}_samples_{split}.json"
-    )
+def save_prompts_locally(prompts: list[dict[str, Any]], output_file: Path) -> None:
+    """Save generated prompts to a local JSON file."""
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Convert any numpy arrays to lists for JSON serialization
+    serializable_prompts = []
+    for prompt in prompts:
+        prompt_copy = prompt.copy()
+        if "target" in prompt_copy and "optimal_design" in prompt_copy["target"]:
+            # Don't save the full optimal_design array locally (too large)
+            # Just save the objective values
+            prompt_copy["target"] = {
+                "structural_compliance": prompt_copy["target"]["structural_compliance"],
+                "thermal_compliance": prompt_copy["target"]["thermal_compliance"],
+                "volume_fraction": prompt_copy["target"]["volume_fraction"],
+            }
+        serializable_prompts.append(prompt_copy)
 
     with output_file.open("w") as f:
-        json.dump(prompts, f, indent=2)
+        json.dump(serializable_prompts, f, indent=2)
 
-    print(f"\n💾 Saved {len(prompts)} prompts to: {output_file}")
+    print(f"💾 Saved prompts to: {output_file}")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -186,15 +203,15 @@ def main() -> None:
     args = parse_arguments()
 
     print("=" * 60)
-    print("THERMOELASTIC2D PROMPT GENERATION")
+    print("THERMOELASTIC2D PROMPT GENERATION FOR WEAVE BENCHMARKING")
     print("=" * 60)
     print()
     print(f"Dataset split: {args.split}")
-    print(f"Sample size: {args.samples}")
+    print(f"Number of samples: {args.samples}")
     print(f"Include targets: {not args.no_targets}")
     print()
 
-    # Initialize Weave if available
+    # Initialize Weave
     print("🔧 Initializing Weave...")
     if init_weave():
         print("✅ Weave initialized successfully!")
@@ -202,16 +219,19 @@ def main() -> None:
         print("⚠️  Weave not available, continuing without tracing...")
     print()
 
-    # Generate prompts
+    # Generate prompts using command-line arguments
     prompts = generate_prompt_dataset(
+        num_samples=args.samples,
         dataset_split=args.split,
-        sample_size=args.samples,
         include_targets=not args.no_targets,
     )
 
-    # Save prompts
+    # Save locally with split in filename
     output_dir = Path(__file__).parent / "data" / "generated"
-    save_prompts(prompts, output_dir, args.split, args.samples)
+    output_file = (
+        output_dir / f"thermoelastic2d_prompts_{args.samples}_samples_{args.split}.json"
+    )
+    save_prompts_locally(prompts, output_file)
 
     print()
     print("✨ Prompt generation complete!")

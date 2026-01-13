@@ -20,6 +20,7 @@ from datasets import load_dataset
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from benchmarks.shared.problem_registry import get_problem_config  # noqa: E402
 from src.utils.weave_integration import init_weave, is_weave_enabled  # noqa: E402
 
 # Force distribution thresholds for natural language descriptions
@@ -134,17 +135,21 @@ def generate_prompt_dataset(
     Returns:
         List of prompt dictionaries
     """
-    print(f"🔄 Loading {num_samples} examples from {dataset_split} split...")
-    dataset = load_dataset("IDEALLab/beams_2d_50_100_v0")
-    data = dataset[dataset_split]
+    # Get dataset name from problem registry
+    problem_config = get_problem_config("beams2d")
+    dataset_name = problem_config.dataset_name
 
-    # Limit to requested number of samples
-    num_samples = min(num_samples, len(data))
-    print(f"📝 Generating prompts for {num_samples} beam designs...")
+    print(f"🔄 Loading {dataset_name} dataset (split: {dataset_split})...")
+    dataset = load_dataset(dataset_name, split=dataset_split)
+    print(f"✅ Loaded {len(dataset)} examples")
+
+    # Limit to num_samples if specified
+    if num_samples < len(dataset):
+        dataset = dataset.select(range(num_samples))
+        print(f"📊 Using {num_samples} samples")
 
     prompts = []
-    for i in range(num_samples):
-        example = data[i]
+    for i, example in enumerate(dataset):
         prompt_data = create_prompt_from_conditions(
             example, include_target=include_targets
         )
@@ -153,7 +158,7 @@ def generate_prompt_dataset(
         prompts.append(prompt_data)
 
         if (i + 1) % 10 == 0:
-            print(f"  Generated {i + 1}/{num_samples} prompts...")
+            print(f"  Generated {i + 1}/{len(dataset)} prompts...")
 
     print(f"✅ Generated {len(prompts)} prompts successfully!")
     return prompts
@@ -197,10 +202,15 @@ def parse_arguments() -> argparse.Namespace:
         default=50,
         help="Number of samples to generate (default: 50)",
     )
+    parser.add_argument(
+        "--no-targets",
+        action="store_true",
+        help="Exclude target values from prompts",
+    )
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     """Main execution function."""
     args = parse_arguments()
     print("=" * 60)
@@ -223,21 +233,8 @@ def main():
     prompts = generate_prompt_dataset(
         num_samples=args.samples,
         dataset_split=args.split,
-        include_targets=True,
+        include_targets=not args.no_targets,
     )
-
-    # Show a sample prompt
-    print()
-    print("=" * 60)
-    print("SAMPLE PROMPT")
-    print("=" * 60)
-    print(prompts[0]["prompt"])
-    print()
-    print("Conditions:", json.dumps(prompts[0]["conditions"], indent=2))
-    print()
-    print("Target compliance:", prompts[0]["target"]["compliance"])
-    print(f"Dataset split: {prompts[0]['dataset_split']}")
-    print()
 
     # Save locally with split in filename
     output_dir = Path(__file__).parent / "data" / "generated"
@@ -246,20 +243,16 @@ def main():
     )
     save_prompts_locally(prompts, output_file)
 
-    # Publish to Weave if available
-    if is_weave_enabled():
-        print()
-        print("📤 Publishing dataset to Weave...")
-        dataset = weave.Dataset(
-            name=f"beams2d_design_prompts_v1_{args.samples}_{args.split}",
-            rows=prompts,
-        )
-        weave.publish(dataset)
-        print("✅ Dataset published to Weave!")
-        print("🔗 View your dataset in the Weave UI")
-
     print()
-    print("🎉 Prompt generation complete!")
+    print("✨ Prompt generation complete!")
+    print()
+
+    # Publish to Weave if enabled
+    if is_weave_enabled():
+        print("📤 Publishing dataset to Weave...")
+        dataset_name = f"beams2d_prompts_{args.samples}_samples_{args.split}"
+        weave.publish(prompts, name=dataset_name)
+        print(f"✅ Published dataset: {dataset_name}")
 
 
 if __name__ == "__main__":
