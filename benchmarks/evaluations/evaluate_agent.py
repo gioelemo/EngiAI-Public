@@ -11,19 +11,31 @@ Usage:
 Reference: https://docs.wandb.ai/weave/guides/core-types/evaluations
 """
 
-import argparse
-import asyncio
-import csv
-import json
-import logging
-import os
-import sys
-import uuid
-from pathlib import Path
-from typing import Any, TypedDict
+# Suppress Pydantic warnings BEFORE any imports that might trigger them
+import warnings
 
-import weave
-from langchain_core.messages import HumanMessage
+warnings.filterwarnings(
+    "ignore",
+    message=".*'repr' attribute.*Field.*",
+)
+warnings.filterwarnings(
+    "ignore",
+    message=".*'frozen' attribute.*Field.*",
+)
+
+import argparse  # noqa: E402
+import asyncio  # noqa: E402
+import csv  # noqa: E402
+import json  # noqa: E402
+import logging  # noqa: E402
+import os  # noqa: E402
+import sys  # noqa: E402
+import uuid  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Any, TypedDict  # noqa: E402
+
+import weave  # noqa: E402
+from langchain_core.messages import HumanMessage  # noqa: E402
 
 # Suppress Weave serialization warnings (non-critical, caused by ModelMetaclass in LangChain)
 logging.getLogger("langchain_core.callbacks.manager").setLevel(logging.ERROR)
@@ -196,10 +208,7 @@ def prepare_evaluation_dataset(
 
         # Add seed instruction if provided
         if seed is not None:
-            prompt = (
-                f"{prompt}\n\n"
-                f"IMPORTANT: Use seed={seed} when calling tools."
-            )
+            prompt = f"{prompt}\n\nIMPORTANT: Use seed={seed} when calling tools."
 
         eval_dataset.append(
             {
