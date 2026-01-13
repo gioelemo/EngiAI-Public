@@ -346,7 +346,7 @@ def get_or_create_dataset(
 
 
 def save_per_design_metrics(
-    evaluation_results: Any,
+    evaluation: Any,
     csv_path: str,
     seed: int | None,
     problem_id: str,
@@ -355,33 +355,57 @@ def save_per_design_metrics(
     """Save per-design metrics to CSV file.
 
     Args:
-        evaluation_results: Results from evaluation.evaluate()
+        evaluation: Weave Evaluation object (after evaluate() has been called)
         csv_path: Path to save CSV file
         seed: Random seed used (if any)
         problem_id: Problem type
         model_id: Model name
     """
-    if not hasattr(evaluation_results, "rows"):
-        print("⚠️  No results data available for per-design metrics")
+    try:
+        # Use Weave's get_scores() API to access scorer outputs
+        scores = evaluation.get_scores()
+        if not scores:
+            print("⚠️  No scorer results available for per-design metrics")
+            return
+
+        # Get the latest trace (most recent evaluation)
+        latest_trace_id = list(scores.keys())[-1]
+        latest_trace_scores = scores[latest_trace_id]
+
+        # Try to get results from score_output_quality_visual first (has detailed metrics)
+        # Fall back to score_output_quality_engibench if needed
+        scorer_outputs = latest_trace_scores.get("score_output_quality_visual", [])
+
+        if not scorer_outputs:
+            scorer_outputs = latest_trace_scores.get(
+                "score_output_quality_engibench", []
+            )
+
+        if not scorer_outputs:
+            print("⚠️  No scorer outputs found for per-design metrics")
+            return
+
+        # Get dataset rows for metadata (example IDs)
+        dataset_rows = (
+            list(evaluation.dataset.rows) if hasattr(evaluation, "dataset") else []
+        )
+
+    except Exception as e:
+        print(f"⚠️  Error accessing evaluation results: {e}")
         return
 
-    results_data = evaluation_results.rows
-    if not results_data:
-        print("⚠️  No results rows found")
-        return
-
-    # Extract per-design metrics from results
+    # Extract per-design metrics from scorer outputs
     design_metrics_list = []
-    for row in results_data:
-        # Get the scorer results (assuming score_output_quality_visual is used)
-        scorer_result = row.get("score_output_quality_visual", {})
-        if not scorer_result:
+    for i, scorer_result in enumerate(scorer_outputs):
+        if not isinstance(scorer_result, dict):
             continue
 
-        # Extract metadata from the input
-        input_data = row.get("input", {})
-        metadata = input_data.get("metadata", {})
-        example_id = metadata.get("example_id", "unknown")
+        # Get example_id from scorer result or dataset row
+        example_id = scorer_result.get("example_id", i)
+        if example_id == i and i < len(dataset_rows):
+            # Try to get from dataset metadata
+            metadata = dataset_rows[i].get("metadata", {})
+            example_id = metadata.get("example_id", i)
 
         # Build metrics row
         metrics_row = {
@@ -583,21 +607,23 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Print summary
     print_evaluation_summary(results, scorers)
 
+    print()
+
+    await asyncio.sleep(10)  # Wait for Weave to sync evaluation results
+
     # Save per-design metrics to CSV
     model_safe = model_name.replace("/", "_").replace(":", "_")
     results_dir = Path(f"benchmarks/evaluations/results/{model_safe}/{args.problem}")
     results_dir.mkdir(parents=True, exist_ok=True)
     design_metrics_csv = str(results_dir / "output_quality_design_metrics.csv")
     save_per_design_metrics(
-        results,
+        evaluation,  # Pass evaluation object instead of results
         design_metrics_csv,
         args.seed,
         args.problem,
         model_name,
     )
-    print()
 
-    await asyncio.sleep(10)  # Wait for any async logging to complete
     # Compute global metrics if using EngiBench scorers
     if args.scorers in ("engibench", "all"):
         print()

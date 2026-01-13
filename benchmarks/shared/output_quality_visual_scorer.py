@@ -182,11 +182,13 @@ def _save_comparison_image(
     problem_type = metadata.get("problem_type", "unknown")
     model_name = output.get("model", "unknown")
 
+    # Sanitize model name for filesystem (replace / and : with _)
+    model_safe = model_name.replace("/", "_").replace(":", "_")
     output_dir = (
         Path(__file__).parent.parent
         / "evaluations"
         / "results"
-        / model_name
+        / model_safe
         / problem_type
         / "comparisons"
     )
