@@ -171,6 +171,7 @@ def prepare_evaluation_dataset(
     sample_size: int,
     problem_type: str,
     dataset_name: str,
+    seeds: list[int] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Prepare prompts for Weave evaluation format.
@@ -180,27 +181,55 @@ def prepare_evaluation_dataset(
         sample_size: Number of samples to include
         problem_type: Type of problem being evaluated
         dataset_name: Name of the HuggingFace dataset for ground truth
+        seeds: Optional list of seeds to use for each prompt
 
     Returns:
         List of evaluation examples in Weave format
     """
-    return [
-        {
-            "prompt": prompt_data["prompt"],
-            "conditions": prompt_data["conditions"],
-            "metadata": {
-                **prompt_data.get("metadata", {}),
-                "example_id": prompt_data.get("example_id", i),
-                "dataset_split": prompt_data.get(
-                    "dataset_split", "test"
-                ),  # Include split info
-                "problem_type": problem_type,
-                "dataset_name": dataset_name,
-            },
-            "target": prompt_data.get("target", {}),
-        }
-        for i, prompt_data in enumerate(prompts[:sample_size])
-    ]
+    eval_dataset = []
+
+    for i, prompt_data in enumerate(prompts[:sample_size]):
+        if seeds is not None:
+            # Create one example per seed
+            for seed in seeds:
+                # Add seed instruction to prompt
+                prompt_with_seed = (
+                    f"{prompt_data['prompt']}\n\n"
+                    f"IMPORTANT: Use seed={seed} when calling the optimize_design tool."
+                )
+                eval_dataset.append(
+                    {
+                        "prompt": prompt_with_seed,
+                        "conditions": prompt_data["conditions"],
+                        "metadata": {
+                            **prompt_data.get("metadata", {}),
+                            "example_id": prompt_data.get("example_id", i),
+                            "dataset_split": prompt_data.get("dataset_split", "test"),
+                            "problem_type": problem_type,
+                            "dataset_name": dataset_name,
+                            "seed": seed,  # Track which seed was used
+                        },
+                        "target": prompt_data.get("target", {}),
+                    }
+                )
+        else:
+            # Original behavior without seeds
+            eval_dataset.append(
+                {
+                    "prompt": prompt_data["prompt"],
+                    "conditions": prompt_data["conditions"],
+                    "metadata": {
+                        **prompt_data.get("metadata", {}),
+                        "example_id": prompt_data.get("example_id", i),
+                        "dataset_split": prompt_data.get("dataset_split", "test"),
+                        "problem_type": problem_type,
+                        "dataset_name": dataset_name,
+                    },
+                    "target": prompt_data.get("target", {}),
+                }
+            )
+
+    return eval_dataset
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -250,6 +279,16 @@ def parse_arguments() -> argparse.Namespace:
         default="test",
         choices=["train", "val", "test"],
         help="Dataset split to use for prompts (default: test)",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated list of seeds to use for optimization (e.g., '1,2,3,4,5'). "
+            "Each prompt will be evaluated with each seed. "
+            "Total evaluations = samples * number of seeds."
+        ),
     )
     return parser.parse_args()
 
@@ -348,7 +387,7 @@ def print_evaluation_summary(evaluation_results: Any, scorers: list[Any]) -> Non
         print("✅ Evaluation complete! View detailed results in Weave dashboard.")
 
 
-async def main() -> None:  # noqa: PLR0915
+async def main() -> None:  # noqa: PLR0915, PLR0912
     """Main execution function."""
     args = parse_arguments()
 
@@ -358,6 +397,11 @@ async def main() -> None:  # noqa: PLR0915
     temperature = (
         args.temperature if args.temperature is not None else config.llm_temperature
     )
+
+    # Parse seeds if provided
+    seeds = None
+    if args.seeds:
+        seeds = [int(s.strip()) for s in args.seeds.split(",")]
 
     # Select scorers based on command line argument
     if args.scorers == "generic":
@@ -381,6 +425,9 @@ async def main() -> None:  # noqa: PLR0915
     print(f"Temperature: {temperature}")
     print(f"Dataset Split: {args.split}")
     print(f"Samples: {args.samples}")
+    if seeds:
+        print(f"Seeds: {seeds}")
+        print(f"Total evaluations: {args.samples * len(seeds)}")
     print(f"Scorer Set: {args.scorers}")
     print(f"Active Scorers: {[s.__name__ for s in scorers]}")  # type: ignore[attr-defined]
     print()
@@ -411,12 +458,15 @@ async def main() -> None:  # noqa: PLR0915
 
     # Prepare evaluation dataset
     eval_dataset = prepare_evaluation_dataset(
-        prompts, args.samples, args.problem, problem_config["dataset_name"]
+        prompts, args.samples, args.problem, problem_config["dataset_name"], seeds
     )
+
+    # Calculate actual number of evaluations (samples * seeds if using seeds)
+    num_evaluations = len(eval_dataset)
 
     # Get or create Weave dataset
     dataset = get_or_create_dataset(
-        eval_dataset, f"{args.problem}_eval_dataset", args.samples
+        eval_dataset, f"{args.problem}_eval_dataset", num_evaluations
     )
     print()
 
@@ -431,8 +481,13 @@ async def main() -> None:  # noqa: PLR0915
 
     # Define evaluation
     print("🔍 Running evaluation...")
+    eval_name = (
+        f"{args.problem}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}"
+    )
+    if seeds:
+        eval_name += f"_seeds_{'_'.join(map(str, seeds))}"
     evaluation = weave.Evaluation(
-        name=f"{args.problem}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}",
+        name=eval_name,
         dataset=dataset,
         scorers=scorers,  # type: ignore[arg-type]
     )
