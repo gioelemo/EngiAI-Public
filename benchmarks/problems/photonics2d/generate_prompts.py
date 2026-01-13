@@ -79,7 +79,7 @@ def create_prompt_from_conditions(
 @weave.op()
 def generate_prompt_dataset(
     num_samples: int = 50,
-    split: str = "test",
+    dataset_split: str = "test",
     include_targets: bool = True,
 ) -> list[dict[str, Any]]:
     """
@@ -87,15 +87,15 @@ def generate_prompt_dataset(
 
     Args:
         num_samples: Number of examples to generate prompts for
-        split: Dataset split to use ('train', 'val', or 'test')
+        dataset_split: Dataset split to use ('train', 'val', or 'test')
         include_targets: Whether to include target values for validation
 
     Returns:
         List of prompt dictionaries
     """
-    print(f"🔄 Loading {num_samples} examples from {split} split...")
+    print(f"🔄 Loading {num_samples} examples from {dataset_split} split...")
     dataset = load_dataset("IDEALLab/photonics_2d_120_120_v0")
-    data = dataset[split]
+    data = dataset[dataset_split]
 
     # Limit to requested number of samples
     num_samples = min(num_samples, len(data))
@@ -108,7 +108,7 @@ def generate_prompt_dataset(
             example, include_target=include_targets
         )
         prompt_data["example_id"] = i
-        prompt_data["dataset_split"] = split  # Store split information
+        prompt_data["dataset_split"] = dataset_split  # Store split information
         prompts.append(prompt_data)
 
         if (i + 1) % 10 == 0:
@@ -183,7 +183,7 @@ def main():
     # Generate prompts using command-line arguments
     prompts = generate_prompt_dataset(
         num_samples=args.samples,
-        split=args.split,
+        dataset_split=args.split,
         include_targets=True,
     )
 
