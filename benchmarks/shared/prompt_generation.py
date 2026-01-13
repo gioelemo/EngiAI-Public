@@ -177,7 +177,7 @@ def run_prompt_generation_workflow(
 
     # Print header
     print("=" * 60)
-    print(f"{problem_name.upper()} PROMPT GENERATION FOR WEAVE BENCHMARKING")
+    print(f"{problem_name.upper()} PROMPT GENERATION")
     print("=" * 60)
     print()
     print(f"Dataset split: {args.split}")

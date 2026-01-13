@@ -1,5 +1,5 @@
 """
-Generate prompts for Weave benchmarking from thermoelastic design conditions.
+Generate prompts from thermoelastic design conditions.
 
 This script transforms thermoelastic design parameters from the HuggingFace dataset
 into natural language prompts that can be used to evaluate the engineering agent.

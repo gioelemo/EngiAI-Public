@@ -1,5 +1,5 @@
 """
-Generate prompts for Weave benchmarking from photonics design conditions.
+Generate prompts from photonics design conditions.
 
 This script transforms photonic design parameters from the HuggingFace dataset
 into natural language prompts that can be used to evaluate the engineering agent.

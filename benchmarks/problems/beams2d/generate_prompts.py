@@ -1,5 +1,5 @@
 """
-Generate prompts for Weave benchmarking from beam design conditions.
+Generate prompts from beam design conditions.
 
 This script transforms beam design parameters from the HuggingFace dataset
 into natural language prompts that can be used to evaluate the engineering agent.
