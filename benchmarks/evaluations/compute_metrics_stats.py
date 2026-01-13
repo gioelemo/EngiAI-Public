@@ -1,17 +1,35 @@
-"""Compute mean ± std for COG, MMD, RVC, and DPP metrics from CSV."""
+"""Compute mean ± std for COG, MMD, RVC, and DPP metrics from CSV.
+
+Usage:
+    python compute_metrics_stats.py <csv_file>
+
+Example:
+    python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv
+"""
+
+import sys
 
 import pandas as pd  # type: ignore[import-untyped]
 
+# Check for CSV file argument
+MIN_ARGS = 2
+if len(sys.argv) < MIN_ARGS:
+    print("Usage: python compute_metrics_stats.py <csv_file>")
+    print(
+        "Example: python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv"
+    )
+    sys.exit(1)
+
 # Read the CSV file
-csv_file = "cgan_cnn_2d_beams2d_metrics.csv"
+csv_file = sys.argv[1]
 df = pd.read_csv(csv_file)
 
 # Metrics to compute statistics for
-# Note: 'viol' in the CSV corresponds to RVC (ratio of violated constraints)
+# Note: Support both 'rvc' and 'viol' column names
 metrics = {
     "COG": "cog",
     "MMD": "mmd",
-    "RVC": "viol",
+    "RVC": "rvc" if "rvc" in df.columns else "viol",
     "DPP": "dpp",
 }
 

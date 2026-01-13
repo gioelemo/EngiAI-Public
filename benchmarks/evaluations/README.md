@@ -61,6 +61,8 @@ python evaluate_agent.py \
 | `--temperature` | Model temperature | From config |
 | `--split` | Dataset split (train/val/test) | `test` |
 | `--scorers` | Scorer set (generic/engibench/all) | `generic` |
+| `--seed` | Random seed for optimization | `None` |
+| `--output-csv` | Custom CSV output path | Auto-generated |
 
 ## Results Organization
 
@@ -70,22 +72,104 @@ Results are automatically organized by model and problem type:
 results/
 ├── {model-name}/
 │   └── {problem-type}/
-│       └── comparisons/
-│           ├── comparison_example_0.png
-│           ├── comparison_example_1.png
+│       ├── metrics.csv           # Aggregated metrics across seeds
+│       └── comparisons/          # Comparison visualizations
+│           ├── seed_1/           # Per-seed comparisons (if using seeds)
+│           │   ├── comparison_example_0.png
+│           │   └── ...
+│           ├── seed_2/
 │           └── ...
 ```
 
 Example:
 ```
 results/
-├── gpt-4o/
+├── openai_gpt-4.1/
 │   └── beams2d/
+│       ├── metrics.csv
 │       └── comparisons/
+│           ├── seed_1/
+│           ├── seed_2/
+│           └── seed_3/
 └── claude-3-5-sonnet-20241022/
     └── beams2d/
+        ├── metrics.csv
         └── comparisons/
 ```
+
+## Seed-Based Evaluation
+
+For reproducible benchmarking and statistical analysis (matching EngiOpt paper methodology):
+
+### Single Seed Evaluation
+
+```bash
+python evaluate_agent.py \
+  --problem beams2d \
+  --samples 50 \
+  --scorers engibench \
+  --seed 1
+```
+
+Output:
+- Metrics saved to: `results/{model}/beams2d/metrics.csv`
+- Comparisons saved to: `results/{model}/beams2d/comparisons/seed_1/`
+
+### Multiple Seeds for Statistics
+
+Run with multiple seeds to collect statistical data:
+
+```bash
+# Run 10 seeds (EngiOpt paper methodology)
+for seed in {1..10}; do
+  python evaluate_agent.py \
+    --problem beams2d \
+    --samples 50 \
+    --scorers engibench \
+    --seed $seed
+done
+```
+
+Each run appends a row to the CSV file with the seed value tracked.
+
+### Computing Statistics
+
+After running multiple seeds, compute mean ± std:
+
+```bash
+python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv
+```
+
+Output example:
+```
+============================================================
+Metrics Statistics for results/openai_gpt-4.1/beams2d/metrics.csv
+============================================================
+
+Number of runs: 10
+
+COG : 1.399069e+08 ± 1.671826e+08
+MMD : 1.252433e-01 ± 1.019108e-01
+RVC : 6.720000e-01 ± 1.589409e-01
+DPP : 3.375223e-19 ± 1.064283e-18
+
+============================================================
+```
+
+### CSV Metrics Format
+
+The CSV file contains (compatible with EngiOpt paper format):
+- `iog` - Initial Optimality Gap
+- `cog` - Cumulative Optimality Gap
+- `fog` - Final Optimality Gap
+- `mmd` - Maximum Mean Discrepancy
+- `dpp` - Determinantal Point Process diversity
+- `rvc` - Ratio of Violated Constraints
+- `seed` - Random seed used
+- `problem_id` - Problem identifier
+- `model_id` - Model name
+- `n_samples` - Number of samples
+- `sigma` - Kernel bandwidth (default: 10.0)
 
 ## Evaluation Metrics
 

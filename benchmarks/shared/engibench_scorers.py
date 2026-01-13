@@ -315,7 +315,7 @@ def score_design_extracted(
 def compute_global_metrics(  # noqa: PLR0912, PLR0915
     evaluation: Any,
     dataset_name: str,
-    sigma: float = 1.0,
+    sigma: float = 10.0,
     save_comparisons: bool = True,
     comparison_output_dir: str | None = None,
 ) -> dict[str, Any]:
@@ -583,7 +583,7 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
     )
 
     try:
-        # Use provided sigma (1.0) for MMD to match original paper
+        # Use provided sigma (10.0) for MMD to match original paper
         mmd_value = mmd(gen_batch, gt_batch, sigma=sigma)
         logger.info(f"Computed MMD with sigma={sigma:.4f}: {mmd_value:.6f}")
 

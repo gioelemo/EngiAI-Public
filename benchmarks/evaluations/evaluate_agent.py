@@ -13,6 +13,7 @@ Reference: https://docs.wandb.ai/weave/guides/core-types/evaluations
 
 import argparse
 import asyncio
+import csv
 import json
 import logging
 import os
@@ -171,7 +172,7 @@ def prepare_evaluation_dataset(
     sample_size: int,
     problem_type: str,
     dataset_name: str,
-    seeds: list[int] | None = None,
+    seed: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Prepare prompts for Weave evaluation format.
@@ -181,7 +182,7 @@ def prepare_evaluation_dataset(
         sample_size: Number of samples to include
         problem_type: Type of problem being evaluated
         dataset_name: Name of the HuggingFace dataset for ground truth
-        seeds: Optional list of seeds to use for each prompt
+        seed: Optional seed to use for all prompts in this evaluation
 
     Returns:
         List of evaluation examples in Weave format
@@ -189,45 +190,30 @@ def prepare_evaluation_dataset(
     eval_dataset = []
 
     for i, prompt_data in enumerate(prompts[:sample_size]):
-        if seeds is not None:
-            # Create one example per seed
-            for seed in seeds:
-                # Add seed instruction to prompt
-                prompt_with_seed = (
-                    f"{prompt_data['prompt']}\n\n"
-                    f"IMPORTANT: Use seed={seed} when calling the optimize_design tool."
-                )
-                eval_dataset.append(
-                    {
-                        "prompt": prompt_with_seed,
-                        "conditions": prompt_data["conditions"],
-                        "metadata": {
-                            **prompt_data.get("metadata", {}),
-                            "example_id": prompt_data.get("example_id", i),
-                            "dataset_split": prompt_data.get("dataset_split", "test"),
-                            "problem_type": problem_type,
-                            "dataset_name": dataset_name,
-                            "seed": seed,  # Track which seed was used
-                        },
-                        "target": prompt_data.get("target", {}),
-                    }
-                )
-        else:
-            # Original behavior without seeds
-            eval_dataset.append(
-                {
-                    "prompt": prompt_data["prompt"],
-                    "conditions": prompt_data["conditions"],
-                    "metadata": {
-                        **prompt_data.get("metadata", {}),
-                        "example_id": prompt_data.get("example_id", i),
-                        "dataset_split": prompt_data.get("dataset_split", "test"),
-                        "problem_type": problem_type,
-                        "dataset_name": dataset_name,
-                    },
-                    "target": prompt_data.get("target", {}),
-                }
+        prompt = prompt_data["prompt"]
+
+        # Add seed instruction if provided
+        if seed is not None:
+            prompt = (
+                f"{prompt}\n\n"
+                f"IMPORTANT: Use seed={seed} when calling the optimize_design tool."
             )
+
+        eval_dataset.append(
+            {
+                "prompt": prompt,
+                "conditions": prompt_data["conditions"],
+                "metadata": {
+                    **prompt_data.get("metadata", {}),
+                    "example_id": prompt_data.get("example_id", i),
+                    "dataset_split": prompt_data.get("dataset_split", "test"),
+                    "problem_type": problem_type,
+                    "dataset_name": dataset_name,
+                    "seed": seed,  # Track which seed was used
+                },
+                "target": prompt_data.get("target", {}),
+            }
+        )
 
     return eval_dataset
 
@@ -281,14 +267,16 @@ def parse_arguments() -> argparse.Namespace:
         help="Dataset split to use for prompts (default: test)",
     )
     parser.add_argument(
-        "--seeds",
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for optimization (e.g., 1, 2, 3). Run multiple times with different seeds to collect statistics.",
+    )
+    parser.add_argument(
+        "--output-csv",
         type=str,
         default=None,
-        help=(
-            "Comma-separated list of seeds to use for optimization (e.g., '1,2,3,4,5'). "
-            "Each prompt will be evaluated with each seed. "
-            "Total evaluations = samples * number of seeds."
-        ),
+        help="Output CSV file to save metrics (will append if file exists). Default: benchmarks/evaluations/results/{model}/{problem}/metrics.csv",
     )
     return parser.parse_args()
 
@@ -398,11 +386,6 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         args.temperature if args.temperature is not None else config.llm_temperature
     )
 
-    # Parse seeds if provided
-    seeds = None
-    if args.seeds:
-        seeds = [int(s.strip()) for s in args.seeds.split(",")]
-
     # Select scorers based on command line argument
     if args.scorers == "generic":
         # Only per-design metrics from generic scorer
@@ -425,9 +408,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print(f"Temperature: {temperature}")
     print(f"Dataset Split: {args.split}")
     print(f"Samples: {args.samples}")
-    if seeds:
-        print(f"Seeds: {seeds}")
-        print(f"Total evaluations: {args.samples * len(seeds)}")
+    if args.seed is not None:
+        print(f"Seed: {args.seed}")
     print(f"Scorer Set: {args.scorers}")
     print(f"Active Scorers: {[s.__name__ for s in scorers]}")  # type: ignore[attr-defined]
     print()
@@ -458,16 +440,14 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Prepare evaluation dataset
     eval_dataset = prepare_evaluation_dataset(
-        prompts, args.samples, args.problem, problem_config["dataset_name"], seeds
+        prompts, args.samples, args.problem, problem_config["dataset_name"], args.seed
     )
-
-    # Calculate actual number of evaluations (samples * seeds if using seeds)
-    num_evaluations = len(eval_dataset)
 
     # Get or create Weave dataset
-    dataset = get_or_create_dataset(
-        eval_dataset, f"{args.problem}_eval_dataset", num_evaluations
-    )
+    dataset_name = f"{args.problem}_eval_dataset"
+    if args.seed is not None:
+        dataset_name += f"_seed_{args.seed}"
+    dataset = get_or_create_dataset(eval_dataset, dataset_name, len(eval_dataset))
     print()
 
     # Create agent model
@@ -484,8 +464,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     eval_name = (
         f"{args.problem}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}"
     )
-    if seeds:
-        eval_name += f"_seeds_{'_'.join(map(str, seeds))}"
+    if args.seed is not None:
+        eval_name += f"_seed_{args.seed}"
     evaluation = weave.Evaluation(
         name=eval_name,
         dataset=dataset,
@@ -509,15 +489,17 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         print("Computing metrics across all generated designs...")
 
         # Setup output directory for comparison images
-        comparison_dir = (
-            f"benchmarks/evaluations/results/{model_name}/{args.problem}/comparisons"
-        )
+        model_safe = model_name.replace("/", "_").replace(":", "_")
+        if args.seed is not None:
+            comparison_dir = f"benchmarks/evaluations/results/{model_safe}/{args.problem}/comparisons/seed_{args.seed}"
+        else:
+            comparison_dir = f"benchmarks/evaluations/results/{model_safe}/{args.problem}/comparisons"
 
         # Pass evaluation object to compute global metrics (not results!)
         global_metrics = compute_global_metrics(
             evaluation,
             dataset_name=problem_config["dataset_name"],
-            sigma=1.0,
+            sigma=10.0,
             save_comparisons=True,
             comparison_output_dir=comparison_dir,
         )
@@ -570,6 +552,48 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         )
         print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
         print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")
+
+        # Save metrics to CSV if requested
+        if args.output_csv or args.seed is not None:
+            # Determine output CSV path
+            if args.output_csv:
+                csv_path = args.output_csv
+            else:
+                model_safe = model_name.replace("/", "_").replace(":", "_")
+                results_dir = Path(
+                    f"benchmarks/evaluations/results/{model_safe}/{args.problem}"
+                )
+                results_dir.mkdir(parents=True, exist_ok=True)
+                csv_path = str(results_dir / "metrics.csv")
+
+            # Prepare metrics row
+            metrics_row = {
+                "iog": global_metrics.get("iog"),
+                "cog": global_metrics.get("cog"),
+                "fog": global_metrics.get("fog"),
+                "mmd": global_metrics.get("mmd"),
+                "dpp": global_metrics.get("dpp_diversity"),
+                "rvc": global_metrics.get("rvc"),
+                "seed": args.seed if args.seed is not None else 0,
+                "problem_id": args.problem,
+                "model_id": model_name,
+                "n_samples": args.samples,
+                "sigma": 10.0,  # Default sigma used in compute_global_metrics
+            }
+
+            # Check if file exists to determine if we need header
+            csv_file = Path(csv_path)
+            file_exists = csv_file.exists()
+
+            # Append to CSV
+            with csv_file.open("a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=metrics_row.keys())
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow(metrics_row)
+
+            print()
+            print(f"📊 Metrics saved to: {csv_path}")
 
     print()
     print("🎉 Evaluation complete!")

@@ -45,10 +45,15 @@ benchmarks/
 └── evaluations/                # Unified evaluation framework
     ├── README.md
     ├── evaluate_agent.py      # Main evaluation script
+    ├── compute_metrics_stats.py  # Compute mean ± std statistics
     └── results/               # Results organized by model and problem
         └── {model-name}/
             └── {problem-type}/
-                └── comparisons/  # Design comparison images
+                ├── metrics.csv       # Aggregated metrics across seeds
+                └── comparisons/      # Design comparison images
+                    ├── seed_1/       # Per-seed comparisons
+                    ├── seed_2/
+                    └── ...
 ```
 
 ## Quick Start
@@ -84,6 +89,79 @@ python evaluate_agent.py --problem beams2d --model gpt-4o --samples 5
 
 - **Local:** Check `evaluations/results/{model}/{problem}/comparisons/` for comparison images
 - **Weave Dashboard:** View full metrics, traces, and comparisons in the Weave UI
+
+## Seed-Based Evaluation
+
+To collect statistics across multiple optimization runs (matching the EngiOpt paper methodology), run evaluations with different seeds:
+
+### Single Seed Evaluation
+
+```bash
+python evaluate_agent.py \
+  --problem beams2d \
+  --samples 50 \
+  --scorers engibench \
+  --seed 1
+```
+
+This saves metrics to `results/{model}/{problem}/metrics.csv` and comparison images to `results/{model}/{problem}/comparisons/seed_1/`.
+
+### Multiple Seeds for Statistical Analysis
+
+Run the same evaluation with different seeds to collect statistics:
+
+```bash
+# Run 10 seeds matching EngiOpt paper methodology
+for seed in {1..10}; do
+  python evaluate_agent.py \
+    --problem beams2d \
+    --samples 50 \
+    --scorers engibench \
+    --seed $seed
+done
+```
+
+Each run appends metrics to the same CSV file.
+
+### Compute Statistics
+
+After running multiple seeds, compute mean ± standard deviation:
+
+```bash
+cd benchmarks/evaluations
+python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv
+```
+
+Output:
+```
+============================================================
+Metrics Statistics for results/openai_gpt-4.1/beams2d/metrics.csv
+============================================================
+
+Number of runs: 10
+
+COG : 1.399069e+08 ± 1.671826e+08
+MMD : 1.252433e-01 ± 1.019108e-01
+RVC : 6.720000e-01 ± 1.589409e-01
+DPP : 3.375223e-19 ± 1.064283e-18
+
+============================================================
+```
+
+### Metrics Output Format
+
+The CSV file contains the following columns (compatible with EngiOpt paper format):
+- `iog` - Initial Optimality Gap
+- `cog` - Cumulative Optimality Gap
+- `fog` - Final Optimality Gap
+- `mmd` - Maximum Mean Discrepancy
+- `dpp` - Determinantal Point Process diversity
+- `rvc` - Ratio of Violated Constraints
+- `seed` - Random seed used
+- `problem_id` - Problem type
+- `model_id` - Model identifier
+- `n_samples` - Number of samples evaluated
+- `sigma` - Kernel bandwidth for MMD/DPP (default: 10.0)
 
 ## Available Problems
 
@@ -136,16 +214,35 @@ python evaluations/evaluate_agent.py --problem thermoelastic2d --samples 10
 Evaluate multiple models on the same problem to compare performance:
 
 ```bash
-# Evaluate GPT-4o
-python evaluations/evaluate_agent.py --problem beams2d --model gpt-4o --samples 20
+# Evaluate GPT-4o with 10 seeds
+for seed in {1..10}; do
+  python evaluations/evaluate_agent.py \
+    --problem beams2d \
+    --model gpt-4o \
+    --samples 50 \
+    --scorers engibench \
+    --seed $seed
+done
 
-# Evaluate Claude Sonnet
-python evaluations/evaluate_agent.py --problem beams2d --model claude-3-5-sonnet-20241022 --samples 20
+# Evaluate Claude Sonnet with 10 seeds
+for seed in {1..10}; do
+  python evaluations/evaluate_agent.py \
+    --problem beams2d \
+    --model claude-3-5-sonnet-20241022 \
+    --samples 50 \
+    --scorers engibench \
+    --seed $seed
+done
 
-# View comparison in Weave dashboard
+# Compare statistics
+cd benchmarks/evaluations
+python compute_metrics_stats.py results/gpt-4o/beams2d/metrics.csv
+python compute_metrics_stats.py results/claude-3-5-sonnet-20241022/beams2d/metrics.csv
+
+# View detailed comparison in Weave dashboard
 ```
 
-Results are automatically organized by model for easy comparison.
+Results are automatically organized by model in `results/{model}/{problem}/` for easy comparison.
 
 ## Evaluation Metrics
 
