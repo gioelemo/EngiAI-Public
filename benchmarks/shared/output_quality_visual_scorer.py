@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import weave
 from PIL import Image
 
 from benchmarks.shared.objective_extractor import (
@@ -22,6 +21,7 @@ from benchmarks.shared.problem_registry import get_problem_config
 from benchmarks.shared.utils import (
     create_design_comparison,
     extract_design_from_tool_messages,
+    extract_optimization_history_from_tool_messages,
     get_hf_dataset,
 )
 
@@ -278,7 +278,6 @@ def _load_dataset_and_ground_truth(
     return hf_dataset, ground_truth
 
 
-@weave.op()
 def score_output_quality_visual(
     output: dict[str, Any],
     target: dict[str, Any],
@@ -375,6 +374,11 @@ def score_output_quality_visual(
         + weights["objective_match"] * objective_score
     )
 
+    # Extract optimization history from messages for global metrics
+    optimization_history = extract_optimization_history_from_tool_messages(
+        messages, example_id
+    )
+
     # Build result dictionary
     result: dict[str, Any] = {
         "score": float(score),
@@ -382,6 +386,9 @@ def score_output_quality_visual(
         "problem_type": problem_name,
         "constraint_score": float(constraint_score),
         "objective_score": float(objective_score),
+        "example_id": example_id,  # Store for correct mapping in global metrics
+        "design": design_array.tolist(),  # Store design for global metrics computation
+        "optimization_history": optimization_history,  # Store for optimality gap metrics
         **design_metrics,
         **constraint_metrics,
         **objective_metrics,

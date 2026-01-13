@@ -257,8 +257,9 @@ def parse_arguments() -> argparse.Namespace:
         choices=["generic", "engibench", "all"],
         help=(
             "Metrics to compute: "
-            "'generic' (per-design metrics only), "
-            "'engibench' or 'all' (per-design + global metrics: MMD, DPP, RVC, optimality gaps)"
+            "'generic' (detailed per-design metrics + global metrics: MMD, DPP, RVC, optimality gaps), "
+            "'engibench' (lightweight design extraction + global metrics), "
+            "'all' (both scorers for maximum detail)"
         ),
     )
     parser.add_argument(
@@ -345,7 +346,7 @@ def get_or_create_dataset(
     return dataset
 
 
-def save_per_design_metrics(
+def save_per_design_metrics(  # noqa: PLR0912
     evaluation: Any,
     csv_path: str,
     seed: int | None,
@@ -374,12 +375,18 @@ def save_per_design_metrics(
 
         # Try to get results from score_output_quality_visual first (has detailed metrics)
         # Fall back to score_output_quality_engibench if needed
-        scorer_outputs = latest_trace_scores.get("score_output_quality_visual", [])
+        # Look for keys ending with the scorer type names (to handle contextual prefixes)
+        scorer_outputs = []
+        for key in latest_trace_scores:
+            if key.endswith("_output_quality_visual"):
+                scorer_outputs = latest_trace_scores[key]
+                break
 
         if not scorer_outputs:
-            scorer_outputs = latest_trace_scores.get(
-                "score_output_quality_engibench", []
-            )
+            for key in latest_trace_scores:
+                if key.endswith("_engibench"):
+                    scorer_outputs = latest_trace_scores[key]
+                    break
 
         if not scorer_outputs:
             print("⚠️  No scorer outputs found for per-design metrics")
@@ -472,6 +479,47 @@ def save_per_design_metrics(
     print(f"   ({len(design_metrics_list)} designs)")
 
 
+def create_contextual_scorer(
+    scorer_func: Any,
+    model_name: str,
+    problem_type: str,
+    scorer_type: str,
+) -> Any:
+    """Create a scorer wrapper with evaluation context in its trace name.
+
+    This allows traces in Weave UI to be easily paired and identified by including
+    the model name and problem type in the trace name.
+
+    Args:
+        scorer_func: Original scorer function to wrap
+        model_name: Model name (e.g., "gpt-4o", "claude-3-5-sonnet")
+        problem_type: Problem type (e.g., "beams2d", "thermoelastic2d")
+        scorer_type: Scorer identifier (e.g., "output_quality_visual", "engibench")
+
+    Returns:
+        Wrapped scorer function with contextual trace name
+    """
+    # Sanitize model name for use in trace names
+    safe_model = model_name.replace("/", "_").replace(":", "_")
+
+    # Create trace name with context: {model}_{problem}_{scorer_type}
+    trace_name = f"{safe_model}_{problem_type}_{scorer_type}"
+
+    @weave.op(name=trace_name)
+    def contextual_scorer(
+        output: dict[str, Any],
+        target: dict[str, Any],
+        metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Contextual wrapper that delegates to the original scorer."""
+        return scorer_func(output, target, metadata)
+
+    # Preserve original function name for compatibility with result processing
+    contextual_scorer.__name__ = scorer_func.__name__
+
+    return contextual_scorer
+
+
 def print_evaluation_summary(evaluation_results: Any, scorers: list[Any]) -> None:
     """Print a summary of evaluation results."""
     print()
@@ -515,18 +563,31 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         args.temperature if args.temperature is not None else config.llm_temperature
     )
 
-    # Select scorers based on command line argument
+    # Select base scorers based on command line argument
+    base_scorers = []
+    scorer_types = []
+
     if args.scorers == "generic":
         # Only per-design metrics from generic scorer
-        scorers = [score_output_quality_visual]
+        base_scorers = [score_output_quality_visual]
+        scorer_types = ["output_quality_visual"]
     elif args.scorers == "engibench":
         # Lightweight scorer for design extraction + global metrics computed after
-        scorers = [score_output_quality_engibench]
+        base_scorers = [score_output_quality_engibench]
+        scorer_types = ["engibench"]
     elif args.scorers == "all":
         # Both generic scorer and lightweight scorer for comprehensive metrics
-        scorers = [score_output_quality_visual, score_output_quality_engibench]
+        base_scorers = [score_output_quality_visual, score_output_quality_engibench]
+        scorer_types = ["output_quality_visual", "engibench"]
     else:
-        scorers = [score_output_quality_visual]
+        base_scorers = [score_output_quality_visual]
+        scorer_types = ["output_quality_visual"]
+
+    # Wrap scorers with evaluation context for better trace naming in Weave UI
+    scorers = [
+        create_contextual_scorer(scorer_func, model_name, args.problem, scorer_type)
+        for scorer_func, scorer_type in zip(base_scorers, scorer_types, strict=False)
+    ]
 
     print("=" * 60)
     print(f"ENGINEERING AGENT EVALUATION ({args.problem})")
@@ -541,6 +602,24 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         print(f"Seed: {args.seed}")
     print(f"Scorer Set: {args.scorers}")
     print(f"Active Scorers: {[s.__name__ for s in scorers]}")  # type: ignore[attr-defined]
+
+    # Debug: print the expected trace names
+    safe_model = model_name.replace("/", "_").replace(":", "_")
+    expected_scorer_names = [
+        f"{safe_model}_{args.problem}_{scorer_type}" for scorer_type in scorer_types
+    ]
+    expected_eval_run_name = f"{safe_model}_{args.problem}_evaluation"
+    if args.seed is not None:
+        expected_eval_run_name += f"_seed_{args.seed}"
+
+    expected_global_metrics_name = f"{safe_model}_{args.problem}_global_metrics"
+    if args.seed is not None:
+        expected_global_metrics_name += f"_seed_{args.seed}"
+
+    print("Expected Weave trace names:")
+    print(f"  Evaluation: {expected_eval_run_name}")
+    print(f"  Scorers: {expected_scorer_names}")
+    print(f"  Global Metrics: {expected_global_metrics_name}")
     print()
 
     # Initialize Weave
@@ -590,19 +669,31 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Define evaluation
     print("🔍 Running evaluation...")
-    eval_name = (
+    eval_type_name = (
         f"{args.problem}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}"
     )
     if args.seed is not None:
-        eval_name += f"_seed_{args.seed}"
+        eval_type_name += f"_seed_{args.seed}"
     evaluation = weave.Evaluation(
-        name=eval_name,
+        name=eval_type_name,
         dataset=dataset,
         scorers=scorers,  # type: ignore[arg-type]
     )
 
-    # Run evaluation (async)
-    results = await evaluation.evaluate(agent)
+    # Create contextual evaluation run name
+    safe_model = model_name.replace("/", "_").replace(":", "_")
+    eval_run_name = f"{safe_model}_{args.problem}_evaluation"
+    if args.seed is not None:
+        eval_run_name += f"_seed_{args.seed}"
+
+    # Wrap evaluation.evaluate() in a named weave op for custom trace naming
+    @weave.op(name=eval_run_name)
+    async def run_evaluation(eval_obj: Any, agent_obj: Any) -> Any:
+        """Run evaluation with custom trace name."""
+        return await eval_obj.evaluate(agent_obj)
+
+    # Run evaluation (async) with custom trace name
+    results = await run_evaluation(evaluation, agent)
 
     # Print summary
     print_evaluation_summary(results, scorers)
@@ -624,127 +715,130 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         model_name,
     )
 
-    # Compute global metrics if using EngiBench scorers
-    if args.scorers in ("engibench", "all"):
-        print()
-        print("=" * 60)
-        print("COMPUTING GLOBAL METRICS")
-        print("=" * 60)
-        print()
-        print("Computing metrics across all generated designs...")
+    # Compute global metrics for all scorer types (all scorers now support design extraction)
+    print()
+    print("=" * 60)
+    print("COMPUTING GLOBAL METRICS")
+    print("=" * 60)
+    print()
+    print("Computing metrics across all generated designs...")
 
-        # Setup output directory for comparison images
-        model_safe = model_name.replace("/", "_").replace(":", "_")
-        if args.seed is not None:
-            comparison_dir = f"benchmarks/evaluations/results/{model_safe}/{args.problem}/comparisons/seed_{args.seed}"
+    # Setup output directory for comparison images
+    model_safe = model_name.replace("/", "_").replace(":", "_")
+    if args.seed is not None:
+        comparison_dir = f"benchmarks/evaluations/results/{model_safe}/{args.problem}/comparisons/seed_{args.seed}"
+    else:
+        comparison_dir = (
+            f"benchmarks/evaluations/results/{model_safe}/{args.problem}/comparisons"
+        )
+
+    # Pass evaluation object to compute global metrics (not results!)
+    global_metrics = compute_global_metrics(
+        evaluation,
+        dataset_name=problem_config["dataset_name"],
+        sigma=10.0,
+        save_comparisons=True,
+        comparison_output_dir=comparison_dir,
+        model_name=model_name,
+        problem_type=args.problem,
+        seed=args.seed,
+    )
+
+    print()
+    print("Global Metrics:")
+    print(
+        f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.6e}"
+        if global_metrics.get("mmd") is not None
+        else "  • MMD: Failed to compute"
+    )
+    print(
+        f"  • DPP Diversity: {global_metrics.get('dpp_diversity', 'N/A'):.6e}"
+        if global_metrics.get("dpp_diversity") is not None
+        else "  • DPP Diversity: Failed to compute"
+    )
+    print(
+        f"  • RVC (Ratio of Violated Constraints): {global_metrics.get('rvc', 'N/A'):.4f}"
+        if global_metrics.get("rvc") is not None
+        else "  • RVC: No constraints to check"
+    )
+
+    # Print detailed RVC information if available
+    rvc_details = global_metrics.get("rvc_details")
+    if rvc_details and rvc_details.get("n_violations", 0) > 0:
+        print(
+            f"    - Designs with violations: {rvc_details['n_violations']}/{rvc_details['n_total']}"
+        )
+        violation_summary = rvc_details.get("violation_summary", {})
+        if violation_summary:
+            print("    - Most common constraint violations:")
+            for constraint_name, count in sorted(
+                violation_summary.items(), key=lambda x: x[1], reverse=True
+            )[:3]:  # Show top 3
+                print(f"      • {constraint_name}: {count} design(s)")
+    print(
+        f"  • IOG (Initial Optimality Gap): {global_metrics.get('iog', 'N/A'):.6e}"
+        if global_metrics.get("iog") is not None
+        else "  • IOG: No optimization history found"
+    )
+    print(
+        f"  • COG (Cumulative Optimality Gap): {global_metrics.get('cog', 'N/A'):.6e}"
+        if global_metrics.get("cog") is not None
+        else "  • COG: No optimization history found"
+    )
+    print(
+        f"  • FOG (Final Optimality Gap): {global_metrics.get('fog', 'N/A'):.6e}"
+        if global_metrics.get("fog") is not None
+        else "  • FOG: No optimization history found"
+    )
+    print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
+    print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")
+
+    # Save metrics to CSV if requested
+    if args.output_csv or args.seed is not None:
+        # Determine output CSV path
+        if args.output_csv:
+            csv_path = args.output_csv
         else:
-            comparison_dir = f"benchmarks/evaluations/results/{model_safe}/{args.problem}/comparisons"
+            model_safe = model_name.replace("/", "_").replace(":", "_")
+            results_dir = Path(
+                f"benchmarks/evaluations/results/{model_safe}/{args.problem}"
+            )
+            results_dir.mkdir(parents=True, exist_ok=True)
+            csv_path = str(results_dir / "output_quality_global_metrics.csv")
 
-        # Pass evaluation object to compute global metrics (not results!)
-        global_metrics = compute_global_metrics(
-            evaluation,
-            dataset_name=problem_config["dataset_name"],
-            sigma=10.0,
-            save_comparisons=True,
-            comparison_output_dir=comparison_dir,
-        )
+        # Prepare metrics row
+        metrics_row = {
+            "iog": global_metrics.get("iog"),
+            "cog": global_metrics.get("cog"),
+            "fog": global_metrics.get("fog"),
+            "mmd": global_metrics.get("mmd"),
+            "dpp": global_metrics.get("dpp_diversity"),
+            "rvc": global_metrics.get("rvc"),
+            "seed": args.seed if args.seed is not None else 0,
+            "problem_id": args.problem,
+            "model_id": model_name,
+            "n_samples": args.samples,
+            "sigma": 10.0,  # Default sigma used in compute_global_metrics
+        }
+
+        # Check if file exists to determine if we need header
+        csv_file = Path(csv_path)
+        file_exists = csv_file.exists()
+
+        # Append to CSV
+        with csv_file.open("a", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=metrics_row.keys())
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(metrics_row)
 
         print()
-        print("Global Metrics:")
-        print(
-            f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.6e}"
-            if global_metrics.get("mmd") is not None
-            else "  • MMD: Failed to compute"
-        )
-        print(
-            f"  • DPP Diversity: {global_metrics.get('dpp_diversity', 'N/A'):.6e}"
-            if global_metrics.get("dpp_diversity") is not None
-            else "  • DPP Diversity: Failed to compute"
-        )
-        print(
-            f"  • RVC (Ratio of Violated Constraints): {global_metrics.get('rvc', 'N/A'):.4f}"
-            if global_metrics.get("rvc") is not None
-            else "  • RVC: No constraints to check"
-        )
-
-        # Print detailed RVC information if available
-        rvc_details = global_metrics.get("rvc_details")
-        if rvc_details and rvc_details.get("n_violations", 0) > 0:
-            print(
-                f"    - Designs with violations: {rvc_details['n_violations']}/{rvc_details['n_total']}"
-            )
-            violation_summary = rvc_details.get("violation_summary", {})
-            if violation_summary:
-                print("    - Most common constraint violations:")
-                for constraint_name, count in sorted(
-                    violation_summary.items(), key=lambda x: x[1], reverse=True
-                )[:3]:  # Show top 3
-                    print(f"      • {constraint_name}: {count} design(s)")
-        print(
-            f"  • IOG (Initial Optimality Gap): {global_metrics.get('iog', 'N/A'):.6e}"
-            if global_metrics.get("iog") is not None
-            else "  • IOG: No optimization history found"
-        )
-        print(
-            f"  • COG (Cumulative Optimality Gap): {global_metrics.get('cog', 'N/A'):.6e}"
-            if global_metrics.get("cog") is not None
-            else "  • COG: No optimization history found"
-        )
-        print(
-            f"  • FOG (Final Optimality Gap): {global_metrics.get('fog', 'N/A'):.6e}"
-            if global_metrics.get("fog") is not None
-            else "  • FOG: No optimization history found"
-        )
-        print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
-        print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")
-
-        # Save metrics to CSV if requested
-        if args.output_csv or args.seed is not None:
-            # Determine output CSV path
-            if args.output_csv:
-                csv_path = args.output_csv
-            else:
-                model_safe = model_name.replace("/", "_").replace(":", "_")
-                results_dir = Path(
-                    f"benchmarks/evaluations/results/{model_safe}/{args.problem}"
-                )
-                results_dir.mkdir(parents=True, exist_ok=True)
-                csv_path = str(results_dir / "output_quality_global_metrics.csv")
-
-            # Prepare metrics row
-            metrics_row = {
-                "iog": global_metrics.get("iog"),
-                "cog": global_metrics.get("cog"),
-                "fog": global_metrics.get("fog"),
-                "mmd": global_metrics.get("mmd"),
-                "dpp": global_metrics.get("dpp_diversity"),
-                "rvc": global_metrics.get("rvc"),
-                "seed": args.seed if args.seed is not None else 0,
-                "problem_id": args.problem,
-                "model_id": model_name,
-                "n_samples": args.samples,
-                "sigma": 10.0,  # Default sigma used in compute_global_metrics
-            }
-
-            # Check if file exists to determine if we need header
-            csv_file = Path(csv_path)
-            file_exists = csv_file.exists()
-
-            # Append to CSV
-            with csv_file.open("a", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=metrics_row.keys())
-                if not file_exists:
-                    writer.writeheader()
-                writer.writerow(metrics_row)
-
-            print()
-            print(f"📊 Metrics saved to: {csv_path}")
+        print(f"📊 Metrics saved to: {csv_path}")
 
     print()
     print("🎉 Evaluation complete!")
     print("📊 View detailed results in Weave dashboard")
-    if args.scorers in ("engibench", "all"):
-        print(f"📁 Comparison images saved to: {comparison_dir}/")
+    print(f"📁 Comparison images saved to: {comparison_dir}/")
 
 
 if __name__ == "__main__":

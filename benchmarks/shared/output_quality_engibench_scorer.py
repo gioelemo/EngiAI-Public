@@ -262,7 +262,6 @@ def _get_reference_objective_value(
 # ======================================================================
 
 
-@weave.op()
 def score_output_quality_engibench(
     output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001 - Unused, for signature compatibility
@@ -311,15 +310,68 @@ def score_output_quality_engibench(
 # ======================================================================
 
 
-@weave.op()
-def compute_global_metrics(  # noqa: PLR0912, PLR0915
+def compute_global_metrics(  # noqa: PLR0913
+    evaluation: Any,
+    dataset_name: str,
+    sigma: float = 10.0,
+    save_comparisons: bool = True,
+    comparison_output_dir: str | None = None,
+    model_name: str | None = None,
+    problem_type: str | None = None,
+    seed: int | None = None,
+) -> dict[str, Any]:
+    """Compute global MMD, DPP diversity, optimality gap, and RVC metrics from evaluation object.
+
+    This is a wrapper that creates a contextual Weave op with model and problem context.
+
+    Args:
+        evaluation: Weave Evaluation object (after evaluate() has been called)
+        dataset_name: HuggingFace dataset name for ground truth
+        sigma: Kernel bandwidth for MMD and DPP diversity
+        save_comparisons: Whether to save comparison images (default: True)
+        comparison_output_dir: Directory to save comparison images
+        model_name: Model name for trace naming (optional)
+        problem_type: Problem type for trace naming (optional)
+        seed: Random seed used in evaluation (optional, for trace naming)
+
+    Returns:
+        dict with global metrics (mmd, dpp_diversity, rvc, iog, cog, fog, etc.)
+    """
+    # Create contextual trace name if context provided
+    if model_name and problem_type:
+        safe_model = model_name.replace("/", "_").replace(":", "_")
+        trace_name = f"{safe_model}_{problem_type}_global_metrics"
+        if seed is not None:
+            trace_name += f"_seed_{seed}"
+    else:
+        trace_name = "compute_global_metrics"
+
+    # Create a weave op with the contextual name
+    @weave.op(name=trace_name)
+    def _compute_with_context(
+        eval_obj: Any,
+        ds_name: str,
+        sig: float,
+        save_comp: bool,
+        comp_dir: str | None,
+    ) -> dict[str, Any]:
+        return _compute_global_metrics_impl(eval_obj, ds_name, sig, save_comp, comp_dir)
+
+    return _compute_with_context(
+        evaluation, dataset_name, sigma, save_comparisons, comparison_output_dir
+    )
+
+
+def _compute_global_metrics_impl(  # noqa: PLR0912, PLR0915
     evaluation: Any,
     dataset_name: str,
     sigma: float = 10.0,
     save_comparisons: bool = True,
     comparison_output_dir: str | None = None,
 ) -> dict[str, Any]:
-    """Compute global MMD, DPP diversity, optimality gap, and RVC metrics from evaluation object.
+    """Internal implementation of global metrics computation.
+
+    Compute global MMD, DPP diversity, optimality gap, and RVC metrics from evaluation object.
 
     This function retrieves generated designs and optimization histories from scorer results
     and computes MMD (similarity to dataset), DPP diversity (design variability),
@@ -385,15 +437,35 @@ def compute_global_metrics(  # noqa: PLR0912, PLR0915
         )
 
         # Collect outputs from the latest trace only
+        # Try engibench first (lightweight), then output_quality_visual (comprehensive)
         all_outputs = []
-        if "score_output_quality_engibench" in latest_trace_scores:
-            all_outputs = latest_trace_scores["score_output_quality_engibench"]
-            logger.info(
-                f"Found {len(all_outputs)} outputs for score_output_quality_engibench in latest trace"
-            )
-        else:
+
+        # Try engibench scorer
+        for key in latest_trace_scores:
+            if key.endswith("_engibench") or key == "score_output_quality_engibench":
+                all_outputs = latest_trace_scores[key]
+                logger.info(
+                    f"Found {len(all_outputs)} outputs for {key} in latest trace (using engibench scorer)"
+                )
+                break
+
+        # Fall back to output_quality_visual if engibench not found
+        if not all_outputs:
+            for key in latest_trace_scores:
+                if (
+                    key.endswith("_output_quality_visual")
+                    or key == "score_output_quality_visual"
+                ):
+                    all_outputs = latest_trace_scores[key]
+                    logger.info(
+                        f"Found {len(all_outputs)} outputs for {key} in latest trace (using output_quality_visual scorer)"
+                    )
+                    break
+
+        if not all_outputs:
             logger.warning(
-                f"No score_output_quality_engibench in latest trace {latest_trace_id}"
+                f"No compatible scorer outputs found in latest trace {latest_trace_id}. "
+                f"Available keys: {list(latest_trace_scores.keys())}"
             )
 
         logger.info(f"Total outputs from current evaluation: {len(all_outputs)}")
