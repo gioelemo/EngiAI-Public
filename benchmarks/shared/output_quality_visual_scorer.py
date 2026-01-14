@@ -181,10 +181,13 @@ def _save_comparison_image(
     """Save comparison image and return paths/encodings."""
     problem_type = metadata.get("problem_type", "unknown")
     model_name = output.get("model", "unknown")
+    seed = metadata.get("seed")
 
     # Sanitize model name for filesystem (replace / and : with _)
     model_safe = model_name.replace("/", "_").replace(":", "_")
-    output_dir = (
+
+    # Build output directory path, including seed subfolder if seed is provided
+    base_dir = (
         Path(__file__).parent.parent
         / "evaluations"
         / "results"
@@ -192,6 +195,7 @@ def _save_comparison_image(
         / problem_type
         / "comparisons"
     )
+    output_dir = base_dir / f"seed_{seed}" if seed is not None else base_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     image_path = output_dir / f"comparison_example_{example_id}.png"
     comparison_image.save(image_path)

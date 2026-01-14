@@ -13,11 +13,6 @@ import numpy as np
 from datasets import load_dataset
 from PIL import Image
 
-try:
-    from engibench.problems.photonics2d.v0 import Photonics2D
-except ImportError:
-    Photonics2D = None  # type: ignore[assignment, misc]
-
 # Use Agg backend for matplotlib to avoid threading issues in parallel evaluation
 matplotlib.use("Agg")
 
@@ -379,14 +374,13 @@ def create_design_comparison(
     agent_design: np.ndarray,
     ground_truth: np.ndarray,
     example_id: int,
-    problem_type: str | None = None,
-    conditions: dict[str, Any] | None = None,
+    problem_type: str | None = None,  # noqa: ARG001
+    conditions: dict[str, Any] | None = None,  # noqa: ARG001
 ) -> Image.Image | None:
     """
     Create a side-by-side comparison visualization of agent and ground truth designs.
 
-    For physics-based problems like photonics2d, uses problem-specific rendering
-    to show field patterns. For structural problems, shows material distribution.
+    Shows material distribution comparison for all problem types.
 
     Args:
         agent_design: Agent's optimized design array
@@ -398,13 +392,7 @@ def create_design_comparison(
     Returns:
         PIL Image object for Weave visualization, or None if creation fails
     """
-    # Use physics-based rendering for photonics problems
-    if problem_type == "photonics2d" and conditions is not None:
-        return _create_photonics_comparison(
-            agent_design, ground_truth, example_id, conditions
-        )
-
-    # Default: material-only comparison for structural problems
+    # Use simple material-only comparison for all problem types (including photonics2d)
     try:
         # Create figure with 3 subplots: agent design, ground truth, difference
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -448,97 +436,5 @@ def create_design_comparison(
             "Failed to create comparison visualization for example_id %s", example_id
         )
         return None
-    else:
-        return pil_image
-
-
-def _create_photonics_comparison(
-    agent_design: np.ndarray,
-    ground_truth: np.ndarray,
-    example_id: int,
-    conditions: dict[str, Any],
-) -> Image.Image | None:
-    """
-    Create comparison visualization for photonics designs using field simulations.
-
-    Uses EngiBench's Photonics2D.render() to show electromagnetic field patterns
-    (|Ez| at λ₁ and λ₂) plus permittivity distribution for both agent and ground truth.
-
-    Args:
-        agent_design: Agent's optimized design array
-        ground_truth: Ground truth optimal design from dataset
-        example_id: Example identifier for title
-        conditions: Problem conditions (lambda1, lambda2, blur_radius)
-
-    Returns:
-        PIL Image with side-by-side field visualizations, or None if creation fails
-    """
-    # Check if Photonics2D is available
-    if Photonics2D is None:
-        logger.warning("Photonics2D not available, using material-only comparison")
-        return create_design_comparison(agent_design, ground_truth, example_id)
-
-    try:
-        # Create problem instance with the example conditions
-        problem_config = {
-            "lambda1": conditions.get("lambda1", 1.5),
-            "lambda2": conditions.get("lambda2", 1.3),
-            "blur_radius": conditions.get("blur_radius", 2),
-        }
-
-        # Create problem instance with custom conditions via config parameter
-        problem = Photonics2D(seed=42, config=problem_config)
-
-        # Render agent design (returns matplotlib Figure with 3 subplots: Ez@λ₁, Ez@λ₂, εᵣ)
-        fig_agent = problem.render(agent_design, open_window=False)
-        fig_agent.suptitle(
-            f"Agent Design (Example {example_id})", fontsize=14, fontweight="bold"
-        )
-
-        # Render ground truth design
-        fig_gt = problem.render(ground_truth, open_window=False)
-        fig_gt.suptitle("Ground Truth", fontsize=14, fontweight="bold")
-
-        # Create combined figure with side-by-side comparison
-        fig_combined = plt.figure(figsize=(20, 8))
-        gs = fig_combined.add_gridspec(1, 2, hspace=0.1, wspace=0.2)
-
-        # Copy agent render to left subplot
-        ax_agent = fig_combined.add_subplot(gs[0, 0])
-        buf_agent = io.BytesIO()
-        fig_agent.savefig(buf_agent, format="png", dpi=100, bbox_inches="tight")
-        buf_agent.seek(0)
-        img_agent = Image.open(buf_agent)
-        ax_agent.imshow(img_agent)
-        ax_agent.axis("off")
-        buf_agent.close()
-        plt.close(fig_agent)
-
-        # Copy ground truth render to right subplot
-        ax_gt = fig_combined.add_subplot(gs[0, 1])
-        buf_gt = io.BytesIO()
-        fig_gt.savefig(buf_gt, format="png", dpi=100, bbox_inches="tight")
-        buf_gt.seek(0)
-        img_gt = Image.open(buf_gt)
-        ax_gt.imshow(img_gt)
-        ax_gt.axis("off")
-        buf_gt.close()
-        plt.close(fig_gt)
-
-        # Convert combined figure to PIL Image
-        buf_final = io.BytesIO()
-        fig_combined.savefig(buf_final, format="png", dpi=100, bbox_inches="tight")
-        buf_final.seek(0)
-        pil_image = Image.open(buf_final).copy()
-        buf_final.close()
-        plt.close(fig_combined)
-
-    except Exception:
-        logger.exception(
-            "Failed to create photonics comparison for example_id %s", example_id
-        )
-        # Fallback to simple material comparison
-        logger.info("Falling back to material-only comparison")
-        return create_design_comparison(agent_design, ground_truth, example_id)
     else:
         return pil_image
