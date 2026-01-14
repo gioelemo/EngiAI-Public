@@ -50,10 +50,15 @@ print()
 
 # Get number of seeds and examples
 n_seeds = df["seed"].nunique()
-n_examples = df["example_id"].nunique() if "example_id" in df.columns else len(df)
+# Count examples in a single seed (not unique across all seeds)
+if "example_id" in df.columns and n_seeds > 0:
+    first_seed = df["seed"].iloc[0]
+    n_examples_per_seed = len(df[df["seed"] == first_seed])
+else:
+    n_examples_per_seed = len(df) // n_seeds if n_seeds > 0 else 0
 
 print(f"Number of seeds: {n_seeds}")
-print(f"Number of examples per seed: {n_examples // n_seeds if n_seeds > 0 else 0}")
+print(f"Number of examples per seed: {n_examples_per_seed}")
 print(f"Total rows: {len(df)}")
 print()
 
