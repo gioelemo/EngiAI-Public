@@ -84,14 +84,12 @@ def create_prompt_from_conditions(
 
     # Create natural language prompt
     prompt = (
-        f"Design a 2D beam structure that can support {force_desc}.\n\n"
+        f"Design a 2D beam structure.\n\n"
         f"Design requirements:\n"
-        f"- The structure should be approximately {compliance_desc}\n"
         f"- Use a material volume fraction of {volfrac}\n"
         f"- Force distribution parameter: {forcedist}\n"
         f"- The design should be on a 50x100 grid\n"
         f"- Minimum filter radius (rmin): {rmin}\n\n"
-        f"The force is applied on the left side, and the beam is fixed on the right side.\n"
         f"Optimize the structure to minimize compliance while respecting the volume constraint."
     )
 
