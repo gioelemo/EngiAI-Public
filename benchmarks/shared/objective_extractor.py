@@ -146,7 +146,29 @@ def _extract_objectives_from_string(
         field_patterns = [obj_config.field_name, *obj_config.aliases]
 
         for field in field_patterns:
-            # Pattern matches: "field_name": value or 'field_name': value
+            # PRIORITY 1: Try to find "Final" or "final" prefixed versions first
+            # (e.g., "Final total_overlap: 1.851" instead of "Initial total_overlap: 0.291")
+            final_patterns = [
+                rf"[Ff]inal\s+{re.escape(field)}\s*:\s*([0-9.eE+-]+)",  # "Final field: value"
+                rf"['\"]?final_{re.escape(field)}['\"]?\s*:\s*([0-9.eE+-]+)",  # "final_field": value
+            ]
+
+            found_final = False
+            for final_pattern in final_patterns:
+                match = re.search(final_pattern, content)
+                if match:
+                    result[obj_config.name] = float(match.group(1))
+                    logger.debug(
+                        f"Example {example_id}: Extracted {obj_config.name}="
+                        f"{result[obj_config.name]} from Final {field} via regex"
+                    )
+                    found_final = True
+                    break
+
+            if found_final:
+                break  # Found final value for this objective, move to next
+
+            # PRIORITY 2: Fall back to regular field name (finds FIRST occurrence)
             pattern = rf"['\"]?{re.escape(field)}['\"]?\s*:\s*([0-9.eE+-]+)"
             match = re.search(pattern, content)
 
@@ -154,7 +176,8 @@ def _extract_objectives_from_string(
                 result[obj_config.name] = float(match.group(1))
                 logger.debug(
                     f"Example {example_id}: Extracted {obj_config.name}="
-                    f"{result[obj_config.name]} from field '{field}' via regex"
+                    f"{result[obj_config.name]} from field '{field}' via regex "
+                    f"(warning: may be initial value)"
                 )
                 break  # Found this objective, move to next
 
