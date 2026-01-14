@@ -75,9 +75,8 @@ class ProblemConfig(TypedDict):
 
 # Problem-specific configurations
 # NOTE: The --scorers flag controls which metrics are computed:
-# - "generic": Only per-design metrics from generic scorer
-# - "engibench": Per-design metrics + global metrics (MMD, DPP, RVC, IOG, COG, FOG)
-# - "all": Same as engibench (for backward compatibility)
+# - "generic" or "all": Per-design metrics (IoU, pixel accuracy, constraints, objectives) + global metrics (MMD, DPP, RVC, IOG, COG, FOG)
+# - "engibench": Lightweight design extraction only (faster, minimal metrics in evaluation table)
 # Build PROBLEM_CONFIGS from the central problem registry to avoid duplication
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     name: {
@@ -266,9 +265,8 @@ def parse_arguments() -> argparse.Namespace:
         choices=["generic", "engibench", "all"],
         help=(
             "Metrics to compute: "
-            "'generic' (detailed per-design metrics + global metrics: MMD, DPP, RVC, optimality gaps), "
-            "'engibench' (lightweight design extraction + global metrics), "
-            "'all' (both scorers for maximum detail)"
+            "'generic' or 'all' (detailed per-design metrics + global metrics: MMD, DPP, RVC, optimality gaps), "
+            "'engibench' (lightweight design extraction only, use for faster evaluations)"
         ),
     )
     parser.add_argument(
@@ -582,9 +580,10 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         base_scorers = [score_output_quality_engibench]
         scorer_types = ["engibench"]
     elif args.scorers == "all":
-        # Both generic scorer and lightweight scorer for comprehensive metrics
-        base_scorers = [score_output_quality_visual, score_output_quality_engibench]
-        scorer_types = ["output_quality_visual", "engibench"]
+        # Use output_quality_visual only (it includes design extraction for global metrics)
+        # No need for engibench scorer as it clutters the evaluation table with minimal metrics
+        base_scorers = [score_output_quality_visual]
+        scorer_types = ["output_quality_visual"]
     else:
         base_scorers = [score_output_quality_visual]
         scorer_types = ["output_quality_visual"]
