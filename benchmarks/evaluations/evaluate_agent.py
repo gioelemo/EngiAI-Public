@@ -520,7 +520,7 @@ def create_contextual_scorer(
         return scorer_func(output, target, metadata)
 
     # Set the __name__ attribute so it displays correctly
-    contextual_scorer.__name__ = scorer_type
+    contextual_scorer.__name__ = scorer_type  # type: ignore[attr-defined]
     return contextual_scorer
 
 
