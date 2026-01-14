@@ -521,6 +521,8 @@ def create_contextual_scorer(
         """Contextual wrapper that delegates to the original scorer."""
         return scorer_func(output, target, metadata)
 
+    # Set the __name__ attribute so it displays correctly
+    contextual_scorer.__name__ = scorer_type
     return contextual_scorer
 
 
