@@ -384,16 +384,16 @@ def save_per_design_metrics(  # noqa: PLR0912
 
         # Try to get results from score_output_quality_visual first (has detailed metrics)
         # Fall back to score_output_quality_engibench if needed
-        # Look for keys ending with the scorer type names (to handle contextual prefixes)
+        # Match both old naming (with prefixes) and new naming (without prefixes)
         scorer_outputs = []
         for key in latest_trace_scores:
-            if key.endswith("_output_quality_visual"):
+            if key.endswith("_output_quality_visual") or key == "output_quality_visual":
                 scorer_outputs = latest_trace_scores[key]
                 break
 
         if not scorer_outputs:
             for key in latest_trace_scores:
-                if key.endswith("_engibench"):
+                if key.endswith("_engibench") or key == "engibench":
                     scorer_outputs = latest_trace_scores[key]
                     break
 
@@ -490,29 +490,27 @@ def save_per_design_metrics(  # noqa: PLR0912
 
 def create_contextual_scorer(
     scorer_func: Any,
-    model_name: str,
-    problem_type: str,
+    model_name: str,  # noqa: ARG001 - Kept for signature compatibility
+    problem_type: str,  # noqa: ARG001 - Kept for signature compatibility
     scorer_type: str,
 ) -> Any:
     """Create a scorer wrapper with evaluation context in its trace name.
 
-    This allows traces in Weave UI to be easily paired and identified by including
-    the model name and problem type in the trace name.
+    Model name and problem type are excluded to enable cross-model and cross-problem
+    metric comparison in Weave UI.
 
     Args:
         scorer_func: Original scorer function to wrap
-        model_name: Model name (e.g., "gpt-4o", "claude-3-5-sonnet")
-        problem_type: Problem type (e.g., "beams2d", "thermoelastic2d")
+        model_name: Model name (e.g., "gpt-4o", "claude-3-5-sonnet") [unused, kept for signature compatibility]
+        problem_type: Problem type (e.g., "beams2d", "thermoelastic2d") [unused, kept for signature compatibility]
         scorer_type: Scorer identifier (e.g., "output_quality_visual", "engibench")
 
     Returns:
         Wrapped scorer function with contextual trace name
     """
-    # Sanitize model name for use in trace names
-    safe_model = model_name.replace("/", "_").replace(":", "_")
-
-    # Create trace name with context: {model}_{problem}_{scorer_type}
-    trace_name = f"{safe_model}_{problem_type}_{scorer_type}"
+    # Create trace name with just the scorer type
+    # Model name and problem type are excluded to enable cross-model and cross-problem comparison
+    trace_name = scorer_type
 
     @weave.op(name=trace_name)
     def contextual_scorer(
@@ -611,13 +609,13 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Debug: print the expected trace names
     safe_model = model_name.replace("/", "_").replace(":", "_")
-    expected_scorer_names = [
-        f"{safe_model}_{args.problem}_{scorer_type}" for scorer_type in scorer_types
-    ]
+    # Scorer names exclude model name and problem type to enable cross-model and cross-problem comparison
+    expected_scorer_names = scorer_types
     expected_eval_run_name = f"{safe_model}_{args.problem}_evaluation"
     if args.seed is not None:
         expected_eval_run_name += f"_seed_{args.seed}"
 
+    # Global metrics trace name includes model and problem for organization
     expected_global_metrics_name = f"{safe_model}_{args.problem}_global_metrics"
     if args.seed is not None:
         expected_global_metrics_name += f"_seed_{args.seed}"

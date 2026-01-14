@@ -337,14 +337,17 @@ def compute_global_metrics(  # noqa: PLR0913
     Returns:
         dict with global metrics (mmd, dpp_diversity, rvc, iog, cog, fog, etc.)
     """
-    # Create contextual trace name if context provided
+    # Create contextual trace name with model and problem for organization
+    # Note: This is the trace name (for organizing calls), not the metric names (which remain generic)
     if model_name and problem_type:
         safe_model = model_name.replace("/", "_").replace(":", "_")
         trace_name = f"{safe_model}_{problem_type}_global_metrics"
         if seed is not None:
             trace_name += f"_seed_{seed}"
     else:
-        trace_name = "compute_global_metrics"
+        trace_name = "global_metrics"
+        if seed is not None:
+            trace_name += f"_seed_{seed}"
 
     # Create a weave op with the contextual name
     @weave.op(name=trace_name)
@@ -441,8 +444,12 @@ def _compute_global_metrics_impl(  # noqa: PLR0912, PLR0915
         all_outputs = []
 
         # Try engibench scorer
+        # Match both old naming (with prefixes) and new naming (without prefixes)
         for key in latest_trace_scores:
-            if key.endswith("_engibench") or key == "score_output_quality_engibench":
+            if key.endswith("_engibench") or key in (
+                "score_output_quality_engibench",
+                "engibench",
+            ):
                 all_outputs = latest_trace_scores[key]
                 logger.info(
                     f"Found {len(all_outputs)} outputs for {key} in latest trace (using engibench scorer)"
@@ -450,11 +457,12 @@ def _compute_global_metrics_impl(  # noqa: PLR0912, PLR0915
                 break
 
         # Fall back to output_quality_visual if engibench not found
+        # Match both old naming (with prefixes) and new naming (without prefixes)
         if not all_outputs:
             for key in latest_trace_scores:
-                if (
-                    key.endswith("_output_quality_visual")
-                    or key == "score_output_quality_visual"
+                if key.endswith("_output_quality_visual") or key in (
+                    "score_output_quality_visual",
+                    "output_quality_visual",
                 ):
                     all_outputs = latest_trace_scores[key]
                     logger.info(
