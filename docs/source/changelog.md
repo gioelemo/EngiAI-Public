@@ -52,6 +52,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Allows disabling chatbot tracking overhead while keeping evaluation tracking enabled
   - Documented in `.env.example`, `README.md`, and `docs/source/weave_integration.md`
 
+- **Generic Problem Registry System (v2.0 Architecture)**
+  - Centralized problem registry in `benchmarks/shared/problem_registry.py` as single source of truth
+  - Declarative problem configuration using `ProblemConfig`, `ObjectiveConfig`, and `ConditionConfig` dataclasses
+  - Automatic prompt generation, scoring, and evaluation for all problems from unified configuration
+  - Adding new problems now only requires updating `PROBLEMS` dictionary - all tools and scorers adapt automatically
+  - Eliminates all problem-specific hardcoded logic from evaluation framework
+  - ~1,350 lines of new infrastructure code implementing generic architecture
+
+- **Generic Scoring Framework**
+  - `output_quality_visual_scorer.py`: Universal per-design metrics working across all topology optimization problems
+    - IoU (Intersection over Union) for topology matching
+    - Pixel accuracy for density field comparison
+    - MSE (Mean Squared Error) for continuous design similarity
+    - Generic constraint validation from problem configuration
+    - Generic objective extraction and scoring from problem configuration
+  - `output_quality_engibench_scorer.py`: Global metrics computed after full evaluation
+    - MMD (Maximum Mean Discrepancy) for distribution similarity (configurable sigma parameter)
+    - DPP (Determinantal Point Process) diversity metric
+    - RVC (Ratio of Violated Constraints) with detailed violation reporting
+    - IOG (Initial Optimality Gap) for assessing design initialization quality
+    - COG (Current Optimality Gap) for mid-optimization performance
+    - FOG (Final Optimality Gap) for end-state optimization quality
+  - `objective_extractor.py`: Problem-agnostic objective value extraction from tool messages
+    - Regex-based extraction from JSON and plain text outputs
+    - Support for field aliases and multiple extraction strategies
+    - Automatic objective score calculation based on optimization direction and error thresholds
+  - `problem_config.py`: Declarative configuration system for problems, objectives, and conditions
+  - Configurable metric weights per problem via `design_metrics_weights` in problem config
+
+- **Advanced Metrics and Analysis**
+  - `benchmarks/shared/metrics.py`: Implementation of statistical metrics
+    - MMD with Gaussian RBF kernel for comparing design distributions
+    - DPP diversity using determinant-based measure
+    - Optimality gap calculations (Initial, Current, Final) using EngiBench optimization history
+    - Multiprocessing support for efficient parallel computation
+  - `compute_output_quality_design_stats.py`: Per-design statistics aggregation across multiple seeds
+    - Mean ± std computation for design-level metrics (IoU, pixel accuracy, constraint/objective scores)
+    - Supports both core metrics and problem-specific extensions
+    - CSV output with statistical summaries
+  - `compute_output_quality_global_stats.py`: Global statistics aggregation
+    - Summary statistics for MMD, DPP, RVC, and optimality gaps
+    - Aggregation across multiple optimization seeds
+    - Statistical validation of model performance
+
+- **Photonics2D Problem Benchmarks**
+  - Complete photonics2d optical device topology optimization benchmark suite
+  - Integration with HuggingFace dataset `IDEALLab/photonics_2d_120_120_v0`
+  - Wavelength multiplexing optimization with multiple eigenvalue parameters
+  - Objective: Maximize total_overlap between target and simulated field distributions
+  - Conditions: lambda1, lambda2 (wavelength parameters), blur_radius (smoothing parameter)
+  - Prompt generation script with problem-specific templating
+  - Improved design visualization with proper colormap and rendering
+  - Documentation in `benchmarks/problems/photonics2d/README.md`
+  - ~357 lines of new code for photonics2d support
+
+- **ThermoElastic2D Problem Benchmarks** (Experimental)
+  - Multi-objective coupled physics topology optimization benchmark
+  - Integration with HuggingFace dataset `IDEALLab/thermoelastic_2d_v0`
+  - Three competing objectives:
+    - Structural compliance (minimize for stiffness)
+    - Thermal compliance (minimize for heat dissipation)
+    - Volume fraction (minimize for material efficiency)
+  - Support for boundary condition arrays (fixed elements, force elements, heatsink elements)
+  - Weight parameter to control structural vs thermal optimization emphasis
+  - Prompt generation script with multi-objective templating
+  - Documentation in `benchmarks/problems/thermoelastic2d/README.md`
+  - ~536 lines of new code for thermoelastic2d support
+  - Note: Not fully functional yet, marked as experimental
+
+- **Evaluation Infrastructure Enhancements**
+  - Multiple seed evaluation support for statistical robustness
+    - Run evaluations with multiple random seeds and aggregate results
+    - Standardized seed handling across all problem types
+    - Automatic seed-specific result tracking in Weave
+  - Session isolation for parallel evaluation
+    - `set_session_id()` and `clear_session_state()` functions in `engibench.py`
+    - Prevents cross-contamination between concurrent optimization runs
+    - Improved caching and state management
+  - Generic dataset exploration tool (`benchmarks/shared/explore_dataset.py`)
+    - Works with any problem in the registry
+    - Statistical analysis of design parameters and conditions
+    - Visualization of design distributions
+  - Prompt generation utilities (`benchmarks/shared/prompt_generation.py`)
+    - Shared prompt generation logic across all problems
+    - Templating system for consistent prompt structure
+    - Validation and error handling for generated prompts
+  - Comprehensive test suite additions:
+    - `test_objective_extractor.py`: Tests for generic objective extraction
+    - `test_problem_config.py`: Tests for problem configuration validation
+    - `test_evaluate_agent.py`: Tests for evaluation framework
+    - `test_session_isolation.py`: Tests for parallel execution isolation
+
+- **Model Evaluation and Analysis Tools**
+  - CSV-based metrics tracking for model comparison
+  - `cgan_cnn_2d_beams2d_metrics.csv`: Baseline metrics for generative models
+  - Scripts for computing statistics across model evaluations
+  - Support for comparing agent performance against generative baselines
+
 ### Changed
 - **Agent System Enhancements for Evaluation**
   - Updated `supervisor_agent.py`, `engineering_agent.py`, and `rag_agent.py` to support eval mode
@@ -59,26 +157,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved logging in engineering agent for evaluation debugging
   - Enhanced `engibench.py` to handle parallel design requests correctly
   - Updated agent prompts to reduce token usage during evaluation
+  - Improved agent prompts with explicit instructions to not mention tool names to users
+  - Simplified prompts for better model understanding and reduced verbosity
 
 - **Benchmark Code Architecture**
+  - Complete refactoring from problem-specific to generic architecture
+  - Removed all problem-specific scoring modules (`benchmarks/problems/beams2d/scorers.py`)
+  - Replaced with unified generic scorers that work across all problems
   - Separated problem-specific scoring logic from shared utilities
   - Organized code by problem type in `benchmarks/problems/` directory structure
   - Shared utilities in `benchmarks/shared/` for cross-problem functionality
   - Evaluation framework in `benchmarks/evaluations/` for unified benchmarking
+  - Problem configurations now auto-generate from central registry
+  - All 85+ commits focused on generalization and standardization
 
-- **Scoring System Evolution**
+- **Scoring System Evolution and Standardization**
+  - Unified scoring interface across all problems via problem registry
+  - Consistent metric naming conventions across problems
+  - Standardized constraint checking using tolerance-based approach from EngiBench paper
+  - Metric weights now configurable per problem in registry
   - Iteratively improved scoring metrics based on evaluation results:
     - Added IoU (Intersection over Union) for topology matching
     - Added pixel accuracy for density comparison
-    - Added volume fraction error for material usage
-    - Added compliance performance scoring for structural mechanics
-  - Simplified compliance parsing to regex-only (removed unused AST and JSON parsing)
-  - Optimized scoring weights: 40% IoU, 25% pixel accuracy, 15% volume fraction, 20% compliance
+    - Added MSE for continuous similarity
+    - Added constraint score for volume fraction and other constraints
+    - Added objective score for optimization performance
+  - Optimized default scoring weights: 40% IoU, 25% pixel accuracy, 15% constraint match, 20% objective match
+  - Moved from problem-specific parsers to generic objective extraction
+  - Support for multiple objective aliases for robust extraction
+  - Improved objective extraction from tool messages using multiple strategies (JSON, regex, dict)
 
 - **Dataset Management**
   - Improved dataset creation workflow with validation and error handling
   - Added comparison images saved to `evaluations/results/{model}/{problem}/comparisons/`
   - Better organization of evaluation data and results
+  - Dataset split support (train/val/test) in prompt generation
+  - Validation reports for prompt quality assurance
+  - Moved dataset exploration to shared utilities for reusability
+
+- **Evaluation Workflow**
+  - Added `--scorers` flag to control which metrics are computed
+    - `generic` or `all`: Full per-design and global metrics
+    - `engibench`: Lightweight design extraction only for faster evaluation
+  - Disabled Weave tracing for prompt generation to reduce overhead
+  - Suppressed Pydantic deprecation warnings for cleaner output
+  - Improved evaluation logging with progress indicators
+  - Better error handling and recovery in evaluation pipeline
+  - Async/await optimization for parallel evaluation
+  - Added time tracking for full evaluation uploads to Weave
+
+- **EngiBench Tool Integration**
+  - Enhanced `src/tools/engibench.py` with session management
+  - Removed sparse and uniform design initialization options (focused on optimized designs)
+  - Added optimization history extraction for optimality gap metrics
+  - Improved tool output formatting for objective values
+  - Better caching and state management for parallel executions
+  - Fixed parameter handling for multi-objective problems
+
+- **Documentation and Code Quality**
+  - Updated benchmarks README files for all problem types
+  - Improved docstrings with detailed parameter descriptions
+  - Added type hints throughout evaluation framework
+  - Comprehensive inline comments for complex logic
+  - Ruff and mypy compliance across all new code
+  - Excluded `metrics.py` from some linting rules due to external dependencies
+  - Improved naming conventions for consistency (e.g., scorer function names)
+  - Better error messages and logging throughout
+
+- **Configuration and Settings**
+  - Updated `pyproject.toml` with new dependencies and configurations
+  - Enhanced `config.py` with evaluation-specific settings
+  - Updated Weave integration documentation (`docs/source/weave_integration.md`)
+  - Better environment variable handling for evaluation vs chatbot modes
 
 ### Fixed
 - Fixed parallel design generation issue preventing concurrent optimization runs
@@ -86,6 +236,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed mypy type error in scorers by explicitly typing result dictionary as `dict[str, Any]`
 - Fixed test suite to support new evaluation infrastructure
 - Removed unused imports and cleaned up code (~90 lines of dead code removed)
+- Fixed caching issues in EngiBench tool with proper session isolation
+- Fixed test session isolation to prevent state contamination between tests
+- Fixed parameter ordering and naming inconsistencies in tool calls
+- Fixed Ruff linting issues throughout benchmarks codebase
+- Fixed mypy type checking errors in new evaluation infrastructure
+- Improved printed output formatting in evaluation results
+- Fixed compliance extraction edge cases with better regex patterns
+- Fixed dataset split handling (using test split for evaluation, not training)
+- Fixed constraint violation detection to match EngiBench paper convention
+- Fixed volume fraction constraint checking with proper tolerance handling
+- Fixed photonics2d design rendering and visualization
+- Fixed CSV generation for statistics scripts
+- Fixed format inconsistencies in metrics output
+- Fixed missing docstrings in several modules
+- Removed redundant logging statements
+- Cleaned up old evaluation result files and data artifacts
+- Fixed order of samples in evaluation to ensure reproducibility
+- Fixed complexity warnings in evaluation code by refactoring large functions
+- Fixed comment and docstring inconsistencies mentioning removed metrics
+- Fixed small issues in statistics computation scripts
 
 ## [1.1.0] - 2025-12-15
 
