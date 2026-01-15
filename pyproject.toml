@@ -194,6 +194,8 @@ max-args = 5
 ]
 # Allow print statements and numeric module names in scripts
 "scripts/**/*" = ["T20", "N999"]
+# Prompt generation uses keyword-only args with sensible defaults, 6 params is reasonable
+"benchmarks/shared/prompt_generation.py" = ["PLR0913"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -130,6 +130,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `set_session_id()` and `clear_session_state()` functions in `engibench.py`
     - Prevents cross-contamination between concurrent optimization runs
     - Improved caching and state management
+  - Random sampling for prompt generation with reproducibility
+    - `--seed` parameter in prompt generation scripts for reproducible dataset sampling
+    - Random sample selection instead of sequential for better dataset variability
+    - Sorted indices ensure consistent iteration order after random selection
   - Generic dataset exploration tool (`benchmarks/shared/explore_dataset.py`)
     - Works with any problem in the registry
     - Statistical analysis of design parameters and conditions

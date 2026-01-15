@@ -6,6 +6,7 @@ prompt generation scripts, reducing code duplication and ensuring consistency.
 
 import argparse
 import json
+import random
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -17,27 +18,30 @@ from benchmarks.shared.problem_registry import get_problem_config
 
 def generate_prompts_from_huggingface(
     problem_name: str,
-    num_samples: int,
-    dataset_split: str,
-    include_targets: bool,
     prompt_creator_func: Callable[[dict[str, Any], bool], dict[str, Any]],
+    *,
+    num_samples: int,
+    dataset_split: str = "test",
+    include_targets: bool = True,
+    seed: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Generate prompts from a HuggingFace dataset using a problem-specific creator function.
 
     This function handles all the common logic for prompt generation:
     - Loading the dataset from HuggingFace
-    - Sampling the requested number of examples
+    - Randomly sampling the requested number of examples (for variability)
     - Iterating and creating prompts with progress updates
     - Adding metadata (example_id, dataset_split)
 
     Args:
         problem_name: Name of the problem (e.g., 'beams2d', 'photonics2d')
+        prompt_creator_func: Function that creates a prompt from an example.
+            Signature: (example: dict, include_target: bool) -> dict
         num_samples: Number of samples to generate
         dataset_split: Dataset split to use ('train', 'val', or 'test')
         include_targets: Whether to include target values
-        prompt_creator_func: Function that creates a prompt from an example.
-            Signature: (example: dict, include_target: bool) -> dict
+        seed: Random seed for reproducible sampling (default: None for random)
 
     Returns:
         List of prompt dictionaries ready for evaluation
@@ -50,10 +54,20 @@ def generate_prompts_from_huggingface(
     dataset = load_dataset(dataset_name, split=dataset_split)
     print(f"✅ Loaded {len(dataset)} examples")
 
-    # Limit to num_samples if specified
+    # Randomly sample num_samples if specified
     if num_samples < len(dataset):
-        dataset = dataset.select(range(num_samples))
-        print(f"📊 Using {num_samples} samples")
+        # Set random seed for reproducibility if provided
+        if seed is not None:
+            random.seed(seed)
+            print(f"🎲 Using random seed: {seed}")
+
+        # Generate random indices for sampling
+        indices = random.sample(range(len(dataset)), num_samples)
+        indices.sort()  # Sort for consistent iteration order
+        dataset = dataset.select(indices)
+        print(f"📊 Randomly selected {num_samples} samples")
+    else:
+        print(f"📊 Using all {len(dataset)} samples")
 
     prompts = []
     for i, example in enumerate(dataset):
@@ -141,6 +155,12 @@ def create_argument_parser(problem_name: str) -> argparse.ArgumentParser:
         help="Number of samples to generate (default: 50)",
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible sampling (default: None for random)",
+    )
+    parser.add_argument(
         "--no-targets",
         action="store_true",
         help="Exclude target values from prompts",
@@ -177,16 +197,18 @@ def run_prompt_generation_workflow(
     print()
     print(f"Dataset split: {args.split}")
     print(f"Number of samples: {args.samples}")
+    print(f"Random seed: {args.seed if args.seed is not None else 'None (random)'}")
     print(f"Include targets: {not args.no_targets}")
     print()
 
     # Generate prompts using command-line arguments
     prompts = generate_prompts_from_huggingface(
         problem_name=problem_name,
+        prompt_creator_func=prompt_creator_func,
         num_samples=args.samples,
         dataset_split=args.split,
         include_targets=not args.no_targets,
-        prompt_creator_func=prompt_creator_func,
+        seed=args.seed,
     )
 
     # Save locally with split in filename
