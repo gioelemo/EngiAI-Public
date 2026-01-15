@@ -434,7 +434,9 @@ def optimize_design(
             output_dir.mkdir(exist_ok=True)
             # Use versioned path to avoid overwriting in parallel execution
             base_path = output_dir / f"{problem_type}_design_optimized.npy"
-            versioned_path = _build_versioned_path(base_path, problem_type, "_optimized")
+            versioned_path = _build_versioned_path(
+                base_path, problem_type, "_optimized"
+            )
             np.save(str(versioned_path), optimized_design)
             result["save_path"] = str(versioned_path)
             result["message"] += f" Saved to {versioned_path.name}"
@@ -501,7 +503,10 @@ def _build_versioned_path(base_path: Path, problem_type: str, suffix: str) -> Pa
     counter = _filename_counter.get()
     _filename_counter.set(counter + 1)
 
-    return base_path.parent / f"{stem}{suffix}_{timestamp}_{microseconds:03d}_{counter}{extension}"
+    return (
+        base_path.parent
+        / f"{stem}{suffix}_{timestamp}_{microseconds:03d}_{counter}{extension}"
+    )
 
 
 def _should_use_last_design(design_description: str) -> bool:
