@@ -42,6 +42,11 @@ _session_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "session_id", default=None
 )
 
+# Counter for generating unique filenames in parallel executions
+_filename_counter: contextvars.ContextVar[int] = contextvars.ContextVar(
+    "filename_counter", default=0
+)
+
 # State management dictionary with session isolation.
 # Stores only designs (last_design, initial_design) per session and problem type.
 # Problem instances are NOT cached - fresh instances are created per tool call.
@@ -427,10 +432,12 @@ def optimize_design(
         if save_result:
             output_dir = Path("outputs")
             output_dir.mkdir(exist_ok=True)
-            save_path = output_dir / f"{problem_type}_design_optimized.npy"
-            np.save(str(save_path), optimized_design)
-            result["save_path"] = str(save_path)
-            result["message"] += f" Saved to {save_path}"
+            # Use versioned path to avoid overwriting in parallel execution
+            base_path = output_dir / f"{problem_type}_design_optimized.npy"
+            versioned_path = _build_versioned_path(base_path, problem_type, "_optimized")
+            np.save(str(versioned_path), optimized_design)
+            result["save_path"] = str(versioned_path)
+            result["message"] += f" Saved to {versioned_path.name}"
             return result
         else:
             return result
@@ -474,17 +481,27 @@ def _get_design_suffix(design_description: str, design_type: str) -> str:
 
 
 def _build_versioned_path(base_path: Path, problem_type: str, suffix: str) -> Path:
-    """Helper to build a versioned file path with problem type prefix."""
-    stem = base_path.stem
+    """Helper to build a versioned file path with problem type prefix.
+
+    Always uses {problem_type}_design as base to ensure consistency between
+    optimize_design and render_design outputs.
+    """
     extension = base_path.suffix
 
-    # Add problem type prefix if not already present
-    if not stem.startswith(problem_type):
-        stem = f"{problem_type}_{stem}"
+    # Always use consistent base: {problem_type}_design
+    # This ensures optimize_design and render_design create matching filenames
+    stem = f"{problem_type}_design"
 
-    # Add timestamp for versioning
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    return base_path.parent / f"{stem}{suffix}_{timestamp}{extension}"
+    # Add timestamp with microseconds and counter for uniqueness in parallel execution
+    now = datetime.datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    microseconds = now.microsecond // 1000  # Convert to milliseconds (0-999)
+
+    # Get and increment counter for this context (thread-safe via contextvars)
+    counter = _filename_counter.get()
+    _filename_counter.set(counter + 1)
+
+    return base_path.parent / f"{stem}{suffix}_{timestamp}_{microseconds:03d}_{counter}{extension}"
 
 
 def _should_use_last_design(design_description: str) -> bool:
