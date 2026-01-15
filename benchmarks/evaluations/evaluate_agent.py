@@ -456,7 +456,6 @@ def save_per_design_metrics(  # noqa: PLR0912
     all_keys: set[str] = set()
     for row in design_metrics_list:
         all_keys.update(row.keys())
-    fieldnames = sorted(all_keys)
 
     # Ensure standard fields come first
     standard_fields = [
@@ -471,9 +470,21 @@ def save_per_design_metrics(  # noqa: PLR0912
         "constraint_score",
         "objective_score",
     ]
-    fieldnames = [f for f in standard_fields if f in fieldnames] + [
-        f for f in fieldnames if f not in standard_fields
-    ]
+
+    # If file exists, read existing header and merge with new keys
+    if file_exists:
+        with csv_file.open("r", newline="") as f:
+            reader = csv.reader(f)
+            existing_fieldnames = next(reader, [])
+        # Use existing order and add any new fields at the end
+        new_keys = [k for k in all_keys if k not in existing_fieldnames]
+        fieldnames = existing_fieldnames + sorted(new_keys)
+    else:
+        # New file: sort and put standard fields first
+        fieldnames = sorted(all_keys)
+        fieldnames = [f for f in standard_fields if f in fieldnames] + [
+            f for f in fieldnames if f not in standard_fields
+        ]
 
     # Append to CSV
     with csv_file.open("a", newline="") as f:
