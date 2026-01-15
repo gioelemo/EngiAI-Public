@@ -353,7 +353,7 @@ def get_or_create_dataset(
     return dataset
 
 
-def save_per_design_metrics(  # noqa: PLR0912
+def save_per_design_metrics(  # noqa: PLR0912, PLR0915
     evaluation: Any,
     csv_path: str,
     seed: int | None,
