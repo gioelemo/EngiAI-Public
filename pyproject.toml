@@ -198,6 +198,7 @@ max-args = 5
 "benchmarks/shared/prompt_generation.py" = ["PLR0913"]
 
 [tool.pytest.ini_options]
+pythonpath = [".", "services"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]

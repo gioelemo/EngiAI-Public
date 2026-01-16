@@ -48,13 +48,25 @@ run-ui:  ## Start the Streamlit UI
 	streamlit run src/ui/streamlit_app.py
 
 run-mcp:  ## Start the standalone Prusa MCP server
-	./prusa_mcp_server/run.sh
+	./services/prusa_mcp_server/run.sh
 
-docker-up:  ## Start Docker services
+docker-up:  ## Start Docker services and host service
+	@echo "Starting host service in background..."
+	@pkill -f "python.*host_service.py" 2>/dev/null || true
+	@nohup python services/host_service.py > /tmp/host_service.log 2>&1 &
+	@sleep 1
+	@if curl -s http://localhost:9999/ > /dev/null 2>&1; then \
+		echo "✓ Host service running on http://localhost:9999"; \
+	else \
+		echo "⚠ Host service may have failed to start. Check /tmp/host_service.log"; \
+	fi
 	./docker-compose-wrapper.sh up -d
 
-docker-down:  ## Stop Docker services
+docker-down:  ## Stop Docker services and host service
 	./docker-compose-wrapper.sh down
+	@echo "Stopping host service..."
+	@pkill -f "python.*host_service.py" 2>/dev/null || true
+	@echo "✓ Host service stopped"
 
 docker-rebuild:  ## Rebuild and restart all Docker services
 	./docker-compose-wrapper.sh down

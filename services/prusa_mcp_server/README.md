@@ -36,7 +36,7 @@ pip install -r requirements-mcp.txt
 
 **2. Start the MCP server:**
 ```bash
-./prusa_mcp_server/run.sh
+./services/prusa_mcp_server/run.sh
 ```
 
 **3. In another terminal, start your chatbot:**
@@ -86,7 +86,7 @@ Deploy the MCP server and chatbot on different machines:
 **On Server A (MCP Server):**
 ```bash
 # Build the MCP server image
-docker build -f prusa_mcp_server/Dockerfile -t prusa-mcp-server .
+docker build -f services/prusa_mcp_server/Dockerfile -t prusa-mcp-server .
 
 # Run the MCP server
 docker run -d \
@@ -179,7 +179,7 @@ env:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PRUSA_MCP_PATH` | Path to prusa-mcp directory | `prusa_mcp_server/prusa-mcp` (git submodule) |
+| `PRUSA_MCP_PATH` | Path to prusa-mcp directory | `services/prusa_mcp_server/prusa-mcp` (git submodule) |
 | `PRUSA_MCP_HOST` | Host to bind the server to | `0.0.0.0` |
 | `PRUSA_MCP_PORT` | Port to run the server on | `8765` |
 | `PRUSA_EMAIL` | Prusa Connect email (optional) | - |
@@ -292,7 +292,7 @@ export SKIP_MCP=false
 export PRUSA_MCP_URL=http://localhost:8765
 
 # Start external MCP server first
-./prusa_mcp_server/run.sh
+./services/prusa_mcp_server/run.sh
 
 # Then start chatbot (automatically uses HTTP client)
 streamlit run src/ui/streamlit_app.py
