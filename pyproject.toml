@@ -48,7 +48,7 @@ dependencies = [
     "torchvision==0.23.0",
     "wandb==0.22.0",
     "watchdog==6.0.0",
-    "weave==0.52.23",
+    "weave==0.52.24",
 ]
 
 [project.optional-dependencies]
