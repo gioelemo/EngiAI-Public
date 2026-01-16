@@ -242,13 +242,14 @@ exclude_lines = [
 ]
 
 [tool.mypy]
+mypy_path = [".", "services"]
 warn_redundant_casts = true
 warn_unused_ignores = false
-files = ["src/", "tests/", "scripts/", "benchmarks/"]
+files = ["src/", "tests/", "scripts/", "benchmarks/", "services/"]
 exclude = [
   "build",
   "docs",
-  "prusa-mcp",
+  "services/prusa_mcp_server/prusa-mcp",
   "benchmarks/shared/metrics.py",
 ]
 [[tool.mypy.overrides]]
