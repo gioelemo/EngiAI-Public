@@ -179,7 +179,7 @@ env:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PRUSA_MCP_PATH` | Path to prusa-mcp directory | `~/Desktop/prusa-mcp` |
+| `PRUSA_MCP_PATH` | Path to prusa-mcp directory | `./prusa-mcp` (git submodule) |
 | `PRUSA_MCP_HOST` | Host to bind the server to | `0.0.0.0` |
 | `PRUSA_MCP_PORT` | Port to run the server on | `8765` |
 | `PRUSA_EMAIL` | Prusa Connect email (optional) | - |
@@ -225,10 +225,11 @@ asyncio.run(test())
 
 **Error**: `FileNotFoundError: Prusa MCP server not found`
 
-**Solution**: Set `PRUSA_MCP_PATH` to the correct location:
+**Solution**: Initialize the git submodule:
 ```bash
-export PRUSA_MCP_PATH=/path/to/prusa-mcp
+git submodule update --init --recursive
 ```
+Or set `PRUSA_MCP_PATH` to a custom location if needed.
 
 ### Connection refused
 

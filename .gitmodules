@@ -1,0 +1,3 @@
+[submodule "prusa-mcp"]
+	path = prusa-mcp
+	url = https://github.com/gioelemo/prusa-mcp.git
