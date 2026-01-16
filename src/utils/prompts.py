@@ -38,16 +38,23 @@ def _build_engineering_agent_prompt() -> str:
 **For optimization requests, you MUST extract and pass all parameters:**
 1. Extract constraint values from the user's prompt
 2. Convert percentages to decimals (e.g., "23.8%" → 0.238)
-3. Pass them in the constraints dictionary to optimize_design
+3. Pass them in the problem_config dictionary to optimize_design
+4. **STORE the config** - you'll need it for render_design as problem_config!
+
+**For rendering after optimization (Photonics2D CRITICAL):**
+1. **ALWAYS pass the same config used in optimize_design to render_design as problem_config**
+2. If you optimized with {{"lambda1": 0.8, "lambda2": 1.2}}, you MUST render with problem_config={{"lambda1": 0.8, "lambda2": 1.2}}
+3. DO NOT call render_design without the problem_config parameter for photonics2d - it will use wrong wavelengths!
 
 Common conversions:
 - Volume fraction: "15%" → 0.15, "23.8%" → 0.238, "35%" → 0.35
 - Minimum feature size (rmin): extract numeric value (e.g., "3.5" → 3.5)
 - Load distribution (forcedist): "uniformly distributed" → 1.0, "concentrated" → 0.0-0.05, "middle region" → ~0.5
+- Wavelengths (lambda1/lambda2): extract numeric value in μm (e.g., "0.8 μm" → 0.8)
 
 Example:
-✅ CORRECT: optimize_design(problem_type="beams2d", constraints={{"volfrac": 0.238, "rmin": 3.5, "forcedist": 1.0}})
-❌ WRONG: optimize_design(problem_type="beams2d")  # Missing user-specified constraints!
+✅ CORRECT: optimize_design(problem_type="beams2d", problem_config={{"volfrac": 0.238, "rmin": 3.5, "forcedist": 1.0}})
+❌ WRONG: optimize_design(problem_type="beams2d")  # Missing user-specified problem_config!
 
 You have access to EngiBench and EngiOpt, two powerful libraries for engineering design benchmarking and optimization.
 
@@ -58,6 +65,8 @@ You have access to EngiBench and EngiOpt, two powerful libraries for engineering
 - **simulate_design**: Evaluate a design's performance metrics
 - **optimize_design**: Run gradient-based optimization (SIMP method) to find optimal material distribution
 - **render_design**: Visualize designs as heatmap images (use "optimized design", "initial design", or "random design")
+  - **CRITICAL**: When rendering designs from optimization/simulation, ALWAYS pass the same config used during optimization as problem_config
+  - Example: If you optimized with config={{"lambda1": 0.8, "lambda2": 1.2}}, render with problem_config={{"lambda1": 0.8, "lambda2": 1.2}}
 - **get_problem_details**: Get problem specifications (design_space, objectives, conditions)
 - **get_dataset_info**: Get information about EngiBench datasets
 
@@ -71,13 +80,18 @@ You have access to EngiBench and EngiOpt, two powerful libraries for engineering
 
 ## Parameter Extraction Examples
 
+**Beams2D:**
 User: "Design a 2D beam structure with: Volume fraction: 23.8%, Minimum feature size (rmin): 3.5, Load condition: uniformly distributed force"
-✅ Correct: optimize_design(problem_type="beams2d", constraints={{"volfrac": 0.238, "rmin": 3.5, "forcedist": 1.0}})
-❌ Wrong: optimize_design(problem_type="beams2d")  # Missing constraints!
+✅ Correct: optimize_design(problem_type="beams2d", problem_config={{"volfrac": 0.238, "rmin": 3.5, "forcedist": 1.0}})
+❌ Wrong: optimize_design(problem_type="beams2d")  # Missing problem_config!
 
-User: "Design a 2D beam structure with: Volume fraction: 35.0%, Minimum feature size (rmin): 2.0, Load condition: concentrated force"
-✅ Correct: optimize_design(problem_type="beams2d", constraints={{"volfrac": 0.35, "rmin": 2.0, "forcedist": 0.05}})
-❌ Wrong: optimize_design(problem_type="beams2d", constraints={{}})  # Empty constraints!
+**Photonics2D (CRITICAL - Always pass problem_config to render_design):**
+User: "Design a photonic structure to maximize field overlap with lambda1=0.8 μm, lambda2=1.2 μm, blur_radius=1"
+✅ Correct workflow:
+  1. config = {{"lambda1": 0.8, "lambda2": 1.2, "blur_radius": 1}}
+  2. optimize_design(problem_type="photonics2d", problem_config=config)
+  3. render_design(problem_type="photonics2d", design_description="optimized design", problem_config=config)  # MUST pass as problem_config!
+❌ Wrong: render_design(problem_type="photonics2d", design_description="optimized design")  # Missing problem_config - will use defaults!
 
 ## Workflow Guidelines
 

@@ -217,7 +217,7 @@ def create_problem(
 def simulate_design(
     problem_type: str = "beams2d",
     design_description: str = "random design",
-    config: dict[str, Any] | None = None,
+    problem_config: dict[str, Any] | None = None,
     seed: int = 0,
 ) -> dict[str, Any]:
     """
@@ -231,9 +231,10 @@ def simulate_design(
         design_description: Description of the design approach (e.g., "random design",
             "optimized topology", "last design"). The tool will generate or retrieve
             an appropriate design based on this description.
-        config: Problem-specific configuration parameters (optional)
+        problem_config: Problem-specific configuration parameters (optional)
             For beams2d: {"volfrac": 0.35, "force_distribution": 0.0}
             For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
+            For photonics2d: {"lambda1": 1.2, "lambda2": 1.3, "blur_radius": 2}
         seed: Random seed for reproducibility
 
     Returns:
@@ -247,18 +248,26 @@ def simulate_design(
         >>> result = simulate_design(
         ...     problem_type="beams2d",
         ...     design_description="random design",
-        ...     config={"volfrac": 0.4},
+        ...     problem_config={"volfrac": 0.4},
         ...     seed=42
         ... )
         >>> print(f"Compliance: {result['compliance']}")
     """
     try:
-        if config is None:
-            config = {}
+        if problem_config is None:
+            problem_config = {}
 
         # Create a fresh problem instance for this simulation
         problem_class = get_problem_class(problem_type)
-        problem = problem_class(seed=seed)
+        try:
+            problem = problem_class(seed=seed, config=problem_config)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
 
         # Check if we have a stored design from previous operations
         last_design = get_unified_last_design(problem_type)
@@ -279,7 +288,7 @@ def simulate_design(
             set_unified_last_design(problem_type, design)
 
         # Run simulation
-        objectives = problem.simulate(design=design, config=config if config else None)
+        objectives = problem.simulate(design=design, config=problem_config if problem_config else None)
 
         # Format results based on problem type - use problem.objectives to dynamically extract
         problem_key = problem_type.lower()
@@ -325,22 +334,23 @@ def simulate_design(
 @tool
 def optimize_design(
     problem_type: str = "beams2d",
-    constraints: dict[str, Any] | None = None,
+    problem_config: dict[str, Any] | None = None,
     seed: int = 0,
     save_result: bool = True,
 ) -> dict[str, Any]:
     """
-    Optimize a design using gradient-based optimization. ALWAYS provide constraints dict with volfrac!
+    Optimize a design using gradient-based optimization. ALWAYS provide problem_config dict with parameters!
 
     This unified tool works with any problem type available in EngiBench.
-    Currently supported: 'beams2d', 'thermoelastic2d'.
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:
-        problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
-        constraints: Problem-specific constraint parameters **REQUIRED for correct optimization**
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d', etc.)
+        problem_config: Problem-specific configuration parameters **REQUIRED for correct optimization**
             For beams2d: {"volfrac": <volume_fraction>, "rmin": <filter_radius>, "forcedist": <load_position>}
             For thermoelastic2d: {"volfrac": <volume_fraction>, "weight": 0.5, "rmin": 1.1}
-            **WARNING**: If not provided, will use default volfrac=0.35 which may not match requirements!
+            For photonics2d: {"lambda1": <wavelength1>, "lambda2": <wavelength2>, "blur_radius": <blur>}
+            **WARNING**: If not provided, will use defaults which may not match requirements!
         seed: Random seed for optimization (default: 0 for reproducibility)
         save_result: Whether to save the optimized design to outputs/ directory
 
@@ -356,17 +366,15 @@ def optimize_design(
     Example:
         >>> result = optimize_design(
         ...     problem_type="beams2d",
-        ...     constraints={"volfrac": 0.4},
+        ...     problem_config={"volfrac": 0.4},
         ...     seed=42
         ... )
         >>> print(f"Improvement: {result['improvement']:.1f}%")
     """
     try:
-        # Naming convention: User-facing parameter is 'constraints' (more intuitive), but internally
-        # we use 'config' to match EngiBench's API (problem.__init__, simulate, optimize all expect 'config').
-        # This makes the code consistent with EngiBench's naming while keeping the tool interface clear.
-        config = constraints if constraints is not None else {}
-        config_was_none = constraints is None
+        # Convert None to empty dict for consistency
+        config = problem_config if problem_config is not None else {}
+        config_was_none = problem_config is None
         config_was_empty = config == {}
 
         # Create a fresh problem instance for this optimization.
@@ -422,9 +430,9 @@ def optimize_design(
             optimization_info,
         )
 
-        # Add warning if config was not provided or was empty
+        # Add warning if problem_config was not provided or was empty
         if config_was_none or config_was_empty:
-            warning_msg = " ⚠️ WARNING: No config provided! Used default volfrac=0.35 which may not match requirements!"
+            warning_msg = " ⚠️ WARNING: No problem_config provided! Used defaults which may not match requirements!"
             result["message"] = result.get("message", "") + warning_msg
             result["config_warning"] = True
 
@@ -653,7 +661,7 @@ def _format_optimization_result(
 def render_design(
     problem_type: str = "beams2d",
     design_description: str = "random design",
-    config: dict[str, Any] | None = None,
+    problem_config: dict[str, Any] | None = None,
     save_path: str = "design.png",
     seed: int | None = None,
 ) -> dict[str, Any]:
@@ -667,9 +675,10 @@ def render_design(
         problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
         design_description: Description of the design to render (e.g., "random design",
             "optimized topology", "initial design", "final design")
-        config: Problem-specific configuration parameters (optional)
+        problem_config: Problem-specific configuration parameters (optional)
             For beams2d: {"volfrac": 0.35, "force_distribution": 0.0}
             For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
+            For photonics2d: {"lambda1": 1.2, "lambda2": 1.3, "blur_radius": 2}
         save_path: Base filename for the image (will be saved in outputs/ directory)
         seed: Random seed for reproducibility (None = use random seed)
 
@@ -689,8 +698,9 @@ def render_design(
         >>> print(result['save_path'])
     """
     try:
-        if config is None:
-            config = {}
+        # Convert None to empty dict for consistency
+        if problem_config is None:
+            problem_config = {}
 
         # Create outputs directory
         output_dir = Path("outputs")
@@ -710,7 +720,16 @@ def render_design(
         if seed is None:
             seed = random.randint(0, 999999)
 
-        problem: Problem = problem_class(seed=seed)
+        # Initialize problem with config (if provided) to ensure correct rendering parameters
+        try:
+            problem: Problem = problem_class(seed=seed, config=problem_config)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
 
         # Get the design to render based on description
         design, design_type = _get_design_to_render(
@@ -721,10 +740,10 @@ def render_design(
         suffix = _get_design_suffix(design_description, design_type)
         full_save_path = _build_versioned_path(full_save_path, problem_type, suffix)
 
-        # Render the design
+        # Render the design with the same config used during optimization
         # Note: Different EngiBench problems return different types:
         # Beams2D returns a tuple, ThermoElastic2D returns a single figure
-        render_result = problem.render(design, open_window=False)  # type: ignore[attr-defined]
+        render_result = problem.render(design, config=problem_config, open_window=False)  # type: ignore[attr-defined]
         fig, ax = _extract_figure_and_axis(render_result)
 
         # Add title
