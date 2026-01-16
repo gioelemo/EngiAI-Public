@@ -269,22 +269,11 @@ def simulate_design(
             else:
                 raise
 
-        # Check if we have a stored design from previous operations
-        last_design = get_unified_last_design(problem_type)
+        # Get the design to simulate based on description
+        design, _ = _get_design_to_render(problem_type, design_description, problem)
 
-        # Determine which design to simulate
-        if (
-            "last" in design_description.lower()
-            or "previous" in design_description.lower()
-            or "current" in design_description.lower()
-            or "optimized" in design_description.lower()
-        ) and last_design is not None:
-            design = last_design
-        elif "random" in design_description.lower():
-            design, _ = problem.random_design()
-            set_unified_last_design(problem_type, design)
-        else:
-            design, _ = problem.random_design()
+        # Store design if it's newly generated
+        if not _should_use_last_design(design_description):
             set_unified_last_design(problem_type, design)
 
         # Run simulation
