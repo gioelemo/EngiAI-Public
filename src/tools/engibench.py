@@ -419,6 +419,7 @@ def optimize_design(
             final_objectives,
             optimized_design,
             optimization_info,
+            problem=problem,  # Reuse existing problem instance for metadata
         )
 
         # Add warning if problem_config was not provided or was empty
@@ -573,14 +574,24 @@ def _serialize_optimization_step(step: Any) -> dict[str, Any]:
     return step_dict
 
 
-def _format_optimization_result(
+def _format_optimization_result(  # noqa: PLR0913
     problem_type: str,
     initial_objectives: Any,
     final_objectives: Any,
     optimized_design: np.ndarray,
     optimization_info: dict,
+    problem: Problem | None = None,
 ) -> dict[str, Any]:
     """Format optimization results dynamically based on problem.objectives.
+
+    Args:
+        problem_type: Type of the problem being formatted
+        initial_objectives: Objective values before optimization
+        final_objectives: Objective values after optimization
+        optimized_design: The optimized design array
+        optimization_info: Optimization history/metadata
+        problem: Optional problem instance to reuse for metadata access.
+                 If None, a new instance will be created.
 
     Returns:
         Dictionary with formatted results
@@ -604,9 +615,11 @@ def _format_optimization_result(
         "optimization_info": serializable_opt_info,  # Now JSON-serializable
     }
 
-    # Create a lightweight problem instance to access objectives metadata
-    problem_class = get_problem_class(problem_type)
-    problem = problem_class()
+    # Access objectives metadata from existing problem instance or create new one if needed
+    if problem is None:
+        problem_class = get_problem_class(problem_type)
+        problem = problem_class()  # Fallback: create metadata-only instance
+
     objective_names = [name for name, _ in problem.objectives]
     objective_directions = dict(problem.objectives)
 
@@ -812,8 +825,9 @@ def get_problem_details(problem_type: str = "beams2d") -> dict[str, Any]:
             }
 
         # Create problem instance using the registry
+        # Note: This is only for metadata access (design space, objectives, conditions)
         problem_class = PROBLEM_REGISTRY[problem_key]
-        problem = problem_class()
+        problem = problem_class()  # Metadata-only instance
 
         return {
             "success": True,
@@ -882,8 +896,9 @@ def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
             }
 
         # Create problem instance using the registry
+        # Note: This is only for dataset access (metadata)
         problem_class = PROBLEM_REGISTRY[problem_key]
-        problem = problem_class()
+        problem = problem_class()  # Metadata-only instance
         dataset = problem.dataset
 
         # Get information about each split
