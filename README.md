@@ -25,8 +25,8 @@ Before starting, ensure you have these external services set up:
 
 2. **Prusa MCP Server** (Optional) - Only needed for 3D printer integration
    ```bash
-   # Use the prusa_mcp_server directory in this repository
-   cd prusa_mcp_server
+   # Use the services/prusa_mcp_server directory in this repository
+   cd services/prusa_mcp_server
    # Follow Prusa MCP setup instructions in README.md
    ```
 
@@ -269,7 +269,7 @@ streamlit run src/ui/streamlit_app.py
 #### b) Standalone Prusa MCP Server
 ```bash
 # Start external MCP server
-./prusa_mcp_server/run.sh
+./services/prusa_mcp_server/run.sh
 
 # Or via Makefile
 make run-mcp
@@ -793,13 +793,15 @@ python connection.py submit outputs/test.slurm
 ├── .vscode/
 │   ├── extensions.json          # Recommended VS Code extensions
 │   └── settings_template.json   # VS Code settings template
-├── prusa_mcp_server/            # Standalone Prusa MCP server
-│   ├── __init__.py
-│   ├── server.py                # HTTP/SSE server wrapper
-│   ├── client.py                # HTTP client for MCP
-│   ├── Dockerfile               # MCP server Docker image
-│   ├── run.sh                   # Standalone server script
-│   └── README.md                # MCP deployment guide
+├── services/                    # Standalone services
+│   ├── host_service.py          # Host service for GUI integration
+│   └── prusa_mcp_server/        # Prusa MCP server
+│       ├── prusa-mcp/           # Git submodule (MCP implementation)
+│       ├── server.py            # HTTP/SSE server wrapper
+│       ├── client.py            # HTTP client for MCP
+│       ├── Dockerfile           # MCP server Docker image
+│       ├── run.sh               # Standalone server script
+│       └── README.md            # MCP deployment guide
 ├── src/                         # Source code (modular structure)
 │   ├── agents/                  # Agent implementations
 │   │   ├── arxiv_agent.py       # Scientific paper search
@@ -857,7 +859,7 @@ python connection.py submit outputs/test.slurm
 └── README.md                    # This file
 ```
 
-See `src/README.md` for detailed architecture documentation and `prusa_mcp_server/README.md` for MCP deployment options.
+See `src/README.md` for detailed architecture documentation and `services/prusa_mcp_server/README.md` for MCP deployment options.
 
 ### 📊 Architecture Diagrams
 
