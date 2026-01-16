@@ -746,10 +746,10 @@ def render_design(
         suffix = _get_design_suffix(design_description, design_type)
         full_save_path = _build_versioned_path(full_save_path, problem_type, suffix)
 
-        # Render the design with the same config used during optimization
+        # Render the design (config already set during problem initialization)
         # Note: Different EngiBench problems return different types:
         # Beams2D returns a tuple, ThermoElastic2D returns a single figure
-        render_result = problem.render(design, config=problem_config, open_window=False)  # type: ignore[attr-defined]
+        render_result = problem.render(design, open_window=False)  # type: ignore[attr-defined]
         fig, ax = _extract_figure_and_axis(render_result)
 
         # Add title

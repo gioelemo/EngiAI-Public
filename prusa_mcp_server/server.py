@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 
 def get_prusa_mcp_path() -> Path:
     """Get the path to the Prusa MCP server."""
-    prusa_mcp_path = os.getenv(
-        "PRUSA_MCP_PATH", str(Path.home() / "Desktop" / "prusa-mcp")
-    )
+    # Default: prusa-mcp submodule in the same directory as this file
+    default_path = Path(__file__).parent / "prusa-mcp"
+    prusa_mcp_path = os.getenv("PRUSA_MCP_PATH", str(default_path))
     return Path(prusa_mcp_path)
 
 

@@ -947,7 +947,7 @@ Both are required for the chatbot to work properly.
   curl http://localhost:8765/sse
   ```
 - **Tools not loading:** Set `SKIP_MCP=true` in `.env` to disable MCP integration
-- **prusa-mcp folder not found:** Ensure `~/Desktop/prusa-mcp` exists or update `PRUSA_MCP_PATH`
+- **prusa-mcp folder not found:** Initialize the git submodule with `git submodule update --init --recursive`
 
 ### Host Service & GUI Integration Issues
 - **"Cannot connect to host service" error:** Start the host service on your local machine:
