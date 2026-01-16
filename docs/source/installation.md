@@ -159,10 +159,10 @@ cd engineer-assistant
 #### Step 2: Create Conda Environment
 
 ```bash
-conda env create -f environment.yml
+conda create -n engineer-assistant python=3.11 -y
 ```
 
-This will create an environment named `engineer-assistant` with all required dependencies.
+This will create an environment named `engineer-assistant` with Python 3.11.
 
 #### Step 3: Activate Environment
 
@@ -170,13 +170,21 @@ This will create an environment named `engineer-assistant` with all required dep
 conda activate engineer-assistant
 ```
 
-#### Step 4: Install Pre-commit Hooks
+#### Step 4: Install Dependencies
+
+```bash
+pip install -e .[dev]
+```
+
+This installs the package in editable mode along with all dependencies from `pyproject.toml`.
+
+#### Step 5: Install Pre-commit Hooks
 
 ```bash
 pre-commit install
 ```
 
-#### Step 5: Configure VS Code (Optional)
+#### Step 6: Configure VS Code (Optional)
 
 1. Open the project in VS Code
 2. Install recommended extensions when prompted:

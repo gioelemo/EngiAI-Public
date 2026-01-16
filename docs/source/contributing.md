@@ -10,13 +10,10 @@ Thank you for your interest in contributing to Engineer Assistant! This document
    git clone https://github.com/YOUR_USERNAME/engineer-assistant.git
    cd engineer-assistant
    ```
-3. **Create a virtual environment**:
+3. **Create environment and install dependencies**:
    ```bash
-   conda env create -f environment.yml
+   conda create -n engineer-assistant python=3.11 -y
    conda activate engineer-assistant
-   ```
-4. **Install development dependencies**:
-   ```bash
    pip install -e ".[dev,test]"
    ```
 

@@ -96,8 +96,9 @@ cd engineer-assistant
 
 1. **Create environment:**
    ```bash
-   conda env create -f environment.yml
+   conda create -n engineer-assistant python=3.11 -y
    conda activate engineer-assistant
+   pip install -e .[dev]
    ```
 
 2. **Install pre-commit:**
@@ -849,7 +850,6 @@ python connection.py submit outputs/test.slurm
 ├── Dockerfile                   # Main application Docker image
 ├── .env.example                 # Environment variables template
 ├── config.py                    # Configuration management
-├── environment.yml              # Conda environment
 ├── pyproject.toml               # Project config & dependencies
 ├── Makefile                     # Convenient command shortcuts
 ├── requirements-mcp.txt         # MCP server dependencies
@@ -879,21 +879,18 @@ The diagrams show:
 
 ## Adding Dependencies
 
-Edit `environment.yml`:
-```yaml
-dependencies:
-  - python=3.11.8
-  - numpy  # Add conda packages here
-  - pip
-  - pip:
-    - ruff>=0.1.0
-    - pre-commit>=3.0.0
-    - mypy>=1.17.1  # Add pip packages after here
+Edit `pyproject.toml` under the `[project.dependencies]` section:
+```toml
+[project]
+dependencies = [
+    "langchain>=1.1.0",
+    "your-new-package>=1.0.0",  # Add packages here
+]
 ```
 
 Then run:
 ```bash
-conda env update -f environment.yml
+pip install -e .
 ```
 
 ## API Keys Setup
@@ -925,7 +922,9 @@ Both are required for the chatbot to work properly.
 - **Environment issues:** Delete and recreate:
   ```bash
   conda env remove -n engineer-assistant
-  conda env create -f environment.yml
+  conda create -n engineer-assistant python=3.11 -y
+  conda activate engineer-assistant
+  pip install -e .[dev]
   ```
 - **Streamlit command not found:** Ensure conda environment is activated: `conda activate engineer-assistant`
 

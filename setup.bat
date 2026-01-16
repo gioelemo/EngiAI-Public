@@ -17,11 +17,15 @@ echo ✅ Conda found
 
 REM Create conda environment
 echo 📦 Creating conda environment...
-conda env create -f environment.yml
+conda create -n engineer-assistant python=3.11 -y
 
 REM Activate environment
 echo 🔄 Activating environment...
-call conda activate python-ruff-template
+call conda activate engineer-assistant
+
+REM Install package and dependencies
+echo 📦 Installing package and dependencies...
+pip install -e .[dev]
 
 REM Install pre-commit hooks
 echo 🪝 Installing pre-commit hooks...
@@ -35,7 +39,7 @@ echo.
 echo 🎉 Setup complete!
 echo.
 echo Next steps:
-echo 1. Activate the environment: conda activate python-ruff-template
+echo 1. Activate the environment: conda activate engineer-assistant
 echo 2. Configure VS Code:
 echo    - Open project in VS Code (will prompt for extensions)
 echo    - Install Ruff and MyPy extensions: charliermarsh.ruff and ms-python.mypy-type-checker

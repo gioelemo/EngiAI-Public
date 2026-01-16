@@ -391,7 +391,7 @@ To create problem-specific scorers:
 
 ## Requirements
 
-All benchmarks use the main project dependencies from `environment.yml`:
+All benchmarks use the main project dependencies from `pyproject.toml`:
 - `weave` - Evaluation tracking and visualization
 - `datasets` - HuggingFace dataset access
 - `matplotlib` - Visualizations

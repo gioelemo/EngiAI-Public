@@ -71,8 +71,9 @@ If you haven't already, set up the conda environment:
 ./setup.sh
 
 # Or manually
-conda env create -f environment.yml
+conda create -n engineer-assistant python=3.11 -y
 conda activate engineer-assistant
+pip install -e .[dev]
 pre-commit install
 ```
 

@@ -16,14 +16,14 @@ fi
 echo "✅ Conda found"
 
 echo "🫙 Creating conda environment..."
-conda env create -f environment.yml
+conda create -n engineer-assistant python=3.11 -y
 
 echo "🔄 Activating environment..."
 eval "$(conda shell.bash hook)"
-conda engineer-assistant
+conda activate engineer-assistant
 
-echo "📦 Installing dev tools..."
-pip install .[dev]
+echo "📦 Installing package and dependencies..."
+pip install -e .[dev]
 
 echo "🪝 Installing pre-commit hooks..."
 pre-commit install

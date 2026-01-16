@@ -141,7 +141,9 @@ docker rmi $(docker images -q)
 3. Try creating environment again:
    ```bash
    conda env remove -n engineer-assistant
-   conda env create -f environment.yml
+   conda create -n engineer-assistant python=3.11 -y
+   conda activate engineer-assistant
+   pip install -e .[dev]
    ```
 
 ### Import Errors
