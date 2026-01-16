@@ -179,7 +179,7 @@ env:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PRUSA_MCP_PATH` | Path to prusa-mcp directory | `./prusa-mcp` (git submodule) |
+| `PRUSA_MCP_PATH` | Path to prusa-mcp directory | `prusa_mcp_server/prusa-mcp` (git submodule) |
 | `PRUSA_MCP_HOST` | Host to bind the server to | `0.0.0.0` |
 | `PRUSA_MCP_PORT` | Port to run the server on | `8765` |
 | `PRUSA_EMAIL` | Prusa Connect email (optional) | - |

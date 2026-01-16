@@ -220,7 +220,7 @@ benchmarks/evaluations/results/
 benchmarks/problems/*/data/raw/
 benchmarks/problems/*/data/generated/
 
-# prusa-mcp is now a git submodule
+# prusa-mcp is a git submodule at prusa_mcp_server/prusa-mcp
 # All env vars should go in root .env (already gitignored above)
 *.zip
 assets/docker_mcp_architecture.pdf
