@@ -163,7 +163,7 @@ def create_problem(
     Create an optimization problem using EngiBench.
 
     This unified tool works with any problem type available in EngiBench.
-    Currently supported: 'beams2d', 'thermoelastic2d'.
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:
         problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
@@ -242,6 +242,7 @@ def simulate_design(
         - success: bool
         - For beams2d: compliance, volume_fraction_used, design_valid
         - For thermoelastic2d: structural_compliance, thermal_compliance, volume_fraction_used
+        - For photonics2d: total_overlap
         - message: str
 
     Example:
@@ -350,6 +351,7 @@ def optimize_design(
         - success: bool
         - For beams2d: initial_compliance, final_compliance, improvement
         - For thermoelastic2d: initial/final structural/thermal compliance, improvement
+        - For photonics2d: initial_total_overlap, final_total_overlap, improvement
         - design_shape: tuple
         - save_path: str (if save_result=True)
         - message: str
@@ -673,7 +675,7 @@ def render_design(
     Render a design as a visual heatmap and save it as an image file.
 
     This unified tool works with any problem type available in EngiBench.
-    Currently supported: 'beams2d', 'thermoelastic2d'.
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:
         problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
