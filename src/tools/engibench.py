@@ -277,7 +277,9 @@ def simulate_design(
             set_unified_last_design(problem_type, design)
 
         # Run simulation
-        objectives = problem.simulate(design=design, config=problem_config if problem_config else None)
+        objectives = problem.simulate(
+            design=design, config=problem_config if problem_config else None
+        )
 
         # Format results based on problem type - use problem.objectives to dynamically extract
         problem_key = problem_type.lower()
