@@ -5,7 +5,7 @@ This directory contains benchmarking and evaluation infrastructure for the engin
 ## Overview
 
 The benchmarks evaluate the agent's performance on engineering design tasks across:
-- **Multiple problem types** (beams2d, thermoelastic2d, etc.)
+- **Multiple problem types** (beams2d, photonics2d, thermoelastic2d)
 - **Multiple LLM models** (GPT-4o, Claude Sonnet, etc.)
 - **Different configurations** (temperature, parameters, etc.)
 
@@ -16,31 +16,46 @@ Results are tracked using [Weave](https://wandb.ai/site/weave) for easy comparis
 ```
 benchmarks/
 ├── README.md                    # This file
+├── shared/                      # Shared infrastructure
+│   ├── problem_registry.py     # Central problem definitions
+│   ├── explore_dataset.py      # Generic dataset explorer
+│   ├── generic_scorer.py       # Universal topology optimizer scorer
+│   ├── engibench_scorers.py   # Global MMD, DPP, RVC, optimality gap metrics
+│   ├── metrics.py             # MMD, DPP, optimality gap computation utilities
+│   └── utils.py               # Shared helper functions
 ├── problems/                    # Problem-specific prompt generation
 │   ├── beams2d/                # 2D beam topology optimization
 │   │   ├── README.md
 │   │   ├── generate_prompts.py
-│   │   ├── validate_prompts.py
-│   │   ├── explore_dataset.py
+│   │   ├── validate_prompts.py  # (beams2d only)
 │   │   └── data/
 │   │       ├── generated/      # Generated prompts
 │   │       ├── validated/      # Validation reports
-│   │       └── raw/           # Raw data samples
-│   └── thermoelastic2d/       # (Future) Thermoelastic problems
-├── evaluations/                # Unified evaluation framework
-│   ├── README.md
-│   ├── evaluate_agent.py      # Main evaluation script
-│   └── results/               # Results organized by model and problem
-│       ├── gpt-4o/
-│       │   ├── beams2d/
-│       │   └── thermoelastic2d/
-│       └── claude-3-5-sonnet-20241022/
-│           ├── beams2d/
-│           └── thermoelastic2d/
-└── shared/                     # Shared utilities and scorers
-    ├── __init__.py
-    ├── scorers.py             # Evaluation scorer functions
-    └── utils.py               # Helper functions
+│   │       └── raw/           # Raw data samples (for exploration)
+│   ├── photonics2d/            # 2D photonics optimization
+│   │   ├── README.md
+│   │   ├── generate_prompts.py
+│   │   └── data/
+│   │       └── generated/      # Generated prompts
+│   └── thermoelastic2d/        # 2D thermoelastic multi-objective
+│       ├── README.md
+│       ├── generate_prompts.py
+│       └── data/
+│           └── generated/      # Generated prompts
+└── evaluations/                # Unified evaluation framework
+    ├── README.md
+    ├── evaluate_agent.py      # Main evaluation script
+    ├── compute_metrics_stats.py  # Compute global metrics statistics
+    ├── compute_design_stats.py   # Compute per-design metrics statistics
+    └── results/               # Results organized by model and problem
+        └── {model-name}/
+            └── {problem-type}/
+                ├── metrics.csv           # Global metrics (MMD, DPP, RVC, gaps)
+                ├── design_metrics.csv    # Per-design metrics (IoU, accuracy, etc.)
+                └── comparisons/          # Design comparison images
+                    ├── seed_1/           # Per-seed comparisons
+                    ├── seed_2/
+                    └── ...
 ```
 
 ## Quick Start
@@ -57,7 +72,7 @@ python generate_prompts.py
 
 ### 2. (Optional) Validate Prompts
 
-Ensure the generated prompts are well-formed:
+Ensure the generated prompts are well-formed (currently only available for beams2d):
 
 ```bash
 python validate_prompts.py
@@ -77,6 +92,79 @@ python evaluate_agent.py --problem beams2d --model gpt-4o --samples 5
 - **Local:** Check `evaluations/results/{model}/{problem}/comparisons/` for comparison images
 - **Weave Dashboard:** View full metrics, traces, and comparisons in the Weave UI
 
+## Seed-Based Evaluation
+
+To collect statistics across multiple optimization runs (matching the EngiOpt paper methodology), run evaluations with different seeds:
+
+### Single Seed Evaluation
+
+```bash
+python evaluate_agent.py \
+  --problem beams2d \
+  --samples 50 \
+  --scorers engibench \
+  --seed 1
+```
+
+This saves metrics to `results/{model}/{problem}/metrics.csv` and comparison images to `results/{model}/{problem}/comparisons/seed_1/`.
+
+### Multiple Seeds for Statistical Analysis
+
+Run the same evaluation with different seeds to collect statistics:
+
+```bash
+# Run 10 seeds matching EngiOpt paper methodology
+for seed in {1..10}; do
+  python evaluate_agent.py \
+    --problem beams2d \
+    --samples 50 \
+    --scorers engibench \
+    --seed $seed
+done
+```
+
+Each run appends metrics to the same CSV file.
+
+### Compute Statistics
+
+After running multiple seeds, compute mean ± standard deviation:
+
+```bash
+cd benchmarks/evaluations
+python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv
+```
+
+Output:
+```
+============================================================
+Metrics Statistics for results/openai_gpt-4.1/beams2d/metrics.csv
+============================================================
+
+Number of runs: 10
+
+COG : 1.399069e+08 ± 1.671826e+08
+MMD : 1.252433e-01 ± 1.019108e-01
+RVC : 6.720000e-01 ± 1.589409e-01
+DPP : 3.375223e-19 ± 1.064283e-18
+
+============================================================
+```
+
+### Metrics Output Format
+
+The CSV file contains the following columns (compatible with EngiOpt paper format):
+- `iog` - Initial Optimality Gap
+- `cog` - Cumulative Optimality Gap
+- `fog` - Final Optimality Gap
+- `mmd` - Maximum Mean Discrepancy
+- `dpp` - Determinantal Point Process diversity
+- `rvc` - Ratio of Violated Constraints
+- `seed` - Random seed used
+- `problem_id` - Problem type
+- `model_id` - Model identifier
+- `n_samples` - Number of samples evaluated
+- `sigma` - Kernel bandwidth for MMD/DPP (default: 10.0)
+
 ## Available Problems
 
 ### Beams 2D
@@ -92,49 +180,128 @@ python evaluate_agent.py --problem beams2d --model gpt-4o --samples 5
 python evaluations/evaluate_agent.py --problem beams2d --samples 10
 ```
 
+### Photonics 2D
+
+**Dataset:** [IDEALLab/photonics_2d_120_120_v0](https://huggingface.co/datasets/IDEALLab/photonics_2d_120_120_v0)
+
+**Description:** Optical topology optimization for maximizing field overlap in photonic structures.
+
+**Documentation:** [problems/photonics2d/README.md](problems/photonics2d/README.md)
+
+**Evaluation:**
+```bash
+python evaluations/evaluate_agent.py --problem photonics2d --samples 10
+```
+
+### Thermoelastic 2D
+
+**Dataset:** [IDEALLab/thermoelastic_2d_v0](https://huggingface.co/datasets/IDEALLab/thermoelastic_2d_v0)
+
+**Description:** Multi-objective topology optimization combining structural stiffness, thermal performance, and material efficiency.
+
+**Documentation:** [problems/thermoelastic2d/README.md](problems/thermoelastic2d/README.md)
+
+**Evaluation:**
+```bash
+python evaluations/evaluate_agent.py --problem thermoelastic2d --samples 10
+```
+
 ### Future Problems
 
-- **Thermoelastic 2D** - Coupled thermal-structural optimization
 - **3D Structures** - Three-dimensional topology optimization
-- **Multi-Physics** - Combined physics problems
+- **Multi-Physics** - Additional combined physics problems
 
 ## Comparing Models
 
 Evaluate multiple models on the same problem to compare performance:
 
 ```bash
-# Evaluate GPT-4o
-python evaluations/evaluate_agent.py --problem beams2d --model gpt-4o --samples 20
+# Evaluate GPT-4o with 10 seeds
+for seed in {1..10}; do
+  python evaluations/evaluate_agent.py \
+    --problem beams2d \
+    --model gpt-4o \
+    --samples 50 \
+    --scorers engibench \
+    --seed $seed
+done
 
-# Evaluate Claude Sonnet
-python evaluations/evaluate_agent.py --problem beams2d --model claude-3-5-sonnet-20241022 --samples 20
+# Evaluate Claude Sonnet with 10 seeds
+for seed in {1..10}; do
+  python evaluations/evaluate_agent.py \
+    --problem beams2d \
+    --model claude-3-5-sonnet-20241022 \
+    --samples 50 \
+    --scorers engibench \
+    --seed $seed
+done
 
-# View comparison in Weave dashboard
+# Compare statistics
+cd benchmarks/evaluations
+python compute_metrics_stats.py results/gpt-4o/beams2d/metrics.csv
+python compute_metrics_stats.py results/claude-3-5-sonnet-20241022/beams2d/metrics.csv
+
+# View detailed comparison in Weave dashboard
 ```
 
-Results are automatically organized by model for easy comparison.
+Results are automatically organized by model in `results/{model}/{problem}/` for easy comparison.
 
 ## Evaluation Metrics
 
-### Qualitative Scorers
+The benchmarks use two types of scorer systems:
 
-These scorers assess the quality of the agent's reasoning and communication:
+### Generic Scorer
 
-- **Constraint Accuracy** - Does agent mention all constraint values?
-- **Target Awareness** - Does agent reference target compliance?
-- **Understands Tradeoffs** - Does agent understand material/performance tradeoffs?
-- **Actionable Guidance** - Does agent provide concrete steps?
-- **No Contradictions** - Does agent avoid incorrect statements?
+All problems use the generic scorer (`score_output_quality_visual`) which evaluates design quality based on problem configuration:
 
-### Quantitative Scorers
-
-These scorers measure the similarity between agent design and ground truth:
-
-- **Design Match** - Overall design similarity score
+- **Design Quality Metrics**
   - **IoU** (Intersection over Union) - Topology overlap
   - **Pixel Accuracy** - Element-wise accuracy
   - **MSE** (Mean Squared Error) - Density field error
-  - **Volume Fraction Error** - Material usage difference
+- **Constraint Checking** - Configured per problem (e.g., volume fraction)
+- **Objective Evaluation** - Configured per problem (e.g., compliance for beams2d, overlap for photonics2d)
+
+The generic scorer is configuration-driven via `benchmarks.shared.problem_registry`.
+
+See [problems/beams2d/SCORING_METRICS.md](problems/beams2d/SCORING_METRICS.md) for detailed metric definitions.
+
+### Global Metrics (EngiBench)
+
+Global metrics computed after evaluation completes (via `--scorers engibench` or `--scorers all`):
+
+- **MMD** (Maximum Mean Discrepancy) - Similarity between generated designs and dataset distribution (lower is better)
+- **DPP Diversity** - Design variability using Determinantal Point Process (higher is better)
+- **RVC** (Ratio of Violated Constraints) - Fraction of designs violating constraints (lower is better)
+- **IOG** (Initial Optimality Gap) - Average gap at start of optimization
+- **COG** (Cumulative Optimality Gap) - Average gap accumulated during optimization
+- **FOG** (Final Optimality Gap) - Average gap at end of optimization
+
+### Per-Design Metrics
+
+In addition to global metrics, every evaluation automatically saves per-design metrics to `design_metrics.csv` for granular analysis:
+
+**Automatic metrics tracked:**
+- `overall_score` - Weighted overall design score
+- `iou` - Intersection over Union (topology similarity)
+- `pixel_accuracy` - Element-wise accuracy
+- `mse` - Mean squared error (density field)
+- `constraint_score` - Constraint satisfaction score
+- `objective_score` - Objective value match score
+- Problem-specific metrics (volume fraction, compliance, etc.)
+
+**Analyze per-design metrics:**
+```bash
+python compute_design_stats.py results/openai_gpt-4.1/beams2d/design_metrics.csv
+```
+
+**Use cases:**
+- Identify which problem instances cause failures
+- Measure consistency across seeds for individual examples
+- Compare per-design performance between models
+- Debug systematic failure modes
+- Compute confidence intervals for design-level metrics
+
+See [evaluations/README.md](evaluations/README.md#per-design-metrics-analysis) for detailed documentation.
 
 ## Weave Integration
 
@@ -159,26 +326,30 @@ To add a new problem type:
    mkdir -p benchmarks/problems/your_problem/data/{generated,validated,raw}
    ```
 
-2. **Create problem scripts:**
-   - Copy and adapt scripts from `problems/beams2d/`
-   - `generate_prompts.py` - Generate prompts from dataset
-   - `validate_prompts.py` - Validate prompt quality
-   - `explore_dataset.py` - (Optional) Explore dataset
-
-3. **Add to evaluation config:**
-   Edit `evaluations/evaluate_agent.py` and add to `PROBLEM_CONFIGS`:
+2. **Add to problem registry:**
+   Edit `shared/problem_registry.py` and add your problem:
    ```python
-   "your_problem": {
-       "dataset_name": "huggingface/dataset-name",
-       "prompt_file": "your_prompts.json",
-       "scorers": [...],
-   }
+   "your_problem": ProblemConfig(
+       dataset_name="IDEALLab/your_dataset_name",
+       objectives=[...],
+       conditions=[...],
+       design_metrics_weights={...},
+   )
    ```
 
-4. **Document the problem:**
+3. **Explore the dataset:**
+   ```bash
+   python -m benchmarks.shared.explore_dataset --problem your_problem
+   ```
+
+4. **Create problem scripts:**
+   - `generate_prompts.py` - Generate prompts from dataset
+   - `validate_prompts.py` - Validate prompt quality
+
+5. **Document the problem:**
    Create `problems/your_problem/README.md` with dataset info and usage
 
-5. **Test the workflow:**
+6. **Test the workflow:**
    ```bash
    cd problems/your_problem
    python generate_prompts.py
@@ -191,23 +362,32 @@ To add a new problem type:
 
 To create problem-specific scorers:
 
-1. Add scorer function to `shared/scorers.py`:
+1. **Add scorer function to problem directory** (e.g., `problems/your_problem/scorers.py`):
    ```python
    @weave.op()
    def score_your_metric(
-       prompt: str,
-       conditions: dict[str, Any],
        output: dict[str, Any],
        target: dict[str, Any],
        metadata: dict[str, Any],
    ) -> dict[str, Any]:
        # Your scoring logic
+       # Extract data from output, compare with target
        return {"score": 0.85, "details": "..."}
    ```
 
-2. Add to problem configuration in `evaluations/evaluate_agent.py`
+2. **Add to problem configuration** in `evaluations/evaluate_agent.py`:
+   ```python
+   from benchmarks.problems.your_problem.scorers import score_your_metric
 
-3. Import in `shared/__init__.py`
+   PROBLEM_CONFIGS = {
+       "your_problem": {
+           "scorers": [score_your_metric],
+           ...
+       }
+   }
+   ```
+
+3. **(Optional) Export from problem's `__init__.py`** for easier imports
 
 ## Requirements
 
@@ -243,7 +423,7 @@ All benchmarks use the main project dependencies from `environment.yml`:
 
 ### Design Comparison Methodology
 
-The pixel-wise design comparison (`score_design_match`) measures how similar the agent's design is to the ground truth. Large differences are expected because:
+The pixel-wise design comparison (via the generic scorer) measures how similar the agent's design is to the ground truth. Large differences are expected because:
 
 1. **Multiple Local Optima** - Topology optimization has many valid solutions
 2. **Sensitivity to Initialization** - Different random seeds produce different designs

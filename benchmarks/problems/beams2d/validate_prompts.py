@@ -11,6 +11,7 @@ Validation checks:
 - Range validity: parameters are within expected bounds
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -19,7 +20,7 @@ from typing import Any
 import weave
 
 # Add project root to path to import src modules
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.utils.weave_integration import init_weave  # noqa: E402
@@ -370,11 +371,37 @@ def save_validation_report(summary: dict[str, Any], output_file: Path) -> None:
     print(f"💾 Saved validation report to: {output_file}")
 
 
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Validate generated beam design prompts"
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="test",
+        choices=["train", "val", "test"],
+        help="Dataset split to validate (default: test)",
+    )
+    parser.add_argument(
+        "--samples",
+        type=int,
+        default=50,
+        help="Number of samples in the prompt file (default: 50)",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     """Main execution function."""
+    args = parse_arguments()
+
     print("=" * 60)
     print("BEAM PROMPT VALIDATION")
     print("=" * 60)
+    print()
+    print(f"Dataset split: {args.split}")
+    print(f"Expected samples: {args.samples}")
     print()
 
     # Initialize Weave
@@ -385,15 +412,20 @@ def main() -> None:
         print("⚠️  Weave not available, continuing without tracing...")
     print()
 
-    # Load generated prompts
+    # Load generated prompts using new naming convention
     input_file = (
-        Path(__file__).parent / "data" / "generated" / "beam_prompts_50_samples.json"
+        Path(__file__).parent
+        / "data"
+        / "generated"
+        / f"beams2d_prompts_{args.samples}_samples_{args.split}.json"
     )
     print(f"📂 Loading prompts from: {input_file}")
 
     if not input_file.exists():
         print(f"❌ Error: File not found: {input_file}")
-        print("Please run generate_beam_prompts.py first.")
+        print(
+            f"Please run: python benchmarks/problems/beams2d/generate_prompts.py --split {args.split} --samples {args.samples}"
+        )
         return
 
     with input_file.open() as f:
@@ -408,9 +440,12 @@ def main() -> None:
     # Print report
     print_validation_report(summary)
 
-    # Save validation report
+    # Save validation report with split and sample info
     output_file = (
-        Path(__file__).parent / "data" / "validated" / "validation_report.json"
+        Path(__file__).parent
+        / "data"
+        / "validated"
+        / f"beams2d_validation_report_{args.samples}_samples_{args.split}.json"
     )
     save_validation_report(summary, output_file)
 

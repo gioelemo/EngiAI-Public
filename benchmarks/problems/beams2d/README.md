@@ -48,13 +48,17 @@ python validate_prompts.py
 - Ground truth data complete
 - Prompt quality and clarity
 
-### `explore_dataset.py`
+### Dataset Exploration
 
 Interactive exploration of the beam dataset to understand the data distribution and characteristics.
 
 **Usage:**
 ```bash
-python explore_dataset.py
+# Using problem name (recommended)
+python -m benchmarks.shared.explore_dataset --problem beams2d
+
+# Show more examples
+python -m benchmarks.shared.explore_dataset --problem beams2d --num-samples 5
 ```
 
 ## Data Directory

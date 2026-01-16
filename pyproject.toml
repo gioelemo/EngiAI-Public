@@ -16,7 +16,7 @@ dependencies = [
     "elevenlabs>=1.0.0",
     # EngiBench is pinned to a specific commit for reproducibility and because the required fixes are not yet available in a tagged release.
     # When an appropriate tagged version is available, replace this with that tag (for example: engibench==<version>).
-    "engibench @ git+https://github.com/IDEALLab/EngiBench.git@4cb9d57fd0e18bdf97db7381a85f03d30e195bdb",
+    "engibench @ git+https://github.com/IDEALLab/EngiBench.git@5983750dd498cc01e926dc7199f455d928f338ec",
     "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git@2d62cd484689058fe26de9230048b49c5a548ecf",
     "fabric==3.2.2",
     "flask>=3.0.0",
@@ -48,7 +48,7 @@ dependencies = [
     "torchvision==0.23.0",
     "wandb==0.22.0",
     "watchdog==6.0.0",
-    "weave==0.52.22",
+    "weave==0.52.24",
 ]
 
 [project.optional-dependencies]
@@ -106,6 +106,7 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
+    "benchmarks/shared/metrics.py",
 ]
 
 # Same as Black.
@@ -159,6 +160,7 @@ ignore = [
     "D104",  # Missing docstring in public package
     "D105",  # Missing docstring in magic method
     "D107",  # Missing docstring in __init__
+    "TRY003", # long messages outside the exception class
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
@@ -192,6 +194,8 @@ max-args = 5
 ]
 # Allow print statements and numeric module names in scripts
 "scripts/**/*" = ["T20", "N999"]
+# Prompt generation uses keyword-only args with sensible defaults, 6 params is reasonable
+"benchmarks/shared/prompt_generation.py" = ["PLR0913"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -239,17 +243,19 @@ exclude_lines = [
 [tool.mypy]
 warn_redundant_casts = true
 warn_unused_ignores = false
-files = ["src/", "tests/", "scripts/"]
+files = ["src/", "tests/", "scripts/", "benchmarks/"]
 exclude = [
-  "^build/",
-  "^docs/",
-  "^prusa-mcp/",
+  "build",
+  "docs",
+  "prusa-mcp",
+  "benchmarks/shared/metrics.py",
 ]
 [[tool.mypy.overrides]]
 module = [
   "arxiv",
   "bs4",
   "beautifulsoup4",
+  "benchmarks.shared.metrics",
   "cryptography.*",
   "datasets",
   "diffusers",
@@ -301,3 +307,7 @@ module = [
   "weave.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "benchmarks.shared.metrics"
+ignore_errors = true

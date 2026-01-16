@@ -1,5 +1,7 @@
-"""Beams 2D topology optimization benchmark dataset and prompts."""
+"""Beams 2D topology optimization benchmark dataset and prompts.
 
-from benchmarks.problems.beams2d.scorers import score_design_match
+Note: This problem now uses the generic scorer from benchmarks.shared.generic_scorer.
+The beams2d-specific scorer has been removed in favor of the configuration-driven approach.
+"""
 
-__all__ = ["score_design_match"]
+__all__: list[str] = []

@@ -78,9 +78,11 @@ from src.utils.api_usage import (  # noqa: E402
 )
 from src.utils.weave_integration import init_weave  # noqa: E402
 
-# Suppress Pydantic warnings from LangChain
+# Suppress Pydantic field attribute warnings from dependencies (LangChain, Weave)
 warnings.filterwarnings(
-    "ignore", category=UserWarning, module="pydantic._internal._generate_schema"
+    "ignore",
+    category=UserWarning,
+    module="pydantic._internal._generate_schema",
 )
 
 
