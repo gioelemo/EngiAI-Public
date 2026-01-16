@@ -54,7 +54,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "mypy",
-  "ruff",
+  "ruff>=0.14.0",
   "pre-commit",
   "types-requests",
 ]
@@ -71,7 +71,7 @@ docs = [
 ]
 all = [
   "mypy",
-  "ruff",
+  "ruff>=0.14.0",
   "pre-commit",
   "types-requests",
   "pytest>=8.0.0",
@@ -171,7 +171,7 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["src", "config", "prusa_mcp_server", "services"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
