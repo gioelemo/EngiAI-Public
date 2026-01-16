@@ -33,6 +33,17 @@ clean:  ## Clean cache and build files
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	find . -type f -name "*.pyo" -delete 2>/dev/null || true
 
+clean-outputs:  ## Clean all files in the outputs folder
+	rm -rf outputs/*
+	@echo "✓ Outputs folder cleaned"
+
+clean-results:  ## Clean all files in the results folder
+	rm -rf results/*
+	@echo "✓ Results folder cleaned"
+
+clean-all: clean clean-outputs clean-results  ## Clean everything (cache, outputs, and results)
+	@echo "✓ Full cleanup complete"
+
 run-ui:  ## Start the Streamlit UI
 	streamlit run src/ui/streamlit_app.py
 
