@@ -17,7 +17,7 @@ dependencies = [
     # EngiBench is pinned to a specific commit for reproducibility and because the required fixes are not yet available in a tagged release.
     # When an appropriate tagged version is available, replace this with that tag (for example: engibench==<version>).
     "engibench @ git+https://github.com/IDEALLab/EngiBench.git@5983750dd498cc01e926dc7199f455d928f338ec",
-    "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git@2d62cd484689058fe26de9230048b49c5a548ecf",
+    "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git@127a0469c98886f35e20a54a809278d864369cb5",
     "fabric==3.2.2",
     "flask>=3.0.0",
     "langchain==1.1.0",
