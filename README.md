@@ -24,18 +24,19 @@ Before starting, ensure you have these external services set up:
    ```
 
 2. **Prusa MCP Server** (Optional) - Only needed for 3D printer integration
-   ```bash
-   # Use the services/prusa_mcp_server directory in this repository
-   cd services/prusa_mcp_server
-   # Follow Prusa MCP setup instructions in README.md
-   ```
+   - Included as a git submodule at `services/prusa_mcp_server/prusa-mcp`
+   - Automatically cloned with `--recurse-submodules` flag
+   - See [Prusa MCP README](services/prusa_mcp_server/README.md) for configuration
 
 ### 🚀 Fastest Way: Docker (Recommended)
 
 ```bash
-# 1. Clone and navigate to the repository
-git clone https://github.com/gioelemo/engineer-assistant.git
+# 1. Clone and navigate to the repository (with submodules)
+git clone --recurse-submodules https://github.com/gioelemo/engineer-assistant.git
 cd engineer-assistant
+
+# If you already cloned without --recurse-submodules:
+# git submodule update --init --recursive
 
 # 2. Configure environment
 cp .env.example .env
