@@ -316,9 +316,9 @@ curl http://localhost:8765/sse
 
 
 
-Or use basic deployment without MCP:
+Or set `SKIP_MCP=true` in your `.env` file to disable MCP:
 ```bash
-docker-compose up -d  # Instead of docker-compose -f docker-compose.mcp.yml up -d
+docker-compose up -d
 ```
 
 ## Host Service & GUI Integration

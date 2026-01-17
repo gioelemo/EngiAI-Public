@@ -165,34 +165,23 @@ Docker provides the most reliable, isolated, and portable deployment. All depend
    # Edit .env with your API keys (see configuration section below)
    ```
 
-2. **Choose your deployment mode:**
-
-   **a) Basic Deployment (No Prusa MCP):**
+2. **Start the application:**
    ```bash
    docker-compose up -d
    ```
 
-   **b) Full Deployment with Prusa 3D Printer Integration:**
-   ```bash
-   # Requires prusa-mcp folder at ~/Desktop/prusa-mcp
-   docker-compose -f docker-compose.mcp.yml up -d
-   ```
-
 3. **Access the application:**
    - **Web UI**: http://localhost:8501
-   - **Prusa MCP Server** (if enabled): http://localhost:8765
+   - **Prusa MCP Server**: http://localhost:8765
 
 4. **View logs:**
    ```bash
-   docker-compose logs -f chatbot          # Basic deployment
-   docker-compose -f docker-compose.mcp.yml logs -f  # Full deployment
+   docker-compose logs -f
    ```
 
 5. **Stop services:**
    ```bash
    docker-compose down
-   # or
-   docker-compose -f docker-compose.mcp.yml down
    ```
 
 6. **For GUI Application Integration (Optional):**
@@ -566,7 +555,7 @@ ssh euler
 If you're running the application in Docker, restart the container to pick up the SSH agent:
 
 ```bash
-docker-compose -f docker-compose.mcp.yml restart chatbot
+docker-compose restart chatbot
 ```
 
 Now your SSH connections will work seamlessly from both your terminal and the Docker container!
@@ -847,8 +836,7 @@ python connection.py submit outputs/test.slurm
 │   ├── test_agents/             # Agent tests
 │   ├── test_tools/              # Tool tests
 │   └── conftest.py              # Test configuration
-├── docker-compose.yml           # Basic Docker deployment
-├── docker-compose.mcp.yml       # Full deployment with MCP
+├── docker-compose.yml           # Docker deployment with MCP
 ├── Dockerfile                   # Main application Docker image
 ├── .env.example                 # Environment variables template
 ├── config.py                    # Configuration management
@@ -981,7 +969,7 @@ Both are required for the chatbot to work properly.
   ssh-add -l
 
   # Restart Docker container
-  docker-compose -f docker-compose.mcp.yml restart chatbot
+  docker-compose restart chatbot
   ```
 - **"Agent has no identities" error:**
   ```bash
@@ -996,7 +984,7 @@ Both are required for the chatbot to work properly.
   - Ensure SSH agent is running on host: `ssh-add -l`
   - Verify `SSH_AUTH_SOCK` environment variable is set
   - Check that `~/.ssh/config` has `AddKeysToAgent yes` and `UseKeychain yes`
-  - Restart Docker after adding keys: `docker-compose -f docker-compose.mcp.yml restart chatbot`
+  - Restart Docker after adding keys: `docker-compose restart chatbot`
 - **SSH key permissions errors:**
   ```bash
   # Fix SSH key permissions

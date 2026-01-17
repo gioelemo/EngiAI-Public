@@ -82,7 +82,7 @@ docker-rebuild-prusa:  ## Rebuild only the Prusa MCP server
 	./docker-compose-wrapper.sh up -d --build prusa-mcp-server
 
 docker-restart:  ## Restart Docker services without rebuilding
-	docker-compose -f docker-compose.mcp.yml restart
+	docker-compose restart
 
 # Build documentation
 .PHONY: docs

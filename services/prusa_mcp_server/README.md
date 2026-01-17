@@ -58,7 +58,7 @@ ln -s ~/Desktop/prusa-mcp ./prusa-mcp
 
 **2. Start both services:**
 ```bash
-docker-compose -f docker-compose.mcp.yml up -d
+docker-compose up -d
 ```
 
 This will start:
@@ -68,15 +68,15 @@ This will start:
 **3. View logs:**
 ```bash
 # MCP Server logs
-docker-compose -f docker-compose.mcp.yml logs -f prusa-mcp-server
+docker-compose logs -f prusa-mcp-server
 
 # Chatbot logs
-docker-compose -f docker-compose.mcp.yml logs -f chatbot
+docker-compose logs -f chatbot
 ```
 
 **4. Stop services:**
 ```bash
-docker-compose -f docker-compose.mcp.yml down
+docker-compose down
 ```
 
 ### Option 3: Separate Docker Containers (Advanced)

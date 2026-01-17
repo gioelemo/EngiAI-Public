@@ -20,11 +20,89 @@ services:
     networks:
       - engineer-assistant
 
-  # Main chatbot application
+  # Standalone Prusa MCP Server
+  prusa-mcp-server:
+    build:
+      context: .
+      dockerfile: services/prusa_mcp_server/Dockerfile
+    image: prusa-mcp-server:latest
+    pull_policy: never
+    container_name: prusa-mcp-server
+    ports:
+      - "8765:8765"  # Map host 8765 to container 8765
+    env_file:
+      - .env  # Load all environment variables from .env file
+    environment:
+      # Override specific variables for MCP server
+      - PRUSA_MCP_PATH=/app/prusa-mcp
+      - PRUSA_MCP_PORT=8765  # Run on port 8765 inside container
+      - PRUSA_CONNECT_STATE=/app/data/connect_state.json
+    volumes:
+      # Mount data directory to persist connect state
+      - ./data:/app/data
+      # Mount the prusa-mcp git submodule
+      - ./services/prusa_mcp_server/prusa-mcp:/app/prusa-mcp:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8765)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - engineer-assistant
+
+  # MMORE RAG Service for multimodal document processing
+  mmore-rag-service:
+    build:
+      context: ${MMORE_PATH:-~/Desktop/mmore}
+      dockerfile: Dockerfile
+      args:
+        PLATFORM: cpu  # Use CPU-only build for macOS (smaller image, no GPU support)
+    image: mmore-rag-service:latest
+    pull_policy: never
+    container_name: mmore-rag-service
+    ports:
+      - "8000:8000"  # FastAPI server port
+    environment:
+      - MMORE_CONFIG_PATH=/app/config/retriever_config.yaml
+      - MMORE_API_HOST=0.0.0.0
+      - MMORE_API_PORT=8000
+    volumes:
+      # Persist Milvus Lite database
+      - ${MMORE_PATH:-~/Desktop/mmore}/proc_demo.db:/app/proc_demo.db
+      # Mount config
+      - ${MMORE_PATH:-~/Desktop/mmore}/examples/retriever_api/config.yaml:/app/config/retriever_config.yaml:ro
+      # Persist uploads and cache (correct path for mmoreuser home)
+      - mmore_uploads:/app/uploads
+      - mmore_cache:/home/mmoreuser/.cache
+    # Removed memory limits - let Docker use available resources for model loading
+    user: root  # Run as root to fix volume permissions, then switch to mmoreuser
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "chown -R mmoreuser:mmoreuser /app/uploads /home/mmoreuser/.cache &&
+      su mmoreuser -c 'cd /app && . .venv/bin/activate &&
+      python -m mmore.run_live_retrieval
+      --config-file /app/config/retriever_config.yaml
+      --host 0.0.0.0
+      --port 8000'"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 240s  # 4 minutes for model downloads on first start
+    networks:
+      - engineer-assistant
+
+  # Main chatbot application (connects to external MCP server)
   chatbot:
     build:
       context: .
       dockerfile: Dockerfile
+    image: engineer-assistant-chatbot:latest
+    pull_policy: never
     container_name: engineer-assistant-chatbot
     ports:
       - "8501:8501"
@@ -33,8 +111,10 @@ services:
     env_file:
       - .env  # Load all environment variables from .env file
     environment:
-      # Override specific variables for Docker deployment
-      - SKIP_MCP=${SKIP_MCP:-true}  # Disable MCP by default
+      # Override specific variables for Docker deployment with MCP
+      - SKIP_MCP=false  # Enable MCP client
+      - PRUSA_MCP_URL=http://prusa-mcp-server:8765  # Connect to MCP server (internal port)
+      - MMORE_RAG_URL=http://mmore-rag-service:8000  # Connect to mmore RAG service
       - DATABASE_URL=${DATABASE_URL:-postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant}
       - SSH_AUTH_SOCK=/ssh-agent
       - PAPERS_SOURCE_DIR=/app/papers  # Container path (different from host)
@@ -54,6 +134,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      prusa-mcp-server:
+        condition: service_healthy
+      mmore-rag-service:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - engineer-assistant
@@ -64,3 +148,5 @@ networks:
 
 volumes:
   postgres_data:
+  mmore_cache:
+  mmore_uploads:

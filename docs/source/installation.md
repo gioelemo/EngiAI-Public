@@ -59,14 +59,8 @@ Optional (for Prusa 3D printer integration):
 
 #### 4. Start with Docker Compose
 
-**Basic deployment (no Prusa 3D printer integration)**:
 ```bash
 docker-compose up -d
-```
-
-**Full deployment with Prusa integration** (optional):
-```bash
-docker-compose -f docker-compose.mcp.yml up -d
 ```
 
 #### 5. Verify Installation

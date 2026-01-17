@@ -20,4 +20,4 @@ mkdir -p ./papers
 echo "📁 Using papers directory: $PAPERS_SOURCE_DIR"
 
 # Run docker-compose with all arguments passed to this script
-exec docker compose -f docker-compose.mcp.yml "$@"
+exec docker compose "$@"

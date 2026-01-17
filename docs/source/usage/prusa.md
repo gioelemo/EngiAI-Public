@@ -21,10 +21,10 @@ The Prusa Agent communicates with Prusa Connect via an MCP (Model Context Protoc
 
 ### Docker Deployment (Recommended)
 
-The MCP server is automatically included when using the full Docker deployment:
+The MCP server is automatically included when using Docker deployment:
 
 ```bash
-docker-compose -f docker-compose.mcp.yml up -d
+docker-compose up -d
 ```
 
 This starts:
@@ -244,7 +244,7 @@ curl http://localhost:8765/sse
 2. Check `PRUSA_MCP_URL` is correct
 3. Restart Docker containers:
    ```bash
-   docker-compose -f docker-compose.mcp.yml restart
+   docker-compose restart
    ```
 
 ### Login Failed

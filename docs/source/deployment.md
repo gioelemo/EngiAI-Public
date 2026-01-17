@@ -121,28 +121,24 @@ HEADLESS=1
 
 ### Step 4: Update Prusa MCP Path
 
-Update the `docker-compose.mcp.yml` to point to your extracted Prusa MCP directory:
+Update the `docker-compose.yml` to point to your extracted Prusa MCP directory:
 
 ```bash
-# Edit docker-compose.mcp.yml
-nano docker-compose.mcp.yml
-
-
+# Edit docker-compose.yml
+nano docker-compose.yml
 ```
-
-
 
 ### Step 5: Build and Start the Application
 
 ```bash
 # Build the Docker images
-docker-compose -f docker-compose.mcp.yml build
+docker-compose build
 
 # Start all services
-docker-compose -f docker-compose.mcp.yml up -d
+docker-compose up -d
 
 # Check that all services are running
-docker-compose -f docker-compose.mcp.yml ps
+docker-compose ps
 ```
 
 Expected output:
@@ -196,33 +192,33 @@ New-NetFirewallRule -DisplayName "Engineer Assistant" -Direction Inbound -LocalP
 
 ```bash
 # View all logs
-docker-compose -f docker-compose.mcp.yml logs
+docker-compose logs
 
 # View specific service logs
-docker-compose -f docker-compose.mcp.yml logs chatbot
-docker-compose -f docker-compose.mcp.yml logs prusa-mcp-server
+docker-compose logs chatbot
+docker-compose logs prusa-mcp-server
 
 # Follow logs in real-time
-docker-compose -f docker-compose.mcp.yml logs -f
+docker-compose logs -f
 ```
 
 ### Stop the Application
 
 ```bash
-docker-compose -f docker-compose.mcp.yml down
+docker-compose down
 ```
 
 ### Restart the Application
 
 ```bash
-docker-compose -f docker-compose.mcp.yml restart
+docker-compose restart
 ```
 
 ### Update the Application
 
 ```bash
 # Stop the current version
-docker-compose -f docker-compose.mcp.yml down
+docker-compose down
 
 # Pull/extract new version
 cd ~/deployments
@@ -233,8 +229,8 @@ cd engineer-assistant-new
 cp ../engineer-assistant/.env .
 
 # Rebuild and start
-docker-compose -f docker-compose.mcp.yml build
-docker-compose -f docker-compose.mcp.yml up -d
+docker-compose build
+docker-compose up -d
 ```
 
 ## Persistence and Backups
@@ -251,7 +247,7 @@ The application stores data in:
 
 ```bash
 # Backup database
-docker-compose -f docker-compose.mcp.yml exec postgres pg_dump -U engiai_user engineer_assistant > backup.sql
+docker-compose exec postgres pg_dump -U engiai_user engineer_assistant > backup.sql
 
 # Backup data directory
 tar -czf data-backup-$(date +%Y%m%d).tar.gz data/
@@ -264,7 +260,7 @@ tar -czf outputs-backup-$(date +%Y%m%d).tar.gz outputs/
 
 ```bash
 # Restore database
-docker-compose -f docker-compose.mcp.yml exec -T postgres psql -U engiai_user engineer_assistant < backup.sql
+docker-compose exec -T postgres psql -U engiai_user engineer_assistant < backup.sql
 
 # Restore data directory
 tar -xzf data-backup-20250117.tar.gz
@@ -276,7 +272,7 @@ tar -xzf data-backup-20250117.tar.gz
 
 Check logs:
 ```bash
-docker-compose -f docker-compose.mcp.yml logs
+docker-compose logs
 ```
 
 ### Network Issues
@@ -291,8 +287,8 @@ docker network inspect engineer-assistant_engineer-assistant
 
 Restart all services:
 ```bash
-docker-compose -f docker-compose.mcp.yml down
-docker-compose -f docker-compose.mcp.yml up -d
+docker-compose down
+docker-compose up -d
 ```
 
 ### WSL Memory Issues
@@ -321,7 +317,7 @@ Check what's using the port:
 sudo lsof -i :8501
 ```
 
-Or change the port in docker-compose.mcp.yml:
+Or change the port in docker-compose.yml:
 ```yaml
 ports:
   - "8502:8501"  # Use port 8502 instead
@@ -394,8 +390,8 @@ After=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/home/your-user/deployments/engineer-assistant
-ExecStart=/usr/bin/docker-compose -f docker-compose.mcp.yml up -d
-ExecStop=/usr/bin/docker-compose -f docker-compose.mcp.yml down
+ExecStart=/usr/bin/docker-compose up -d
+ExecStop=/usr/bin/docker-compose down
 User=your-user
 
 [Install]
@@ -416,7 +412,7 @@ Set up a cron job for automated backups:
 crontab -e
 
 # Add this line to backup daily at 2 AM
-0 2 * * * cd ~/deployments/engineer-assistant && docker-compose -f docker-compose.mcp.yml exec -T postgres pg_dump -U engiai_user engineer_assistant > ~/backups/db-backup-$(date +\%Y\%m\%d).sql
+0 2 * * * cd ~/deployments/engineer-assistant && docker-compose exec -T postgres pg_dump -U engiai_user engineer_assistant > ~/backups/db-backup-$(date +\%Y\%m\%d).sql
 ```
 
 ## Support
