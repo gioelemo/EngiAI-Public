@@ -46,9 +46,10 @@ os.environ["SKIP_MCP"] = "true"
 # Set SKIP_MMORE to avoid MMORE Docker container requirement during evaluation
 os.environ["SKIP_MMORE"] = "true"
 
-# Add project root to path to import src modules
+# Add project root and services to path to import src and prusa_mcp_server modules
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "services"))
 
 # Import output quality scorers
 from benchmarks.shared.output_quality_engibench_scorer import (  # noqa: E402
