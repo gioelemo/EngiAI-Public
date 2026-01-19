@@ -28,18 +28,22 @@ DATA_PATHS = {
     / "openai_gpt-4.1/beams2d/output_quality_global_metrics.csv",
     "gpt_beams_design": RESULTS_DIR
     / "openai_gpt-4.1/beams2d/output_quality_design_metrics.csv",
+    "gpt_beams_tools": RESULTS_DIR / "openai_gpt-4.1/beams2d/tool_usage.csv",
     "gpt_photonics_global": RESULTS_DIR
     / "openai_gpt-4.1/photonics2d/output_quality_global_metrics.csv",
     "gpt_photonics_design": RESULTS_DIR
     / "openai_gpt-4.1/photonics2d/output_quality_design_metrics.csv",
+    "gpt_photonics_tools": RESULTS_DIR / "openai_gpt-4.1/photonics2d/tool_usage.csv",
     "gpt5_beams_global": RESULTS_DIR
     / "openai_gpt-5.1/beams2d/output_quality_global_metrics.csv",
     "gpt5_beams_design": RESULTS_DIR
     / "openai_gpt-5.1/beams2d/output_quality_design_metrics.csv",
+    "gpt5_beams_tools": RESULTS_DIR / "openai_gpt-5.1/beams2d/tool_usage.csv",
     "gpt5_photonics_global": RESULTS_DIR
     / "openai_gpt-5.1/photonics2d/output_quality_global_metrics.csv",
     "gpt5_photonics_design": RESULTS_DIR
     / "openai_gpt-5.1/photonics2d/output_quality_design_metrics.csv",
+    "gpt5_photonics_tools": RESULTS_DIR / "openai_gpt-5.1/photonics2d/tool_usage.csv",
     "cgan_beams": Path(__file__).parent.parent.parent.parent
     / "cgan_cnn_2d_beams2d_metrics.csv",
 }
@@ -202,6 +206,52 @@ def load_data():
             data[key] = df
 
     return data
+
+
+def load_tool_usage_data():
+    """Load tool usage data from CSV files.
+
+    Returns:
+        dict: Dictionary with loaded tool usage DataFrames
+    """
+    data = {}
+
+    # Tool usage configs
+    tool_configs = [
+        ("gpt_beams_tools", "GPT-4.1", "beams2d"),
+        ("gpt_photonics_tools", "GPT-4.1", "photonics2d"),
+        ("gpt5_beams_tools", "GPT-5.1", "beams2d"),
+        ("gpt5_photonics_tools", "GPT-5.1", "photonics2d"),
+    ]
+
+    for key, model, problem in tool_configs:
+        path = DATA_PATHS[key]
+        if path.exists():
+            df = pd.read_csv(path)
+            df["model"] = model
+            df["problem"] = problem
+            data[key] = df
+
+    return data
+
+
+def get_combined_tool_usage_df(data):
+    """Combine all tool usage data into a single DataFrame.
+
+    Args:
+        data: Dictionary with tool usage DataFrames
+
+    Returns:
+        Combined DataFrame or None if no data available
+    """
+    keys = [
+        "gpt_beams_tools",
+        "gpt_photonics_tools",
+        "gpt5_beams_tools",
+        "gpt5_photonics_tools",
+    ]
+    dfs = [data[key] for key in keys if key in data]
+    return pd.concat(dfs, ignore_index=True) if dfs else None
 
 
 def get_combined_global_df(data):
