@@ -150,6 +150,29 @@ def get_final_beta(problem_type: str) -> float | None:
     return state.get("final_beta")
 
 
+def _extract_initial_objectives_from_history(optimization_info: Any) -> Any | None:
+    """Extract initial objective values from the first optimization step.
+
+    This avoids calling simulate() before optimize(), which would affect
+    internal autograd/numpy state and cause non-reproducible results.
+
+    Args:
+        optimization_info: List of optimization steps from problem.optimize()
+
+    Returns:
+        Initial objective values array, or None if not available
+    """
+    if not optimization_info or len(optimization_info) == 0:
+        return None
+
+    first_step = optimization_info[0]
+    if hasattr(first_step, "obj_values"):
+        return first_step.obj_values
+    if isinstance(first_step, dict) and "obj_values" in first_step:
+        return first_step["obj_values"]
+    return None
+
+
 def set_final_beta(problem_type: str, beta: float) -> None:
     """Store the final beta value from optimization for a given problem type.
 
@@ -434,15 +457,19 @@ def optimize_design(
         # Also set as last_design (will be overwritten after optimization)
         set_unified_last_design(problem_type, design)
 
-        # Simulate initial design
-        initial_objectives = problem.simulate(
-            design=design, config=config if config else None
-        )
+        # NOTE: We intentionally do NOT call problem.simulate() before optimization.
+        # Calling simulate before optimize affects internal autograd/numpy state and
+        # causes optimization to converge to different local optima, making results
+        # non-reproducible with the official EngiBench tutorial.
+        # Initial objective values are extracted from the first optimization step instead.
 
         # Run optimization with the starting design
         optimized_design, optimization_info = problem.optimize(
             starting_point=design, config=config if config else None
         )
+
+        # Extract initial objectives from first optimization step
+        initial_objectives = _extract_initial_objectives_from_history(optimization_info)
 
         # Store optimized design as the new last_design
         set_unified_last_design(problem_type, optimized_design)
@@ -670,34 +697,39 @@ def _format_optimization_result(  # noqa: PLR0913
     # Store initial and final objective values
     message_parts = []
     for i, obj_name in enumerate(objective_names):
-        if i < len(initial_objectives) and i < len(final_objectives):
-            initial_val = float(initial_objectives[i])
-            final_val = float(final_objectives[i])
+        # Handle case where initial_objectives may be None (not measured)
+        has_initial = initial_objectives is not None and i < len(initial_objectives)
+        has_final = i < len(final_objectives)
 
-            # Store values in result
-            result[f"initial_{obj_name}"] = initial_val
+        if has_final:
+            final_val = float(final_objectives[i])
             result[f"final_{obj_name}"] = final_val
 
-            # Calculate improvement based on objective direction
-            if objective_directions[obj_name] == ObjectiveDirection.MINIMIZE:
-                # For minimize: improvement when value decreases
-                improvement = (
-                    ((initial_val - final_val) / abs(initial_val) * 100)
-                    if initial_val != 0
-                    else 0
-                )
-            else:  # MAXIMIZE
-                # For maximize: improvement when value increases
-                improvement = (
-                    ((final_val - initial_val) / abs(initial_val) * 100)
-                    if initial_val != 0
-                    else 0
-                )
+            if has_initial:
+                initial_val = float(initial_objectives[i])
+                result[f"initial_{obj_name}"] = initial_val
 
-            result[f"{obj_name}_improvement"] = improvement
-            message_parts.append(
-                f"{obj_name}: {initial_val:.6f}→{final_val:.6f} ({improvement:.1f}%)"
-            )
+                # Calculate improvement based on objective direction
+                if objective_directions[obj_name] == ObjectiveDirection.MINIMIZE:
+                    improvement = (
+                        ((initial_val - final_val) / abs(initial_val) * 100)
+                        if initial_val != 0
+                        else 0
+                    )
+                else:  # MAXIMIZE
+                    improvement = (
+                        ((final_val - initial_val) / abs(initial_val) * 100)
+                        if initial_val != 0
+                        else 0
+                    )
+
+                result[f"{obj_name}_improvement"] = improvement
+                message_parts.append(
+                    f"{obj_name}: {initial_val:.6f}→{final_val:.6f} ({improvement:.1f}%)"
+                )
+            else:
+                # No initial value available
+                message_parts.append(f"{obj_name}: {final_val:.6f}")
 
     # Build message
     result["message"] = f"Optimized {problem_type} design: " + ", ".join(message_parts)
