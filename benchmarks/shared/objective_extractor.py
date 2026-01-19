@@ -175,7 +175,9 @@ def _extract_objectives_from_string(
             match = re.search(pattern, content)
 
             if match:
-                result[obj_config.name] = float(match.group(2))  # Group 2 contains the value
+                result[obj_config.name] = float(
+                    match.group(2)
+                )  # Group 2 contains the value
                 logger.debug(
                     f"Example {example_id}: Extracted {obj_config.name}="
                     f"{result[obj_config.name]} from field '{field}' via regex "

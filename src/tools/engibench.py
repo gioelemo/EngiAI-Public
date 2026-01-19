@@ -830,7 +830,7 @@ def render_design(
         # Render the design (config already set during problem initialization)
         # Note: Different EngiBench problems return different types:
         # Beams2D returns a tuple, ThermoElastic2D returns a single figure
-        render_result = problem.render(design, config=problem_config, open_window=False)  # type: ignore[attr-defined]
+        render_result = problem.render(design, open_window=False)  # type: ignore[attr-defined]
         fig, _ = _extract_figure_and_axis(render_result)
 
         # Save figure
