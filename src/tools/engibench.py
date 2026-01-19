@@ -111,6 +111,7 @@ def get_problem_state(problem_type: str) -> dict[str, Any]:
         _problem_states[session_id][problem_key] = {
             "last_design": None,
             "initial_design": None,
+            "final_beta": None,  # For photonics2d: store final beta from optimization
         }
 
     return _problem_states[session_id][problem_key]
@@ -140,6 +141,24 @@ def set_initial_design(problem_type: str, design: np.ndarray) -> None:
     state["initial_design"] = design
 
 
+def get_final_beta(problem_type: str) -> float | None:
+    """Get the final beta value from optimization for a given problem type.
+
+    This is used for photonics2d to ensure render uses the same beta as optimization.
+    """
+    state = get_problem_state(problem_type)
+    return state.get("final_beta")
+
+
+def set_final_beta(problem_type: str, beta: float) -> None:
+    """Store the final beta value from optimization for a given problem type.
+
+    This is used for photonics2d to ensure render uses the same beta as optimization.
+    """
+    state = get_problem_state(problem_type)
+    state["final_beta"] = beta
+
+
 def clear_session_state(session_id: str | None = None) -> None:
     """Clear state for a specific session to prevent memory leaks.
 
@@ -157,6 +176,7 @@ def clear_session_state(session_id: str | None = None) -> None:
 @tool
 def create_problem(
     problem_type: str = "beams2d",
+    problem_config: dict[str, Any] | None = None,
     seed: int = 0,
 ) -> dict[str, Any]:
     """
@@ -167,6 +187,10 @@ def create_problem(
 
     Args:
         problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
+        problem_config: Problem-specific configuration parameters (optional)
+            For beams2d: {"volfrac": 0.35, "rmin": 2.0, "forcedist": 0.2}
+            For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
+            For photonics2d: {"lambda1": 1.2, "lambda2": 1.3, "blur_radius": 2.0}
         seed: Random seed for reproducibility (default: 0)
 
     Returns:
@@ -175,19 +199,32 @@ def create_problem(
         - problem_type: str
         - design_space: description of design space
         - objectives: list of objectives to optimize
-        - conditions: problem conditions/constraints
+        - conditions: problem conditions/constraints (reflects problem_config if provided)
         - dataset_id: HuggingFace dataset identifier
         - success: bool
         - message: str
 
     Example:
-        >>> info = create_problem(problem_type="beams2d", seed=42)
-        >>> print(info['objectives'])
-        >>> # [('compliance', 'MINIMIZE')]
+        >>> info = create_problem(problem_type="photonics2d", problem_config={"lambda1": 1.19, "lambda2": 1.30, "blur_radius": 2.0}, seed=42)
+        >>> print(info['conditions'])
+        >>> # Photonics2D.Conditions(lambda1=1.19, lambda2=1.30, blur_radius=2.0)
     """
     try:
+        # Convert None to empty dict for consistency
+        config = problem_config if problem_config is not None else {}
+
         problem_class = get_problem_class(problem_type)
-        problem = problem_class(seed=seed)
+
+        # Try to create problem with config, fall back to seed-only if not supported
+        try:
+            problem = problem_class(seed=seed, config=config)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
 
         return {
             "problem_id": problem_type.lower(),
@@ -200,7 +237,8 @@ def create_problem(
             "conditions_keys": problem.conditions_keys,
             "dataset_id": problem.dataset_id,
             "success": True,
-            "message": f"Created {problem_type} problem with seed {seed}",
+            "message": f"Created {problem_type} problem with seed {seed}"
+            + (f" and config {config}" if config else ""),
         }
     except ValueError as e:
         return {"success": False, "error": str(e)}
@@ -408,6 +446,10 @@ def optimize_design(
 
         # Store optimized design as the new last_design
         set_unified_last_design(problem_type, optimized_design)
+
+        # Store final beta for photonics2d (used by render to show correct beta)
+        if hasattr(problem, "_current_beta"):
+            set_final_beta(problem_type, problem._current_beta)
 
         # Simulate final design
         final_objectives = problem.simulate(
@@ -737,6 +779,13 @@ def render_design(
             else:
                 raise
 
+        # For photonics2d: restore final beta from optimization so render shows correct value
+        # Without this, render would use the default max_beta (300) instead of the actual
+        # final beta from optimization (e.g., 297.02)
+        final_beta = get_final_beta(problem_type)
+        if final_beta is not None and hasattr(problem, "_current_beta"):
+            problem._current_beta = final_beta
+
         # Get the design to render based on description
         design, design_type = _get_design_to_render(
             problem_type, design_description, problem
@@ -749,7 +798,7 @@ def render_design(
         # Render the design (config already set during problem initialization)
         # Note: Different EngiBench problems return different types:
         # Beams2D returns a tuple, ThermoElastic2D returns a single figure
-        render_result = problem.render(design, open_window=False)  # type: ignore[attr-defined]
+        render_result = problem.render(design, config=problem_config, open_window=False)  # type: ignore[attr-defined]
         fig, _ = _extract_figure_and_axis(render_result)
 
         # Save figure
