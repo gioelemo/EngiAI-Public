@@ -169,11 +169,13 @@ def _extract_objectives_from_string(
                 break  # Found final value for this objective, move to next
 
             # PRIORITY 2: Fall back to regular field name (finds FIRST occurrence)
-            pattern = rf"['\"]?{re.escape(field)}['\"]?\s*:\s*([0-9.eE+-]+)"
+            # Match dict-style key-value pairs: 'field': value or "field": value
+            # Require quotes around field name to avoid matching prose text like "c: value"
+            pattern = rf"['\"]({re.escape(field)})['\"]" + r"\s*:\s*" + r"([0-9.eE+-]+)"
             match = re.search(pattern, content)
 
             if match:
-                result[obj_config.name] = float(match.group(1))
+                result[obj_config.name] = float(match.group(2))  # Group 2 contains the value
                 logger.debug(
                     f"Example {example_id}: Extracted {obj_config.name}="
                     f"{result[obj_config.name]} from field '{field}' via regex "

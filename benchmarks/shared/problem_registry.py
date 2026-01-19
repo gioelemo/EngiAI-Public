@@ -21,7 +21,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
             ObjectiveConfig(
                 name="compliance",
                 field_name="final_compliance",
-                target_field="c",
+                target_field="compliance",  # Changed from "c" to match prompt generator
                 direction="minimize",
                 relative_error_threshold=0.2,
                 aliases=["final_c", "c"],
