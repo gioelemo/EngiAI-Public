@@ -6,13 +6,111 @@ for analysis and visualization.
 """
 
 import argparse
+import contextlib
 import csv
-import re
 from collections import Counter
 from pathlib import Path
 
-import pandas as pd
 import weave
+
+# Constants
+REF_EXTRA_MIN_LENGTH = 3
+
+
+def _extract_metadata_from_example(
+    example,
+) -> tuple[int | None, int | None, str | None]:
+    """Extract example_id, seed, and problem_id from example object.
+
+    Returns:
+        Tuple of (example_id, seed, problem_id)
+    """
+    example_id = None
+    seed = None
+    problem_id = None
+
+    # Try to access example data directly (WeaveDict supports dict access)
+    if hasattr(example, "__getitem__"):
+        with contextlib.suppress(KeyError, TypeError):
+            metadata = example.get("metadata", {})
+            if metadata:
+                example_id = metadata.get("example_id")
+                seed = metadata.get("seed")
+
+    # Fallback: Extract from ObjectRef if direct access failed
+    if (
+        example_id is None
+        and hasattr(example, "__dict__")
+        and "ref" in example.__dict__
+    ):
+        ref = example.__dict__["ref"]
+        # Extract seed from dataset name like "beams2d_eval_dataset_seed_1"
+        dataset_name = ref.name if hasattr(ref, "name") else ""
+        if "_seed_" in dataset_name and seed is None:
+            with contextlib.suppress(ValueError, IndexError):
+                seed = int(dataset_name.split("_seed_")[1])
+
+        # Use row hash as fallback example_id
+        if (
+            example_id is None
+            and hasattr(ref, "_extra")
+            and len(ref._extra) > REF_EXTRA_MIN_LENGTH
+        ):
+            example_id = ref._extra[REF_EXTRA_MIN_LENGTH]
+
+    # Additional fallback to dict/attribute access (only if still None)
+    if example_id is None and isinstance(example, dict):
+        example_id = example.get("example_id")
+        seed = example.get("seed") if seed is None else seed
+        problem_id = example.get("problem_id")
+    elif (
+        example_id is None
+        and hasattr(example, "_val")
+        and isinstance(example._val, dict)
+    ):
+        # Weave object with _val dict
+        example_id = example._val.get("example_id")
+        seed = example._val.get("seed") if seed is None else seed
+        problem_id = example._val.get("problem_id")
+    elif example_id is None and hasattr(example, "example_id"):
+        # Direct attributes
+        example_id = getattr(example, "example_id", None)
+        seed = getattr(example, "seed", None) if seed is None else seed
+        problem_id = getattr(example, "problem_id", None)
+
+    return example_id, seed, problem_id
+
+
+def _extract_tokens_and_latency(
+    summary: dict,
+) -> tuple[int | None, int | None, int | None, float | None]:
+    """Extract token usage and latency from call summary.
+
+    Returns:
+        Tuple of (total_tokens, prompt_tokens, completion_tokens, latency_ms)
+    """
+    usage_dict = summary.get("usage", {})
+
+    total_tokens = None
+    prompt_tokens = None
+    completion_tokens = None
+
+    # Usage is nested by model name, get first available
+    if usage_dict:
+        for usage_data in usage_dict.values():
+            if isinstance(usage_data, dict):
+                total_tokens = usage_data.get("total_tokens")
+                prompt_tokens = usage_data.get("prompt_tokens")
+                completion_tokens = usage_data.get("completion_tokens")
+                break
+
+    # Extract latency from summary['weave']['latency_ms']
+    latency_ms = None
+    weave_info = summary.get("weave", {})
+    if isinstance(weave_info, dict):
+        latency_ms = weave_info.get("latency_ms")
+
+    return total_tokens, prompt_tokens, completion_tokens, latency_ms
 
 
 def _process_score_and_predict_call(
@@ -36,51 +134,7 @@ def _process_score_and_predict_call(
         # Extract example data from score_call inputs
         score_inputs = score_call.inputs or {}
         example = score_inputs.get("example", {})
-
-        example_id = None
-        seed = None
-        problem_id = None
-
-        # Try to access example data directly (WeaveDict supports dict access)
-        if hasattr(example, "__getitem__"):
-            try:
-                metadata = example.get("metadata", {})
-                if metadata:
-                    example_id = metadata.get("example_id")
-                    seed = metadata.get("seed")
-            except (KeyError, TypeError):
-                pass
-
-        # Fallback: Extract from ObjectRef if direct access failed
-        if example_id is None and hasattr(example, "__dict__") and "ref" in example.__dict__:
-            ref = example.__dict__["ref"]
-            # Extract seed from dataset name like "beams2d_eval_dataset_seed_1"
-            dataset_name = ref.name if hasattr(ref, "name") else ""
-            if "_seed_" in dataset_name and seed is None:
-                try:
-                    seed = int(dataset_name.split("_seed_")[1])
-                except (ValueError, IndexError):
-                    pass
-
-            # Use row hash as fallback example_id
-            if example_id is None and hasattr(ref, "_extra") and len(ref._extra) > 3:
-                example_id = ref._extra[3]
-
-        # Additional fallback to dict/attribute access (only if still None)
-        if example_id is None and isinstance(example, dict):
-            example_id = example.get("example_id")
-            seed = example.get("seed") if seed is None else seed
-            problem_id = example.get("problem_id")
-        elif example_id is None and hasattr(example, "_val") and isinstance(example._val, dict):
-            # Weave object with _val dict
-            example_id = example._val.get("example_id")
-            seed = example._val.get("seed") if seed is None else seed
-            problem_id = example._val.get("problem_id")
-        elif example_id is None and hasattr(example, "example_id"):
-            # Direct attributes
-            example_id = getattr(example, "example_id", None)
-            seed = getattr(example, "seed", None) if seed is None else seed
-            problem_id = getattr(example, "problem_id", None)
+        example_id, seed, problem_id = _extract_metadata_from_example(example)
 
         # Extract tool usage from predict call output
         pred_output = pred_call.output
@@ -99,26 +153,9 @@ def _process_score_and_predict_call(
 
         # Extract token usage and latency from predict call summary
         summary = pred_call.summary or {}
-        usage_dict = summary.get("usage", {})
-
-        total_tokens = None
-        prompt_tokens = None
-        completion_tokens = None
-
-        # Usage is nested by model name, get first available
-        if usage_dict:
-            for model_key, usage_data in usage_dict.items():
-                if isinstance(usage_data, dict):
-                    total_tokens = usage_data.get("total_tokens")
-                    prompt_tokens = usage_data.get("prompt_tokens")
-                    completion_tokens = usage_data.get("completion_tokens")
-                    break
-
-        # Extract latency from summary['weave']['latency_ms']
-        latency_ms = None
-        weave_info = summary.get("weave", {})
-        if isinstance(weave_info, dict):
-            latency_ms = weave_info.get("latency_ms")
+        total_tokens, prompt_tokens, completion_tokens, latency_ms = (
+            _extract_tokens_and_latency(summary)
+        )
 
         tool_names = [
             tc.get("name")
@@ -194,28 +231,11 @@ def _process_prediction_call(
                     example_id = val.get("example_id")
                     seed = val.get("seed")
 
-        # Extract token usage from summary (nested by model name)
+        # Extract token usage and latency from summary
         summary = pred_call.summary or {}
-        usage_dict = summary.get("usage", {})
-
-        total_tokens = None
-        prompt_tokens = None
-        completion_tokens = None
-
-        # Usage is nested by model name, get first available
-        if usage_dict:
-            for model_key, usage_data in usage_dict.items():
-                if isinstance(usage_data, dict):
-                    total_tokens = usage_data.get("total_tokens")
-                    prompt_tokens = usage_data.get("prompt_tokens")
-                    completion_tokens = usage_data.get("completion_tokens")
-                    break
-
-        # Extract latency from summary['weave']['latency_ms']
-        latency_ms = None
-        weave_info = summary.get("weave", {})
-        if isinstance(weave_info, dict):
-            latency_ms = weave_info.get("latency_ms")
+        total_tokens, prompt_tokens, completion_tokens, latency_ms = (
+            _extract_tokens_and_latency(summary)
+        )
 
         model_id = output.get("model", "")
         seen_models.add(model_id)
