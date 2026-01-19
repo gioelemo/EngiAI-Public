@@ -336,9 +336,9 @@ def main():
     combined_tools = get_combined_tool_usage_df(tool_data)
 
     if combined_tools is None or len(combined_tools) == 0:
-        print("❌ No tool usage data found. Please run extract_tool_usage.py first.")
+        print("❌ No tool usage data found. Please run extract_data.py first.")
         print("\nExample:")
-        print("  python benchmarks/evaluations/extract_tool_usage.py \\")
+        print("  python benchmarks/evaluations/extract_data.py \\")
         print("    --project YOUR_PROJECT \\")
         print("    --model openai:gpt-5.1 \\")
         print("    --problem beams2d")

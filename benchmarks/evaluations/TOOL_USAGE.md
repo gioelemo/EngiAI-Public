@@ -17,7 +17,7 @@ The tool usage analysis helps you understand:
 After running evaluations with `evaluate_agent.py`, extract tool usage statistics from Weave traces:
 
 ```bash
-python benchmarks/evaluations/extract_tool_usage.py \
+python benchmarks/evaluations/extract_data.py \
   --project YOUR_WEAVE_PROJECT \
   --model openai:gpt-5.1 \
   --problem beams2d \
@@ -34,7 +34,7 @@ python benchmarks/evaluations/extract_tool_usage.py \
 
 This will create a CSV file at:
 ```
-benchmarks/evaluations/results/{model}/{problem}/tool_usage.csv
+benchmarks/evaluations/results/{model}/{problem}/data.csv
 ```
 
 ### 2. Generate Visualizations
@@ -101,13 +101,13 @@ The tool usage CSV contains the following columns:
 
 ```bash
 # GPT-5.1
-python benchmarks/evaluations/extract_tool_usage.py \
+python benchmarks/evaluations/extract_data.py \
   --project my-org/my-project \
   --model openai:gpt-5.1 \
   --problem beams2d
 
 # GPT-4.1
-python benchmarks/evaluations/extract_tool_usage.py \
+python benchmarks/evaluations/extract_data.py \
   --project my-org/my-project \
   --model openai:gpt-4.1 \
   --problem beams2d
@@ -136,12 +136,12 @@ Tool usage visualizations are fully integrated with the existing plotting infras
 
 If you see this error:
 ```
-❌ No tool usage data found. Please run extract_tool_usage.py first.
+❌ No tool usage data found. Please run extract_data.py first.
 ```
 
 Make sure you've:
 1. Run evaluations with `evaluate_agent.py`
-2. Extracted tool usage with `extract_tool_usage.py`
+2. Extracted tool usage with `extract_data.py`
 3. Used the correct project name and model identifiers
 
 ### Missing correlation plots

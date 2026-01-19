@@ -28,22 +28,22 @@ DATA_PATHS = {
     / "openai_gpt-4.1/beams2d/output_quality_global_metrics.csv",
     "gpt_beams_design": RESULTS_DIR
     / "openai_gpt-4.1/beams2d/output_quality_design_metrics.csv",
-    "gpt_beams_tools": RESULTS_DIR / "openai_gpt-4.1/beams2d/tool_usage.csv",
+    "gpt_beams_tools": RESULTS_DIR / "openai_gpt-4.1/beams2d/data.csv",
     "gpt_photonics_global": RESULTS_DIR
     / "openai_gpt-4.1/photonics2d/output_quality_global_metrics.csv",
     "gpt_photonics_design": RESULTS_DIR
     / "openai_gpt-4.1/photonics2d/output_quality_design_metrics.csv",
-    "gpt_photonics_tools": RESULTS_DIR / "openai_gpt-4.1/photonics2d/tool_usage.csv",
+    "gpt_photonics_tools": RESULTS_DIR / "openai_gpt-4.1/photonics2d/data.csv",
     "gpt5_beams_global": RESULTS_DIR
     / "openai_gpt-5.1/beams2d/output_quality_global_metrics.csv",
     "gpt5_beams_design": RESULTS_DIR
     / "openai_gpt-5.1/beams2d/output_quality_design_metrics.csv",
-    "gpt5_beams_tools": RESULTS_DIR / "openai_gpt-5.1/beams2d/tool_usage.csv",
+    "gpt5_beams_tools": RESULTS_DIR / "openai_gpt-5.1/beams2d/data.csv",
     "gpt5_photonics_global": RESULTS_DIR
     / "openai_gpt-5.1/photonics2d/output_quality_global_metrics.csv",
     "gpt5_photonics_design": RESULTS_DIR
     / "openai_gpt-5.1/photonics2d/output_quality_design_metrics.csv",
-    "gpt5_photonics_tools": RESULTS_DIR / "openai_gpt-5.1/photonics2d/tool_usage.csv",
+    "gpt5_photonics_tools": RESULTS_DIR / "openai_gpt-5.1/photonics2d/data.csv",
     "cgan_beams": Path(__file__).parent.parent.parent.parent
     / "cgan_cnn_2d_beams2d_metrics.csv",
 }
@@ -67,11 +67,6 @@ PLOT_STYLE = {
 }
 
 
-def _check_latex_available():
-    """Check if LaTeX is available on the system."""
-    return shutil.which("latex") is not None
-
-
 def setup_style(use_latex=None):
     """Configure matplotlib/seaborn for publication-quality figures with LaTeX fonts.
 
@@ -84,7 +79,7 @@ def setup_style(use_latex=None):
 
     # Auto-detect LaTeX if not specified
     if use_latex is None:
-        use_latex = _check_latex_available()
+        use_latex = shutil.which("latex") is not None
 
     if use_latex:
         try:

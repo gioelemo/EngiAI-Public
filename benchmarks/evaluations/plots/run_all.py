@@ -88,7 +88,7 @@ def _generate_tool_usage_plots(combined_tools, combined_design, output_dir):
     print("-" * 40)
 
     if combined_tools is None or len(combined_tools) == 0:
-        print("  ⚠️  No tool usage data found. Run extract_tool_usage.py first.")
+        print("  ⚠️  No tool usage data found. Run extract_data.py first.")
         return
 
     print(f"  Combined tool usage: {len(combined_tools)} records")
