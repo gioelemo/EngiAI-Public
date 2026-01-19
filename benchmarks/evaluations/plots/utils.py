@@ -6,6 +6,7 @@ Shared utilities for plots.
 - Plot styling
 """
 
+import shutil
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -13,7 +14,7 @@ import pandas as pd
 import seaborn as sns
 
 # Constants
-DEFAULT_N_SAMPLES = 5
+DEFAULT_N_SAMPLES = 10
 MIN_CORRELATION_SAMPLES = 2
 
 # Paths
@@ -53,10 +54,65 @@ PLOT_STYLE = {
 }
 
 
-def setup_style():
-    """Configure matplotlib/seaborn for publication-quality figures."""
+def _check_latex_available():
+    """Check if LaTeX is available on the system."""
+    return shutil.which("latex") is not None
+
+
+def setup_style(use_latex=None):
+    """Configure matplotlib/seaborn for publication-quality figures with LaTeX fonts.
+
+    Args:
+        use_latex: If True, force LaTeX. If False, disable LaTeX.
+                   If None (default), auto-detect LaTeX availability.
+    """
     plt.style.use("seaborn-v0_8-whitegrid")
     sns.set_context("paper", font_scale=1.2)
+
+    # Auto-detect LaTeX if not specified
+    if use_latex is None:
+        use_latex = _check_latex_available()
+
+    if use_latex:
+        try:
+            plt.rcParams.update(
+                {
+                    # Use LaTeX for text rendering
+                    "text.usetex": True,
+                    "font.family": "serif",
+                    "font.serif": ["Computer Modern Roman"],
+                    # LaTeX preamble for math support
+                    "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
+                    # Consistent font sizes
+                    "axes.labelsize": 12,
+                    "axes.titlesize": 14,
+                    "xtick.labelsize": 10,
+                    "ytick.labelsize": 10,
+                    "legend.fontsize": 10,
+                    "figure.titlesize": 14,
+                }
+            )
+            print("Using LaTeX fonts for plots")
+        except Exception:
+            # Fall back if LaTeX setup fails
+            use_latex = False
+
+    if not use_latex:
+        # Clean serif style without LaTeX (looks similar)
+        plt.rcParams.update(
+            {
+                "text.usetex": False,
+                "font.family": "serif",
+                "mathtext.fontset": "cm",  # Computer Modern math fonts
+                "axes.labelsize": 12,
+                "axes.titlesize": 14,
+                "xtick.labelsize": 10,
+                "ytick.labelsize": 10,
+                "legend.fontsize": 10,
+                "figure.titlesize": 14,
+            }
+        )
+        print("Using serif fonts (LaTeX not available)")
 
 
 def get_output_dir():
