@@ -482,7 +482,7 @@ def main():
 
     output_path = (
         args.output
-        or f"benchmarks/evaluations/results/{args.model.replace('/', '_').replace(':', '_')}/{args.problem}/tool_usage.csv"
+        or f"benchmarks/evaluations/results/{args.model.replace('/', '_').replace(':', '_')}/{args.problem}/data.csv"
     )
 
     save_tool_usage_csv(data, output_path, args.model, args.problem, args.seed)
