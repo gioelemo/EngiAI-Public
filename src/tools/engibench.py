@@ -750,11 +750,7 @@ def render_design(
         # Note: Different EngiBench problems return different types:
         # Beams2D returns a tuple, ThermoElastic2D returns a single figure
         render_result = problem.render(design, open_window=False)  # type: ignore[attr-defined]
-        fig, ax = _extract_figure_and_axis(render_result)
-
-        # Add title
-        title = f"{problem_type} - {design_type.title()}"
-        ax.set_title(title, fontsize=10)
+        fig, _ = _extract_figure_and_axis(render_result)
 
         # Save figure
         fig.savefig(str(full_save_path), dpi=150, bbox_inches="tight")
