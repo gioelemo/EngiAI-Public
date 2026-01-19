@@ -8,6 +8,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Thesis Visualization and Analysis Tools**
+  - Complete evaluation data extraction pipeline in `benchmarks/evaluations/extract_data.py`
+    - Extracts tool usage, token consumption, latency, and metadata from Weave evaluation traces
+    - Support for both `Evaluation.predict_and_score` and direct `EngineeringAgent.predict` calls
+    - Automatic metadata extraction from WeaveDict objects (example_id, seed, problem_id)
+    - Token usage extraction from nested model-specific summary data
+    - Latency tracking from Weave execution metadata
+    - CSV export with configurable column ordering (seed first for grouping analysis)
+    - Missing tool columns automatically filled with 0 for clean data analysis
+    - Refactored with helper functions for improved maintainability (reduced complexity)
+  - Comprehensive visualization suite in `benchmarks/evaluations/plots/`
+    - `plot_tool_usage.py`: Tool usage analysis with frequency charts, heatmaps, and per-model comparisons
+    - `plot_design_quality.py`: Design quality distribution visualization with KDE overlays
+    - `plot_metrics_comparison.py`: Side-by-side model performance comparison across all metrics
+    - `plot_iou_vs_objective.py`: Correlation analysis between design quality (IoU) and objective scores
+    - `plot_dpp_vs_mmd.py`: Diversity vs distribution similarity scatter plot analysis
+    - `plot_dpp_vs_fog.py`: Design diversity vs optimization quality analysis
+    - `generate_summary_table.py`: LaTeX-formatted summary statistics table generation
+    - `run_all.py`: Automated execution of all visualization scripts with configuration
+    - `utils.py`: Shared utilities for data loading, preprocessing, and plot styling (308 lines)
+  - LaTeX-quality plot styling with custom fonts and consistent formatting
+  - Automatic figure export to `benchmarks/evaluations/plots/figures/`
+  - Documentation in `benchmarks/evaluations/TOOL_USAGE.md` (170 lines)
+
+### Changed
+- **Data Extraction Improvements**
+  - Renamed output files from `tool_usage.csv` to `data.csv` for more general nomenclature
+  - Enhanced metadata extraction with multiple fallback strategies for robustness
+  - Replaced try-except-pass with `contextlib.suppress` for cleaner error handling
+  - Added constant `REF_EXTRA_MIN_LENGTH` to replace magic values
+  - Optimized dictionary iteration using `.values()` instead of `.items()` when keys unused
+  - Refactored complex functions into focused helper functions:
+    - `_extract_metadata_from_example()`: Handles all metadata extraction logic
+    - `_extract_tokens_and_latency()`: Handles token and latency extraction
+  - Improved code maintainability (reduced from 485 to 490 lines with better organization)
+
+### Fixed
+- VS Code Pylance import resolution for `benchmarks/evaluations/plots/` modules
+  - Added `python.analysis.extraPaths` configuration to `.vscode/settings_template.json`
+  - Created `.vscode/settings.json` from template with proper Python path configuration
+  - Resolved false positive import errors in editor while maintaining clean lint output
+
+### Dependencies
+- Added visualization dependencies to `pyproject.toml`:
+  - `matplotlib`: Core plotting library
+  - `seaborn`: Statistical data visualization
+  - `scipy`: Scientific computing and statistics
+
+---
+
+## [Previous Releases]
+
+### Added
 - **Complete Benchmarking Infrastructure**
   - Built entire `benchmarks/` directory structure from scratch for systematic agent evaluation
   - Comprehensive documentation in `benchmarks/README.md` with quick start guide and examples
