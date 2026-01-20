@@ -1,5 +1,8 @@
 {
     "python.defaultInterpreterPath": "./venv/bin/python",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/benchmarks/evaluations/plots"
+    ],
     "python.linting.enabled": true,
     "python.linting.ruffEnabled": true,
     "python.linting.mypyEnabled": true,
@@ -14,7 +17,9 @@
         "source.fixAll.ruff": "explicit",
         "source.organizeImports.ruff": "explicit"
     },
-    "editor.rulers": [88],
+    "editor.rulers": [
+        88
+    ],
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
