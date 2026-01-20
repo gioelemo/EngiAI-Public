@@ -790,11 +790,6 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                                 original_name=file_name,
                             )
 
-                            # Track in database
-                            db.add_mmore_document(
-                                file_id=file_id, file_name=file_name, file_path=tmp_path
-                            )
-
                             # Report completion through progress callback
                             mmore_progress_callback(
                                 "complete",

@@ -74,23 +74,6 @@ def mock_mmore_client():
 
 
 @pytest.fixture
-def mock_database_manager():
-    """Mock database manager for testing."""
-    mock = Mock()
-    mock.add_mmore_document.return_value = None
-    mock.get_all_mmore_documents.return_value = [
-        {
-            "file_id": "test_id",
-            "file_name": "test.pdf",
-            "uploaded_at": Mock(strftime=Mock(return_value="2024-01-01 10:00")),
-        }
-    ]
-    mock.get_mmore_document.return_value = {"file_name": "test.pdf"}
-    mock.delete_mmore_document.return_value = None
-    return mock
-
-
-@pytest.fixture
 def mock_checkpointer():
     """Mock checkpointer for testing."""
     # Use real MemorySaver instead of Mock - it's lightweight and doesn't need external deps
@@ -301,16 +284,15 @@ class TestRAGAgentListDocuments:
         mock_init_llm,
         mock_mmore_cls,
         mock_mmore_client,
-        mock_database_manager,
     ):
         """Test successful document listing."""
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_client.list_files.return_value = ["test_id"]
         mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
-        agent.db = mock_database_manager
 
         list_tool = agent.tools_by_name["list_documents"]
 
@@ -318,7 +300,8 @@ class TestRAGAgentListDocuments:
 
         assert "Knowledge Base" in result
         assert "1 document" in result
-        assert "test.pdf" in result
+        assert "test_id" in result
+        mock_mmore_client.list_files.assert_called_once()
 
     @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
@@ -332,18 +315,17 @@ class TestRAGAgentListDocuments:
         from src.agents.rag_agent import RAGAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_client.list_files.return_value = []
         mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
-        mock_db = Mock()
-        mock_db.get_all_mmore_documents.return_value = []
-        agent.db = mock_db
 
         list_tool = agent.tools_by_name["list_documents"]
 
         result = list_tool.invoke({})
 
         assert "No documents in MMORE knowledge base yet" in result
+        mock_mmore_client.list_files.assert_called_once()
 
 
 @pytest.mark.slow
@@ -357,7 +339,6 @@ class TestRAGAgentDeleteDocument:
         mock_init_llm,
         mock_mmore_cls,
         mock_mmore_client,
-        mock_database_manager,
     ):
         """Test successful document deletion."""
         from src.agents.rag_agent import RAGAgent
@@ -366,16 +347,14 @@ class TestRAGAgentDeleteDocument:
         mock_mmore_cls.return_value = mock_mmore_client
 
         agent = RAGAgent()
-        agent.db = mock_database_manager
 
         delete_tool = agent.tools_by_name["delete_document"]
 
         result = delete_tool.invoke({"file_id": "test_id"})
 
         assert "Deleted" in result
-        assert "test.pdf" in result
+        assert "test_id" in result
         mock_mmore_client.delete_file.assert_called_once_with("test_id")
-        mock_database_manager.delete_mmore_document.assert_called_once_with("test_id")
 
 
 class TestRAGAgentInvoke:

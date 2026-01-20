@@ -61,20 +61,6 @@ class RAGAgent(BaseAgent):
                     "MMORE service not reachable - some features may not work"
                 )
 
-    @property
-    def db(self):
-        """Lazy-load database manager to avoid circular import."""
-        if not hasattr(self, "_db"):
-            from src.ui.database import DatabaseManager  # noqa: PLC0415
-
-            self._db = DatabaseManager()
-        return self._db
-
-    @db.setter
-    def db(self, value):
-        """Allow setting database manager (useful for testing)."""
-        self._db = value
-
     def _create_tools(self) -> list:
         """Create LangChain tools for the RAG agent."""
         # If MMORE is skipped, return empty tools list
@@ -165,11 +151,6 @@ class RAGAgent(BaseAgent):
 
                 # Upload to MMORE
                 self.mmore_client.upload_file(file_path=str(path), file_id=file_id)
-
-                # Track uploaded document in database
-                self.db.add_mmore_document(
-                    file_id=file_id, file_name=path.name, file_path=str(path)
-                )
 
                 # Report completion
                 _report_progress(
@@ -263,7 +244,6 @@ class RAGAgent(BaseAgent):
                         for i, page_data in enumerate(pages):
                             page_url = page_data["url"]
                             content = page_data["content"]
-                            title = page_data["title"] or f"page_{i}"
 
                             # Generate unique file ID for this page
                             parsed_url = urlparse(page_url)
@@ -302,16 +282,6 @@ class RAGAgent(BaseAgent):
                                 # Upload to MMORE
                                 self.mmore_client.upload_file(
                                     file_path=temp_path, file_id=page_file_id
-                                )
-
-                                # Track in database
-                                self.db.add_mmore_document(
-                                    file_id=page_file_id,
-                                    file_name=title
-                                    or page_url.split("/")[-1]
-                                    or "index",
-                                    file_path=page_url,
-                                    uploaded_by="url_crawl",
                                 )
 
                                 uploaded_count += 1
@@ -380,14 +350,6 @@ class RAGAgent(BaseAgent):
                             file_path=temp_path, file_id=file_id
                         )
 
-                        # Track in database
-                        self.db.add_mmore_document(
-                            file_id=file_id,
-                            file_name=path_parts.name or "web_content",
-                            file_path=url,  # Store original URL
-                            uploaded_by="url_upload",
-                        )
-
                         # Report completion
                         _report_progress(
                             "complete",
@@ -430,22 +392,18 @@ class RAGAgent(BaseAgent):
 
             Returns a summary of all documents in the knowledge base.
             """
+            assert self.mmore_client is not None, "MMORE client not initialized"
             try:
-                # Get all documents from database
-                documents = self.db.get_all_mmore_documents()
+                # Get all files directly from MMORE API
+                file_ids = self.mmore_client.list_files()
 
-                if not documents:
+                if not file_ids:
                     return "No documents in MMORE knowledge base yet.\n\nUse 'add_document' to upload PDF, Office, or image files."
 
                 # Format output
-                result = f"📚 MMORE Knowledge Base ({len(documents)} document(s)):\n\n"
-                for doc in documents:
-                    file_name = doc["file_name"]
-                    file_id = doc["file_id"]
-                    uploaded_at = doc["uploaded_at"].strftime("%Y-%m-%d %H:%M")
-                    result += (
-                        f"• {file_name} (ID: {file_id}) - uploaded {uploaded_at}\n"
-                    )
+                result = f"📚 MMORE Knowledge Base ({len(file_ids)} document(s)):\n\n"
+                for file_id in file_ids:
+                    result += f"• {file_id}\n"
 
                 result += (
                     "\n✓ All documents are indexed with multimodal content extraction"
@@ -473,24 +431,13 @@ class RAGAgent(BaseAgent):
             """
             assert self.mmore_client is not None, "MMORE client not initialized"
             try:
-                # Get document info before deleting
-                doc_info = self.db.get_mmore_document(file_id)
-
                 # Delete from MMORE
                 self.mmore_client.delete_file(file_id)
-
-                # Remove from database
-                self.db.delete_mmore_document(file_id)
-
-                if doc_info:
-                    file_name = doc_info["file_name"]
-                    return f"✓ Deleted '{file_name}' (ID: {file_id}) from MMORE"
-                else:
-                    return f"✓ Deleted file ID '{file_id}' from MMORE"
-
             except Exception as e:
                 logger.exception("Error deleting document from MMORE")
                 return f"Error deleting document: {e}"
+            else:
+                return f"✓ Deleted '{file_id}' from MMORE"
 
         return delete_document
 

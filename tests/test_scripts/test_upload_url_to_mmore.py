@@ -130,19 +130,15 @@ class TestDownloadContent:
 class TestUploadUrlToMmore:
     """Test URL upload to MMORE functionality."""
 
-    @patch("scripts.upload_url_to_mmore.DatabaseManager")
     @patch("scripts.upload_url_to_mmore.MMOREClient")
     @patch("scripts.upload_url_to_mmore.download_content")
-    def test_upload_successful(self, mock_download, mock_mmore_class, mock_db_class):
+    def test_upload_successful(self, mock_download, mock_mmore_class):
         """Test successful URL upload to MMORE."""
         # Setup
         mock_mmore = MagicMock()
         mock_mmore.health_check.return_value = True
         mock_mmore.upload_file.return_value = {"status": "success", "file_id": "test"}
         mock_mmore_class.return_value = mock_mmore
-
-        mock_db = MagicMock()
-        mock_db_class.return_value = mock_db
 
         mock_download.return_value = True
 
@@ -153,12 +149,10 @@ class TestUploadUrlToMmore:
         assert result is True
         mock_mmore.health_check.assert_called_once()
         mock_mmore.upload_file.assert_called_once()
-        mock_db.add_mmore_document.assert_called_once()
         mock_download.assert_called_once()
 
-    @patch("scripts.upload_url_to_mmore.DatabaseManager")
     @patch("scripts.upload_url_to_mmore.MMOREClient")
-    def test_upload_fails_when_mmore_unhealthy(self, mock_mmore_class, mock_db_class):
+    def test_upload_fails_when_mmore_unhealthy(self, mock_mmore_class):
         """Test upload fails when MMORE service is not healthy."""
         # Setup
         mock_mmore = MagicMock()
@@ -172,12 +166,9 @@ class TestUploadUrlToMmore:
         assert result is False
         mock_mmore.upload_file.assert_not_called()
 
-    @patch("scripts.upload_url_to_mmore.DatabaseManager")
     @patch("scripts.upload_url_to_mmore.MMOREClient")
     @patch("scripts.upload_url_to_mmore.download_content")
-    def test_upload_fails_when_download_fails(
-        self, mock_download, mock_mmore_class, mock_db_class
-    ):
+    def test_upload_fails_when_download_fails(self, mock_download, mock_mmore_class):
         """Test upload fails when content download fails."""
         # Setup
         mock_mmore = MagicMock()
@@ -193,21 +184,15 @@ class TestUploadUrlToMmore:
         assert result is False
         mock_mmore.upload_file.assert_not_called()
 
-    @patch("scripts.upload_url_to_mmore.DatabaseManager")
     @patch("scripts.upload_url_to_mmore.MMOREClient")
     @patch("scripts.upload_url_to_mmore.download_content")
-    def test_upload_with_custom_file_id(
-        self, mock_download, mock_mmore_class, mock_db_class
-    ):
+    def test_upload_with_custom_file_id(self, mock_download, mock_mmore_class):
         """Test upload with custom file ID."""
         # Setup
         mock_mmore = MagicMock()
         mock_mmore.health_check.return_value = True
         mock_mmore.upload_file.return_value = {"status": "success"}
         mock_mmore_class.return_value = mock_mmore
-
-        mock_db = MagicMock()
-        mock_db_class.return_value = mock_db
 
         mock_download.return_value = True
 
@@ -224,21 +209,15 @@ class TestUploadUrlToMmore:
         call_args = mock_mmore.upload_file.call_args
         assert call_args.kwargs["file_id"] == custom_file_id
 
-    @patch("scripts.upload_url_to_mmore.DatabaseManager")
     @patch("scripts.upload_url_to_mmore.MMOREClient")
     @patch("scripts.upload_url_to_mmore.download_content")
-    def test_upload_converts_github_url(
-        self, mock_download, mock_mmore_class, mock_db_class
-    ):
+    def test_upload_converts_github_url(self, mock_download, mock_mmore_class):
         """Test that GitHub URLs are converted to raw URLs before download."""
         # Setup
         mock_mmore = MagicMock()
         mock_mmore.health_check.return_value = True
         mock_mmore.upload_file.return_value = {"status": "success"}
         mock_mmore_class.return_value = mock_mmore
-
-        mock_db = MagicMock()
-        mock_db_class.return_value = mock_db
 
         mock_download.return_value = True
 
@@ -255,11 +234,10 @@ class TestUploadUrlToMmore:
         assert "raw.githubusercontent.com" in download_url
         assert "/blob/" not in download_url
 
-    @patch("scripts.upload_url_to_mmore.DatabaseManager")
     @patch("scripts.upload_url_to_mmore.MMOREClient")
     @patch("scripts.upload_url_to_mmore.download_content")
     def test_upload_cleans_temp_file_by_default(
-        self, mock_download, mock_mmore_class, mock_db_class, tmp_path, monkeypatch
+        self, mock_download, mock_mmore_class, tmp_path, monkeypatch
     ):
         """Test that temporary files are cleaned up by default."""
         # Setup
@@ -267,9 +245,6 @@ class TestUploadUrlToMmore:
         mock_mmore.health_check.return_value = True
         mock_mmore.upload_file.return_value = {"status": "success"}
         mock_mmore_class.return_value = mock_mmore
-
-        mock_db = MagicMock()
-        mock_db_class.return_value = mock_db
 
         # Create a temp directory for the test
         temp_dir = tmp_path / "temp"
@@ -293,12 +268,9 @@ class TestUploadUrlToMmore:
         # Verify
         assert result is True
 
-    @patch("scripts.upload_url_to_mmore.DatabaseManager")
     @patch("scripts.upload_url_to_mmore.MMOREClient")
     @patch("scripts.upload_url_to_mmore.download_content")
-    def test_upload_handles_mmore_upload_error(
-        self, mock_download, mock_mmore_class, mock_db_class
-    ):
+    def test_upload_handles_mmore_upload_error(self, mock_download, mock_mmore_class):
         """Test handling of MMORE upload errors."""
         # Setup
         mock_mmore = MagicMock()
@@ -314,21 +286,15 @@ class TestUploadUrlToMmore:
         # Verify
         assert result is False
 
-    @patch("scripts.upload_url_to_mmore.DatabaseManager")
     @patch("scripts.upload_url_to_mmore.MMOREClient")
     @patch("scripts.upload_url_to_mmore.download_content")
-    def test_upload_generates_file_id_from_url(
-        self, mock_download, mock_mmore_class, mock_db_class
-    ):
+    def test_upload_generates_file_id_from_url(self, mock_download, mock_mmore_class):
         """Test that file ID is generated from URL when not provided."""
         # Setup
         mock_mmore = MagicMock()
         mock_mmore.health_check.return_value = True
         mock_mmore.upload_file.return_value = {"status": "success"}
         mock_mmore_class.return_value = mock_mmore
-
-        mock_db = MagicMock()
-        mock_db_class.return_value = mock_db
 
         mock_download.return_value = True
 

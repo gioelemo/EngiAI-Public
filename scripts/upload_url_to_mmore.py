@@ -22,7 +22,6 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.tools import MMOREClient  # noqa: E402
-from src.ui.database import DatabaseManager  # noqa: E402
 
 # Configure logging
 logging.basicConfig(
@@ -93,9 +92,8 @@ def upload_url_to_mmore(
         True if successful, False otherwise
     """
     try:
-        # Initialize MMORE client and database
+        # Initialize MMORE client
         mmore_client = MMOREClient()
-        db = DatabaseManager()
 
         # Check MMORE health
         if not mmore_client.health_check():
@@ -132,15 +130,6 @@ def upload_url_to_mmore(
         logger.info(f"Uploading to MMORE with file_id: {file_id}...")
         result = mmore_client.upload_file(file_path=str(temp_file), file_id=file_id)
         logger.info(f"Successfully uploaded to MMORE: {result}")
-
-        # Track in database
-        db.add_mmore_document(
-            file_id=file_id,
-            file_name=path_parts.name or "web_content",
-            file_path=url,  # Store original URL
-            uploaded_by="url_upload_script",
-        )
-        logger.info(f"Tracked in database with file_id: {file_id}")
 
         # Clean up temporary file unless keep_file is True
         if not keep_file:
