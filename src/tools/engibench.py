@@ -26,7 +26,6 @@ from src.tools.problems import PROBLEM_CLASSES
 if TYPE_CHECKING:
     from engibench.core import Problem
 
-from engibench.core import ObjectiveDirection
 
 matplotlib.use("Agg")  # Use non-interactive backend
 
@@ -148,29 +147,6 @@ def get_final_beta(problem_type: str) -> float | None:
     """
     state = get_problem_state(problem_type)
     return state.get("final_beta")
-
-
-def _extract_initial_objectives_from_history(optimization_info: Any) -> Any | None:
-    """Extract initial objective values from the first optimization step.
-
-    This avoids calling simulate() before optimize(), which would affect
-    internal autograd/numpy state and cause non-reproducible results.
-
-    Args:
-        optimization_info: List of optimization steps from problem.optimize()
-
-    Returns:
-        Initial objective values array, or None if not available
-    """
-    if not optimization_info or len(optimization_info) == 0:
-        return None
-
-    first_step = optimization_info[0]
-    if hasattr(first_step, "obj_values"):
-        return first_step.obj_values
-    if isinstance(first_step, dict) and "obj_values" in first_step:
-        return first_step["obj_values"]
-    return None
 
 
 def set_final_beta(problem_type: str, beta: float) -> None:
@@ -408,14 +384,17 @@ def optimize_design(
         save_result: Whether to save the optimized design to outputs/ directory
 
     Returns:
-        dict with optimization results (structure depends on problem type):
+        dict with optimization results:
         - success: bool
-        - For beams2d: initial_compliance, final_compliance, improvement
-        - For thermoelastic2d: initial/final structural/thermal compliance, improvement
-        - For photonics2d: initial_total_overlap, final_total_overlap, improvement
+        - problem_type: str
         - design_shape: tuple
+        - optimized_design: list (the optimized design array)
+        - optimization_info: list (optimization history with objective values per step)
         - save_path: str (if save_result=True)
         - message: str
+
+        Note: To get objective values for the optimized design, call simulate_design
+        separately with design_description="optimized design".
 
     Example:
         >>> result = optimize_design(
@@ -423,7 +402,8 @@ def optimize_design(
         ...     problem_config={"volfrac": 0.4},
         ...     seed=42
         ... )
-        >>> print(f"Improvement: {result['improvement']:.1f}%")
+        >>> # Then call simulate_design to get objective values
+        >>> sim_result = simulate_design(problem_type="beams2d", design_description="optimized design")
     """
     try:
         # Convert None to empty dict for consistency
@@ -457,19 +437,10 @@ def optimize_design(
         # Also set as last_design (will be overwritten after optimization)
         set_unified_last_design(problem_type, design)
 
-        # NOTE: We intentionally do NOT call problem.simulate() before optimization.
-        # Calling simulate before optimize affects internal autograd/numpy state and
-        # causes optimization to converge to different local optima, making results
-        # non-reproducible with the official EngiBench tutorial.
-        # Initial objective values are extracted from the first optimization step instead.
-
         # Run optimization with the starting design
         optimized_design, optimization_info = problem.optimize(
             starting_point=design, config=config if config else None
         )
-
-        # Extract initial objectives from first optimization step
-        initial_objectives = _extract_initial_objectives_from_history(optimization_info)
 
         # Store optimized design as the new last_design
         set_unified_last_design(problem_type, optimized_design)
@@ -478,19 +449,12 @@ def optimize_design(
         if hasattr(problem, "_current_beta"):
             set_final_beta(problem_type, problem._current_beta)
 
-        # Simulate final design
-        final_objectives = problem.simulate(
-            design=optimized_design, config=config if config else None
-        )
-
-        # Format results based on problem type
+        # Format results - note: we don't call simulate() here
+        # The LLM should call simulate_design tool separately if needed
         result = _format_optimization_result(
             problem_type,
-            initial_objectives,
-            final_objectives,
             optimized_design,
             optimization_info,
-            problem=problem,  # Reuse existing problem instance for metadata
         )
 
         # Add warning if problem_config was not provided or was empty
@@ -645,24 +609,20 @@ def _serialize_optimization_step(step: Any) -> dict[str, Any]:
     return step_dict
 
 
-def _format_optimization_result(  # noqa: PLR0913
+def _format_optimization_result(
     problem_type: str,
-    initial_objectives: Any,
-    final_objectives: Any,
     optimized_design: np.ndarray,
     optimization_info: dict,
-    problem: Problem | None = None,
 ) -> dict[str, Any]:
-    """Format optimization results dynamically based on problem.objectives.
+    """Format optimization results.
+
+    Note: This function does not include objective values. Use the simulate_design
+    tool separately to get objective values for the optimized design.
 
     Args:
         problem_type: Type of the problem being formatted
-        initial_objectives: Objective values before optimization
-        final_objectives: Objective values after optimization
         optimized_design: The optimized design array
         optimization_info: Optimization history/metadata
-        problem: Optional problem instance to reuse for metadata access.
-                 If None, a new instance will be created.
 
     Returns:
         Dictionary with formatted results
@@ -684,55 +644,8 @@ def _format_optimization_result(  # noqa: PLR0913
         "design_shape": optimized_design.shape,
         "optimized_design": optimized_design.tolist(),  # Convert to list for JSON serialization
         "optimization_info": serializable_opt_info,  # Now JSON-serializable
+        "message": f"Optimized {problem_type} design. Use simulate_design tool to get objective values.",
     }
-
-    # Access objectives metadata from existing problem instance or create new one if needed
-    if problem is None:
-        problem_class = get_problem_class(problem_type)
-        problem = problem_class()  # Fallback: create metadata-only instance
-
-    objective_names = [name for name, _ in problem.objectives]
-    objective_directions = dict(problem.objectives)
-
-    # Store initial and final objective values
-    message_parts = []
-    for i, obj_name in enumerate(objective_names):
-        # Handle case where initial_objectives may be None (not measured)
-        has_initial = initial_objectives is not None and i < len(initial_objectives)
-        has_final = i < len(final_objectives)
-
-        if has_final:
-            final_val = float(final_objectives[i])
-            result[f"final_{obj_name}"] = final_val
-
-            if has_initial:
-                initial_val = float(initial_objectives[i])
-                result[f"initial_{obj_name}"] = initial_val
-
-                # Calculate improvement based on objective direction
-                if objective_directions[obj_name] == ObjectiveDirection.MINIMIZE:
-                    improvement = (
-                        ((initial_val - final_val) / abs(initial_val) * 100)
-                        if initial_val != 0
-                        else 0
-                    )
-                else:  # MAXIMIZE
-                    improvement = (
-                        ((final_val - initial_val) / abs(initial_val) * 100)
-                        if initial_val != 0
-                        else 0
-                    )
-
-                result[f"{obj_name}_improvement"] = improvement
-                message_parts.append(
-                    f"{obj_name}: {initial_val:.6f}→{final_val:.6f} ({improvement:.1f}%)"
-                )
-            else:
-                # No initial value available
-                message_parts.append(f"{obj_name}: {final_val:.6f}")
-
-    # Build message
-    result["message"] = f"Optimized {problem_type} design: " + ", ".join(message_parts)
 
     return result
 
