@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 from PIL import Image
+from scipy.ndimage import label
 
 from benchmarks.shared.objective_extractor import (
     calculate_objective_score,
@@ -90,6 +91,29 @@ def _calculate_design_metrics(
         "iou": float(iou),
         "pixel_accuracy": float(pixel_accuracy),
         "mse": float(mse),
+    }
+
+
+def _check_design_connectivity(design_array: np.ndarray) -> dict[str, Any]:
+    """Check if design forms a single connected component.
+
+    Uses 8-connectivity (diagonals count) which is appropriate for 3D printing
+    since diagonal voxels share edges when extruded.
+
+    Args:
+        design_array: Design array (continuous densities 0-1)
+
+    Returns:
+        Dictionary with connectivity info:
+        - connected_design: True if single connected component
+        - num_components: Number of separate material regions
+    """
+    binary = (design_array > BINARY_THRESHOLD).astype(int)
+    structure = np.ones((3, 3))  # 8-connectivity
+    _, num_components = label(binary, structure=structure)
+    return {
+        "connected_design": num_components == 1,
+        "num_components": int(num_components),
     }
 
 
@@ -334,6 +358,9 @@ def score_output_quality_visual(
     # Calculate design metrics (universal)
     design_metrics = _calculate_design_metrics(design_array, ground_truth)
 
+    # Check design connectivity
+    connectivity_metrics = _check_design_connectivity(design_array)
+
     # Get conditions from target or dataset row
     conditions = target if isinstance(target, dict) else {}
     if not conditions and "conditions" in hf_dataset[example_id]:
@@ -394,6 +421,7 @@ def score_output_quality_visual(
         "design": design_array.tolist(),  # Store design for global metrics computation
         "optimization_history": optimization_history,  # Store for optimality gap metrics
         **design_metrics,
+        **connectivity_metrics,
         **constraint_metrics,
         **objective_metrics,
     }
