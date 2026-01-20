@@ -403,16 +403,16 @@ python scripts/inspect_mmore.py --list
 
 ### Via Database Query
 
-Check the local tracking database:
+Check the files indexed in MMORE:
 
 ```python
-from src.ui.database import DatabaseManager
+from src.tools import MMOREClient
 
-db = DatabaseManager()
-docs = db.get_all_mmore_documents()
+mmore_client = MMOREClient()
+file_ids = mmore_client.list_files()
 
-for doc in docs:
-    print(f"{doc['file_id']}: {doc['file_name']} (uploaded: {doc['uploaded_at']})")
+for file_id in file_ids:
+    print(file_id)
 ```
 
 ## Troubleshooting

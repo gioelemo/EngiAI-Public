@@ -245,11 +245,8 @@ def test_create_arxiv_tools_without_dependencies():
 def test_create_arxiv_tools_with_dependencies():
     """Test that create_arxiv_tools returns all tools with MMORE dependencies."""
     mock_mmore_client = MagicMock()
-    mock_db_manager = MagicMock()
 
-    tools = create_arxiv_tools(
-        mmore_client=mock_mmore_client, db_manager=mock_db_manager
-    )
+    tools = create_arxiv_tools(mmore_client=mock_mmore_client)
 
     assert len(tools) == 5
     tool_names = [tool.name for tool in tools]

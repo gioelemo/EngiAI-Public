@@ -18,7 +18,6 @@ from langchain_core.tools import tool
 
 if TYPE_CHECKING:
     from src.tools.mmore_client import MMOREClient
-    from src.ui.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -144,14 +143,11 @@ def get_arxiv_paper(
         return response
 
 
-def create_download_and_analyze_tool(
-    mmore_client: "MMOREClient", db_manager: "DatabaseManager"
-):
+def create_download_and_analyze_tool(mmore_client: "MMOREClient"):
     """Create a tool for downloading and analyzing ArXiv papers with MMORE.
 
     Args:
         mmore_client: MMORE client instance for uploading papers
-        db_manager: Database manager for tracking uploaded documents
 
     Returns:
         LangChain tool for downloading and analyzing papers
@@ -190,15 +186,9 @@ def create_download_and_analyze_tool(
             logger.info(f"Uploading paper {clean_id} to MMORE...")
             mmore_client.upload_file(file_path=pdf_path, file_id=file_id)
 
-            # Track uploaded document in database
-            authors = ", ".join([author.name for author in paper.authors])
-            db_manager.add_mmore_document(
-                file_id=file_id,
-                file_name=f"{paper.title}.pdf",
-                file_path=pdf_path,
-            )
-
             logger.info(f"Successfully added paper {clean_id} to MMORE")
+
+            authors = ", ".join([author.name for author in paper.authors])
 
             authors_preview = authors[:AUTHORS_PREVIEW_LENGTH]
             authors_ellipsis = "..." if len(authors) > AUTHORS_PREVIEW_LENGTH else ""
@@ -280,11 +270,11 @@ def create_ask_papers_tool(mmore_client: "MMOREClient"):
     return ask_about_papers
 
 
-def create_list_papers_tool(db_manager: "DatabaseManager"):
+def create_list_papers_tool(mmore_client: "MMOREClient"):
     """Create a tool for listing analyzed papers.
 
     Args:
-        db_manager: Database manager for accessing document records
+        mmore_client: MMORE client for accessing the knowledge base
 
     Returns:
         LangChain tool for listing papers
@@ -298,29 +288,22 @@ def create_list_papers_tool(db_manager: "DatabaseManager"):
         Shows papers that have been downloaded and are available for analysis.
         """
         try:
-            # Get all documents from database (filter for arxiv papers)
-            all_documents = db_manager.get_all_mmore_documents()
+            # Get all files from MMORE API and filter for arxiv papers
+            all_file_ids = mmore_client.list_files()
 
-            # Filter only arxiv papers
-            arxiv_papers = [
-                doc for doc in all_documents if doc["file_id"].startswith("arxiv_")
+            # Filter only arxiv papers (file IDs starting with "arxiv_")
+            arxiv_file_ids = [
+                file_id for file_id in all_file_ids if file_id.startswith("arxiv_")
             ]
 
-            if not arxiv_papers:
+            if not arxiv_file_ids:
                 return "No ArXiv papers in MMORE knowledge base yet.\n\nUse download_and_analyze_paper() to add papers."
 
             # Format output
-            result = f"📚 ArXiv Papers in MMORE Knowledge Base ({len(arxiv_papers)} paper(s)):\n\n"
-            for doc in arxiv_papers:
-                file_name = doc["file_name"]
-                file_id = doc["file_id"]
+            result = f"📚 ArXiv Papers in MMORE Knowledge Base ({len(arxiv_file_ids)} paper(s)):\n\n"
+            for file_id in arxiv_file_ids:
                 arxiv_id = file_id.replace("arxiv_", "")
-                uploaded_at = doc["uploaded_at"].strftime("%Y-%m-%d %H:%M")
-
-                result += f"• **{file_name}**\n"
-                result += f"  - ArXiv ID: {arxiv_id}\n"
-                result += f"  - File ID: {file_id}\n"
-                result += f"  - Uploaded: {uploaded_at}\n\n"
+                result += f"• ArXiv ID: {arxiv_id} (File ID: {file_id})\n"
 
             result += (
                 "\n✓ All papers indexed with multimodal content (text, images, tables)"
@@ -336,27 +319,25 @@ def create_list_papers_tool(db_manager: "DatabaseManager"):
 
 def create_arxiv_tools(
     mmore_client: "MMOREClient | None" = None,
-    db_manager: "DatabaseManager | None" = None,
 ) -> list:
     """
     Create a list of ArXiv-related tools.
 
     Args:
         mmore_client: Optional MMORE client for analysis tools
-        db_manager: Optional database manager for tracking papers
 
     Returns:
         List of LangChain tools for ArXiv operations
     """
     tools = [search_arxiv, get_arxiv_paper]
 
-    # Add MMORE-integrated tools if dependencies provided
-    if mmore_client and db_manager:
+    # Add MMORE-integrated tools if client provided
+    if mmore_client:
         tools.extend(
             [
-                create_download_and_analyze_tool(mmore_client, db_manager),
+                create_download_and_analyze_tool(mmore_client),
                 create_ask_papers_tool(mmore_client),
-                create_list_papers_tool(db_manager),
+                create_list_papers_tool(mmore_client),
             ]
         )
 

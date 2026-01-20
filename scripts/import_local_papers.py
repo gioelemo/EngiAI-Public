@@ -36,7 +36,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import after path manipulation (ruff: E402 is acceptable here)
 from src.tools import MMOREClient  # noqa: E402
-from src.ui.database import DatabaseManager  # noqa: E402
 
 # Configure logging
 # Ensure log directory exists
@@ -87,9 +86,8 @@ class LocalPaperImporter:
 
         self.use_symlinks = use_symlinks
 
-        # Initialize MMORE components
+        # Initialize MMORE client
         self.mmore_client = MMOREClient()
-        self.db = DatabaseManager()
 
         # Import state
         self.imported_files: dict[str, dict] = self._load_state()
@@ -251,14 +249,6 @@ class LocalPaperImporter:
 
                 logger.info(
                     f"Successfully uploaded {rel_path} to MMORE (fileId: {file_id})"
-                )
-
-                # Track in database
-                self.db.add_mmore_document(
-                    file_id=file_id,
-                    file_name=file_path.name,
-                    file_path=str(file_path),
-                    uploaded_by="local_import_script",
                 )
 
                 # Update state

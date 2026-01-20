@@ -217,3 +217,28 @@ class MMOREClient:
 
         logger.info(f"Deleted file {file_id} from mmore")
         return response.json()
+
+    def list_files(self, collection_name: str = "my_docs") -> list[str]:
+        """List all files stored in the mmore index.
+
+        Args:
+            collection_name: Name of the Milvus collection (defaults to 'my_docs')
+
+        Returns:
+            List of file IDs
+
+        Raises:
+            requests.HTTPError: If listing fails
+        """
+        response = requests.get(
+            f"{self.base_url}/list_files",
+            params={"collection_name": collection_name},
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        # API returns list of {"id": ..., "filename": ...} objects, extract IDs
+        file_ids = [item["id"] for item in data] if data else []
+        logger.info(f"Listed {len(file_ids)} files from mmore")
+        return file_ids

@@ -103,21 +103,7 @@ def mock_mmore_client():
         )
     ]
     mock.delete_file.return_value = {"status": "deleted"}
-    return mock
-
-
-@pytest.fixture
-def mock_database():
-    """Mock database manager for testing."""
-    mock = Mock()
-    mock.add_mmore_document.return_value = None
-    mock.get_all_mmore_documents.return_value = [
-        {
-            "file_id": "arxiv_1605.08386",
-            "file_name": "Topology Optimization in Engineering.pdf",
-            "uploaded_at": datetime(2024, 1, 15, 10, 30),
-        }
-    ]
+    mock.list_files.return_value = ["arxiv_1605.08386"]
     return mock
 
 
@@ -397,7 +383,6 @@ class TestArXivAgentDownloadAndAnalyzeTool:
         mock_arxiv_search,
         mock_arxiv_paper,
         mock_mmore_client,
-        mock_database,
     ):
         """Test successful paper download and analysis."""
         from src.agents.arxiv_agent import ArXivAgent
@@ -406,7 +391,7 @@ class TestArXivAgentDownloadAndAnalyzeTool:
         mock_search_cls.return_value = mock_arxiv_search
         mock_mmore_cls.return_value = mock_mmore_client
 
-        agent = ArXivAgent(db_manager=mock_database)
+        agent = ArXivAgent()
 
         download_tool = agent.tools_by_name["download_and_analyze_paper"]
 
@@ -417,7 +402,6 @@ class TestArXivAgentDownloadAndAnalyzeTool:
         assert "1605.08386" in result
         mock_arxiv_paper.download_pdf.assert_called_once()
         mock_mmore_client.upload_file.assert_called_once()
-        mock_database.add_mmore_document.assert_called_once()
 
     @patch("src.tools.arxiv_tools.arxiv.Search")
     @patch("src.agents.arxiv_agent.MMOREClient")
@@ -566,7 +550,6 @@ class TestArXivAgentListPapersTool:
         mock_init_llm,
         mock_mmore_cls,
         mock_mmore_client,
-        mock_database,
     ):
         """Test successful paper listing."""
         from src.agents.arxiv_agent import ArXivAgent
@@ -574,7 +557,7 @@ class TestArXivAgentListPapersTool:
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_mmore_cls.return_value = mock_mmore_client
 
-        agent = ArXivAgent(db_manager=mock_database)
+        agent = ArXivAgent()
 
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 
@@ -582,8 +565,8 @@ class TestArXivAgentListPapersTool:
 
         assert "ArXiv Papers in MMORE Knowledge Base" in result
         assert "1 paper(s)" in result
-        assert "Topology Optimization in Engineering" in result
         assert "1605.08386" in result
+        mock_mmore_client.list_files.assert_called_once()
 
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
@@ -597,12 +580,10 @@ class TestArXivAgentListPapersTool:
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_client.list_files.return_value = []
         mock_mmore_cls.return_value = mock_mmore_client
 
-        mock_db = Mock()
-        mock_db.get_all_mmore_documents.return_value = []
-
-        agent = ArXivAgent(db_manager=mock_db)
+        agent = ArXivAgent()
 
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 
@@ -610,6 +591,7 @@ class TestArXivAgentListPapersTool:
 
         assert "No ArXiv papers in MMORE knowledge base yet" in result
         assert "download_and_analyze_paper" in result
+        mock_mmore_client.list_files.assert_called_once()
 
     @patch("src.agents.arxiv_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
@@ -623,12 +605,10 @@ class TestArXivAgentListPapersTool:
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
+        mock_mmore_client.list_files.side_effect = Exception("API error")
         mock_mmore_cls.return_value = mock_mmore_client
 
-        mock_db = Mock()
-        mock_db.get_all_mmore_documents.side_effect = Exception("Database error")
-
-        agent = ArXivAgent(db_manager=mock_db)
+        agent = ArXivAgent()
 
         list_tool = agent.tools_by_name["list_analyzed_papers"]
 

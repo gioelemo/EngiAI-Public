@@ -17,7 +17,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.tools import MMOREClient
-from src.ui.database import DatabaseManager
 
 # Constants
 CONTENT_PREVIEW_LENGTH = 200
@@ -69,57 +68,37 @@ def check_mmore_health(mmore_url: str | None = None):
         return True
 
 
-def list_documents(limit: int = 0, show_metadata: bool = False):
-    """List all documents tracked in the database."""
+def list_documents(limit: int = 0, mmore_url: str | None = None):
+    """List all documents in the MMORE knowledge base."""
     print_section("Documents in MMORE Knowledge Base")
 
     try:
-        db = DatabaseManager()
-        documents = db.get_all_mmore_documents()
+        mmore_client = MMOREClient(base_url=mmore_url)
+        file_ids = mmore_client.list_files()
 
-        if not documents:
+        if not file_ids:
             print("\nNo documents found in MMORE knowledge base.")
             print("Use the RAG agent's 'add_document' tool to upload files.")
             return []
 
         # Apply limit if specified
-        display_docs = documents if limit == 0 else documents[:limit]
+        display_ids = file_ids if limit == 0 else file_ids[:limit]
 
-        print(f"\nTotal documents: {len(documents)}")
-        if limit > 0 and len(documents) > limit:
+        print(f"\nTotal documents: {len(file_ids)}")
+        if limit > 0 and len(file_ids) > limit:
             print(f"Showing first {limit} documents:\n")
         else:
             print()
 
-        for i, doc in enumerate(display_docs, 1):
-            file_id = doc.get("file_id", "unknown")
-            file_name = doc.get("file_name", "unknown")
-            uploaded_at = doc.get("uploaded_at")
-            file_path = doc.get("file_path")
-
+        for i, file_id in enumerate(display_ids, 1):
             print(f"{i}. File ID: {file_id}")
-            print(f"   Name: {file_name}")
-            if uploaded_at:
-                print(f"   Uploaded: {uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}")
-            if file_path:
-                print(f"   Path: {file_path}")
-
-            if show_metadata:
-                metadata = {
-                    k: v
-                    for k, v in doc.items()
-                    if k not in ["file_id", "file_name", "uploaded_at", "file_path"]
-                }
-                if metadata:
-                    print("   Additional Metadata:")
-                    print(format_metadata(metadata))
             print()
 
     except Exception as e:
         print(f"\nError listing documents: {e}")
         return []
     else:
-        return documents
+        return file_ids
 
 
 def show_document_details(file_id: str, mmore_url: str | None = None):
@@ -127,27 +106,12 @@ def show_document_details(file_id: str, mmore_url: str | None = None):
     print_section(f"Document Details: {file_id}")
 
     try:
-        # Get from database
-        db = DatabaseManager()
-        doc_info = db.get_mmore_document(file_id)
+        client = MMOREClient(base_url=mmore_url)
 
-        if not doc_info:
-            print(f"\nDocument '{file_id}' not found in database.")
-            return
-
-        print("\nDatabase Information:")
-        print(f"  File ID: {doc_info.get('file_id')}")
-        print(f"  File Name: {doc_info.get('file_name')}")
-        uploaded_at = doc_info.get("uploaded_at")
-        if uploaded_at:
-            print(f"  Uploaded: {uploaded_at.strftime('%Y-%m-%d %H:%M:%S')}")
-        file_path = doc_info.get("file_path")
-        if file_path:
-            print(f"  Path: {file_path}")
+        print(f"\nFile ID: {file_id}")
 
         # Try to retrieve sample content from MMORE
-        print("\nTrying to retrieve sample content from MMORE...")
-        client = MMOREClient(base_url=mmore_url)
+        print("\nRetrieving sample content from MMORE...")
 
         # Use the file_id to retrieve some content
         docs = client.retrieve(
@@ -224,75 +188,43 @@ def test_retrieval(
         print(f"\nError during retrieval: {e}")
 
 
-def list_unique_sources():
-    """List unique source files tracked in database."""
+def list_unique_sources(mmore_url: str | None = None):
+    """List unique source files in MMORE."""
     print_section("Unique Source Files")
 
     try:
-        db = DatabaseManager()
-        documents = db.get_all_mmore_documents()
+        mmore_client = MMOREClient(base_url=mmore_url)
+        file_ids = mmore_client.list_files()
 
-        if not documents:
+        if not file_ids:
             print("\nNo documents found.")
             return
 
-        # Extract unique file names and paths
-        file_names = set()
-        file_ids = set()
-
-        for doc in documents:
-            file_name = doc.get("file_name")
-            file_id = doc.get("file_id")
-
-            if file_name:
-                file_names.add(file_name)
-            if file_id:
-                file_ids.add(file_id)
-
         print(f"\nTotal unique files: {len(file_ids)}")
-        print(f"Total unique filenames: {len(file_names)}")
 
         print("\nFile IDs:")
         for i, file_id in enumerate(sorted(file_ids), 1):
             print(f"  {i}. {file_id}")
 
-        if len(file_names) != len(file_ids):
-            print("\nFilenames:")
-            for i, file_name in enumerate(sorted(file_names), 1):
-                print(f"  {i}. {file_name}")
-
     except Exception as e:
         print(f"\nError listing sources: {e}")
 
 
-def export_to_json(output_file: str):
-    """Export all document metadata to a JSON file."""
+def export_to_json(output_file: str, mmore_url: str | None = None):
+    """Export all file IDs to a JSON file."""
     print_section("Export to JSON")
 
     try:
-        db = DatabaseManager()
-        documents = db.get_all_mmore_documents()
+        mmore_client = MMOREClient(base_url=mmore_url)
+        file_ids = mmore_client.list_files()
 
-        if not documents:
+        if not file_ids:
             print("\nNo documents to export.")
             return
 
-        # Convert datetime objects to strings for JSON serialization
         export_data = {
-            "total_documents": len(documents),
-            "documents": [
-                {
-                    "file_id": doc.get("file_id"),
-                    "file_name": doc.get("file_name"),
-                    "file_path": doc.get("file_path"),
-                    "uploaded_at": (
-                        uploaded_at.isoformat()
-                        if (uploaded_at := doc.get("uploaded_at"))
-                        else None
-                    ),
-                }
-                for doc in documents
-            ],
+            "total_documents": len(file_ids),
+            "file_ids": file_ids,
         }
 
         # Write to file
@@ -302,7 +234,7 @@ def export_to_json(output_file: str):
         with output_path.open("w") as f:
             json.dump(export_data, f, indent=2)
 
-        print(f"\n✓ Exported {len(documents)} documents to: {output_file}")
+        print(f"\n✓ Exported {len(file_ids)} file IDs to: {output_file}")
 
     except Exception as e:
         print(f"\nError exporting to JSON: {e}")
@@ -318,8 +250,8 @@ Examples:
   # Check MMORE health and list all documents
   python scripts/inspect_mmore.py
 
-  # List documents with full metadata
-  python scripts/inspect_mmore.py --list --show-metadata
+  # List all documents
+  python scripts/inspect_mmore.py --list
 
   # Show details for a specific document
   python scripts/inspect_mmore.py --details arxiv_2301.07098v1
@@ -354,11 +286,6 @@ Examples:
         type=int,
         default=0,
         help="Limit number of documents to show (default: 0 for all)",
-    )
-    parser.add_argument(
-        "--show-metadata",
-        action="store_true",
-        help="Show full metadata when listing documents",
     )
     parser.add_argument(
         "--details",
@@ -414,12 +341,12 @@ Examples:
 
     # If no specific action requested, list documents by default
     if not any([args.list, args.details, args.retrieve, args.sources, args.export]):
-        list_documents(limit=args.limit, show_metadata=args.show_metadata)
+        list_documents(limit=args.limit, mmore_url=args.mmore_url)
         return
 
     # Execute requested actions
     if args.list:
-        list_documents(limit=args.limit, show_metadata=args.show_metadata)
+        list_documents(limit=args.limit, mmore_url=args.mmore_url)
         print()
 
     if args.details:
@@ -436,11 +363,11 @@ Examples:
         print()
 
     if args.sources:
-        list_unique_sources()
+        list_unique_sources(mmore_url=args.mmore_url)
         print()
 
     if args.export:
-        export_to_json(args.export)
+        export_to_json(args.export, mmore_url=args.mmore_url)
         print()
 
 
