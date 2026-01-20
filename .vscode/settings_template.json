@@ -8,7 +8,6 @@
     "python.linting.mypyEnabled": true,
     "mypy-type-checker.importStrategy": "fromEnvironment",
     "python.formatting.provider": "none",
-    "ruff.importStrategy": "fromEnvironment",
     "ruff.showNotifications": "onError",
     "ruff.organizeImports": true,
     "ruff.fixAll": true,
