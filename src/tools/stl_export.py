@@ -10,10 +10,29 @@ from typing import Any
 
 import numpy as np
 from langchain_core.tools import tool
+from scipy.ndimage import label
 from stl import mesh
 
 # Threshold for considering a cell as non-zero (for binary designs)
 CELL_THRESHOLD = 0.5
+
+
+def _check_design_connectivity(data: np.ndarray) -> tuple[bool, int]:
+    """Check if design forms a single connected component.
+
+    Uses 8-connectivity (diagonals count) which is appropriate for 3D printing
+    since diagonal voxels share edges when extruded.
+
+    Args:
+        data: Design array (will be thresholded at CELL_THRESHOLD)
+
+    Returns:
+        Tuple of (is_connected, num_components)
+    """
+    binary = (data >= CELL_THRESHOLD).astype(int)
+    structure = np.ones((3, 3))  # 8-connectivity
+    _, num_components = label(binary, structure=structure)
+    return num_components == 1, int(num_components)
 
 
 def _get_versioned_filename(base_path: Path) -> Path:
@@ -291,6 +310,9 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
         # Count non-zero cells
         non_zero_count = np.count_nonzero(data)
 
+        # Check design connectivity
+        connected_design, num_components = _check_design_connectivity(data)
+
         # Create mesh using extruded blocks method
         beam_mesh = _create_stl_from_heatmap_extruded(data, scale_z, scale_xy)
 
@@ -306,13 +328,16 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
             "design_shape": data.shape,
             "num_triangles": num_triangles,
             "non_zero_cells": int(non_zero_count),
+            "connected_design": connected_design,
+            "num_components": num_components,
             "scale_xy": scale_xy,
             "scale_z": scale_z,
             "mirrored": mirror_y,
             "message": f"Successfully converted {input_path.name} to outputs/{output_path.name}"
             + (" (mirrored along Y-axis)" if mirror_y else "")
             + f". Created 3D extruded mesh with {num_triangles} triangles from {non_zero_count} cells. "
-            f"Dimensions: {width}x{height} grid, scaled by {scale_xy}x{scale_xy}x{scale_z}",
+            + f"Connected: {connected_design} ({num_components} component{'s' if num_components != 1 else ''}). "
+            + f"Dimensions: {width}x{height} grid, scaled by {scale_xy}x{scale_xy}x{scale_z}",
         }
     except ValueError as e:
         return {
