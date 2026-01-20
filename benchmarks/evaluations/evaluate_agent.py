@@ -60,6 +60,9 @@ from benchmarks.shared.output_quality_visual_scorer import (  # noqa: E402
     score_output_quality_visual,
 )
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
+from benchmarks.shared.task_completion_scorer import (  # noqa: E402
+    score_task_completion,
+)
 from config import config  # noqa: E402
 from src.agents.supervisor_agent import SupervisorAgent  # noqa: E402
 from src.tools.engibench import clear_session_state, set_session_id  # noqa: E402
@@ -259,11 +262,12 @@ def parse_arguments() -> argparse.Namespace:
         "--scorers",
         type=str,
         default="generic",
-        choices=["generic", "engibench", "all"],
+        choices=["generic", "engibench", "all", "task_completion"],
         help=(
             "Metrics to compute: "
             "'generic' or 'all' (detailed per-design metrics + global metrics: MMD, DPP, RVC, optimality gaps), "
-            "'engibench' (lightweight design extraction only, use for faster evaluations)"
+            "'engibench' (lightweight design extraction only, use for faster evaluations), "
+            "'task_completion' (check if render_design tool was called successfully)"
         ),
     )
     parser.add_argument(
@@ -588,10 +592,13 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         base_scorers = [score_output_quality_engibench]
         scorer_types = ["engibench"]
     elif args.scorers == "all":
-        # Use output_quality_visual only (it includes design extraction for global metrics)
-        # No need for engibench scorer as it clutters the evaluation table with minimal metrics
-        base_scorers = [score_output_quality_visual]
-        scorer_types = ["output_quality_visual"]
+        # Use output_quality_visual + task_completion for comprehensive metrics
+        base_scorers = [score_output_quality_visual, score_task_completion]
+        scorer_types = ["output_quality_visual", "task_completion"]
+    elif args.scorers == "task_completion":
+        # Task completion scorer: checks if render_design was called successfully
+        base_scorers = [score_task_completion]
+        scorer_types = ["task_completion"]
     else:
         base_scorers = [score_output_quality_visual]
         scorer_types = ["output_quality_visual"]
@@ -729,6 +736,20 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     )
 
     # Compute global metrics for all scorer types (all scorers now support design extraction)
+    # Skip for task_completion scorer which doesn't extract designs
+    if args.scorers == "task_completion":
+        print()
+        print("=" * 60)
+        print("TASK COMPLETION RESULTS")
+        print("=" * 60)
+        print()
+        print("Task completion scorer does not compute global metrics.")
+        print("Check Weave dashboard for per-example success_rate scores.")
+        print()
+        print("🎉 Evaluation complete!")
+        print("📊 View detailed results in Weave dashboard")
+        return
+
     print()
     print("=" * 60)
     print("COMPUTING GLOBAL METRICS")
