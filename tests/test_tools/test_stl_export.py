@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from src.tools.stl_export import (
+    _check_design_connectivity,
     _create_stl_from_heatmap_extruded,
     _get_versioned_filename,
     _mirror_beam_along_y,
@@ -482,3 +483,157 @@ def test_mesh_vectors_structure():
     assert mesh.vectors.shape[1] == 3
     # Each vertex should have 3 coordinates (x, y, z)
     assert mesh.vectors.shape[2] == 3
+
+
+# ============================================================================
+# CONNECTIVITY CHECK TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_connectivity_single_connected_component():
+    """Test that a fully connected design returns connected=True."""
+    # L-shaped connected design
+    connected = np.array(
+        [
+            [1, 1, 0],
+            [0, 1, 0],
+            [0, 1, 1],
+        ]
+    )
+    is_connected, num_components = _check_design_connectivity(connected)
+
+    assert is_connected is True
+    assert num_components == 1
+
+
+@pytest.mark.unit
+def test_connectivity_diagonal_connection():
+    """Test that diagonally connected cells count as connected (8-connectivity)."""
+    # Diagonal connection - should be connected with 8-connectivity
+    diagonal = np.array(
+        [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+        ]
+    )
+    is_connected, num_components = _check_design_connectivity(diagonal)
+
+    assert is_connected is True
+    assert num_components == 1
+
+
+@pytest.mark.unit
+def test_connectivity_disconnected_components():
+    """Test that disconnected regions are detected."""
+    # Two separate regions (corners)
+    disconnected = np.array(
+        [
+            [1, 0, 1],
+            [0, 0, 0],
+            [1, 0, 1],
+        ]
+    )
+    is_connected, num_components = _check_design_connectivity(disconnected)
+
+    assert is_connected is False
+    assert num_components == 4  # Four separate corner cells
+
+
+@pytest.mark.unit
+def test_connectivity_two_components():
+    """Test detection of exactly two disconnected components."""
+    # Two separate horizontal bars
+    two_bars = np.array(
+        [
+            [1, 1, 1],
+            [0, 0, 0],
+            [1, 1, 1],
+        ]
+    )
+    is_connected, num_components = _check_design_connectivity(two_bars)
+
+    assert is_connected is False
+    assert num_components == 2
+
+
+@pytest.mark.unit
+def test_connectivity_empty_design():
+    """Test that empty design has zero components."""
+    empty = np.zeros((3, 3))
+    is_connected, num_components = _check_design_connectivity(empty)
+
+    assert is_connected is False
+    assert num_components == 0
+
+
+@pytest.mark.unit
+def test_connectivity_full_design():
+    """Test that fully filled design is connected."""
+    full = np.ones((5, 5))
+    is_connected, num_components = _check_design_connectivity(full)
+
+    assert is_connected is True
+    assert num_components == 1
+
+
+@pytest.mark.unit
+def test_connectivity_threshold_applied():
+    """Test that values below threshold are treated as void."""
+    # Values below 0.5 threshold should be ignored
+    continuous = np.array(
+        [
+            [0.8, 0.3, 0.9],
+            [0.2, 0.7, 0.1],
+            [0.6, 0.4, 0.8],
+        ]
+    )
+    # After threshold: [[1,0,1], [0,1,0], [1,0,1]]
+    # With 8-connectivity, all corners connect through center
+    is_connected, num_components = _check_design_connectivity(continuous)
+
+    assert is_connected is True
+    assert num_components == 1
+
+
+@pytest.mark.unit
+def test_connectivity_single_cell():
+    """Test single cell design is connected."""
+    single = np.array([[1]])
+    is_connected, num_components = _check_design_connectivity(single)
+
+    assert is_connected is True
+    assert num_components == 1
+
+
+@pytest.mark.unit
+def test_connectivity_in_stl_output(tmp_path, sample_2d_array):
+    """Test that connectivity info is included in STL export output."""
+    npy_path = tmp_path / "design.npy"
+    np.save(npy_path, sample_2d_array)
+
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+
+    with patch("src.tools.stl_export.Path") as mock_path_class:
+
+        def path_side_effect(path_str):
+            if path_str == "outputs":
+                return outputs_dir
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        result = convert_design_to_stl.invoke(
+            {
+                "npy_file_path": str(npy_path),
+                "stl_file_path": str(outputs_dir / "test.stl"),
+            }
+        )
+
+    assert result["success"] is True
+    assert "connected_design" in result
+    assert "num_components" in result
+    assert isinstance(result["connected_design"], bool)
+    assert isinstance(result["num_components"], int)
