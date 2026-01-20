@@ -16,6 +16,7 @@ from plot_dpp_vs_fog import plot_dpp_vs_fog
 from plot_dpp_vs_mmd import plot_dpp_vs_mmd
 from plot_iou_vs_objective import plot_iou_vs_objective
 from plot_metrics_comparison import plot_metrics_comparison
+from plot_token_latency import plot_latency, plot_token_usage
 from plot_tool_usage import (
     plot_tool_heatmap_by_model,
     plot_tool_usage_by_model,
@@ -111,6 +112,27 @@ def _generate_tool_usage_plots(combined_tools, combined_design, output_dir):
         plot_tool_usage_vs_performance(combined_tools, combined_design, output_dir)
 
 
+def _generate_token_latency_plots(combined_tools, output_dir):
+    """Generate token usage and latency plots."""
+    print("\n" + "-" * 40)
+    print("Generating token usage and latency plots...")
+    print("-" * 40)
+
+    if combined_tools is None or len(combined_tools) == 0:
+        print("  ⚠️  No tool usage data found. Run extract_data.py first.")
+        return
+
+    print(f"  Combined tool usage: {len(combined_tools)} records")
+
+    # Token usage plot
+    print("\n[11/12] Token usage plot...")
+    plot_token_usage(combined_tools, output_dir)
+
+    # Latency plot
+    print("\n[12/12] Latency plot...")
+    plot_latency(combined_tools, output_dir)
+
+
 def main():
     """Generate all visualizations."""
     print("=" * 60)
@@ -144,6 +166,9 @@ def main():
     tool_data = load_tool_usage_data()
     combined_tools = get_combined_tool_usage_df(tool_data)
     _generate_tool_usage_plots(combined_tools, combined_design, output_dir)
+
+    # Generate token usage and latency plots
+    _generate_token_latency_plots(combined_tools, output_dir)
 
     print("\n" + "=" * 60)
     print(f"DONE! All figures saved to: {output_dir}")
