@@ -16,7 +16,7 @@ from langchain_core.messages import HumanMessage, ToolMessage
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from benchmarks.shared.output_quality_visual_scorer import (  # noqa: E402
+from benchmarks.shared.scorers import (  # noqa: E402
     score_output_quality_visual,
 )
 

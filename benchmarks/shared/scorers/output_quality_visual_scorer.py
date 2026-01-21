@@ -211,8 +211,9 @@ def _save_comparison_image(
     model_safe = model_name.replace("/", "_").replace(":", "_")
 
     # Build output directory path, including seed subfolder if seed is provided
+    # Go up to benchmarks/ directory (parent.parent.parent from scorers/)
     base_dir = (
-        Path(__file__).parent.parent
+        Path(__file__).parent.parent.parent
         / "evaluations"
         / "results"
         / model_safe

@@ -52,18 +52,12 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "services"))
 
 # Import output quality scorers
-from benchmarks.shared.output_quality_engibench_scorer import (  # noqa: E402
-    compute_global_metrics,  # For global metrics after evaluation
-    score_output_quality_engibench,  # EngiBench scorer for global metrics
-)
-from benchmarks.shared.output_quality_visual_scorer import (  # noqa: E402
-    score_output_quality_visual,
-)
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
-from benchmarks.shared.task_completion_scorer import (  # noqa: E402
+from benchmarks.shared.scorers import (  # noqa: E402
+    compute_global_metrics,
+    score_output_quality_engibench,
+    score_output_quality_visual,
     score_task_completion,
-)
-from benchmarks.shared.tool_use_scorer import (  # noqa: E402
     score_tool_use,
 )
 from config import config  # noqa: E402
