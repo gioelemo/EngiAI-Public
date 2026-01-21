@@ -220,7 +220,6 @@ benchmarks/evaluations/results/
 benchmarks/problems/*/data/raw/
 benchmarks/problems/*/data/generated/
 
-# prusa-mcp is a git submodule at services/prusa_mcp_server/prusa-mcp
 # All env vars should go in root .env (already gitignored above)
 *.zip
 assets/docker_mcp_architecture.pdf
@@ -236,5 +235,3 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 src/ui/components/*/frontend/build/
-opt_frames/frame_final.png
-opt_frames/

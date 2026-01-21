@@ -105,6 +105,13 @@ def create_prompt_from_conditions(
             "force_description": force_desc,
             "expected_stiffness": compliance_desc,
         },
+        # Optimal tool call sequence for efficiency scoring
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "render_design", "count": 1},
+        ],
+        "optimal_call_count": 3,
     }
 
     if include_target:

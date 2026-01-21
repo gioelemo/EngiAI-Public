@@ -4,7 +4,6 @@ from benchmarks.shared.objective_extractor import (
     calculate_objective_score,
     extract_objectives_from_tool_messages,
 )
-from benchmarks.shared.output_quality_visual_scorer import score_output_quality_visual
 from benchmarks.shared.problem_config import (
     ConditionConfig,
     ObjectiveConfig,
@@ -15,6 +14,7 @@ from benchmarks.shared.problem_registry import (
     list_problems,
     register_problem,
 )
+from benchmarks.shared.scorers import score_output_quality_visual
 from benchmarks.shared.utils import (
     create_design_comparison,
     extract_design_from_tool_messages,
