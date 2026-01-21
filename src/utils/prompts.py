@@ -61,7 +61,7 @@ def _build_engineering_agent_prompt() -> str:
 - **sample_designs_from_model**: Generate designs using pre-trained models
 - **generate_training_command**: Generate SLURM training scripts for HPC clusters
 
-**Workflows:** create_problem → optimize_design → render_design | download_wandb_model → sample_designs_from_model → simulate_design
+**Workflows:** create_problem → optimize_design → simulate_design → render_design | download_wandb_model → sample_designs_from_model → simulate_design
 
 ## Problem-Specific Configs
 

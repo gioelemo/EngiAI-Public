@@ -70,7 +70,7 @@ def _mock_agents():
         mock_llm_instance = MagicMock()
         mock_llm_instance.with_structured_output.return_value = MagicMock()
         mock_llm.return_value = mock_llm_instance
-        mock_cp.return_value = MagicMock()
+        mock_cp.return_value = None
 
         yield {
             "engineering": mock_eng,
