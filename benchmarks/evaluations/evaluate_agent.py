@@ -60,6 +60,9 @@ from benchmarks.shared.output_quality_visual_scorer import (  # noqa: E402
     score_output_quality_visual,
 )
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
+from benchmarks.shared.efficiency_scorer import (  # noqa: E402
+    score_efficiency,
+)
 from benchmarks.shared.task_completion_scorer import (  # noqa: E402
     score_task_completion,
 )
@@ -220,6 +223,12 @@ def prepare_evaluation_dataset(
                     "problem_type": problem_type,
                     "dataset_name": dataset_name,
                     "seed": seed,  # Track which seed was used
+                    # Efficiency scoring: optimal tool call info
+                    "optimal_call_count": prompt_data.get("optimal_call_count", 2),
+                    "optimal_tool_calls": prompt_data.get("optimal_tool_calls", [
+                        {"name": "optimize_design", "count": 1},
+                        {"name": "render_design", "count": 1},
+                    ]),
                 },
                 "target": prompt_data.get("target", {}),
             }
@@ -262,12 +271,13 @@ def parse_arguments() -> argparse.Namespace:
         "--scorers",
         type=str,
         default="generic",
-        choices=["generic", "engibench", "all", "task_completion"],
+        choices=["generic", "engibench", "all", "task_completion", "efficiency"],
         help=(
             "Metrics to compute: "
             "'generic' or 'all' (detailed per-design metrics + global metrics: MMD, DPP, RVC, optimality gaps), "
             "'engibench' (lightweight design extraction only, use for faster evaluations), "
-            "'task_completion' (check if render_design tool was called successfully)"
+            "'task_completion' (check if render_design tool was called successfully), "
+            "'efficiency' (compute efficiency ratio: optimal_calls / actual_calls)"
         ),
     )
     parser.add_argument(
@@ -592,13 +602,17 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         base_scorers = [score_output_quality_engibench]
         scorer_types = ["engibench"]
     elif args.scorers == "all":
-        # Use output_quality_visual + task_completion for comprehensive metrics
-        base_scorers = [score_output_quality_visual, score_task_completion]
-        scorer_types = ["output_quality_visual", "task_completion"]
+        # Use output_quality_visual + task_completion + efficiency for comprehensive metrics
+        base_scorers = [score_output_quality_visual, score_task_completion, score_efficiency]
+        scorer_types = ["output_quality_visual", "task_completion", "efficiency"]
     elif args.scorers == "task_completion":
         # Task completion scorer: checks if render_design was called successfully
         base_scorers = [score_task_completion]
         scorer_types = ["task_completion"]
+    elif args.scorers == "efficiency":
+        # Efficiency scorer: compute efficiency ratio (optimal_calls / actual_calls)
+        base_scorers = [score_efficiency]
+        scorer_types = ["efficiency"]
     else:
         base_scorers = [score_output_quality_visual]
         scorer_types = ["output_quality_visual"]
@@ -736,7 +750,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     )
 
     # Compute global metrics for all scorer types (all scorers now support design extraction)
-    # Skip for task_completion scorer which doesn't extract designs
+    # Skip for task_completion and efficiency scorers which don't extract designs
     if args.scorers == "task_completion":
         print()
         print("=" * 60)
@@ -745,6 +759,19 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         print()
         print("Task completion scorer does not compute global metrics.")
         print("Check Weave dashboard for per-example success_rate scores.")
+        print()
+        print("🎉 Evaluation complete!")
+        print("📊 View detailed results in Weave dashboard")
+        return
+
+    if args.scorers == "efficiency":
+        print()
+        print("=" * 60)
+        print("EFFICIENCY RESULTS")
+        print("=" * 60)
+        print()
+        print("Efficiency scorer does not compute global metrics.")
+        print("Check Weave dashboard for per-example efficiency_ratio scores.")
         print()
         print("🎉 Evaluation complete!")
         print("📊 View detailed results in Weave dashboard")
