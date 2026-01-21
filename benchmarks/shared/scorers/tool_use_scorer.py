@@ -297,9 +297,23 @@ def score_tool_use(
     # If we couldn't resolve Weave references, use defaults
     if has_weave_refs or not optimal_sequence:
         logger.debug("Using default optimal sequence due to Weave references")
-        optimal_tool_calls = default_optimal_tool_calls
         optimal_sequence = ["optimize_design", "simulate_design", "render_design"]
         optimal_call_count = 3
+
+    # Rebuild optimal_tool_calls from resolved optimal_sequence to avoid Weave references
+    # Group consecutive identical tools and count them
+    resolved_optimal_tool_calls = []
+    if optimal_sequence:
+        current_tool = optimal_sequence[0]
+        current_count = 1
+        for tool in optimal_sequence[1:]:
+            if tool == current_tool:
+                current_count += 1
+            else:
+                resolved_optimal_tool_calls.append({"name": current_tool, "count": current_count})
+                current_tool = tool
+                current_count = 1
+        resolved_optimal_tool_calls.append({"name": current_tool, "count": current_count})
 
     # Extract actual tool calls from agent output
     tool_calls_info = output.get("tool_calls_info", [])
@@ -381,7 +395,7 @@ def score_tool_use(
         "lcs_length": int(seq_metrics["lcs_length"]),
         # Breakdown
         "tool_call_breakdown": dict(tool_call_breakdown),
-        "optimal_tool_calls": list(optimal_tool_calls),
+        "optimal_tool_calls": resolved_optimal_tool_calls,
         "missing_tools": list(seq_metrics["missing_tools"]),
         "extra_tools": list(seq_metrics["extra_tools"]),
         "out_of_order_tools": list(seq_metrics["out_of_order_tools"]),
