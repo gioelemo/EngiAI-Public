@@ -52,6 +52,9 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "services"))
 
 # Import output quality scorers
+from benchmarks.shared.efficiency_scorer import (  # noqa: E402
+    score_efficiency,
+)
 from benchmarks.shared.output_quality_engibench_scorer import (  # noqa: E402
     compute_global_metrics,  # For global metrics after evaluation
     score_output_quality_engibench,  # EngiBench scorer for global metrics
@@ -60,9 +63,6 @@ from benchmarks.shared.output_quality_visual_scorer import (  # noqa: E402
     score_output_quality_visual,
 )
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
-from benchmarks.shared.efficiency_scorer import (  # noqa: E402
-    score_efficiency,
-)
 from benchmarks.shared.task_completion_scorer import (  # noqa: E402
     score_task_completion,
 )
@@ -224,11 +224,16 @@ def prepare_evaluation_dataset(
                     "dataset_name": dataset_name,
                     "seed": seed,  # Track which seed was used
                     # Efficiency scoring: optimal tool call info
-                    "optimal_call_count": prompt_data.get("optimal_call_count", 2),
-                    "optimal_tool_calls": prompt_data.get("optimal_tool_calls", [
-                        {"name": "optimize_design", "count": 1},
-                        {"name": "render_design", "count": 1},
-                    ]),
+                    # Default assumes optimize → simulate → render sequence
+                    "optimal_call_count": prompt_data.get("optimal_call_count", 3),
+                    "optimal_tool_calls": prompt_data.get(
+                        "optimal_tool_calls",
+                        [
+                            {"name": "optimize_design", "count": 1},
+                            {"name": "simulate_design", "count": 1},
+                            {"name": "render_design", "count": 1},
+                        ],
+                    ),
                 },
                 "target": prompt_data.get("target", {}),
             }
@@ -603,7 +608,11 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         scorer_types = ["engibench"]
     elif args.scorers == "all":
         # Use output_quality_visual + task_completion + efficiency for comprehensive metrics
-        base_scorers = [score_output_quality_visual, score_task_completion, score_efficiency]
+        base_scorers = [
+            score_output_quality_visual,
+            score_task_completion,
+            score_efficiency,
+        ]
         scorer_types = ["output_quality_visual", "task_completion", "efficiency"]
     elif args.scorers == "task_completion":
         # Task completion scorer: checks if render_design was called successfully
