@@ -217,6 +217,139 @@ def _compute_sequence_metrics(
     }
 
 
+def _extract_optimal_sequence(
+    metadata: dict[str, Any],
+) -> tuple[list[str], int]:
+    """Extract and resolve optimal tool sequence from metadata.
+
+    Args:
+        metadata: Metadata containing optimal_call_count and optimal_tool_calls
+
+    Returns:
+        Tuple of (optimal_sequence, optimal_call_count)
+    """
+    default_sequence = ["optimize_design", "simulate_design", "render_design"]
+    default_count = 3
+
+    # Get optimal call count
+    optimal_call_count_raw = metadata.get("optimal_call_count")
+    optimal_call_count = _resolve_weave_value(optimal_call_count_raw)
+    if optimal_call_count is None or _is_weave_reference(optimal_call_count):
+        optimal_call_count = default_count
+
+    # Get optimal tool calls
+    default_optimal_tool_calls = [
+        {"name": "optimize_design", "count": 1},
+        {"name": "simulate_design", "count": 1},
+        {"name": "render_design", "count": 1},
+    ]
+    optimal_tool_calls_raw = metadata.get(
+        "optimal_tool_calls", default_optimal_tool_calls
+    )
+    optimal_tool_calls = _deep_resolve_weave(optimal_tool_calls_raw)
+
+    # Build optimal sequence
+    optimal_sequence = []
+    has_weave_refs = False
+
+    for tc in optimal_tool_calls:
+        tool_name_raw = tc.get("name", "unknown") if isinstance(tc, dict) else None
+        count_raw = tc.get("count", 1) if isinstance(tc, dict) else 1
+
+        tool_name = _resolve_weave_value(tool_name_raw)
+        count = _resolve_weave_value(count_raw)
+
+        if tool_name is None or _is_weave_reference(tool_name):
+            has_weave_refs = True
+            break
+        if count is None or _is_weave_reference(count):
+            count = 1
+
+        optimal_sequence.extend([str(tool_name)] * int(count))
+
+    # Fall back to defaults if needed
+    if has_weave_refs or not optimal_sequence:
+        logger.debug("Using default optimal sequence due to Weave references")
+        return default_sequence, default_count
+
+    return optimal_sequence, int(optimal_call_count)
+
+
+def _rebuild_optimal_tool_calls(optimal_sequence: list[str]) -> list[dict[str, Any]]:
+    """Rebuild optimal_tool_calls from resolved sequence.
+
+    Groups consecutive identical tools and counts them.
+
+    Args:
+        optimal_sequence: List of tool names in order
+
+    Returns:
+        List of {"name": str, "count": int} dicts
+    """
+    if not optimal_sequence:
+        return []
+
+    result = []
+    current_tool = optimal_sequence[0]
+    current_count = 1
+
+    for tool in optimal_sequence[1:]:
+        if tool == current_tool:
+            current_count += 1
+        else:
+            result.append({"name": current_tool, "count": current_count})
+            current_tool = tool
+            current_count = 1
+
+    result.append({"name": current_tool, "count": current_count})
+    return result
+
+
+def _log_tool_use_summary(
+    example_id: Any,
+    metrics: dict[str, Any],
+    seq_metrics: dict[str, Any],
+) -> None:
+    """Log a summary of tool use metrics.
+
+    Args:
+        example_id: Example identifier
+        metrics: Dict with efficiency_ratio, sequence_score, combined_score,
+                 optimal_call_count, actual_call_count
+        seq_metrics: Sequence metrics from _compute_sequence_metrics
+    """
+    if metrics["actual_call_count"] == 0:
+        logger.info("Example %s: No tool calls made (efficiency: 0.0)", example_id)
+        return
+
+    order_status = "correct" if seq_metrics["correct_order"] else "incorrect"
+    logger.info(
+        "Example %s: efficiency=%.2f, sequence=%.2f, combined=%.2f, order=%s "
+        "(optimal: %d, actual: %d)",
+        example_id,
+        metrics["efficiency_ratio"],
+        metrics["sequence_score"],
+        metrics["combined_score"],
+        order_status,
+        metrics["optimal_call_count"],
+        metrics["actual_call_count"],
+    )
+    if seq_metrics["missing_tools"]:
+        logger.debug(
+            "Example %s: Missing tools: %s", example_id, seq_metrics["missing_tools"]
+        )
+    if seq_metrics["extra_tools"]:
+        logger.debug(
+            "Example %s: Extra tools: %s", example_id, seq_metrics["extra_tools"]
+        )
+    if seq_metrics["out_of_order_tools"]:
+        logger.debug(
+            "Example %s: Out of order: %s",
+            example_id,
+            seq_metrics["out_of_order_tools"],
+        )
+
+
 def score_tool_use(
     output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001 - Required by scorer interface
@@ -253,67 +386,11 @@ def score_tool_use(
     """
     example_id = metadata.get("example_id", 0)
 
-    # Default optimal sequence (used if Weave references can't be resolved)
-    default_optimal_tool_calls = [
-        {"name": "optimize_design", "count": 1},
-        {"name": "simulate_design", "count": 1},
-        {"name": "render_design", "count": 1},
-    ]
+    # Extract optimal sequence from metadata (handles Weave references)
+    optimal_sequence, optimal_call_count = _extract_optimal_sequence(metadata)
 
-    # Get optimal call info from metadata (passed through from prompt data)
-    # Resolve any Weave references to actual values
-    optimal_call_count_raw = metadata.get("optimal_call_count")
-    optimal_call_count = _resolve_weave_value(optimal_call_count_raw)
-    if optimal_call_count is None or _is_weave_reference(optimal_call_count):
-        optimal_call_count = 3  # Default
-
-    optimal_tool_calls_raw = metadata.get(
-        "optimal_tool_calls", default_optimal_tool_calls
-    )
-    # Deep resolve to handle nested Weave references
-    optimal_tool_calls = _deep_resolve_weave(optimal_tool_calls_raw)
-
-    # Build optimal sequence from optimal_tool_calls
-    # Each entry has {"name": "tool_name", "count": N}
-    optimal_sequence = []
-    has_weave_refs = False
-
-    for tc in optimal_tool_calls:
-        tool_name_raw = tc.get("name", "unknown") if isinstance(tc, dict) else None
-        count_raw = tc.get("count", 1) if isinstance(tc, dict) else 1
-
-        tool_name = _resolve_weave_value(tool_name_raw)
-        count = _resolve_weave_value(count_raw)
-
-        # Check if we got unresolvable Weave references
-        if tool_name is None or _is_weave_reference(tool_name):
-            has_weave_refs = True
-            break
-        if count is None or _is_weave_reference(count):
-            count = 1
-
-        optimal_sequence.extend([str(tool_name)] * int(count))
-
-    # If we couldn't resolve Weave references, use defaults
-    if has_weave_refs or not optimal_sequence:
-        logger.debug("Using default optimal sequence due to Weave references")
-        optimal_sequence = ["optimize_design", "simulate_design", "render_design"]
-        optimal_call_count = 3
-
-    # Rebuild optimal_tool_calls from resolved optimal_sequence to avoid Weave references
-    # Group consecutive identical tools and count them
-    resolved_optimal_tool_calls = []
-    if optimal_sequence:
-        current_tool = optimal_sequence[0]
-        current_count = 1
-        for tool in optimal_sequence[1:]:
-            if tool == current_tool:
-                current_count += 1
-            else:
-                resolved_optimal_tool_calls.append({"name": current_tool, "count": current_count})
-                current_tool = tool
-                current_count = 1
-        resolved_optimal_tool_calls.append({"name": current_tool, "count": current_count})
+    # Rebuild optimal_tool_calls from resolved sequence
+    resolved_optimal_tool_calls = _rebuild_optimal_tool_calls(optimal_sequence)
 
     # Extract actual tool calls from agent output
     tool_calls_info = output.get("tool_calls_info", [])
@@ -346,37 +423,17 @@ def score_tool_use(
     excess_calls = max(0, actual_call_count - optimal_call_count)
 
     # Log summary
-    if actual_call_count == 0:
-        logger.info("Example %s: No tool calls made (efficiency: 0.0)", example_id)
-    else:
-        order_status = "correct" if seq_metrics["correct_order"] else "incorrect"
-        logger.info(
-            "Example %s: efficiency=%.2f, sequence=%.2f, combined=%.2f, order=%s "
-            "(optimal: %d, actual: %d)",
-            example_id,
-            efficiency_ratio,
-            sequence_score,
-            combined_score,
-            order_status,
-            optimal_call_count,
-            actual_call_count,
-        )
-        if seq_metrics["missing_tools"]:
-            logger.debug(
-                "Example %s: Missing tools: %s",
-                example_id,
-                seq_metrics["missing_tools"],
-            )
-        if seq_metrics["extra_tools"]:
-            logger.debug(
-                "Example %s: Extra tools: %s", example_id, seq_metrics["extra_tools"]
-            )
-        if seq_metrics["out_of_order_tools"]:
-            logger.debug(
-                "Example %s: Out of order: %s",
-                example_id,
-                seq_metrics["out_of_order_tools"],
-            )
+    _log_tool_use_summary(
+        example_id,
+        {
+            "efficiency_ratio": efficiency_ratio,
+            "sequence_score": sequence_score,
+            "combined_score": combined_score,
+            "optimal_call_count": optimal_call_count,
+            "actual_call_count": actual_call_count,
+        },
+        seq_metrics,
+    )
 
     return {
         # Main scores
