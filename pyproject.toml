@@ -24,6 +24,7 @@ dependencies = [
     "langchain-community==0.4.1",
     "langchain-core==1.2.7",
     "langchain-mcp-adapters==0.1.14",
+    "langchain-ollama==1.0.1",
     "langchain-openai==1.1.7",
     "langchain-tavily==0.2.13",
     "langgraph==1.0.6",
