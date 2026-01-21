@@ -1,7 +1,7 @@
-"""Efficiency scorer for engineering agent evaluations.
+"""Tool use scorer for engineering agent evaluations.
 
-This scorer computes the efficiency ratio between optimal and actual tool calls,
-measuring how efficiently the agent solves the design problem.
+This scorer evaluates how well the agent uses tools compared to the optimal sequence,
+measuring both efficiency (number of calls) and correctness (order of calls).
 
 Metrics:
 - Efficiency Ratio = optimal_calls / actual_calls
@@ -217,7 +217,7 @@ def _compute_sequence_metrics(
     }
 
 
-def score_efficiency(
+def score_tool_use(
     output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001 - Required by scorer interface
     metadata: dict[str, Any],
