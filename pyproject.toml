@@ -24,6 +24,7 @@ dependencies = [
     "langchain-community==0.4.1",
     "langchain-core==1.2.7",
     "langchain-mcp-adapters==0.1.14",
+    "langchain-ollama==1.0.1",
     "langchain-openai==1.1.7",
     "langchain-tavily==0.2.13",
     "langgraph==1.0.6",
@@ -48,7 +49,7 @@ dependencies = [
     "torchvision==0.23.0",
     "wandb==0.24.0",
     "watchdog==6.0.0",
-    "weave==0.52.24",
+    "weave==0.52.25",
 ]
 
 [project.optional-dependencies]

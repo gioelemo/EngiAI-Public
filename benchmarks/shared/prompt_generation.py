@@ -18,12 +18,13 @@ from benchmarks.shared.problem_registry import get_problem_config
 
 def generate_prompts_from_huggingface(
     problem_name: str,
-    prompt_creator_func: Callable[[dict[str, Any], bool], dict[str, Any]],
+    prompt_creator_func: Callable[..., dict[str, Any]],
     *,
     num_samples: int,
     dataset_split: str = "test",
     include_targets: bool = True,
     seed: int | None = None,
+    prompt_style: str = "full",
 ) -> list[dict[str, Any]]:
     """
     Generate prompts from a HuggingFace dataset using a problem-specific creator function.
@@ -37,11 +38,12 @@ def generate_prompts_from_huggingface(
     Args:
         problem_name: Name of the problem (e.g., 'beams2d', 'photonics2d')
         prompt_creator_func: Function that creates a prompt from an example.
-            Signature: (example: dict, include_target: bool) -> dict
+            Signature: (example: dict, include_target: bool, prompt_style: str) -> dict
         num_samples: Number of samples to generate
         dataset_split: Dataset split to use ('train', 'val', or 'test')
         include_targets: Whether to include target values
         seed: Random seed for reproducible sampling (default: None for random)
+        prompt_style: Style of prompt to generate (e.g., 'full', 'natural', 'workflow')
 
     Returns:
         List of prompt dictionaries ready for evaluation
@@ -71,7 +73,7 @@ def generate_prompts_from_huggingface(
 
     prompts = []
     for i, example in enumerate(dataset):
-        prompt_data = prompt_creator_func(example, include_targets)
+        prompt_data = prompt_creator_func(example, include_targets, prompt_style)
         prompt_data["example_id"] = i
         prompt_data["dataset_split"] = dataset_split
         prompts.append(prompt_data)
@@ -128,16 +130,23 @@ def save_prompts_locally(
     print(f"💾 Saved prompts to: {output_file}")
 
 
-def create_argument_parser(problem_name: str) -> argparse.ArgumentParser:
+def create_argument_parser(
+    problem_name: str,
+    available_styles: list[str] | None = None,
+) -> argparse.ArgumentParser:
     """
     Create a standard argument parser for prompt generation scripts.
 
     Args:
         problem_name: Name of the problem for the description
+        available_styles: List of available prompt styles (default: ['full'])
 
     Returns:
         Configured ArgumentParser instance
     """
+    if available_styles is None:
+        available_styles = ["full"]
+
     parser = argparse.ArgumentParser(
         description=f"Generate {problem_name} design prompts from HuggingFace dataset"
     )
@@ -165,13 +174,21 @@ def create_argument_parser(problem_name: str) -> argparse.ArgumentParser:
         action="store_true",
         help="Exclude target values from prompts",
     )
+    parser.add_argument(
+        "--style",
+        type=str,
+        default="full",
+        choices=available_styles,
+        help=f"Prompt style to generate (default: full). Available: {', '.join(available_styles)}",
+    )
     return parser
 
 
 def run_prompt_generation_workflow(
     problem_name: str,
-    prompt_creator_func: Callable[[dict[str, Any], bool], dict[str, Any]],
+    prompt_creator_func: Callable[..., dict[str, Any]],
     target_keys_to_keep: list[str] | None = None,
+    available_styles: list[str] | None = None,
 ) -> None:
     """
     Run the complete prompt generation workflow.
@@ -185,9 +202,10 @@ def run_prompt_generation_workflow(
         problem_name: Name of the problem (e.g., 'beams2d')
         prompt_creator_func: Function to create prompts from examples
         target_keys_to_keep: List of target keys to keep when saving locally
+        available_styles: List of available prompt styles for this problem
     """
     # Parse arguments
-    parser = create_argument_parser(problem_name)
+    parser = create_argument_parser(problem_name, available_styles)
     args = parser.parse_args()
 
     # Print header
@@ -199,6 +217,7 @@ def run_prompt_generation_workflow(
     print(f"Number of samples: {args.samples}")
     print(f"Random seed: {args.seed if args.seed is not None else 'None (random)'}")
     print(f"Include targets: {not args.no_targets}")
+    print(f"Prompt style: {args.style}")
     print()
 
     # Generate prompts using command-line arguments
@@ -209,14 +228,16 @@ def run_prompt_generation_workflow(
         dataset_split=args.split,
         include_targets=not args.no_targets,
         seed=args.seed,
+        prompt_style=args.style,
     )
 
-    # Save locally with split in filename
+    # Save locally with split and style in filename
     output_dir = (
         Path(__file__).parent.parent / "problems" / problem_name / "data" / "generated"
     )
     output_file = (
-        output_dir / f"{problem_name}_prompts_{args.samples}_samples_{args.split}.json"
+        output_dir
+        / f"{problem_name}_prompts_{args.samples}_samples_{args.split}_{args.style}.json"
     )
     save_prompts_locally(prompts, output_file, target_keys_to_keep)
 
