@@ -43,8 +43,7 @@ logging.getLogger("langchain_core.callbacks.manager").setLevel(logging.ERROR)
 # Set SKIP_MCP to avoid Prusa MCP server connection issues during evaluation
 os.environ["SKIP_MCP"] = "true"
 
-# Set SKIP_MMORE to avoid MMORE Docker container requirement during evaluation
-os.environ["SKIP_MMORE"] = "true"
+# Note: SKIP_MMORE is now controlled by the --mmore / --no-mmore CLI flag
 
 # Add project root and services to path to import src and prusa_mcp_server modules
 project_root = Path(__file__).parent.parent.parent
@@ -180,9 +179,7 @@ class EngineeringAgent(weave.Model):
 def prepare_evaluation_dataset(
     prompts: list[dict[str, Any]],
     sample_size: int,
-    problem_type: str,
-    dataset_name: str,
-    seed: int | None = None,
+    eval_metadata: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """
     Prepare prompts for Weave evaluation format.
@@ -190,13 +187,17 @@ def prepare_evaluation_dataset(
     Args:
         prompts: List of prompt dictionaries
         sample_size: Number of samples to include
-        problem_type: Type of problem being evaluated
-        dataset_name: Name of the HuggingFace dataset for ground truth
-        seed: Optional seed to use for all prompts in this evaluation
+        eval_metadata: Evaluation metadata dict containing:
+            - problem_type: Type of problem being evaluated
+            - dataset_name: Name of the HuggingFace dataset for ground truth
+            - seed: Optional seed to use for all prompts in this evaluation
+            - prompt_style: Style of prompt (full, approximate, natural, workflow)
+            - mmore_enabled: Whether MMORE RAG system is enabled
 
     Returns:
         List of evaluation examples in Weave format
     """
+    seed = eval_metadata.get("seed")
     eval_dataset = []
 
     for i, prompt_data in enumerate(prompts[:sample_size]):
@@ -214,9 +215,7 @@ def prepare_evaluation_dataset(
                     **prompt_data.get("metadata", {}),
                     "example_id": prompt_data.get("example_id", i),
                     "dataset_split": prompt_data.get("dataset_split", "test"),
-                    "problem_type": problem_type,
-                    "dataset_name": dataset_name,
-                    "seed": seed,  # Track which seed was used
+                    **eval_metadata,  # Include all evaluation metadata
                     # Efficiency scoring: optimal tool call info
                     # Default assumes optimize → simulate → render sequence
                     "optimal_call_count": prompt_data.get("optimal_call_count", 3),
@@ -297,6 +296,26 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default=None,
         help="Output CSV file to save metrics (will append if file exists). Default: benchmarks/evaluations/results/{model}/{problem}/output_quality_global_metrics.csv",
+    )
+    parser.add_argument(
+        "--prompt-style",
+        type=str,
+        default="full",
+        choices=["full", "approximate", "natural", "workflow"],
+        help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
+    )
+    parser.add_argument(
+        "--mmore",
+        dest="mmore_enabled",
+        action="store_true",
+        default=False,
+        help="Enable MMORE RAG system for document retrieval (default: disabled)",
+    )
+    parser.add_argument(
+        "--no-mmore",
+        dest="mmore_enabled",
+        action="store_false",
+        help="Disable MMORE RAG system (default)",
     )
     return parser.parse_args()
 
@@ -581,6 +600,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     """Main execution function."""
     args = parse_arguments()
 
+    # Set SKIP_MMORE based on CLI flag (must be set before importing agent modules)
+    os.environ["SKIP_MMORE"] = "false" if args.mmore_enabled else "true"
+
     # Get problem configuration
     problem_config = PROBLEM_CONFIGS[args.problem]
     model_name = args.model or config.llm_model
@@ -634,6 +656,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print(f"Model: {model_name}")
     print(f"Temperature: {temperature}")
     print(f"Dataset Split: {args.split}")
+    print(f"Prompt Style: {args.prompt_style}")
+    print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
     print(f"Samples: {args.samples}")
     if args.seed is not None:
         print(f"Seed: {args.seed}")
@@ -642,14 +666,19 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Debug: print the expected trace names
     safe_model = model_name.replace("/", "_").replace(":", "_")
+    mmore_suffix = "mmore_on" if args.mmore_enabled else "mmore_off"
     # Scorer names exclude model name and problem type to enable cross-model and cross-problem comparison
     expected_scorer_names = scorer_types
-    expected_eval_run_name = f"{safe_model}_{args.problem}_evaluation"
+    expected_eval_run_name = (
+        f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_evaluation"
+    )
     if args.seed is not None:
         expected_eval_run_name += f"_seed_{args.seed}"
 
     # Global metrics trace name includes model and problem for organization
-    expected_global_metrics_name = f"{safe_model}_{args.problem}_global_metrics"
+    expected_global_metrics_name = (
+        f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_global_metrics"
+    )
     if args.seed is not None:
         expected_global_metrics_name += f"_seed_{args.seed}"
 
@@ -672,6 +701,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     prompt_file = prompt_file_template.format(
         problem=args.problem,
         split=args.split,
+        style=args.prompt_style,
     )
 
     # Load prompts
@@ -684,12 +714,17 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print()
 
     # Prepare evaluation dataset
-    eval_dataset = prepare_evaluation_dataset(
-        prompts, args.samples, args.problem, problem_config["dataset_name"], args.seed
-    )
+    eval_metadata = {
+        "problem_type": args.problem,
+        "dataset_name": problem_config["dataset_name"],
+        "seed": args.seed,
+        "prompt_style": args.prompt_style,
+        "mmore_enabled": args.mmore_enabled,
+    }
+    eval_dataset = prepare_evaluation_dataset(prompts, args.samples, eval_metadata)
 
     # Get or create Weave dataset
-    dataset_name = f"{args.problem}_eval_dataset"
+    dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset"
     if args.seed is not None:
         dataset_name += f"_seed_{args.seed}"
     dataset = get_or_create_dataset(eval_dataset, dataset_name, len(eval_dataset))
@@ -706,9 +741,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Define evaluation
     print("🔍 Running evaluation...")
-    eval_type_name = (
-        f"{args.problem}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}"
-    )
+    eval_type_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}"
     if args.seed is not None:
         eval_type_name += f"_seed_{args.seed}"
     evaluation = weave.Evaluation(
@@ -719,7 +752,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Create contextual evaluation run name
     safe_model = model_name.replace("/", "_").replace(":", "_")
-    eval_run_name = f"{safe_model}_{args.problem}_evaluation"
+    eval_run_name = (
+        f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_evaluation"
+    )
     if args.seed is not None:
         eval_run_name += f"_seed_{args.seed}"
 
@@ -883,6 +918,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
             "seed": args.seed if args.seed is not None else 0,
             "problem_id": args.problem,
             "model_id": model_name,
+            "prompt_style": args.prompt_style,
+            "mmore_enabled": args.mmore_enabled,
             "n_samples": args.samples,
             "sigma": 10.0,  # Default sigma used in compute_global_metrics
         }

@@ -42,7 +42,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
             "constraint_match": 0.15,
             "objective_match": 0.2,
         },
-        prompt_file_template="beams2d_prompts_50_samples_{split}.json",
+        prompt_file_template="beams2d_prompts_50_samples_{split}_{style}.json",
     ),
     "photonics2d": ProblemConfig(
         name="photonics2d",
@@ -82,7 +82,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
             "constraint_match": 0.15,  # No constraints, but keep structure
             "objective_match": 0.2,
         },
-        prompt_file_template="photonics2d_prompts_50_samples_{split}.json",
+        prompt_file_template="photonics2d_prompts_50_samples_{split}_{style}.json",
     ),
     "thermoelastic2d": ProblemConfig(
         name="thermoelastic2d",
@@ -161,7 +161,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
             "constraint_match": 0.0,  # No constraints to check
             "objective_match": 0.35,  # Higher weight for multi-objective matching
         },
-        prompt_file_template="thermoelastic2d_prompts_50_samples_{split}.json",
+        prompt_file_template="thermoelastic2d_prompts_50_samples_{split}_{style}.json",
     ),
 }
 
