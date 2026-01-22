@@ -1233,7 +1233,7 @@ def _find_or_download_model(
     return download_result["checkpoint_path"], None
 
 
-@tool
+@tool("ml_gan_inference")
 def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     checkpoint_path: str | None = None,
     problem_id: ProblemId = "beams2d",
@@ -1246,11 +1246,14 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     seed: int = 1,
 ) -> dict[str, Any]:
     """
-    Sample/generate designs from a loaded generative model.
+    Sample designs from a pre-trained ML model (GAN/Diffusion). FOR ML-BASED GENERATION ONLY.
 
-    This tool generates new designs using a pre-trained generative model (GAN, Diffusion, etc.)
-    based on specified conditions. It's useful for inverse design where you want designs
-    that meet specific performance criteria.
+    ⚠️ DO NOT USE THIS TOOL FOR STANDARD OPTIMIZATION REQUESTS!
+    - For "optimize", "design", "minimize compliance" → Use `optimize_design` instead
+    - This tool is ONLY for when user explicitly asks for "generate from GAN", "sample from model", "use ML"
+
+    This tool generates designs using pre-trained generative models (GAN, Diffusion).
+    It does NOT run physics-based optimization - it samples from learned distributions.
 
     If no checkpoint_path is provided, the tool will automatically:
     1. Search for existing models in the artifacts folder
