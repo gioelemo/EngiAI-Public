@@ -1,4 +1,4 @@
-.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean
+.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean mmore-eval-up mmore-eval-down mmore-eval-rebuild mmore-eval-logs mmore-eval-status mmore-eval-run
 
 help:  ## Show this help message
 	@echo "Available commands:"
@@ -83,6 +83,25 @@ docker-rebuild-prusa:  ## Rebuild only the Prusa MCP server
 
 docker-restart:  ## Restart Docker services without rebuilding
 	docker-compose restart
+
+# MMORE RAG Evaluation (runs in parallel with main services)
+mmore-eval-up:  ## Start MMORE RAG service for evaluation (port 8001)
+	docker compose -f docker-compose.mmore-eval.yml up -d
+
+mmore-eval-down:  ## Stop MMORE RAG evaluation service
+	docker compose -f docker-compose.mmore-eval.yml down
+
+mmore-eval-rebuild:  ## Rebuild and restart MMORE RAG evaluation service
+	docker compose -f docker-compose.mmore-eval.yml up -d --build
+
+mmore-eval-logs:  ## Show logs for MMORE RAG evaluation service
+	docker compose -f docker-compose.mmore-eval.yml logs -f
+
+mmore-eval-status:  ## Show status of MMORE RAG evaluation service
+	docker compose -f docker-compose.mmore-eval.yml ps
+
+mmore-eval-run:  ## Run evaluation with MMORE eval service (uses port 8001). Usage: make mmore-eval-run ARGS="--problem beams2d --samples 1"
+	MMORE_RAG_URL=http://localhost:8001 python benchmarks/evaluations/evaluate_agent.py --mmore $(ARGS)
 
 # Build documentation
 .PHONY: docs

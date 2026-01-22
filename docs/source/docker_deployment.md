@@ -343,6 +343,52 @@ services:
           memory: 2G
 ```
 
+## MMORE RAG Evaluation Service
+
+For running agent evaluations with MMORE RAG enabled, a separate Docker Compose file is provided that runs on a different port to avoid conflicts with the main application.
+
+### Why a Separate Service?
+
+- **Port isolation**: Eval service runs on port 8001, main service on port 8000
+- **Independent volumes**: Separate cache and upload volumes prevent data conflicts
+- **Parallel execution**: Run evaluations while the main application is running
+
+### Starting the Evaluation Service
+
+```bash
+# Start MMORE for evaluations (port 8001)
+make mmore-eval-up
+
+# Check status
+make mmore-eval-status
+
+# View logs
+make mmore-eval-logs
+
+# Stop when done
+make mmore-eval-down
+```
+
+### Running Evaluations with MMORE
+
+```bash
+# Use the dedicated make command
+make mmore-eval-run ARGS="--problem beams2d --samples 5 --scorers all --seed 1"
+
+# Or set the environment variable manually
+MMORE_RAG_URL=http://localhost:8001 python benchmarks/evaluations/evaluate_agent.py \
+  --problem beams2d --samples 5 --mmore
+```
+
+### Service Comparison
+
+| Service | Compose File | Container | Host Port |
+|---------|-------------|-----------|-----------|
+| Main MMORE | `docker-compose.yml` | `mmore-rag-service` | 8000 |
+| Eval MMORE | `docker-compose.mmore-eval.yml` | `mmore-rag-eval` | 8001 |
+
+See `benchmarks/evaluations/README.md` for detailed evaluation documentation.
+
 ## Support
 
 For issues and questions:

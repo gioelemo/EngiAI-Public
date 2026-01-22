@@ -60,9 +60,12 @@ python evaluate_agent.py \
 | `--samples` | Number of samples to evaluate | `5` |
 | `--temperature` | Model temperature | From config |
 | `--split` | Dataset split (train/val/test) | `test` |
-| `--scorers` | Scorer set (generic/engibench/all) | `generic` |
+| `--scorers` | Scorer set (generic/engibench/all/task_completion/tool_use) | `generic` |
 | `--seed` | Random seed for optimization | `None` |
 | `--output-csv` | Custom CSV output path | Auto-generated |
+| `--prompt-style` | Prompt style (full/approximate/natural/workflow) | `full` |
+| `--mmore` | Enable MMORE RAG system | Disabled |
+| `--no-mmore` | Disable MMORE RAG system (default) | - |
 
 ## Results Organization
 
@@ -367,13 +370,89 @@ See `benchmarks/shared/problem_registry.py` for complete examples of beams2d, ph
 - Verify the agent is calling `optimize_design` with a `config` parameter
 - Review debug output for parsing errors
 
+## MMORE RAG Evaluation
+
+To evaluate the agent **with** the MMORE RAG system enabled (for retrieval-augmented generation), use the dedicated evaluation service that runs on port 8001 to avoid conflicts with the main application.
+
+### Setup
+
+A separate Docker Compose file is provided for running MMORE during evaluations:
+
+```bash
+# Start the MMORE evaluation service (runs on port 8001)
+make mmore-eval-up
+
+# Check service status
+make mmore-eval-status
+
+# View logs
+make mmore-eval-logs
+```
+
+### Running Evaluations with MMORE
+
+Use the dedicated make command that sets the correct `MMORE_RAG_URL`:
+
+```bash
+# Run evaluation with MMORE enabled
+make mmore-eval-run ARGS="--problem beams2d --samples 5 --scorers all --seed 1 --prompt full"
+```
+
+Or manually set the environment variable:
+
+```bash
+MMORE_RAG_URL=http://localhost:8001 python benchmarks/evaluations/evaluate_agent.py \
+  --problem beams2d \
+  --samples 5 \
+  --scorers all \
+  --seed 1 \
+  --prompt full \
+  --mmore
+```
+
+### MMORE Evaluation Commands
+
+| Command | Description |
+|---------|-------------|
+| `make mmore-eval-up` | Start MMORE RAG service for evaluation (port 8001) |
+| `make mmore-eval-down` | Stop MMORE RAG evaluation service |
+| `make mmore-eval-rebuild` | Rebuild and restart MMORE RAG evaluation service |
+| `make mmore-eval-logs` | Show logs for MMORE RAG evaluation service |
+| `make mmore-eval-status` | Show status of MMORE RAG evaluation service |
+| `make mmore-eval-run ARGS="..."` | Run evaluation with MMORE enabled |
+
+### Comparing MMORE vs Non-MMORE
+
+Run evaluations with and without MMORE to compare RAG impact:
+
+```bash
+# Without MMORE (default)
+python evaluate_agent.py --problem beams2d --samples 10 --seed 1 --prompt full
+
+# With MMORE
+make mmore-eval-run ARGS="--problem beams2d --samples 10 --seed 1 --prompt full"
+```
+
+Results are automatically tagged with `mmore_on` or `mmore_off` in Weave trace names for easy comparison.
+
+### Service Architecture
+
+The evaluation MMORE service runs independently from the main application stack:
+
+| Service | Container Name | Host Port | Internal Port |
+|---------|---------------|-----------|---------------|
+| Main MMORE | `mmore-rag-service` | 8000 | 8000 |
+| Eval MMORE | `mmore-rag-eval` | 8001 | 8000 |
+
+Both services use separate Docker networks and volumes, so they can run simultaneously without conflicts.
+
 ## Performance Considerations
 
 - Evaluations run in parallel for speed
 - Each example gets a unique thread_id to avoid state sharing
 - Matplotlib uses Agg backend to prevent threading issues
 - Results are cached locally to avoid re-computation
-- **No Docker containers required**: Evaluation automatically skips Prusa MCP and MMORE services
+- **No Docker containers required by default**: Evaluation automatically skips Prusa MCP and MMORE services
   - `SKIP_MCP=true` - Skips Prusa MCP server connection
-  - `SKIP_MMORE=true` - Skips MMORE Docker container requirement
-  - This allows running benchmarks without any external services
+  - `SKIP_MMORE=true` - Skips MMORE Docker container requirement (default)
+  - Use `--mmore` flag to enable MMORE RAG (requires `mmore-eval` service running)
