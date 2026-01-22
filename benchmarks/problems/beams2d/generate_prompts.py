@@ -245,6 +245,7 @@ def create_prompt_from_conditions(
             "volfrac": float(volfrac),
             "forcedist": float(forcedist),
             "rmin": float(rmin),
+            "overhang_constraint": False,  # Required by cGAN model (4th condition)
         },
         "metadata": {
             "force_description": force_desc,
