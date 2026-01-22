@@ -1246,11 +1246,7 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
     seed: int = 1,
 ) -> dict[str, Any]:
     """
-    Sample designs from a pre-trained ML model (GAN/Diffusion). FOR ML-BASED GENERATION ONLY.
-
-    ⚠️ DO NOT USE THIS TOOL FOR STANDARD OPTIMIZATION REQUESTS!
-    - For "optimize", "design", "minimize compliance" → Use `optimize_design` instead
-    - This tool is ONLY for when user explicitly asks for "generate from GAN", "sample from model", "use ML"
+    Sample designs from a pre-trained ML model (GAN/Diffusion).
 
     This tool generates designs using pre-trained generative models (GAN, Diffusion).
     It does NOT run physics-based optimization - it samples from learned distributions.

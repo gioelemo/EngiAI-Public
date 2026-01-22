@@ -368,15 +368,10 @@ def optimize_design(
     save_result: bool = True,
 ) -> dict[str, Any]:
     """
-    Optimize a design using physics-based gradient optimization. THIS IS THE DEFAULT TOOL FOR ALL OPTIMIZATION REQUESTS.
+    Optimize a design using physics-based gradient optimization.
 
-    ✅ USE THIS TOOL FOR: "optimize", "design a beam", "minimize compliance", "topology optimization"
-    ❌ Do NOT use ml_gan_inference unless user explicitly asks for "GAN", "ML generation", "sample from model"
-
-    This tool runs SIMP (Solid Isotropic Material with Penalization) topology optimization.
+    This tool runs topology optimization.
     Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
-
-    ALWAYS provide problem_config dict with parameters!
 
     Args:
         problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d', etc.)
