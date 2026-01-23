@@ -368,9 +368,11 @@ def optimize_design(
     save_result: bool = True,
 ) -> dict[str, Any]:
     """
-    Optimize a design using physics-based gradient optimization.
+    ✅ USE THIS TOOL for: "optimize", "optimization", "topology optimization", "minimize compliance", "SIMP", "design a beam".
 
-    This tool runs topology optimization.
+    Optimize a design using physics-based gradient optimization (SIMP method).
+
+    This is the PRIMARY tool for all optimization and design tasks.
     Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:

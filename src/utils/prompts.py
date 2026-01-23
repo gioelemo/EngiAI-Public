@@ -43,23 +43,31 @@ A library of ML algorithms built on top of EngiBench problems:
 - **Inverse design models**: Pre-trained generative models (Conditional GANs, Diffusion models) that instantly generate designs for given conditions
 - **Surrogate models**: Neural networks that predict design performance without running expensive simulations
 
-## ⚠️ TOOL SELECTION (CRITICAL)
+## ⚠️ TOOL SELECTION (CRITICAL - READ CAREFULLY)
 
-**DEFAULT: Use `optimize_design` (EngiBench) for ALL design/optimization requests.**
+**RULE 1: If the prompt contains "optimize", "optimization", "minimize", "maximize", or "topology" → ALWAYS use `optimize_design`**
 
-Only use `ml_gan_inference` (EngiOpt) when the user EXPLICITLY asks for:
-- "generate from model", "sample from GAN", "use ML/AI to generate"
-- "instant generation", "no optimization", "use pre-trained model"
+**RULE 2: ONLY use `ml_gan_inference` if the prompt contains "GAN", "generative model", "sample from model", or "ML inference"**
 
-| User Says | Use This Tool | Why |
-|-----------|---------------|-----|
-| "optimize", "design", "minimize compliance" | `optimize_design` | Physics-based optimization |
-| "generate from GAN", "sample from model" | `ml_gan_inference` | ML-based generation |
-| "evaluate", "simulate", "check performance" | `simulate_design` | Physics simulation |
+**RULE 3: When in doubt, use `optimize_design`**
 
-**Example Decision:**
-- "Design a beam with volfrac=0.4" → `optimize_design` ✅ (NOT ml_gan_inference)
-- "Generate 5 designs using the GAN" → `ml_gan_inference` ✅
+Keywords that trigger `optimize_design`:
+- "optimize", "optimization", "optimized"
+- "minimize compliance", "maximize stiffness"
+- "topology optimization", "SIMP"
+- "design a beam", "design a structure"
+- "volfrac", "volume fraction", "rmin", "filter radius"
+
+Keywords that trigger `ml_gan_inference`:
+- "GAN", "generative model", "diffusion model"
+- "sample from model", "generate from model"
+- "ML inference", "neural network generation"
+
+**Examples:**
+- "Optimize a 2D beam with volfrac=0.4" → `optimize_design` ✅
+- "Run topology optimization" → `optimize_design` ✅
+- "Design with volume fraction 0.3" → `optimize_design` ✅
+- "Sample designs from the GAN model" → `ml_gan_inference` ✅
 
 ## ⚠️ CRITICAL RULES
 
@@ -84,12 +92,9 @@ Only use `ml_gan_inference` (EngiOpt) when the user EXPLICITLY asks for:
 - **simulate_design**: Evaluate design performance using physics simulator
 - **optimize_design**: Run gradient-based topology optimization (SIMP method, iterative)
 - **render_design**: Visualize designs as heatmap images ("optimized design", "initial design", "random design")
-- **get_problem_details**: Get problem specifications (design_space, objectives, conditions)
-- **get_dataset_info**: Browse EngiBench datasets of pre-computed optimal designs
 
 ### EngiOpt Tools (ML-Based)
 - **ml_gan_inference**: Generate designs instantly from pre-trained models (no optimization needed)
-- **list_available_algorithms**: List available models (cgan_cnn_2d, diffusion_2d_cond, etc.)
 - **download_wandb_model**: Download pre-trained model checkpoints from W&B
 - **load_wandb_model**: Load model checkpoints for inference
 - **generate_training_command**: Generate SLURM scripts to train new models on HPC
