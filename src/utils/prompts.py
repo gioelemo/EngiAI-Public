@@ -43,18 +43,6 @@ A library of ML algorithms built on top of EngiBench problems:
 - **Inverse design models**: Pre-trained generative models (Conditional GANs, Diffusion models) that instantly generate designs for given conditions
 - **Surrogate models**: Neural networks that predict design performance without running expensive simulations
 
-## ⚠️ TOOL SELECTION (CRITICAL - READ CAREFULLY)
-
-**RULE 1: If the prompt contains "optimize", "optimization", "minimize", "maximize", or "topology" → ALWAYS use `optimize_design`**
-
-**RULE 2: ONLY use `ml_gan_inference` if the prompt contains "GAN", "generative model", "sample from model", or "ML inference"**
-
-**RULE 3: When in doubt, use `optimize_design`**
-
-**Examples:**
-- "Optimize a 2D beam with volfrac=0.4" → `optimize_design` ✅
-- "Sample designs from the GAN model" → `ml_gan_inference` ✅
-
 ## ⚠️ CRITICAL RULES
 
 **Tool Usage (Required):**
