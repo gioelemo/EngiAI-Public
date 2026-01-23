@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextvars
 import datetime
+import logging
 import random
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -28,6 +29,8 @@ if TYPE_CHECKING:
 
 
 matplotlib.use("Agg")  # Use non-interactive backend
+
+logger = logging.getLogger(__name__)
 
 # Constants
 EXPECTED_ARRAY_DIMENSIONS = 2  # For 2D beam design arrays
@@ -251,17 +254,16 @@ def create_problem(
 
 
 @tool
-def simulate_design(
+def simulate_design(  # noqa: PLR0913
     problem_type: str = "beams2d",
     design_description: str = "random design",
     problem_config: dict[str, Any] | None = None,
     seed: int = 0,
-    # Flat parameter aliases for LLM compatibility
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
     volume_fraction: float | None = None,
     volfrac: float | None = None,
     force_distribution: float | None = None,
     forcedist: float | None = None,
-    filter_radius: float | None = None,
     rmin: float | None = None,
     lambda1: float | None = None,
     lambda2: float | None = None,
@@ -295,21 +297,19 @@ def simulate_design(
         >>> simulate_design(problem_type="beams2d", design_description="optimized design", volume_fraction=0.4)
     """
     try:
-        # Build config from flat parameters or use provided problem_config
-        config = _build_problem_config_from_flat_params(
-            problem_type=problem_type,
-            problem_config=problem_config,
-            volume_fraction=volume_fraction,
-            volfrac=volfrac,
-            force_distribution=force_distribution,
-            forcedist=forcedist,
-            filter_radius=filter_radius,
-            rmin=rmin,
-            lambda1=lambda1,
-            lambda2=lambda2,
-            blur_radius=blur_radius,
-            weight=weight,
-        )
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distribution": force_distribution,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
 
         # Create a fresh problem instance for this simulation
         problem_class = get_problem_class(problem_type)
@@ -331,9 +331,7 @@ def simulate_design(
             set_unified_last_design(problem_type, design)
 
         # Run simulation
-        objectives = problem.simulate(
-            design=design, config=config if config else None
-        )
+        objectives = problem.simulate(design=design, config=config if config else None)
 
         # Format results based on problem type - use problem.objectives to dynamically extract
         problem_key = problem_type.lower()
@@ -377,7 +375,6 @@ def simulate_design(
 
 
 def _build_problem_config_from_flat_params(
-    problem_type: str,
     problem_config: dict[str, Any] | None,
     **kwargs: Any,
 ) -> dict[str, Any]:
@@ -388,19 +385,15 @@ def _build_problem_config_from_flat_params(
 
     Args:
         problem_type: Type of problem (beams2d, photonics2d, thermoelastic2d)
-        problem_config: Existing problem_config dict (takes priority if provided)
+        problem_config: Existing problem_config dict (may contain aliased keys)
         **kwargs: Flat parameters that may use aliases
 
     Returns:
         Normalized problem_config dict
     """
-    # If problem_config was explicitly provided and is non-empty, use it
-    if problem_config:
-        return problem_config
-
-    # Parameter aliases: LLM name -> config key
-    # Beams2D aliases
-    beams2d_aliases = {
+    # Parameter aliases: LLM name -> config key (shared across all problems)
+    all_aliases = {
+        # Beams2D aliases
         "volume_fraction": "volfrac",
         "vol_frac": "volfrac",
         "volume": "volfrac",
@@ -408,10 +401,7 @@ def _build_problem_config_from_flat_params(
         "force_dist": "forcedist",
         "load_position": "forcedist",
         "filter_radius": "rmin",
-    }
-
-    # Photonics2D aliases
-    photonics2d_aliases = {
+        # Photonics2D aliases
         "wavelength1": "lambda1",
         "wavelength_1": "lambda1",
         "wavelength2": "lambda2",
@@ -419,58 +409,45 @@ def _build_problem_config_from_flat_params(
         "blur": "blur_radius",
     }
 
-    # ThermoElastic2D aliases
-    thermoelastic2d_aliases = {
-        "volume_fraction": "volfrac",
-        "vol_frac": "volfrac",
-        "volume": "volfrac",
-        "filter_radius": "rmin",
-    }
+    # Valid config keys that don't need aliasing
+    valid_keys = {"volfrac", "rmin", "forcedist", "lambda1", "lambda2", "blur_radius", "weight"}
 
-    # Select aliases based on problem type
-    problem_key = problem_type.lower()
-    if problem_key == "beams2d":
-        aliases = beams2d_aliases
-    elif problem_key == "photonics2d":
-        aliases = photonics2d_aliases
-    elif problem_key == "thermoelastic2d":
-        aliases = thermoelastic2d_aliases
-    else:
-        aliases = {}
+    # Keys to skip (not config parameters)
+    skip_keys = {"problem_id", "grid_size", "problem_type", "seed", "save_result", "design_description", "save_path"}
 
-    # Build config from flat parameters
-    config: dict[str, Any] = {}
+    def normalize_params(params: dict[str, Any]) -> dict[str, Any]:
+        """Normalize a dict of parameters, applying aliases."""
+        config: dict[str, Any] = {}
+        for key, value in params.items():
+            if value is None or key in skip_keys:
+                continue
+            # Check if this is an alias
+            if key in all_aliases:
+                config[all_aliases[key]] = value
+            # Check if it's already a valid config key
+            elif key in valid_keys:
+                config[key] = value
+        return config
 
-    for key, value in kwargs.items():
-        if value is None:
-            continue
+    # If problem_config was provided, normalize it (may contain aliased keys)
+    if problem_config:
+        return normalize_params(problem_config)
 
-        # Skip non-config parameters
-        if key in ("problem_id", "grid_size", "problem_type"):
-            continue
-
-        # Check if this is an alias
-        if key in aliases:
-            config[aliases[key]] = value
-        # Check if it's already a valid config key
-        elif key in ("volfrac", "rmin", "forcedist", "lambda1", "lambda2", "blur_radius", "weight"):
-            config[key] = value
-
-    return config
+    # Otherwise normalize kwargs
+    return normalize_params(kwargs)
 
 
 @tool
-def optimize_design(
+def optimize_design(  # noqa: PLR0913
     problem_type: str = "beams2d",
     problem_config: dict[str, Any] | None = None,
     seed: int = 0,
     save_result: bool = True,
-    # Flat parameter aliases for LLM compatibility
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
     volume_fraction: float | None = None,
     volfrac: float | None = None,
     force_distribution: float | None = None,
     forcedist: float | None = None,
-    filter_radius: float | None = None,
     rmin: float | None = None,
     lambda1: float | None = None,
     lambda2: float | None = None,
@@ -511,21 +488,21 @@ def optimize_design(
         >>> optimize_design(problem_type="beams2d", problem_config={"volfrac": 0.4, "forcedist": 0.2}, seed=42)
     """
     try:
-        # Build config from flat parameters or use provided problem_config
-        config = _build_problem_config_from_flat_params(
-            problem_type=problem_type,
-            problem_config=problem_config,
-            volume_fraction=volume_fraction,
-            volfrac=volfrac,
-            force_distribution=force_distribution,
-            forcedist=forcedist,
-            filter_radius=filter_radius,
-            rmin=rmin,
-            lambda1=lambda1,
-            lambda2=lambda2,
-            blur_radius=blur_radius,
-            weight=weight,
-        )
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distribution": force_distribution,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        logger.info(f"optimize_design called with problem_config={problem_config}, flat_params={flat_params}")
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
+        logger.info(f"Built config: {config}")
         config_was_empty = config == {}
 
         # Create a fresh problem instance for this optimization.
@@ -768,18 +745,17 @@ def _format_optimization_result(
 
 
 @tool
-def render_design(
+def render_design(  # noqa: PLR0913
     problem_type: str = "beams2d",
     design_description: str = "random design",
     problem_config: dict[str, Any] | None = None,
     save_path: str = "design.png",
     seed: int | None = None,
-    # Flat parameter aliases for LLM compatibility
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
     volume_fraction: float | None = None,
     volfrac: float | None = None,
     force_distribution: float | None = None,
     forcedist: float | None = None,
-    filter_radius: float | None = None,
     rmin: float | None = None,
     lambda1: float | None = None,
     lambda2: float | None = None,
@@ -814,21 +790,19 @@ def render_design(
         >>> render_design(problem_type="beams2d", design_description="optimized design", volume_fraction=0.4)
     """
     try:
-        # Build config from flat parameters or use provided problem_config
-        config = _build_problem_config_from_flat_params(
-            problem_type=problem_type,
-            problem_config=problem_config,
-            volume_fraction=volume_fraction,
-            volfrac=volfrac,
-            force_distribution=force_distribution,
-            forcedist=forcedist,
-            filter_radius=filter_radius,
-            rmin=rmin,
-            lambda1=lambda1,
-            lambda2=lambda2,
-            blur_radius=blur_radius,
-            weight=weight,
-        )
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distribution": force_distribution,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
 
         # Create outputs directory
         output_dir = Path("outputs")

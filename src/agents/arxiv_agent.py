@@ -48,7 +48,9 @@ class ArXivAgent(BaseAgent):
             if self.mmore_client.health_check():
                 logger.info("ArXiv Agent initialized with MMORE service")
             else:
-                logger.warning("MMORE service not reachable - some features may not work")
+                logger.warning(
+                    "MMORE service not reachable - some features may not work"
+                )
 
     def _create_tools(self) -> list:
         """Create LangChain tools for the ArXiv agent.
