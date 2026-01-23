@@ -65,8 +65,6 @@ Keywords that trigger `ml_gan_inference`:
 
 **Examples:**
 - "Optimize a 2D beam with volfrac=0.4" → `optimize_design` ✅
-- "Run topology optimization" → `optimize_design` ✅
-- "Design with volume fraction 0.3" → `optimize_design` ✅
 - "Sample designs from the GAN model" → `ml_gan_inference` ✅
 
 ## ⚠️ CRITICAL RULES
