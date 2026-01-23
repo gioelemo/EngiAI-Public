@@ -23,21 +23,23 @@ from utils import (
 
 
 def plot_tool_usage_frequency(tool_data, output_dir=None):
-    """Plot frequency of each tool across all models.
+    """Plot frequency of each tool across all models (NeurIPS format).
 
     Args:
         tool_data: Combined tool usage DataFrame
         output_dir: Optional output directory for saving
     """
     if tool_data is None or len(tool_data) == 0:
-        print("⚠️  No tool usage data available")
+        print("No tool usage data available")
         return
+
+    setup_style()
 
     # Get all tool columns (columns starting with 'tool_')
     tool_columns = [col for col in tool_data.columns if col.startswith("tool_")]
 
     if not tool_columns:
-        print("⚠️  No tool columns found in data")
+        print("No tool columns found in data")
         return
 
     # Sum tool usage across all examples and models
@@ -51,44 +53,49 @@ def plot_tool_usage_frequency(tool_data, output_dir=None):
     tool_names = [t[0] for t in sorted_tools]
     tool_counts = [t[1] for t in sorted_tools]
 
-    # Create plot
-    fig, ax = plt.subplots(figsize=(12, 6))
+    font_sizes = PLOT_STYLE["font_sizes"]
 
-    bars = ax.barh(tool_names, tool_counts, color=PLOT_STYLE["colors"]["GPT-4.1"])
+    # Create plot
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
+    )
+
+    bars = ax.barh(
+        tool_names, tool_counts, color=PLOT_STYLE["colors"]["GPT-4.1"], height=0.7
+    )
 
     # Add count labels
     for bar in bars:
         width = bar.get_width()
         ax.text(
-            width,
+            width + 0.5,
             bar.get_y() + bar.get_height() / 2,
             f"{int(width)}",
             ha="left",
             va="center",
-            fontsize=9,
-            weight="bold",
+            fontsize=font_sizes["annotation"],
         )
 
-    ax.set_xlabel("Total Usage Count")
-    ax.set_ylabel("Tool Name")
-    ax.set_title("Tool Usage Frequency Across All Models")
+    ax.set_xlabel("Usage Count")
+    ax.set_ylabel("")
     ax.grid(axis="x", alpha=0.3)
-
-    plt.tight_layout()
 
     return save_figure(fig, "tool_usage_frequency.png", output_dir)
 
 
 def plot_tool_usage_by_model(tool_data, output_dir=None):
-    """Plot tool usage comparison across models.
+    """Plot tool usage comparison across models (NeurIPS format).
 
     Args:
         tool_data: Combined tool usage DataFrame
         output_dir: Optional output directory for saving
     """
     if tool_data is None or len(tool_data) == 0:
-        print("⚠️  No tool usage data available")
+        print("No tool usage data available")
         return
+
+    setup_style()
+    font_sizes = PLOT_STYLE["font_sizes"]
 
     # Calculate average tools per example for each model
     model_stats = (
@@ -113,11 +120,13 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     ]
 
     # Create plot
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    fig, (ax1, ax2) = plt.subplots(
+        1, 2, figsize=PLOT_STYLE["figsize_full_width"], constrained_layout=True
+    )
 
     # Plot 1: Average total tools
     x = np.arange(len(model_stats))
-    width = 0.35
+    width = 0.6
 
     colors = [PLOT_STYLE["colors"][model] for model in model_stats["model"]]
 
@@ -128,12 +137,11 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
         yerr=model_stats["std_total"],
         color=colors,
         alpha=PLOT_STYLE["alpha"],
-        capsize=5,
+        capsize=2,
     )
 
-    ax1.set_xlabel("Model / Problem")
-    ax1.set_ylabel("Average Total Tool Calls")
-    ax1.set_title("Average Total Tool Calls per Example")
+    ax1.set_xlabel("")
+    ax1.set_ylabel("Avg. Total Tool Calls")
     ax1.set_xticks(x)
     ax1.set_xticklabels(
         [f"{row['model']}\n({row['problem']})" for _, row in model_stats.iterrows()],
@@ -151,7 +159,7 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
             f"{height:.1f}",
             ha="center",
             va="bottom",
-            fontsize=9,
+            fontsize=font_sizes["annotation"],
         )
 
     # Plot 2: Average unique tools
@@ -162,12 +170,11 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
         yerr=model_stats["std_unique"],
         color=colors,
         alpha=PLOT_STYLE["alpha"],
-        capsize=5,
+        capsize=2,
     )
 
-    ax2.set_xlabel("Model / Problem")
-    ax2.set_ylabel("Average Unique Tools Used")
-    ax2.set_title("Average Unique Tools per Example")
+    ax2.set_xlabel("")
+    ax2.set_ylabel("Avg. Unique Tools")
     ax2.set_xticks(x)
     ax2.set_xticklabels(
         [f"{row['model']}\n({row['problem']})" for _, row in model_stats.iterrows()],
@@ -185,16 +192,14 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
             f"{height:.1f}",
             ha="center",
             va="bottom",
-            fontsize=9,
+            fontsize=font_sizes["annotation"],
         )
-
-    plt.tight_layout()
 
     return save_figure(fig, "tool_usage_by_model.png", output_dir)
 
 
 def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):
-    """Plot correlation between tool usage and performance.
+    """Plot correlation between tool usage and performance (NeurIPS format).
 
     Args:
         tool_data: Combined tool usage DataFrame
@@ -202,8 +207,11 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):
         output_dir: Optional output directory for saving
     """
     if tool_data is None or design_data is None:
-        print("⚠️  Missing data for correlation plot")
+        print("Missing data for correlation plot")
         return
+
+    setup_style()
+    font_sizes = PLOT_STYLE["font_sizes"]
 
     # Merge tool usage with design metrics
     merged = tool_data.merge(
@@ -214,17 +222,19 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):
     )
 
     if len(merged) == 0:
-        print("⚠️  No matching examples found between tool usage and design metrics")
+        print("No matching examples found between tool usage and design metrics")
         return
 
     # Create scatter plots
-    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    fig, axes = plt.subplots(
+        2, 2, figsize=PLOT_STYLE["figsize_full_width_tall"], constrained_layout=True
+    )
 
     metrics = [
-        ("total_tools", "overall_score", "Total Tool Calls", "Overall Score"),
-        ("unique_tools", "overall_score", "Unique Tools Used", "Overall Score"),
-        ("total_tools", "iou", "Total Tool Calls", "IoU"),
-        ("unique_tools", "iou", "Unique Tools Used", "IoU"),
+        ("total_tools", "overall_score", "Total Tools", "Score"),
+        ("unique_tools", "overall_score", "Unique Tools", "Score"),
+        ("total_tools", "iou", "Total Tools", "IoU"),
+        ("unique_tools", "iou", "Unique Tools", "IoU"),
     ]
 
     for ax, (x_col, y_col, x_label, y_label) in zip(axes.flat, metrics, strict=False):
@@ -247,47 +257,52 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):
             z = np.polyfit(merged[x_col], merged[y_col], 1)
             p = np.poly1d(z)
             x_trend = np.linspace(merged[x_col].min(), merged[x_col].max(), 100)
-            ax.plot(x_trend, p(x_trend), "k--", alpha=0.3, linewidth=1)
+            ax.plot(x_trend, p(x_trend), "k--", alpha=0.3, linewidth=0.5)
 
             # Calculate correlation
             corr = merged[x_col].corr(merged[y_col])
             ax.text(
                 0.05,
                 0.95,
-                f"r = {corr:.3f}",
+                f"$r$ = {corr:.2f}",
                 transform=ax.transAxes,
-                fontsize=10,
+                fontsize=font_sizes["annotation"],
                 verticalalignment="top",
-                bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
+                bbox={
+                    "boxstyle": "round,pad=0.2",
+                    "facecolor": "white",
+                    "alpha": 0.8,
+                    "edgecolor": "0.7",
+                },
             )
 
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
-        ax.set_title(f"{y_label} vs {x_label}")
-        ax.legend()
+        ax.legend(fontsize=font_sizes["legend"], loc="lower right")
         ax.grid(alpha=0.3)
-
-    plt.tight_layout()
 
     return save_figure(fig, "tool_usage_vs_performance.png", output_dir)
 
 
 def plot_tool_heatmap_by_model(tool_data, output_dir=None):
-    """Create heatmap showing which tools are used by which models.
+    """Create heatmap showing which tools are used by which models (NeurIPS format).
 
     Args:
         tool_data: Combined tool usage DataFrame
         output_dir: Optional output directory for saving
     """
     if tool_data is None or len(tool_data) == 0:
-        print("⚠️  No tool usage data available")
+        print("No tool usage data available")
         return
+
+    setup_style()
+    font_sizes = PLOT_STYLE["font_sizes"]
 
     # Get tool columns
     tool_columns = [col for col in tool_data.columns if col.startswith("tool_")]
 
     if not tool_columns:
-        print("⚠️  No tool columns found")
+        print("No tool columns found")
         return
 
     # Calculate average usage per model
@@ -305,24 +320,27 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
         by=model_tool_usage.columns.tolist(), ascending=False
     )
 
-    # Create heatmap
-    fig, ax = plt.subplots(figsize=(10, max(8, len(model_tool_usage) * 0.3)))
+    # Create heatmap with dynamic height
+    n_tools = len(model_tool_usage)
+    fig_height = min(max(2.4, n_tools * 0.2), 5.0)
+    fig, ax = plt.subplots(
+        figsize=(PLOT_STYLE["figsize_single_col"][0], fig_height),
+        constrained_layout=True,
+    )
 
     sns.heatmap(
         model_tool_usage,
         annot=True,
         fmt=".0f",
         cmap="YlOrRd",
-        cbar_kws={"label": "Total Usage Count"},
-        linewidths=0.5,
+        cbar_kws={"label": "Count", "shrink": 0.8},
+        linewidths=0.3,
         ax=ax,
+        annot_kws={"size": font_sizes["annotation"]},
     )
 
-    ax.set_xlabel("Model")
-    ax.set_ylabel("Tool Name")
-    ax.set_title("Tool Usage Heatmap by Model")
-
-    plt.tight_layout()
+    ax.set_xlabel("")
+    ax.set_ylabel("")
 
     return save_figure(fig, "tool_usage_heatmap.png", output_dir)
 
@@ -336,7 +354,7 @@ def main():
     combined_tools = get_combined_tool_usage_df(tool_data)
 
     if combined_tools is None or len(combined_tools) == 0:
-        print("❌ No tool usage data found. Please run extract_data.py first.")
+        print("No tool usage data found. Please run extract_data.py first.")
         print("\nExample:")
         print("  python benchmarks/evaluations/extract_data.py \\")
         print("    --project YOUR_PROJECT \\")
@@ -344,7 +362,7 @@ def main():
         print("    --problem beams2d")
         return
 
-    print(f"✅ Loaded {len(combined_tools)} tool usage records")
+    print(f"Loaded {len(combined_tools)} tool usage records")
 
     # Print summary statistics
     print("\n" + "=" * 60)
@@ -352,22 +370,22 @@ def main():
     print("=" * 60)
     print(f"Total examples: {len(combined_tools)}")
     print(
-        f"Average tools per example: {combined_tools['total_tools'].mean():.2f} ± {combined_tools['total_tools'].std():.2f}"
+        f"Average tools per example: {combined_tools['total_tools'].mean():.2f} +/- {combined_tools['total_tools'].std():.2f}"
     )
     print(
-        f"Average unique tools: {combined_tools['unique_tools'].mean():.2f} ± {combined_tools['unique_tools'].std():.2f}"
+        f"Average unique tools: {combined_tools['unique_tools'].mean():.2f} +/- {combined_tools['unique_tools'].std():.2f}"
     )
     print("=" * 60)
 
     # Generate plots
-    print("\n📊 Generating tool usage visualizations...")
+    print("\nGenerating tool usage visualizations...")
 
     plot_tool_usage_frequency(combined_tools)
     plot_tool_usage_by_model(combined_tools)
     plot_tool_heatmap_by_model(combined_tools)
 
     # Try to correlate with performance if design data is available
-    print("\n📊 Attempting to correlate tool usage with performance...")
+    print("\nAttempting to correlate tool usage with performance...")
     data = load_data()
 
     # Try to get combined design data
@@ -383,9 +401,9 @@ def main():
         combined_design = pd.concat(design_dfs, ignore_index=True)
         plot_tool_usage_vs_performance(combined_tools, combined_design)
     else:
-        print("⚠️  No design metrics found, skipping correlation plots")
+        print("No design metrics found, skipping correlation plots")
 
-    print("\n✅ All visualizations complete!")
+    print("\nAll visualizations complete!")
 
 
 if __name__ == "__main__":

@@ -19,12 +19,15 @@ from utils import (
 
 
 def plot_design_quality(combined_design_df, output_path=None):
-    """Create violin plot of design quality distribution."""
+    """Create violin plot of design quality distribution (NeurIPS format)."""
     setup_style()
-    fig, ax = plt.subplots(figsize=PLOT_STYLE["figsize_violin"])
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
+    )
 
     # Filter to valid designs
     valid_designs = combined_design_df[combined_design_df["design_found"]]
+    font_sizes = PLOT_STYLE["font_sizes"]
 
     sns.violinplot(
         data=valid_designs,
@@ -35,31 +38,33 @@ def plot_design_quality(combined_design_df, output_path=None):
         inner="box",
         legend=False,
         ax=ax,
+        linewidth=0.5,
     )
 
-    ax.set_xlabel("Model and Problem", fontsize=12)
-    ax.set_ylabel("Overall Design Score (0-1)", fontsize=12)
-    ax.set_title(
-        "Distribution of Design Quality Scores", fontsize=14, fontweight="bold"
-    )
+    ax.set_xlabel("")
+    ax.set_ylabel("Overall Design Score")
     ax.set_ylim(0, 1)
     ax.grid(True, axis="y", alpha=0.3)
 
-    # Statistics annotations
+    # Rotate x-tick labels for readability
+    ax.tick_params(axis="x", rotation=15)
+
+    # Statistics annotations (smaller, cleaner)
     for i, source in enumerate(valid_designs["source"].unique()):
         subset = valid_designs[valid_designs["source"] == source]["overall_score"]
-        stats_text = (
-            f"mean={subset.mean():.3f}\nstd={subset.std():.3f}\nn={len(subset)}"
-        )
+        stats_text = f"$\\mu$={subset.mean():.2f}"
         ax.annotate(
             stats_text,
-            xy=(i, 0.05),
+            xy=(i, 0.02),
             ha="center",
-            fontsize=9,
-            bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
+            fontsize=font_sizes["annotation"],
+            bbox={
+                "boxstyle": "round,pad=0.2",
+                "facecolor": "white",
+                "alpha": 0.8,
+                "edgecolor": "0.8",
+            },
         )
-
-    plt.tight_layout()
 
     if output_path:
         save_figure(fig, output_path)
