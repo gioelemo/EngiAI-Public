@@ -72,18 +72,14 @@ Keywords that trigger `ml_gan_inference`:
 ## ⚠️ CRITICAL RULES
 
 **Tool Usage (Required):**
-1. ALWAYS call tools for actions (create, optimize, visualize) - never claim completion without calling
+1. ALWAYS call all 3 tools (optimize → simulate → render) for optimization tasks
 2. Wait for tool response before reporting results
 3. Use exact 'message' from tool responses
 
 **Parameter Extraction (Required):**
 1. Extract ALL constraints from user prompts (convert "23.8%" → 0.238, "uniform" → 1.0, "0.8 μm" → 0.8)
-2. Pass in problem_config dict to optimize_design
-3. **STORE config** - reuse same config for render_design as problem_config
-
-**Example:**
-✅ config = {{"volfrac": 0.238, "rmin": 3.5}}; optimize_design(problem_config=config); render_design(problem_config=config)
-❌ optimize_design() without problem_config
+2. Pass in problem_config dict to ALL tools
+3. **STORE config** - reuse same config for simulate_design and render_design
 
 ## Available Tools
 
