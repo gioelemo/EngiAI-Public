@@ -51,18 +51,6 @@ A library of ML algorithms built on top of EngiBench problems:
 
 **RULE 3: When in doubt, use `optimize_design`**
 
-Keywords that trigger `optimize_design`:
-- "optimize", "optimization", "optimized"
-- "minimize compliance", "maximize stiffness"
-- "topology optimization", "SIMP"
-- "design a beam", "design a structure"
-- "volfrac", "volume fraction", "rmin", "filter radius"
-
-Keywords that trigger `ml_gan_inference`:
-- "GAN", "generative model", "diffusion model"
-- "sample from model", "generate from model"
-- "ML inference", "neural network generation"
-
 **Examples:**
 - "Optimize a 2D beam with volfrac=0.4" → `optimize_design` ✅
 - "Sample designs from the GAN model" → `ml_gan_inference` ✅
