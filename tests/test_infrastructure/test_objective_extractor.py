@@ -20,7 +20,7 @@ class TestObjectiveExtraction:
         tool_msg = ToolMessage(
             content={"final_compliance": 123.45, "success": True},
             tool_call_id="test_call",
-            name="optimize_design",
+            name="simulate_design",
         )
 
         messages = [tool_msg]
@@ -37,7 +37,7 @@ class TestObjectiveExtraction:
         tool_msg = ToolMessage(
             content='{"final_compliance": 98.76, "success": true}',
             tool_call_id="test_call",
-            name="optimize_design",
+            name="simulate_design",
         )
 
         messages = [tool_msg]
@@ -54,7 +54,7 @@ class TestObjectiveExtraction:
         tool_msg = ToolMessage(
             content="{'final_compliance': 111.11, 'success': True}",
             tool_call_id="test_call",
-            name="optimize_design",
+            name="simulate_design",
         )
 
         messages = [tool_msg]
@@ -72,7 +72,7 @@ class TestObjectiveExtraction:
         tool_msg = ToolMessage(
             content={"final_c": 55.55},
             tool_call_id="test_call",
-            name="optimize_design",
+            name="simulate_design",
         )
 
         messages = [tool_msg]
@@ -89,7 +89,7 @@ class TestObjectiveExtraction:
         tool_msg = ToolMessage(
             content={"total_overlap": 0.987},
             tool_call_id="test_call",
-            name="optimize_design",
+            name="simulate_design",
         )
 
         messages = [tool_msg]

@@ -135,7 +135,7 @@ class TestScorerIntegration:
                 }
             ),
             tool_call_id="test",
-            name="optimize_design",
+            name="simulate_design",
         )
 
         return {
@@ -189,7 +189,7 @@ class TestScorerIntegration:
                 }
             ),
             tool_call_id="test",
-            name="optimize_design",
+            name="simulate_design",
         )
 
         output = {
@@ -320,7 +320,7 @@ class TestEvaluationWorkflow:
                     }
                 ),
                 tool_call_id="test",
-                name="optimize_design",
+                name="simulate_design",
             )
 
             output = {

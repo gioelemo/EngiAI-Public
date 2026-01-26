@@ -148,7 +148,7 @@ def test_routing_prompt_contains_keywords(_mock_agents):
 
     # Engineering keywords
     assert "optimization" in prompt.lower()
-    assert "wandb" in prompt.lower()
+    assert "topology" in prompt.lower()
 
     # HPC keywords
     assert "slurm" in prompt.lower()
