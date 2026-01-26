@@ -212,10 +212,12 @@ def _save_comparison_image(
 
     # Build output directory path, including seed subfolder if seed is provided
     # Go up to benchmarks/ directory (parent.parent.parent from scorers/)
+    # Use results/models/{model}/ structure to separate LLM agents from baselines
     base_dir = (
         Path(__file__).parent.parent.parent
         / "evaluations"
         / "results"
+        / "models"
         / model_safe
         / problem_type
         / "comparisons"
