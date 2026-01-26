@@ -2,15 +2,19 @@
 
 This module provides common functionality used across all problem-specific
 prompt generation scripts, reducing code duplication and ensuring consistency.
+
+NOTE: Sampling uses NumPy's default_rng with replacement to match the sampling
+method used in EngiOpt's evaluate_cgan_cnn_2d.py (via dataset_sample_conditions.py).
+This ensures that given the same seed, both evaluations use identical dataset samples.
 """
 
 import argparse
 import json
-import random
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from datasets import load_dataset
 
 from benchmarks.shared.problem_registry import get_problem_config
@@ -58,16 +62,18 @@ def generate_prompts_from_huggingface(
 
     # Randomly sample num_samples if specified
     if num_samples < len(dataset):
-        # Set random seed for reproducibility if provided
+        # Use NumPy's default_rng to match EngiOpt's sampling in dataset_sample_conditions.py
+        # This ensures identical samples when using the same seed across both evaluation pipelines
         if seed is not None:
-            random.seed(seed)
-            print(f"🎲 Using random seed: {seed}")
+            rng = np.random.default_rng(seed)
+            print(f"🎲 Using random seed: {seed} (NumPy default_rng)")
+        else:
+            rng = np.random.default_rng()
 
-        # Generate random indices for sampling
-        indices = random.sample(range(len(dataset)), num_samples)
-        indices.sort()  # Sort for consistent iteration order
+        # Sample with replacement to match: rng.choice(len(dataset), n_samples, replace=True)
+        indices = rng.choice(len(dataset), num_samples, replace=True)
         dataset = dataset.select(indices)
-        print(f"📊 Randomly selected {num_samples} samples")
+        print(f"📊 Randomly selected {num_samples} samples (with replacement)")
     else:
         print(f"📊 Using all {len(dataset)} samples")
 
