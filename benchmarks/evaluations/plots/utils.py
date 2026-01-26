@@ -84,7 +84,7 @@ def _discover_model_paths(model_dir: Path, model_name: str) -> dict[str, Path]:
 def _discover_baseline_paths() -> dict[str, Path]:
     """Discover baseline result files from baselines directory.
 
-    Structure: results/baselines/{baseline_type}/{model_id}/{problem}/
+    Structure: results/baselines/{baseline_type}/{problem}/
 
     Returns:
         Dictionary mapping keys to file paths
@@ -97,17 +97,12 @@ def _discover_baseline_paths() -> dict[str, Path]:
         if not baseline_type_dir.is_dir():
             continue
 
-        # Iterate over model variants within each baseline type
-        for model_dir in baseline_type_dir.iterdir():
-            if not model_dir.is_dir():
-                continue
-            model_id = model_dir.name
+        baseline_type = baseline_type_dir.name  # e.g., "cgan_cnn_2d"
 
-            for problem in KNOWN_PROBLEMS:
-                global_path = model_dir / problem / "output_quality_global_metrics.csv"
-                if global_path.exists():
-                    # Include model_id in the key for display
-                    paths[f"cgan_{model_id}_{problem}_global"] = global_path
+        for problem in KNOWN_PROBLEMS:
+            global_path = baseline_type_dir / problem / "output_quality_global_metrics.csv"
+            if global_path.exists():
+                paths[f"{baseline_type}_{problem}_global"] = global_path
 
     return paths
 

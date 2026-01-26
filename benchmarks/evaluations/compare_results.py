@@ -31,38 +31,25 @@ from config import config  # noqa: E402
 GLOBAL_METRICS = ["mmd", "dpp", "rvc", "iog", "cog", "fog"]
 
 
-def load_cgan_results(problem: str, cgan_model: str = "default") -> pd.DataFrame | None:
+def load_cgan_results(problem: str) -> pd.DataFrame | None:
     """Load CGAN evaluation results.
 
-    Checks new location (baselines/{type}/{model}/{problem}/) first, then legacy.
+    Checks new location (baselines/cgan_cnn_2d/{problem}/) first, then legacy.
 
     Args:
         problem: Problem type (e.g., "beams2d")
-        cgan_model: CGAN model identifier (default: "default")
     """
-    # Try new location first: baselines/cgan_cnn_2d/{model_id}/{problem}/
+    # Try new location first: baselines/cgan_cnn_2d/{problem}/
     csv_path = (
-        BASELINES_DIR
-        / "cgan_cnn_2d"
-        / cgan_model
-        / problem
-        / "output_quality_global_metrics.csv"
+        BASELINES_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
     )
-    if not csv_path.exists():
-        # Fall back to legacy location (no model_id)
-        csv_path = (
-            BASELINES_DIR
-            / "cgan_cnn_2d"
-            / problem
-            / "output_quality_global_metrics.csv"
-        )
     if not csv_path.exists():
         # Fall back to old legacy location
         csv_path = (
             RESULTS_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
         )
     if not csv_path.exists():
-        print(f"Warning: CGAN results not found for model '{cgan_model}'")
+        print("Warning: CGAN results not found")
         return None
     return pd.read_csv(csv_path)
 
@@ -226,12 +213,6 @@ def main() -> None:
         default=None,
         help="Save comparison to CSV file",
     )
-    parser.add_argument(
-        "--cgan-model",
-        type=str,
-        default="default",
-        help="CGAN model identifier (default: default)",
-    )
     args = parser.parse_args()
 
     # Use config.llm_model if no model specified
@@ -242,10 +223,9 @@ def main() -> None:
     print("=" * 80)
     print(f"\nProblem: {args.problem}")
     print(f"Agent model: {model_name}")
-    print(f"CGAN model: {args.cgan_model}")
 
     # Load results
-    cgan_df = load_cgan_results(args.problem, args.cgan_model)
+    cgan_df = load_cgan_results(args.problem)
     agent_df = load_agent_results(args.problem, model_name)
 
     if cgan_df is None and agent_df is None:
