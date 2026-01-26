@@ -18,8 +18,14 @@ from utils import (
 )
 
 
-def plot_design_quality(combined_design_df, output_path=None):
-    """Create violin plot of design quality distribution (NeurIPS format)."""
+def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
+    """Create violin plot of design quality distribution (NeurIPS format).
+
+    Args:
+        combined_design_df: DataFrame with design-level metrics
+        output_path: Output filename (e.g., "design_quality_distribution.png")
+        output_dir: Optional output directory (default: figures/)
+    """
     setup_style()
     fig, ax = plt.subplots(
         figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
@@ -67,7 +73,7 @@ def plot_design_quality(combined_design_df, output_path=None):
         )
 
     if output_path:
-        save_figure(fig, output_path)
+        save_figure(fig, output_path, output_dir=output_dir)
 
     return fig
 

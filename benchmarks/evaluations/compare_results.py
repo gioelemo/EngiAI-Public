@@ -20,6 +20,8 @@ import pandas as pd
 # Paths configuration
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 RESULTS_DIR = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
+BASELINES_DIR = RESULTS_DIR / "baselines"
+MODELS_DIR = RESULTS_DIR / "models"
 
 # Add project root to path to import config
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -29,23 +31,57 @@ from config import config  # noqa: E402
 GLOBAL_METRICS = ["mmd", "dpp", "rvc", "iog", "cog", "fog"]
 
 
-def load_cgan_results(problem: str) -> pd.DataFrame | None:
-    """Load CGAN evaluation results."""
+def load_cgan_results(problem: str, cgan_model: str = "default") -> pd.DataFrame | None:
+    """Load CGAN evaluation results.
+
+    Checks new location (baselines/{type}/{model}/{problem}/) first, then legacy.
+
+    Args:
+        problem: Problem type (e.g., "beams2d")
+        cgan_model: CGAN model identifier (default: "default")
+    """
+    # Try new location first: baselines/cgan_cnn_2d/{model_id}/{problem}/
     csv_path = (
-        RESULTS_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
+        BASELINES_DIR
+        / "cgan_cnn_2d"
+        / cgan_model
+        / problem
+        / "output_quality_global_metrics.csv"
     )
     if not csv_path.exists():
-        print(f"Warning: CGAN results not found at {csv_path}")
+        # Fall back to legacy location (no model_id)
+        csv_path = (
+            BASELINES_DIR
+            / "cgan_cnn_2d"
+            / problem
+            / "output_quality_global_metrics.csv"
+        )
+    if not csv_path.exists():
+        # Fall back to old legacy location
+        csv_path = (
+            RESULTS_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
+        )
+    if not csv_path.exists():
+        print(f"Warning: CGAN results not found for model '{cgan_model}'")
         return None
     return pd.read_csv(csv_path)
 
 
 def load_agent_results(problem: str, model: str) -> pd.DataFrame | None:
-    """Load agent evaluation results."""
+    """Load agent evaluation results.
+
+    Checks new location (models/) first, then legacy location.
+    """
     model_safe = model.replace("/", "_").replace(":", "_")
-    csv_path = RESULTS_DIR / model_safe / problem / "output_quality_global_metrics.csv"
+    # Try new location first
+    csv_path = MODELS_DIR / model_safe / problem / "output_quality_global_metrics.csv"
     if not csv_path.exists():
-        print(f"Warning: Agent results not found at {csv_path}")
+        # Fall back to legacy location
+        csv_path = (
+            RESULTS_DIR / model_safe / problem / "output_quality_global_metrics.csv"
+        )
+    if not csv_path.exists():
+        print(f"Warning: Agent results not found for {model}")
         return None
     return pd.read_csv(csv_path)
 
@@ -190,6 +226,12 @@ def main() -> None:
         default=None,
         help="Save comparison to CSV file",
     )
+    parser.add_argument(
+        "--cgan-model",
+        type=str,
+        default="default",
+        help="CGAN model identifier (default: default)",
+    )
     args = parser.parse_args()
 
     # Use config.llm_model if no model specified
@@ -200,9 +242,10 @@ def main() -> None:
     print("=" * 80)
     print(f"\nProblem: {args.problem}")
     print(f"Agent model: {model_name}")
+    print(f"CGAN model: {args.cgan_model}")
 
     # Load results
-    cgan_df = load_cgan_results(args.problem)
+    cgan_df = load_cgan_results(args.problem, args.cgan_model)
     agent_df = load_agent_results(args.problem, model_name)
 
     if cgan_df is None and agent_df is None:

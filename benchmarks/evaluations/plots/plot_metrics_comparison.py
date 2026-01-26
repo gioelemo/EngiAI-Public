@@ -18,8 +18,14 @@ from utils import (
 )
 
 
-def plot_metrics_comparison(combined_df, output_path=None):
-    """Create bar chart comparing metrics across models (NeurIPS format)."""
+def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
+    """Create bar chart comparing metrics across models (NeurIPS format).
+
+    Args:
+        combined_df: DataFrame with global metrics
+        output_path: Output filename (e.g., "metrics_comparison.png")
+        output_dir: Optional output directory (default: figures/)
+    """
     setup_style()
     fig, axes = plt.subplots(
         2, 2, figsize=PLOT_STYLE["figsize_full_width_tall"], constrained_layout=True
@@ -91,7 +97,7 @@ def plot_metrics_comparison(combined_df, output_path=None):
                 )
 
     if output_path:
-        save_figure(fig, output_path)
+        save_figure(fig, output_path, output_dir=output_dir)
 
     return fig
 

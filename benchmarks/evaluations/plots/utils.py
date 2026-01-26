@@ -25,60 +25,170 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 # Known problem types
 KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d"]
 
-# CGAN baseline directory
-CGAN_DIR = RESULTS_DIR / "cgan_cnn_2d"
+# Directory structure:
+# results/baselines/{baseline_type}/{model_id}/{problem}/  - for baselines (CGAN, CNN, etc.)
+# results/models/{model_name}/{problem}/                   - for LLM agent models
+# Legacy: results/cgan_cnn_2d/{problem}/                   - old structure (still supported)
+# Legacy: results/{model_name}/{problem}/                  - old structure (still supported)
+BASELINES_DIR = RESULTS_DIR / "baselines"
+MODELS_DIR = RESULTS_DIR / "models"
+
+# Known baseline types
+KNOWN_BASELINE_TYPES = ["cgan_cnn_2d"]
+
+# CGAN baseline directory (new structure is preferred)
+# New: baselines/cgan_cnn_2d/{model_id}/{problem}/
+CGAN_DIR = BASELINES_DIR / "cgan_cnn_2d"  # New structure (preferred)
+CGAN_DIR_LEGACY = RESULTS_DIR / "cgan_cnn_2d"  # Legacy (for backwards compat)
 
 # Minimum parts when parsing keys like "{model}_{problem}_{type}"
 MIN_KEY_PARTS = 3
 
 
-def discover_data_paths() -> dict[str, Path]:
-    """Auto-discover available result files in the results directory.
+def _discover_model_paths(model_dir: Path, model_name: str) -> dict[str, Path]:
+    """Discover result files for a single model directory.
+
+    Args:
+        model_dir: Path to the model directory
+        model_name: Name of the model (for key generation)
 
     Returns:
         Dictionary mapping keys to file paths
     """
     paths = {}
 
-    # Discover agent model directories (everything except cgan_cnn_2d)
-    if RESULTS_DIR.exists():
-        for model_dir in RESULTS_DIR.iterdir():
+    for problem in KNOWN_PROBLEMS:
+        problem_dir = model_dir / problem
+
+        # Global metrics
+        global_path = problem_dir / "output_quality_global_metrics.csv"
+        if global_path.exists():
+            key = f"{model_name}_{problem}_global"
+            paths[key] = global_path
+
+        # Design metrics
+        design_path = problem_dir / "output_quality_design_metrics.csv"
+        if design_path.exists():
+            key = f"{model_name}_{problem}_design"
+            paths[key] = design_path
+
+        # Tool usage data
+        tools_path = problem_dir / "data.csv"
+        if tools_path.exists():
+            key = f"{model_name}_{problem}_tools"
+            paths[key] = tools_path
+
+    return paths
+
+
+def _discover_baseline_paths() -> dict[str, Path]:
+    """Discover baseline result files from baselines directory.
+
+    Structure: results/baselines/{baseline_type}/{model_id}/{problem}/
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+    if not BASELINES_DIR.exists():
+        return paths
+
+    for baseline_type_dir in BASELINES_DIR.iterdir():
+        if not baseline_type_dir.is_dir():
+            continue
+
+        # Iterate over model variants within each baseline type
+        for model_dir in baseline_type_dir.iterdir():
             if not model_dir.is_dir():
                 continue
-
-            model_name = model_dir.name
-
-            # Skip CGAN directory (handled separately)
-            if model_name == "cgan_cnn_2d":
-                continue
+            model_id = model_dir.name
 
             for problem in KNOWN_PROBLEMS:
-                problem_dir = model_dir / problem
-
-                # Global metrics
-                global_path = problem_dir / "output_quality_global_metrics.csv"
+                global_path = model_dir / problem / "output_quality_global_metrics.csv"
                 if global_path.exists():
-                    key = f"{model_name}_{problem}_global"
-                    paths[key] = global_path
+                    # Include model_id in the key for display
+                    paths[f"cgan_{model_id}_{problem}_global"] = global_path
 
-                # Design metrics
-                design_path = problem_dir / "output_quality_design_metrics.csv"
-                if design_path.exists():
-                    key = f"{model_name}_{problem}_design"
-                    paths[key] = design_path
+    return paths
 
-                # Tool usage data
-                tools_path = problem_dir / "data.csv"
-                if tools_path.exists():
-                    key = f"{model_name}_{problem}_tools"
-                    paths[key] = tools_path
 
-    # Discover CGAN results
-    if CGAN_DIR.exists():
-        for problem in KNOWN_PROBLEMS:
-            cgan_path = CGAN_DIR / problem / "output_quality_global_metrics.csv"
-            if cgan_path.exists():
-                paths[f"cgan_{problem}_global"] = cgan_path
+def _discover_legacy_cgan_paths() -> dict[str, Path]:
+    """Discover CGAN results from legacy location.
+
+    Legacy structure: results/cgan_cnn_2d/{problem}/
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+    cgan_dir = CGAN_DIR if CGAN_DIR.exists() else CGAN_DIR_LEGACY
+
+    if not (cgan_dir.exists() and cgan_dir.is_dir()):
+        return paths
+
+    for problem in KNOWN_PROBLEMS:
+        cgan_path = cgan_dir / problem / "output_quality_global_metrics.csv"
+        if cgan_path.exists():
+            paths[f"cgan_{problem}_global"] = cgan_path
+
+    return paths
+
+
+def _discover_legacy_model_paths() -> dict[str, Path]:
+    """Discover model results from legacy root location.
+
+    Legacy structure: results/{model_name}/{problem}/
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+    if not RESULTS_DIR.exists():
+        return paths
+
+    skip_dirs = {"baselines", "models", *KNOWN_BASELINE_TYPES}
+    for model_dir in RESULTS_DIR.iterdir():
+        if not model_dir.is_dir():
+            continue
+        if model_dir.name in skip_dirs:
+            continue
+        paths.update(_discover_model_paths(model_dir, model_dir.name))
+
+    return paths
+
+
+def discover_data_paths() -> dict[str, Path]:
+    """Auto-discover available result files in the results directory.
+
+    Supports both new structure (baselines/, models/) and legacy structure.
+
+    Directory structure:
+        New:
+            results/baselines/{baseline_type}/{model_id}/{problem}/
+            results/models/{model_name}/{problem}/
+        Legacy:
+            results/cgan_cnn_2d/{problem}/
+            results/{model_name}/{problem}/
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+
+    # 1. Discover from new structure: results/models/
+    if MODELS_DIR.exists():
+        for model_dir in MODELS_DIR.iterdir():
+            if model_dir.is_dir():
+                paths.update(_discover_model_paths(model_dir, model_dir.name))
+
+    # 2. Discover from new structure: results/baselines/
+    paths.update(_discover_baseline_paths())
+
+    # 3. Legacy: Discover agent model directories at root
+    paths.update(_discover_legacy_model_paths())
+
+    # 4. Legacy: Discover CGAN results
+    paths.update(_discover_legacy_cgan_paths())
 
     return paths
 
@@ -459,6 +569,85 @@ def get_combined_design_df(data):
         design_dfs.append(df)
 
     return pd.concat(design_dfs, ignore_index=True) if design_dfs else None
+
+
+def get_problem_output_dir(problem: str) -> Path:
+    """Return output directory for problem-specific figures.
+
+    Args:
+        problem: Problem name (e.g., "beams2d")
+
+    Returns:
+        Path to the problem-specific output directory
+    """
+    problem_dir = OUTPUT_DIR / problem
+    problem_dir.mkdir(exist_ok=True)
+    return problem_dir
+
+
+def filter_by_problem(df, problem: str):
+    """Filter a DataFrame to only include data for a specific problem.
+
+    Args:
+        df: DataFrame with a 'problem' column
+        problem: Problem name to filter by
+
+    Returns:
+        Filtered DataFrame or None if empty
+    """
+    if df is None:
+        return None
+    if "problem" not in df.columns:
+        return df
+    filtered = df[df["problem"] == problem]
+    return filtered if len(filtered) > 0 else None
+
+
+def is_baseline(model_name: str) -> bool:
+    """Check if a model name refers to a baseline (not an LLM agent).
+
+    Args:
+        model_name: Model name to check
+
+    Returns:
+        True if the model is a baseline
+    """
+    baseline_patterns = ["cGAN", "cgan", "CNN", "baseline"]
+    return any(pattern.lower() in model_name.lower() for pattern in baseline_patterns)
+
+
+def filter_models_only(df):
+    """Filter a DataFrame to only include LLM agent models (exclude baselines).
+
+    Args:
+        df: DataFrame with a 'model' column
+
+    Returns:
+        Filtered DataFrame or None if empty
+    """
+    if df is None:
+        return None
+    if "model" not in df.columns:
+        return df
+    filtered = df[~df["model"].apply(is_baseline)]
+    return filtered if len(filtered) > 0 else None
+
+
+def filter_baselines_only(df):
+    """Filter a DataFrame to only include baselines (exclude LLM agents).
+
+    Args:
+        df: DataFrame with a 'model' column
+
+    Returns:
+        Filtered DataFrame or None if empty
+    """
+    if df is None:
+        return None
+    if "model" not in df.columns:
+        return df
+    filtered = df[df["model"].apply(is_baseline)]
+    return filtered if len(filtered) > 0 else None
 
 
 def save_figure(fig, filename, output_dir=None, save_pdf=True):

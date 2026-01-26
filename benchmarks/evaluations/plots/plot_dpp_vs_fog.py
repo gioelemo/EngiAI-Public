@@ -20,8 +20,14 @@ from utils import (
 )
 
 
-def plot_dpp_vs_fog(combined_df, output_path=None):
-    """Create DPP vs FOG scatter plot (NeurIPS format)."""
+def plot_dpp_vs_fog(combined_df, output_path=None, output_dir=None):
+    """Create DPP vs FOG scatter plot (NeurIPS format).
+
+    Args:
+        combined_df: DataFrame with global metrics
+        output_path: Output filename (e.g., "dpp_vs_fog.png")
+        output_dir: Optional output directory (default: figures/)
+    """
     setup_style()
     fig, ax = plt.subplots(
         figsize=PLOT_STYLE["figsize_single_col"], constrained_layout=True
@@ -73,7 +79,7 @@ def plot_dpp_vs_fog(combined_df, output_path=None):
     ax.grid(True, alpha=0.3)
 
     if output_path:
-        save_figure(fig, output_path)
+        save_figure(fig, output_path, output_dir=output_dir)
 
     return fig
 

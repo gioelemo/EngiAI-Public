@@ -35,7 +35,12 @@ CONDA_PYTHON = (
 )
 
 # Default output directory for all benchmark results
+# Structure:
+#   results/baselines/{baseline_type}/{model_id}/{problem}/  - for baselines
+#   results/models/{model_name}/{problem}/                   - for LLM agents
 RESULTS_DIR = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
+BASELINES_DIR = RESULTS_DIR / "baselines"
+MODELS_DIR = RESULTS_DIR / "models"
 
 
 def run_command(
@@ -180,6 +185,12 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         help="Wandb entity for CGAN model artifacts (default: engibench)",
     )
     parser.add_argument(
+        "--cgan-model",
+        type=str,
+        default="default",
+        help="CGAN model identifier (e.g., 'v1', 'trained_2024'). Used to organize results (default: default)",
+    )
+    parser.add_argument(
         "--cgan-only",
         action="store_true",
         help="Run only CGAN evaluation",
@@ -205,7 +216,8 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     run_agent = not args.cgan_only
 
     # Setup output directories
-    cgan_results_dir = RESULTS_DIR / "cgan_cnn_2d" / args.problem
+    # CGAN: results/baselines/cgan_cnn_2d/{model_id}/{problem}/
+    cgan_results_dir = BASELINES_DIR / "cgan_cnn_2d" / args.cgan_model / args.problem
     cgan_results_dir.mkdir(parents=True, exist_ok=True)
     cgan_output_csv = cgan_results_dir / "output_quality_global_metrics.csv"
 
@@ -300,11 +312,11 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             print(f"  Failed seeds: {failed_seeds['agent']}")
         if args.model is not None:
             model_safe = args.model.replace("/", "_").replace(":", "_")
-            agent_results_dir = RESULTS_DIR / model_safe / args.problem
+            agent_results_dir = MODELS_DIR / model_safe / args.problem
             print(f"  Results saved to: {agent_results_dir}")
         else:
             print(
-                f"  Results saved to: {RESULTS_DIR}/<model_from_config>/{args.problem}"
+                f"  Results saved to: {MODELS_DIR}/<model_from_config>/{args.problem}"
             )
 
     print()
