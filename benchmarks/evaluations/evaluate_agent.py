@@ -156,15 +156,28 @@ class EngineeringAgent(weave.Model):
                     problem_config = args.get("problem_config", None)
                     # Flat config params (LLM may use aliases)
                     flat_config_keys = {
-                        "volume_fraction", "volfrac", "force_distribution", "forcedist",
-                        "rmin", "lambda1", "lambda2", "blur_radius", "weight"
+                        "volume_fraction",
+                        "volfrac",
+                        "force_distribution",
+                        "forcedist",
+                        "rmin",
+                        "lambda1",
+                        "lambda2",
+                        "blur_radius",
+                        "weight",
                     }
-                    has_flat_params = any(args.get(k) is not None for k in flat_config_keys)
+                    has_flat_params = any(
+                        args.get(k) is not None for k in flat_config_keys
+                    )
 
                     logger.debug(
                         "optimize_design called with problem_config=%s, flat_params=%s",
                         problem_config,
-                        {k: args.get(k) for k in flat_config_keys if args.get(k) is not None}
+                        {
+                            k: args.get(k)
+                            for k in flat_config_keys
+                            if args.get(k) is not None
+                        },
                     )
                     if problem_config is None and not has_flat_params:
                         logger.warning(

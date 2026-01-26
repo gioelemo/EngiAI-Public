@@ -410,10 +410,26 @@ def _build_problem_config_from_flat_params(
     }
 
     # Valid config keys that don't need aliasing
-    valid_keys = {"volfrac", "rmin", "forcedist", "lambda1", "lambda2", "blur_radius", "weight"}
+    valid_keys = {
+        "volfrac",
+        "rmin",
+        "forcedist",
+        "lambda1",
+        "lambda2",
+        "blur_radius",
+        "weight",
+    }
 
     # Keys to skip (not config parameters)
-    skip_keys = {"problem_id", "grid_size", "problem_type", "seed", "save_result", "design_description", "save_path"}
+    skip_keys = {
+        "problem_id",
+        "grid_size",
+        "problem_type",
+        "seed",
+        "save_result",
+        "design_description",
+        "save_path",
+    }
 
     def normalize_params(params: dict[str, Any]) -> dict[str, Any]:
         """Normalize a dict of parameters, applying aliases."""
@@ -500,7 +516,9 @@ def optimize_design(  # noqa: PLR0913
             "blur_radius": blur_radius,
             "weight": weight,
         }
-        logger.info(f"optimize_design called with problem_config={problem_config}, flat_params={flat_params}")
+        logger.info(
+            f"optimize_design called with problem_config={problem_config}, flat_params={flat_params}"
+        )
         config = _build_problem_config_from_flat_params(problem_config, **flat_params)
         logger.info(f"Built config: {config}")
         config_was_empty = config == {}
