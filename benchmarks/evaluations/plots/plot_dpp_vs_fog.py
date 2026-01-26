@@ -14,6 +14,7 @@ from utils import (
     MIN_CORRELATION_SAMPLES,
     PLOT_STYLE,
     get_combined_global_df,
+    get_model_style,
     load_data,
     save_figure,
     setup_style,
@@ -33,21 +34,24 @@ def plot_dpp_vs_fog(combined_df, output_path=None, output_dir=None):
         figsize=PLOT_STYLE["figsize_single_col"], constrained_layout=True
     )
 
-    markers = PLOT_STYLE["markers"]
+    # Get dynamic styles for models
+    models = list(combined_df["model"].unique())
+    model_styles = get_model_style(models)
     colors = PLOT_STYLE["colors"]
     font_sizes = PLOT_STYLE["font_sizes"]
 
-    for model in combined_df["model"].unique():
+    for model in models:
         for problem in combined_df["problem"].unique():
             mask = (combined_df["model"] == model) & (combined_df["problem"] == problem)
             subset = combined_df[mask]
             if len(subset) > 0:
+                style = model_styles[model]
                 ax.scatter(
                     subset["dpp"],
                     subset["fog"],
                     label=f"{model} ({problem})",
-                    marker=markers.get(model, "o"),
-                    c=colors.get(problem, "gray"),
+                    marker=style["marker"],
+                    c=colors.get(problem, style["color"]),
                     alpha=PLOT_STYLE["alpha"],
                     s=PLOT_STYLE["marker_size"],
                     edgecolors="white",

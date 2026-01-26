@@ -108,23 +108,24 @@ def _discover_baseline_paths() -> dict[str, Path]:
 
 
 def _discover_legacy_cgan_paths() -> dict[str, Path]:
-    """Discover CGAN results from legacy location.
+    """Discover CGAN results from legacy location only.
 
     Legacy structure: results/cgan_cnn_2d/{problem}/
+    (NOT baselines/cgan_cnn_2d/ - that's handled by _discover_baseline_paths)
 
     Returns:
         Dictionary mapping keys to file paths
     """
     paths = {}
-    cgan_dir = CGAN_DIR if CGAN_DIR.exists() else CGAN_DIR_LEGACY
-
-    if not (cgan_dir.exists() and cgan_dir.is_dir()):
+    # Only check legacy location (results/cgan_cnn_2d/)
+    # New location (baselines/cgan_cnn_2d/) is handled by _discover_baseline_paths
+    if not (CGAN_DIR_LEGACY.exists() and CGAN_DIR_LEGACY.is_dir()):
         return paths
 
     for problem in KNOWN_PROBLEMS:
-        cgan_path = cgan_dir / problem / "output_quality_global_metrics.csv"
+        cgan_path = CGAN_DIR_LEGACY / problem / "output_quality_global_metrics.csv"
         if cgan_path.exists():
-            paths[f"cgan_{problem}_global"] = cgan_path
+            paths[f"cgan_legacy_{problem}_global"] = cgan_path
 
     return paths
 
@@ -218,16 +219,20 @@ NEURIPS_COLUMN_WIDTH = 3.25
 NEURIPS_FULL_WIDTH = 6.75
 
 # Colorblind-friendly palette (Okabe-Ito)
-COLORS = {
-    "blue": "#0072B2",
-    "orange": "#E69F00",
-    "green": "#009E73",
-    "purple": "#CC79A7",
-    "sky_blue": "#56B4E9",
-    "vermillion": "#D55E00",
-    "yellow": "#F0E442",
-    "black": "#000000",
-}
+# These can be used as a list for dynamic assignment
+COLOR_PALETTE = [
+    "#0072B2",  # blue
+    "#E69F00",  # orange
+    "#009E73",  # green
+    "#CC79A7",  # purple
+    "#56B4E9",  # sky blue
+    "#D55E00",  # vermillion
+    "#F0E442",  # yellow
+    "#000000",  # black
+]
+
+# Marker styles to cycle through
+MARKER_PALETTE = ["o", "s", "^", "D", "v", "p", "*", "h"]
 
 # Plot style configuration for NeurIPS publication
 PLOT_STYLE = {
@@ -241,14 +246,14 @@ PLOT_STYLE = {
     "figsize_bars": (NEURIPS_FULL_WIDTH, 4.0),
     "figsize_violin": (NEURIPS_COLUMN_WIDTH, 2.4),
     "dpi": 300,
-    "markers": {"GPT-4.1": "o", "GPT-5.1": "^", "cGAN-CNN": "s"},
-    # Colorblind-friendly colors mapped to models/problems
+    # Color palette for dynamic assignment (cycle through for models)
+    "color_palette": COLOR_PALETTE,
+    "marker_palette": MARKER_PALETTE,
+    # Fixed colors for problems only
     "colors": {
-        "beams2d": COLORS["blue"],
-        "photonics2d": COLORS["orange"],
-        "GPT-4.1": COLORS["blue"],
-        "GPT-5.1": COLORS["purple"],
-        "cGAN-CNN": COLORS["vermillion"],
+        "beams2d": COLOR_PALETTE[0],
+        "photonics2d": COLOR_PALETTE[1],
+        "thermoelastic2d": COLOR_PALETTE[2],
     },
     "alpha": 0.7,
     "marker_size": 40,  # Smaller for publication
@@ -261,6 +266,26 @@ PLOT_STYLE = {
         "annotation": 6,
     },
 }
+
+
+def get_model_style(models: list[str]) -> dict[str, dict]:
+    """Get colors and markers for a list of models.
+
+    Dynamically assigns colors and markers from palettes.
+
+    Args:
+        models: List of model names
+
+    Returns:
+        Dict mapping model name to {"color": ..., "marker": ...}
+    """
+    styles = {}
+    for i, model in enumerate(models):
+        styles[model] = {
+            "color": COLOR_PALETTE[i % len(COLOR_PALETTE)],
+            "marker": MARKER_PALETTE[i % len(MARKER_PALETTE)],
+        }
+    return styles
 
 
 def setup_style(use_latex=None):
@@ -368,11 +393,20 @@ def _load_global_metrics(path, model, problem):
     except Exception as e:
         print(f"Warning: Could not load {path}: {e}")
         return None
+
+    # Rename columns for consistency (same as CGAN)
+    rename_map = {
+        "model_id": "model_id_orig",  # Preserve original
+        "problem_id": "problem",
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
     # Filter to rows with valid n_samples (numeric)
-    df = df[pd.to_numeric(df["n_samples"], errors="coerce").notna()]
-    df["n_samples"] = pd.to_numeric(df["n_samples"])
-    df = df.drop_duplicates(subset=["seed", "n_samples"], keep="first")
-    df = df[df["n_samples"] == DEFAULT_N_SAMPLES]
+    if "n_samples" in df.columns:
+        df = df[pd.to_numeric(df["n_samples"], errors="coerce").notna()]
+        df["n_samples"] = pd.to_numeric(df["n_samples"])
+        df = df.drop_duplicates(subset=["seed", "n_samples"], keep="first")
+
     df["model"] = model
     df["problem"] = problem
     return df

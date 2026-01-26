@@ -15,6 +15,7 @@ import seaborn as sns
 from utils import (
     PLOT_STYLE,
     get_combined_tool_usage_df,
+    get_model_style,
     load_data,
     load_tool_usage_data,
     save_figure,
@@ -60,9 +61,9 @@ def plot_tool_usage_frequency(tool_data, output_dir=None):
         figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
     )
 
-    bars = ax.barh(
-        tool_names, tool_counts, color=PLOT_STYLE["colors"]["GPT-4.1"], height=0.7
-    )
+    # Use a neutral color from the colorblind-friendly palette
+    default_color = "#0072B2"  # Blue
+    bars = ax.barh(tool_names, tool_counts, color=default_color, height=0.7)
 
     # Add count labels
     for bar in bars:
@@ -128,11 +129,10 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     x = np.arange(len(model_stats))
     width = 0.6
 
-    # Use model-specific colors with fallback to green for unknown models
-    default_color = "#009E73"  # Green from colorblind-friendly palette
-    colors = [
-        PLOT_STYLE["colors"].get(model, default_color) for model in model_stats["model"]
-    ]
+    # Get dynamic styles for models
+    models = list(model_stats["model"].unique())
+    model_styles = get_model_style(models)
+    colors = [model_styles[model]["color"] for model in model_stats["model"]]
 
     bars1 = ax1.bar(
         x,
@@ -241,16 +241,21 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):
         ("unique_tools", "iou", "Unique Tools", "IoU"),
     ]
 
+    # Get dynamic styles for models
+    models = list(merged["model_tool"].unique())
+    model_styles = get_model_style(models)
+
     for ax, (x_col, y_col, x_label, y_label) in zip(axes.flat, metrics, strict=False):
         # Plot by model
-        for model in merged["model_tool"].unique():
+        for model in models:
             model_data = merged[merged["model_tool"] == model]
+            style = model_styles[model]
             ax.scatter(
                 model_data[x_col],
                 model_data[y_col],
                 label=model,
-                marker=PLOT_STYLE["markers"].get(model, "o"),
-                color=PLOT_STYLE["colors"].get(model, "gray"),
+                marker=style["marker"],
+                color=style["color"],
                 alpha=PLOT_STYLE["alpha"],
                 s=PLOT_STYLE["marker_size"],
             )
