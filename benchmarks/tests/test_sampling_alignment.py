@@ -20,14 +20,18 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 
-def get_agent_sampling_indices(seed: int, n_samples: int, dataset_size: int) -> np.ndarray:
+def get_agent_sampling_indices(
+    seed: int, n_samples: int, dataset_size: int
+) -> np.ndarray:
     """Replicate the sampling logic from prompt_generation.py."""
     rng = np.random.default_rng(seed)
     indices = rng.choice(dataset_size, n_samples, replace=True)
     return indices
 
 
-def get_cgan_sampling_indices(seed: int, n_samples: int, dataset_size: int) -> np.ndarray:
+def get_cgan_sampling_indices(
+    seed: int, n_samples: int, dataset_size: int
+) -> np.ndarray:
     """Replicate the sampling logic from dataset_sample_conditions.py."""
     rng = np.random.default_rng(seed)
     indices = rng.choice(dataset_size, n_samples, replace=True)
@@ -75,13 +79,11 @@ def test_with_real_dataset(
         return False
 
     # Compare actual conditions from sampled examples
-    conditions_keys = ["volfrac", "forcedist", "rmin"]
-
-    print(f"\nConditions comparison:")
+    print("\nConditions comparison:")
     print(f"{'Idx':<5} {'volfrac':<10} {'forcedist':<12} {'rmin':<8}")
     print("-" * 40)
 
-    for i, idx in enumerate(agent_indices):
+    for idx in agent_indices:
         example = dataset[int(idx)]
         volfrac = example.get("volfrac", "N/A")
         forcedist = example.get("forcedist", "N/A")
@@ -91,7 +93,9 @@ def test_with_real_dataset(
     return True
 
 
-def run_multiple_seeds_test(seeds: list[int], n_samples: int, dataset_size: int) -> None:
+def run_multiple_seeds_test(
+    seeds: list[int], n_samples: int, dataset_size: int
+) -> None:
     """Run test across multiple seeds."""
     print("=" * 60)
     print("SAMPLING ALIGNMENT TEST - MULTIPLE SEEDS")
