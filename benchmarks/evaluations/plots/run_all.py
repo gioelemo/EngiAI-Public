@@ -6,9 +6,13 @@ Run this script to generate all visualizations at once.
 Individual plots can also be run separately.
 
 Usage:
-    python run_all.py           # Generate all figures
-    python plot_dpp_vs_fog.py   # Generate single figure
+    python run_all.py                    # Generate all figures (per-problem + combined)
+    python run_all.py --problem beams2d  # Generate only for beams2d
+    python run_all.py --combined-only    # Generate only combined plots
+    python plot_dpp_vs_fog.py            # Generate single figure
 """
+
+import argparse
 
 from generate_summary_table import create_summary_table
 from plot_design_quality import plot_design_quality
@@ -208,6 +212,20 @@ def _generate_plots_for_problem(
 
 def main():
     """Generate all visualizations."""
+    parser = argparse.ArgumentParser(description="Generate benchmark visualizations")
+    parser.add_argument(
+        "--problem",
+        type=str,
+        choices=["beams2d", "photonics2d", "thermoelastic2d"],
+        help="Generate plots only for a specific problem",
+    )
+    parser.add_argument(
+        "--combined-only",
+        action="store_true",
+        help="Generate only combined plots (skip per-problem)",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("Diversity vs Quality Analysis")
     print("=" * 60)
@@ -243,13 +261,29 @@ def main():
 
     print(f"\nProblems with data: {sorted(problems_with_data)}")
 
-    # 1. Generate per-problem plots
-    for problem in sorted(problems_with_data):
+    # If specific problem requested, only generate for that problem
+    if args.problem:
+        if args.problem not in problems_with_data:
+            print(f"WARNING: No data found for problem '{args.problem}'")
+            return
         _generate_plots_for_problem(
-            problem, combined_global, combined_design, combined_tools
+            args.problem, combined_global, combined_design, combined_tools
         )
+        print("\n" + "=" * 60)
+        output_dir = get_problem_output_dir(args.problem)
+        print(f"DONE! Figures saved to: {output_dir}")
+        print("=" * 60)
+        return
 
-    # 2. Generate combined plots (all problems together)
+    # If combined-only, skip per-problem plots
+    if not args.combined_only:
+        # Generate per-problem plots
+        for problem in sorted(problems_with_data):
+            _generate_plots_for_problem(
+                problem, combined_global, combined_design, combined_tools
+            )
+
+    # Generate combined plots (all problems together)
     output_dir = get_output_dir()
     print("\n" + "=" * 60)
     print("GENERATING COMBINED PLOTS (all problems)")
@@ -263,7 +297,8 @@ def main():
 
     print("\n" + "=" * 60)
     print(f"DONE! All figures saved to: {output_dir}")
-    print(f"Problem-specific figures in: {output_dir}/{{problem}}/")
+    if not args.combined_only:
+        print(f"Problem-specific figures in: {output_dir}/{{problem}}/")
     print("=" * 60)
 
 
