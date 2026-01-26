@@ -1,37 +1,57 @@
+"""
+Token and Latency Distribution Plots (NeurIPS format)
+"""
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from utils import PLOT_STYLE, save_figure, setup_style
+
 
 def plot_token_usage(combined_tools, output_dir):
-    """Plot token usage from the combined tools data."""
+    """Plot token usage from the combined tools data (NeurIPS format)."""
+    setup_style()
     token_usage = combined_tools["total_tokens"]
 
-    plt.figure(figsize=(10, 6))
-    plt.hist(token_usage, bins=30, color="blue", alpha=0.7)
-    plt.title("Token Usage Distribution")
-    plt.xlabel("Tokens")
-    plt.ylabel("Frequency")
-    plt.grid(True)
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col"], constrained_layout=True
+    )
+    ax.hist(
+        token_usage,
+        bins=20,
+        color=PLOT_STYLE["colors"]["GPT-4.1"],
+        alpha=0.8,
+        edgecolor="white",
+        linewidth=0.5,
+    )
+    ax.set_xlabel("Tokens")
+    ax.set_ylabel("Frequency")
+    ax.grid(True, alpha=0.3)
 
-    output_path = Path(output_dir) / "token_usage.png"
-    plt.savefig(output_path)
+    save_figure(fig, "token_usage.png", Path(output_dir))
     plt.close()
-    print(f"Token usage plot saved to {output_path}")
 
 
 def plot_latency(combined_tools, output_dir):
-    """Plot latency from the combined tools data."""
+    """Plot latency from the combined tools data (NeurIPS format)."""
+    setup_style()
     latency = combined_tools["latency_ms"]
 
-    plt.figure(figsize=(10, 6))
-    plt.hist(latency, bins=30, color="green", alpha=0.7)
-    plt.title("Latency Distribution")
-    plt.xlabel("Latency (ms)")
-    plt.ylabel("Frequency")
-    plt.grid(True)
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col"], constrained_layout=True
+    )
+    ax.hist(
+        latency,
+        bins=20,
+        color=PLOT_STYLE["colors"]["photonics2d"],
+        alpha=0.8,
+        edgecolor="white",
+        linewidth=0.5,
+    )
+    ax.set_xlabel("Latency (ms)")
+    ax.set_ylabel("Frequency")
+    ax.grid(True, alpha=0.3)
 
-    output_path = Path(output_dir) / "latency.png"
-    plt.savefig(output_path)
+    save_figure(fig, "latency.png", Path(output_dir))
     plt.close()
-    print(f"Latency plot saved to {output_path}")

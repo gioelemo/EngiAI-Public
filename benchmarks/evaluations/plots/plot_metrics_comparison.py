@@ -19,20 +19,24 @@ from utils import (
 
 
 def plot_metrics_comparison(combined_df, output_path=None):
-    """Create bar chart comparing metrics across models."""
+    """Create bar chart comparing metrics across models (NeurIPS format)."""
     setup_style()
-    fig, axes = plt.subplots(2, 2, figsize=PLOT_STYLE["figsize_bars"])
+    fig, axes = plt.subplots(
+        2, 2, figsize=PLOT_STYLE["figsize_full_width_tall"], constrained_layout=True
+    )
 
+    # Metrics with axis labels (no titles)
     metrics = [
-        ("dpp", "DPP Diversity", "higher is better"),
-        ("mmd", "MMD Distribution Match", "lower is better"),
-        ("fog", "Final Optimality Gap", "lower is better"),
-        ("rvc", "Constraint Violation Rate", "lower is better"),
+        ("dpp", "DPP Diversity"),
+        ("mmd", "MMD"),
+        ("fog", "Final Optimality Gap"),
+        ("rvc", "Constraint Violation Rate"),
     ]
 
     groups = combined_df.groupby(["model", "problem"])
+    font_sizes = PLOT_STYLE["font_sizes"]
 
-    for idx, (metric, title, direction) in enumerate(metrics):
+    for idx, (metric, ylabel) in enumerate(metrics):
         ax = axes[idx // 2, idx % 2]
 
         means = []
@@ -49,9 +53,13 @@ def plot_metrics_comparison(combined_df, output_path=None):
         if means:
             x = np.arange(len(labels))
             colors = [
-                PLOT_STYLE["colors"]["GPT-4.1"]
-                if "GPT" in label
-                else PLOT_STYLE["colors"]["cGAN-CNN"]
+                PLOT_STYLE["colors"].get(
+                    "GPT-4.1"
+                    if "GPT-4" in label
+                    else "GPT-5.1"
+                    if "GPT-5" in label
+                    else "cGAN-CNN"
+                )
                 for label in labels
             ]
 
@@ -59,31 +67,28 @@ def plot_metrics_comparison(combined_df, output_path=None):
                 x,
                 means,
                 yerr=stds,
-                capsize=5,
+                capsize=2,
                 color=colors,
-                alpha=0.8,
+                alpha=0.85,
                 edgecolor="white",
-                linewidth=1,
+                linewidth=0.5,
             )
             ax.set_xticks(x)
-            ax.set_xticklabels(labels, fontsize=9)
-            ax.set_ylabel(metric.upper(), fontsize=11)
-            ax.set_title(f"{title}\n({direction})", fontsize=12, fontweight="bold")
+            ax.set_xticklabels(labels, fontsize=font_sizes["tick_label"])
+            ax.set_ylabel(ylabel)
             ax.grid(True, axis="y", alpha=0.3)
 
-            # Value annotations
+            # Value annotations (smaller font)
             for bar, mean, _std in zip(bars, means, stds, strict=False):
                 ax.annotate(
-                    f"{mean:.3f}",
+                    f"{mean:.2f}",
                     xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
-                    xytext=(0, 5),
+                    xytext=(0, 2),
                     textcoords="offset points",
                     ha="center",
                     va="bottom",
-                    fontsize=8,
+                    fontsize=font_sizes["annotation"],
                 )
-
-    plt.tight_layout()
 
     if output_path:
         save_figure(fig, output_path)

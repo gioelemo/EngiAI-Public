@@ -21,12 +21,15 @@ from utils import (
 
 
 def plot_dpp_vs_fog(combined_df, output_path=None):
-    """Create DPP vs FOG scatter plot."""
+    """Create DPP vs FOG scatter plot (NeurIPS format)."""
     setup_style()
-    fig, ax = plt.subplots(figsize=PLOT_STYLE["figsize_scatter"])
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col"], constrained_layout=True
+    )
 
     markers = PLOT_STYLE["markers"]
     colors = PLOT_STYLE["colors"]
+    font_sizes = PLOT_STYLE["font_sizes"]
 
     for model in combined_df["model"].unique():
         for problem in combined_df["problem"].unique():
@@ -42,29 +45,32 @@ def plot_dpp_vs_fog(combined_df, output_path=None):
                     alpha=PLOT_STYLE["alpha"],
                     s=PLOT_STYLE["marker_size"],
                     edgecolors="white",
-                    linewidth=0.5,
+                    linewidth=0.3,
                 )
 
-    ax.set_xlabel("DPP Diversity Score (higher = more diverse)", fontsize=12)
-    ax.set_ylabel("Final Optimality Gap (lower = better quality)", fontsize=12)
-    ax.set_title("Diversity vs Quality Trade-off", fontsize=14, fontweight="bold")
+    ax.set_xlabel("DPP Diversity")
+    ax.set_ylabel("Final Optimality Gap")
 
     # Correlation annotation
     valid_data = combined_df.dropna(subset=["dpp", "fog"])
     if len(valid_data) > MIN_CORRELATION_SAMPLES:
-        r, p = stats.pearsonr(valid_data["dpp"], valid_data["fog"])
+        r, _ = stats.pearsonr(valid_data["dpp"], valid_data["fog"])
         ax.annotate(
-            f"r = {r:.3f} (p = {p:.3f})",
+            f"$r$ = {r:.2f}",
             xy=(0.05, 0.95),
             xycoords="axes fraction",
-            fontsize=10,
+            fontsize=font_sizes["annotation"],
             verticalalignment="top",
-            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
+            bbox={
+                "boxstyle": "round,pad=0.3",
+                "facecolor": "white",
+                "alpha": 0.8,
+                "edgecolor": "0.7",
+            },
         )
 
-    ax.legend(loc="upper right", framealpha=0.9)
+    ax.legend(loc="upper right", fontsize=font_sizes["legend"])
     ax.grid(True, alpha=0.3)
-    plt.tight_layout()
 
     if output_path:
         save_figure(fig, output_path)

@@ -19,12 +19,15 @@ from utils import (
 
 
 def plot_iou_vs_objective(combined_design_df, output_path=None):
-    """Create IoU vs Objective Score scatter plot."""
+    """Create IoU vs Objective Score scatter plot (NeurIPS format)."""
     setup_style()
-    fig, ax = plt.subplots(figsize=PLOT_STYLE["figsize_scatter"])
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col"], constrained_layout=True
+    )
 
     valid = combined_design_df[combined_design_df["design_found"]]
     colors = PLOT_STYLE["colors"]
+    font_sizes = PLOT_STYLE["font_sizes"]
 
     for problem in valid["problem"].unique():
         subset = valid[valid["problem"] == problem]
@@ -33,37 +36,22 @@ def plot_iou_vs_objective(combined_design_df, output_path=None):
             subset["objective_score"],
             c=colors.get(problem, "gray"),
             alpha=0.6,
-            s=50,
-            label=f"GPT-4.1 ({problem})",
+            s=PLOT_STYLE["marker_size"],
+            label=problem,
             edgecolors="white",
             linewidth=0.3,
         )
 
     # Reference lines (80% threshold)
-    ax.axhline(y=0.8, color="gray", linestyle="--", alpha=0.5, label="80% threshold")
-    ax.axvline(x=0.8, color="gray", linestyle="--", alpha=0.5)
+    ax.axhline(y=0.8, color="0.6", linestyle="--", linewidth=0.5, alpha=0.7)
+    ax.axvline(x=0.8, color="0.6", linestyle="--", linewidth=0.5, alpha=0.7)
 
-    # Quadrant annotations
-    ax.annotate(
-        "High IoU\nHigh Quality", xy=(0.9, 0.9), ha="center", fontsize=9, alpha=0.7
-    )
-    ax.annotate(
-        "Low IoU\nHigh Quality", xy=(0.1, 0.9), ha="center", fontsize=9, alpha=0.7
-    )
-
-    ax.set_xlabel("IoU (Topology Match)", fontsize=12)
-    ax.set_ylabel("Objective Score (Performance Match)", fontsize=12)
-    ax.set_title(
-        "Structure vs Function: Does Shape Match Performance?",
-        fontsize=14,
-        fontweight="bold",
-    )
+    ax.set_xlabel("IoU")
+    ax.set_ylabel("Objective Score")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1.05)
-    ax.legend(loc="lower right", framealpha=0.9)
+    ax.legend(loc="lower right", fontsize=font_sizes["legend"])
     ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
 
     if output_path:
         save_figure(fig, output_path)

@@ -48,34 +48,68 @@ DATA_PATHS = {
     / "cgan_cnn_2d_beams2d_metrics.csv",
 }
 
-# Plot style configuration
+# NeurIPS 2-column format dimensions (inches)
+# Single column: ~3.25", Full width: ~6.75"
+NEURIPS_COLUMN_WIDTH = 3.25
+NEURIPS_FULL_WIDTH = 6.75
+
+# Colorblind-friendly palette (Okabe-Ito)
+COLORS = {
+    "blue": "#0072B2",
+    "orange": "#E69F00",
+    "green": "#009E73",
+    "purple": "#CC79A7",
+    "sky_blue": "#56B4E9",
+    "vermillion": "#D55E00",
+    "yellow": "#F0E442",
+    "black": "#000000",
+}
+
+# Plot style configuration for NeurIPS publication
 PLOT_STYLE = {
-    "figsize_scatter": (8, 6),
-    "figsize_bars": (12, 10),
-    "figsize_violin": (10, 6),
+    # Figure sizes for 2-column conference format
+    "figsize_single_col": (NEURIPS_COLUMN_WIDTH, 2.4),
+    "figsize_single_col_tall": (NEURIPS_COLUMN_WIDTH, 3.0),
+    "figsize_full_width": (NEURIPS_FULL_WIDTH, 2.8),
+    "figsize_full_width_tall": (NEURIPS_FULL_WIDTH, 4.0),
+    # Legacy sizes (for reference, prefer new sizes)
+    "figsize_scatter": (NEURIPS_COLUMN_WIDTH, 2.4),
+    "figsize_bars": (NEURIPS_FULL_WIDTH, 4.0),
+    "figsize_violin": (NEURIPS_COLUMN_WIDTH, 2.4),
     "dpi": 300,
     "markers": {"GPT-4.1": "o", "GPT-5.1": "^", "cGAN-CNN": "s"},
+    # Colorblind-friendly colors mapped to models/problems
     "colors": {
-        "beams2d": "#2196F3",
-        "photonics2d": "#4CAF50",
-        "GPT-4.1": "#2196F3",
-        "GPT-5.1": "#9C27B0",
-        "cGAN-CNN": "#FF9800",
+        "beams2d": COLORS["blue"],
+        "photonics2d": COLORS["orange"],
+        "GPT-4.1": COLORS["blue"],
+        "GPT-5.1": COLORS["purple"],
+        "cGAN-CNN": COLORS["vermillion"],
     },
     "alpha": 0.7,
-    "marker_size": 80,
+    "marker_size": 40,  # Smaller for publication
+    # Font sizes for print readability
+    "font_sizes": {
+        "axes_label": 8,
+        "axes_title": 9,  # Not used (no titles)
+        "tick_label": 7,
+        "legend": 7,
+        "annotation": 6,
+    },
 }
 
 
 def setup_style(use_latex=None):
-    """Configure matplotlib/seaborn for publication-quality figures with LaTeX fonts.
+    """Configure matplotlib/seaborn for NeurIPS publication-quality figures.
 
     Args:
         use_latex: If True, force LaTeX. If False, disable LaTeX.
                    If None (default), auto-detect LaTeX availability.
     """
     plt.style.use("seaborn-v0_8-whitegrid")
-    sns.set_context("paper", font_scale=1.2)
+    sns.set_context("paper", font_scale=0.9)
+
+    font_sizes = PLOT_STYLE["font_sizes"]
 
     # Auto-detect LaTeX if not specified
     if use_latex is None:
@@ -91,36 +125,68 @@ def setup_style(use_latex=None):
                     "font.serif": ["Computer Modern Roman"],
                     # LaTeX preamble for math support
                     "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
-                    # Consistent font sizes
-                    "axes.labelsize": 12,
-                    "axes.titlesize": 14,
-                    "xtick.labelsize": 10,
-                    "ytick.labelsize": 10,
-                    "legend.fontsize": 10,
-                    "figure.titlesize": 14,
+                    # NeurIPS publication font sizes
+                    "axes.labelsize": font_sizes["axes_label"],
+                    "axes.titlesize": font_sizes["axes_title"],
+                    "xtick.labelsize": font_sizes["tick_label"],
+                    "ytick.labelsize": font_sizes["tick_label"],
+                    "legend.fontsize": font_sizes["legend"],
+                    "figure.titlesize": font_sizes["axes_title"],
+                    # Line and marker settings
+                    "lines.linewidth": 1.0,
+                    "lines.markersize": 4,
+                    "axes.linewidth": 0.5,
+                    "grid.linewidth": 0.3,
+                    "grid.alpha": 0.4,
+                    # Legend settings
+                    "legend.framealpha": 0.9,
+                    "legend.edgecolor": "0.8",
+                    "legend.borderpad": 0.3,
+                    "legend.handlelength": 1.5,
+                    # Tick settings
+                    "xtick.major.width": 0.5,
+                    "ytick.major.width": 0.5,
+                    "xtick.major.size": 3,
+                    "ytick.major.size": 3,
                 }
             )
-            print("Using LaTeX fonts for plots")
         except Exception:
             # Fall back if LaTeX setup fails
-            use_latex = False
+            pass
+        else:
+            return  # Successfully configured LaTeX
 
-    if not use_latex:
-        # Clean serif style without LaTeX (looks similar)
-        plt.rcParams.update(
-            {
-                "text.usetex": False,
-                "font.family": "serif",
-                "mathtext.fontset": "cm",  # Computer Modern math fonts
-                "axes.labelsize": 12,
-                "axes.titlesize": 14,
-                "xtick.labelsize": 10,
-                "ytick.labelsize": 10,
-                "legend.fontsize": 10,
-                "figure.titlesize": 14,
-            }
-        )
-        print("Using serif fonts (LaTeX not available)")
+    # Clean serif style without LaTeX (looks similar)
+    plt.rcParams.update(
+        {
+            "text.usetex": False,
+            "font.family": "serif",
+            "mathtext.fontset": "cm",  # Computer Modern math fonts
+            # NeurIPS publication font sizes
+            "axes.labelsize": font_sizes["axes_label"],
+            "axes.titlesize": font_sizes["axes_title"],
+            "xtick.labelsize": font_sizes["tick_label"],
+            "ytick.labelsize": font_sizes["tick_label"],
+            "legend.fontsize": font_sizes["legend"],
+            "figure.titlesize": font_sizes["axes_title"],
+            # Line and marker settings
+            "lines.linewidth": 1.0,
+            "lines.markersize": 4,
+            "axes.linewidth": 0.5,
+            "grid.linewidth": 0.3,
+            "grid.alpha": 0.4,
+            # Legend settings
+            "legend.framealpha": 0.9,
+            "legend.edgecolor": "0.8",
+            "legend.borderpad": 0.3,
+            "legend.handlelength": 1.5,
+            # Tick settings
+            "xtick.major.width": 0.5,
+            "ytick.major.width": 0.5,
+            "xtick.major.size": 3,
+            "ytick.major.size": 3,
+        }
+    )
 
 
 def get_output_dir():
@@ -133,7 +199,14 @@ def _load_global_metrics(path, model, problem):
     """Load and clean global metrics for a specific model/problem."""
     if not path.exists():
         return None
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path, on_bad_lines="skip")
+    except Exception as e:
+        print(f"Warning: Could not load {path}: {e}")
+        return None
+    # Filter to rows with valid n_samples (numeric)
+    df = df[pd.to_numeric(df["n_samples"], errors="coerce").notna()]
+    df["n_samples"] = pd.to_numeric(df["n_samples"])
     df = df.drop_duplicates(subset=["seed", "n_samples"], keep="first")
     df = df[df["n_samples"] == DEFAULT_N_SAMPLES]
     df["model"] = model
@@ -145,7 +218,11 @@ def _load_design_metrics(path, model):
     """Load and clean design-level metrics for a specific model."""
     if not path.exists():
         return None
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path, on_bad_lines="skip")
+    except Exception as e:
+        print(f"Warning: Could not load {path}: {e}")
+        return None
     df = df.drop_duplicates(subset=["seed", "example_id"], keep="first")
     df["model"] = model
     return df
@@ -155,7 +232,11 @@ def _load_cgan_metrics(path):
     """Load and clean cGAN baseline metrics."""
     if not path.exists():
         return None
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path, on_bad_lines="skip")
+    except Exception as e:
+        print(f"Warning: Could not load {path}: {e}")
+        return None
     df = df.rename(columns={"viol": "rvc"})
     df["model"] = "cGAN-CNN"
     df["problem"] = "beams2d"
@@ -293,11 +374,28 @@ def get_combined_design_df(data):
     return pd.concat(design_dfs, ignore_index=True) if design_dfs else None
 
 
-def save_figure(fig, filename, output_dir=None):
-    """Save figure to output directory."""
+def save_figure(fig, filename, output_dir=None, save_pdf=True):
+    """Save figure to output directory in PNG and optionally PDF format.
+
+    Args:
+        fig: Matplotlib figure to save
+        filename: Output filename (e.g., "plot.png")
+        output_dir: Output directory (default: figures/)
+        save_pdf: If True, also save PDF version for LaTeX inclusion
+
+    Returns:
+        Path to saved PNG file
+    """
     if output_dir is None:
         output_dir = get_output_dir()
     path = output_dir / filename
-    fig.savefig(path, dpi=PLOT_STYLE["dpi"], bbox_inches="tight")
+    fig.savefig(path, dpi=PLOT_STYLE["dpi"], bbox_inches="tight", facecolor="white")
     print(f"Saved: {path}")
+
+    # Also save PDF for LaTeX
+    if save_pdf:
+        pdf_path = path.with_suffix(".pdf")
+        fig.savefig(pdf_path, bbox_inches="tight", facecolor="white")
+        print(f"Saved: {pdf_path}")
+
     return path
