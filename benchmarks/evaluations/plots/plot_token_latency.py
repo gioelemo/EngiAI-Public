@@ -20,7 +20,7 @@ def plot_token_usage(combined_tools, output_dir):
     ax.hist(
         token_usage,
         bins=20,
-        color=PLOT_STYLE["colors"]["GPT-4.1"],
+        color="#0072B2",  # Blue from colorblind-friendly palette
         alpha=0.8,
         edgecolor="white",
         linewidth=0.5,
@@ -44,7 +44,7 @@ def plot_latency(combined_tools, output_dir):
     ax.hist(
         latency,
         bins=20,
-        color=PLOT_STYLE["colors"]["photonics2d"],
+        color="#E69F00",  # Orange from colorblind-friendly palette
         alpha=0.8,
         edgecolor="white",
         linewidth=0.5,

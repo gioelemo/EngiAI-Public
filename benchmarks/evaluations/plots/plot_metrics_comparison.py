@@ -12,14 +12,21 @@ import numpy as np
 from utils import (
     PLOT_STYLE,
     get_combined_global_df,
+    get_model_style,
     load_data,
     save_figure,
     setup_style,
 )
 
 
-def plot_metrics_comparison(combined_df, output_path=None):
-    """Create bar chart comparing metrics across models (NeurIPS format)."""
+def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
+    """Create bar chart comparing metrics across models (NeurIPS format).
+
+    Args:
+        combined_df: DataFrame with global metrics
+        output_path: Output filename (e.g., "metrics_comparison.png")
+        output_dir: Optional output directory (default: figures/)
+    """
     setup_style()
     fig, axes = plt.subplots(
         2, 2, figsize=PLOT_STYLE["figsize_full_width_tall"], constrained_layout=True
@@ -36,12 +43,17 @@ def plot_metrics_comparison(combined_df, output_path=None):
     groups = combined_df.groupby(["model", "problem"])
     font_sizes = PLOT_STYLE["font_sizes"]
 
+    # Get dynamic styles for models
+    models = list(combined_df["model"].unique())
+    model_styles = get_model_style(models)
+
     for idx, (metric, ylabel) in enumerate(metrics):
         ax = axes[idx // 2, idx % 2]
 
         means = []
         stds = []
         labels = []
+        bar_models = []  # Track which model each bar belongs to
 
         for (model, problem), group in groups:
             values = group[metric].dropna()
@@ -49,19 +61,11 @@ def plot_metrics_comparison(combined_df, output_path=None):
                 means.append(values.mean())
                 stds.append(values.std())
                 labels.append(f"{model}\n({problem})")
+                bar_models.append(model)
 
         if means:
             x = np.arange(len(labels))
-            colors = [
-                PLOT_STYLE["colors"].get(
-                    "GPT-4.1"
-                    if "GPT-4" in label
-                    else "GPT-5.1"
-                    if "GPT-5" in label
-                    else "cGAN-CNN"
-                )
-                for label in labels
-            ]
+            colors = [model_styles[m]["color"] for m in bar_models]
 
             bars = ax.bar(
                 x,
@@ -91,7 +95,7 @@ def plot_metrics_comparison(combined_df, output_path=None):
                 )
 
     if output_path:
-        save_figure(fig, output_path)
+        save_figure(fig, output_path, output_dir=output_dir)
 
     return fig
 

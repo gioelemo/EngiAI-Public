@@ -25,60 +25,204 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 # Known problem types
 KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d"]
 
-# CGAN baseline directory
-CGAN_DIR = RESULTS_DIR / "cgan_cnn_2d"
+# Known prompt styles
+KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow"]
 
-# Minimum parts when parsing keys like "{model}_{problem}_{type}"
-MIN_KEY_PARTS = 3
+# Directory structure:
+# results/baselines/{baseline_type}/{problem}/                  - for baselines (CGAN, CNN, etc.)
+# results/models/{model_name}/{prompt_style}/{problem}/         - for LLM agent models
+# Legacy: results/cgan_cnn_2d/{problem}/                        - old structure (still supported)
+# Legacy: results/models/{model_name}/{problem}/                - old structure (treat as "full")
+# Legacy: results/{model_name}/{problem}/                       - old structure (still supported)
+BASELINES_DIR = RESULTS_DIR / "baselines"
+MODELS_DIR = RESULTS_DIR / "models"
+
+# Known baseline types
+KNOWN_BASELINE_TYPES = ["cgan_cnn_2d"]
+
+# CGAN baseline directory (new structure is preferred)
+# New: baselines/cgan_cnn_2d/{model_id}/{problem}/
+CGAN_DIR = BASELINES_DIR / "cgan_cnn_2d"  # New structure (preferred)
+CGAN_DIR_LEGACY = RESULTS_DIR / "cgan_cnn_2d"  # Legacy (for backwards compat)
+
+# Minimum parts when parsing keys like "{model}_{prompt_style}_{problem}_{type}"
+# or legacy "{model}_{problem}_{type}"
+MIN_KEY_PARTS = 3  # Minimum for legacy format
 
 
-def discover_data_paths() -> dict[str, Path]:
-    """Auto-discover available result files in the results directory.
+def _discover_model_paths(
+    model_dir: Path, model_name: str, prompt_style: str | None = None
+) -> dict[str, Path]:
+    """Discover result files for a single model directory.
+
+    Args:
+        model_dir: Path to the model directory (or model/prompt_style directory)
+        model_name: Name of the model (for key generation)
+        prompt_style: Optional prompt style (for key generation)
 
     Returns:
         Dictionary mapping keys to file paths
     """
     paths = {}
 
-    # Discover agent model directories (everything except cgan_cnn_2d)
-    if RESULTS_DIR.exists():
-        for model_dir in RESULTS_DIR.iterdir():
+    for problem in KNOWN_PROBLEMS:
+        problem_dir = model_dir / problem
+
+        # Build key prefix: model_promptstyle_problem or model_problem (legacy)
+        if prompt_style:
+            key_prefix = f"{model_name}_{prompt_style}_{problem}"
+        else:
+            key_prefix = f"{model_name}_{problem}"
+
+        # Global metrics
+        global_path = problem_dir / "output_quality_global_metrics.csv"
+        if global_path.exists():
+            paths[f"{key_prefix}_global"] = global_path
+
+        # Design metrics
+        design_path = problem_dir / "output_quality_design_metrics.csv"
+        if design_path.exists():
+            paths[f"{key_prefix}_design"] = design_path
+
+        # Tool usage data
+        tools_path = problem_dir / "data.csv"
+        if tools_path.exists():
+            paths[f"{key_prefix}_tools"] = tools_path
+
+    return paths
+
+
+def _discover_baseline_paths() -> dict[str, Path]:
+    """Discover baseline result files from baselines directory.
+
+    Structure: results/baselines/{baseline_type}/{problem}/
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+    if not BASELINES_DIR.exists():
+        return paths
+
+    for baseline_type_dir in BASELINES_DIR.iterdir():
+        if not baseline_type_dir.is_dir():
+            continue
+
+        baseline_type = baseline_type_dir.name  # e.g., "cgan_cnn_2d"
+
+        for problem in KNOWN_PROBLEMS:
+            global_path = (
+                baseline_type_dir / problem / "output_quality_global_metrics.csv"
+            )
+            if global_path.exists():
+                paths[f"{baseline_type}_{problem}_global"] = global_path
+
+    return paths
+
+
+def _discover_legacy_cgan_paths() -> dict[str, Path]:
+    """Discover CGAN results from legacy location only.
+
+    Legacy structure: results/cgan_cnn_2d/{problem}/
+    (NOT baselines/cgan_cnn_2d/ - that's handled by _discover_baseline_paths)
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+    # Only check legacy location (results/cgan_cnn_2d/)
+    # New location (baselines/cgan_cnn_2d/) is handled by _discover_baseline_paths
+    if not (CGAN_DIR_LEGACY.exists() and CGAN_DIR_LEGACY.is_dir()):
+        return paths
+
+    for problem in KNOWN_PROBLEMS:
+        cgan_path = CGAN_DIR_LEGACY / problem / "output_quality_global_metrics.csv"
+        if cgan_path.exists():
+            paths[f"cgan_legacy_{problem}_global"] = cgan_path
+
+    return paths
+
+
+def _discover_legacy_model_paths() -> dict[str, Path]:
+    """Discover model results from legacy root location.
+
+    Legacy structure: results/{model_name}/{problem}/
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+    if not RESULTS_DIR.exists():
+        return paths
+
+    skip_dirs = {"baselines", "models", *KNOWN_BASELINE_TYPES}
+    for model_dir in RESULTS_DIR.iterdir():
+        if not model_dir.is_dir():
+            continue
+        if model_dir.name in skip_dirs:
+            continue
+        paths.update(_discover_model_paths(model_dir, model_dir.name))
+
+    return paths
+
+
+def discover_data_paths() -> dict[str, Path]:
+    """Auto-discover available result files in the results directory.
+
+    Supports both new structure (baselines/, models/) and legacy structure.
+
+    Directory structure:
+        New:
+            results/baselines/{baseline_type}/{problem}/
+            results/models/{model_name}/{prompt_style}/{problem}/
+        Legacy:
+            results/cgan_cnn_2d/{problem}/
+            results/models/{model_name}/{problem}/  (treated as "full" prompt style)
+            results/{model_name}/{problem}/
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+
+    # 1. Discover from new structure: results/models/{model}/{prompt_style}/{problem}/
+    if MODELS_DIR.exists():
+        for model_dir in MODELS_DIR.iterdir():
             if not model_dir.is_dir():
                 continue
 
-            model_name = model_dir.name
+            # Check if subdirectories are prompt_style or problem directories
+            for subdir in model_dir.iterdir():
+                if not subdir.is_dir():
+                    continue
 
-            # Skip CGAN directory (handled separately)
-            if model_name == "cgan_cnn_2d":
-                continue
+                if subdir.name in KNOWN_PROMPT_STYLES:
+                    # New structure: model/prompt_style/problem/
+                    prompt_style_dir = subdir
+                    paths.update(
+                        _discover_model_paths(
+                            prompt_style_dir, model_dir.name, subdir.name
+                        )
+                    )
+                elif subdir.name in KNOWN_PROBLEMS:
+                    # Legacy structure: model/problem/ (treat as "full")
+                    # Only process if there's no prompt_style level
+                    # Check if this is directly a problem dir with results
+                    global_path = subdir / "output_quality_global_metrics.csv"
+                    if global_path.exists():
+                        paths.update(
+                            _discover_model_paths(model_dir, model_dir.name, "full")
+                        )
+                        break  # Found legacy structure, don't double-count
 
-            for problem in KNOWN_PROBLEMS:
-                problem_dir = model_dir / problem
+    # 2. Discover from new structure: results/baselines/
+    paths.update(_discover_baseline_paths())
 
-                # Global metrics
-                global_path = problem_dir / "output_quality_global_metrics.csv"
-                if global_path.exists():
-                    key = f"{model_name}_{problem}_global"
-                    paths[key] = global_path
+    # 3. Legacy: Discover agent model directories at root
+    paths.update(_discover_legacy_model_paths())
 
-                # Design metrics
-                design_path = problem_dir / "output_quality_design_metrics.csv"
-                if design_path.exists():
-                    key = f"{model_name}_{problem}_design"
-                    paths[key] = design_path
-
-                # Tool usage data
-                tools_path = problem_dir / "data.csv"
-                if tools_path.exists():
-                    key = f"{model_name}_{problem}_tools"
-                    paths[key] = tools_path
-
-    # Discover CGAN results
-    if CGAN_DIR.exists():
-        for problem in KNOWN_PROBLEMS:
-            cgan_path = CGAN_DIR / problem / "output_quality_global_metrics.csv"
-            if cgan_path.exists():
-                paths[f"cgan_{problem}_global"] = cgan_path
+    # 4. Legacy: Discover CGAN results
+    paths.update(_discover_legacy_cgan_paths())
 
     return paths
 
@@ -104,6 +248,62 @@ def _get_model_label(model_name: str) -> str:
     return model_name
 
 
+def _parse_data_key(key: str) -> dict[str, str] | None:
+    """Parse a data key to extract model, prompt_style, problem, and type.
+
+    Key formats:
+        New: {model}_{prompt_style}_{problem}_{type}
+        Legacy: {model}_{problem}_{type}
+        CGAN: cgan_cnn_2d_{problem}_{type} or cgan_legacy_{problem}_{type}
+
+    Returns:
+        Dictionary with 'model', 'prompt_style', 'problem', 'type' or None if invalid.
+    """
+    parts = key.rsplit("_", 2)  # Split from right: [model_part, problem, type]
+    if len(parts) < MIN_KEY_PARTS:
+        return None
+
+    data_type = parts[-1]  # "global", "design", "tools"
+    problem = parts[-2]
+
+    if problem not in KNOWN_PROBLEMS:
+        return None
+
+    model_part = "_".join(parts[:-2])
+
+    # Check for CGAN baseline
+    if key.startswith("cgan_"):
+        return {
+            "model": model_part,
+            "prompt_style": None,
+            "problem": problem,
+            "type": data_type,
+            "is_baseline": True,
+        }
+
+    # Check if model_part includes prompt_style
+    # Format: {model_name}_{prompt_style} where prompt_style is known
+    for style in KNOWN_PROMPT_STYLES:
+        if model_part.endswith(f"_{style}"):
+            model_name = model_part[: -(len(style) + 1)]  # Remove _style suffix
+            return {
+                "model": model_name,
+                "prompt_style": style,
+                "problem": problem,
+                "type": data_type,
+                "is_baseline": False,
+            }
+
+    # Legacy format without prompt_style (treat as "full")
+    return {
+        "model": model_part,
+        "prompt_style": "full",
+        "problem": problem,
+        "type": data_type,
+        "is_baseline": False,
+    }
+
+
 # Legacy DATA_PATHS for backwards compatibility (auto-discovered)
 DATA_PATHS = discover_data_paths()
 
@@ -113,16 +313,20 @@ NEURIPS_COLUMN_WIDTH = 3.25
 NEURIPS_FULL_WIDTH = 6.75
 
 # Colorblind-friendly palette (Okabe-Ito)
-COLORS = {
-    "blue": "#0072B2",
-    "orange": "#E69F00",
-    "green": "#009E73",
-    "purple": "#CC79A7",
-    "sky_blue": "#56B4E9",
-    "vermillion": "#D55E00",
-    "yellow": "#F0E442",
-    "black": "#000000",
-}
+# These can be used as a list for dynamic assignment
+COLOR_PALETTE = [
+    "#0072B2",  # blue
+    "#E69F00",  # orange
+    "#009E73",  # green
+    "#CC79A7",  # purple
+    "#56B4E9",  # sky blue
+    "#D55E00",  # vermillion
+    "#F0E442",  # yellow
+    "#000000",  # black
+]
+
+# Marker styles to cycle through
+MARKER_PALETTE = ["o", "s", "^", "D", "v", "p", "*", "h"]
 
 # Plot style configuration for NeurIPS publication
 PLOT_STYLE = {
@@ -136,14 +340,14 @@ PLOT_STYLE = {
     "figsize_bars": (NEURIPS_FULL_WIDTH, 4.0),
     "figsize_violin": (NEURIPS_COLUMN_WIDTH, 2.4),
     "dpi": 300,
-    "markers": {"GPT-4.1": "o", "GPT-5.1": "^", "cGAN-CNN": "s"},
-    # Colorblind-friendly colors mapped to models/problems
+    # Color palette for dynamic assignment (cycle through for models)
+    "color_palette": COLOR_PALETTE,
+    "marker_palette": MARKER_PALETTE,
+    # Fixed colors for problems only
     "colors": {
-        "beams2d": COLORS["blue"],
-        "photonics2d": COLORS["orange"],
-        "GPT-4.1": COLORS["blue"],
-        "GPT-5.1": COLORS["purple"],
-        "cGAN-CNN": COLORS["vermillion"],
+        "beams2d": COLOR_PALETTE[0],
+        "photonics2d": COLOR_PALETTE[1],
+        "thermoelastic2d": COLOR_PALETTE[2],
     },
     "alpha": 0.7,
     "marker_size": 40,  # Smaller for publication
@@ -156,6 +360,26 @@ PLOT_STYLE = {
         "annotation": 6,
     },
 }
+
+
+def get_model_style(models: list[str]) -> dict[str, dict]:
+    """Get colors and markers for a list of models.
+
+    Dynamically assigns colors and markers from palettes.
+
+    Args:
+        models: List of model names
+
+    Returns:
+        Dict mapping model name to {"color": ..., "marker": ...}
+    """
+    styles = {}
+    for i, model in enumerate(models):
+        styles[model] = {
+            "color": COLOR_PALETTE[i % len(COLOR_PALETTE)],
+            "marker": MARKER_PALETTE[i % len(MARKER_PALETTE)],
+        }
+    return styles
 
 
 def setup_style(use_latex=None):
@@ -254,7 +478,7 @@ def get_output_dir():
     return OUTPUT_DIR
 
 
-def _load_global_metrics(path, model, problem):
+def _load_global_metrics(path, model, problem, prompt_style="full"):
     """Load and clean global metrics for a specific model/problem."""
     if not path.exists():
         return None
@@ -263,17 +487,27 @@ def _load_global_metrics(path, model, problem):
     except Exception as e:
         print(f"Warning: Could not load {path}: {e}")
         return None
+
+    # Rename columns for consistency (same as CGAN)
+    rename_map = {
+        "model_id": "model_id_orig",  # Preserve original
+        "problem_id": "problem",
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
     # Filter to rows with valid n_samples (numeric)
-    df = df[pd.to_numeric(df["n_samples"], errors="coerce").notna()]
-    df["n_samples"] = pd.to_numeric(df["n_samples"])
-    df = df.drop_duplicates(subset=["seed", "n_samples"], keep="first")
-    df = df[df["n_samples"] == DEFAULT_N_SAMPLES]
+    if "n_samples" in df.columns:
+        df = df[pd.to_numeric(df["n_samples"], errors="coerce").notna()]
+        df["n_samples"] = pd.to_numeric(df["n_samples"])
+        df = df.drop_duplicates(subset=["seed", "n_samples"], keep="first")
+
     df["model"] = model
     df["problem"] = problem
+    df["prompt_style"] = prompt_style
     return df
 
 
-def _load_design_metrics(path, model):
+def _load_design_metrics(path, model, prompt_style="full"):
     """Load and clean design-level metrics for a specific model."""
     if not path.exists():
         return None
@@ -284,6 +518,7 @@ def _load_design_metrics(path, model):
         return None
     df = df.drop_duplicates(subset=["seed", "example_id"], keep="first")
     df["model"] = model
+    df["prompt_style"] = prompt_style
     return df
 
 
@@ -334,25 +569,25 @@ def load_data():
         if not key.endswith("_global"):
             continue
 
-        # Parse key to extract model and problem
-        # Format: {model_name}_{problem}_global or cgan_{problem}_global
-        parts = key.rsplit("_", 2)  # Split from right: [model, problem, "global"]
-        if len(parts) < MIN_KEY_PARTS:
+        # Parse key to extract model, prompt_style, and problem
+        parsed = _parse_data_key(key)
+        if parsed is None:
             continue
 
-        problem = parts[-2]
+        problem = parsed["problem"]
 
-        if key.startswith("cgan_"):
+        if parsed.get("is_baseline"):
             # CGAN baseline
             df = _load_cgan_metrics(path)
             if df is not None:
                 df["problem"] = problem
+                df["prompt_style"] = None  # Baselines don't have prompt_style
                 data[key] = df
         else:
-            # Agent model - extract model name
-            model_dir_name = "_".join(parts[:-2])  # Everything before problem
-            model_label = _get_model_label(model_dir_name)
-            df = _load_global_metrics(path, model_label, problem)
+            # Agent model - get display label
+            model_label = _get_model_label(parsed["model"])
+            prompt_style = parsed.get("prompt_style", "full")
+            df = _load_global_metrics(path, model_label, problem, prompt_style)
             if df is not None:
                 data[key] = df
 
@@ -361,13 +596,13 @@ def load_data():
         if not key.endswith("_design"):
             continue
 
-        parts = key.rsplit("_", 2)
-        if len(parts) < MIN_KEY_PARTS:
+        parsed = _parse_data_key(key)
+        if parsed is None:
             continue
 
-        model_dir_name = "_".join(parts[:-2])
-        model_label = _get_model_label(model_dir_name)
-        df = _load_design_metrics(path, model_label)
+        model_label = _get_model_label(parsed["model"])
+        prompt_style = parsed.get("prompt_style", "full")
+        df = _load_design_metrics(path, model_label, prompt_style)
         if df is not None:
             data[key] = df
 
@@ -391,19 +626,20 @@ def load_tool_usage_data():
         if not key.endswith("_tools"):
             continue
 
-        # Parse key: {model_name}_{problem}_tools
-        parts = key.rsplit("_", 2)
-        if len(parts) < MIN_KEY_PARTS:
+        # Parse key: {model_name}_{prompt_style}_{problem}_tools
+        parsed = _parse_data_key(key)
+        if parsed is None:
             continue
 
-        problem = parts[-2]
-        model_dir_name = "_".join(parts[:-2])
-        model_label = _get_model_label(model_dir_name)
+        problem = parsed["problem"]
+        model_label = _get_model_label(parsed["model"])
+        prompt_style = parsed.get("prompt_style", "full")
 
         try:
             df = pd.read_csv(path)
             df["model"] = model_label
             df["problem"] = problem
+            df["prompt_style"] = prompt_style
             data[key] = df
         except Exception as e:
             print(f"Warning: Could not load {path}: {e}")
@@ -459,6 +695,126 @@ def get_combined_design_df(data):
         design_dfs.append(df)
 
     return pd.concat(design_dfs, ignore_index=True) if design_dfs else None
+
+
+def get_problem_output_dir(problem: str) -> Path:
+    """Return output directory for problem-specific figures.
+
+    Args:
+        problem: Problem name (e.g., "beams2d")
+
+    Returns:
+        Path to the problem-specific output directory
+    """
+    problem_dir = OUTPUT_DIR / problem
+    problem_dir.mkdir(exist_ok=True)
+    return problem_dir
+
+
+def filter_by_problem(df, problem: str):
+    """Filter a DataFrame to only include data for a specific problem.
+
+    Args:
+        df: DataFrame with a 'problem' column
+        problem: Problem name to filter by
+
+    Returns:
+        Filtered DataFrame or None if empty
+    """
+    if df is None:
+        return None
+    if "problem" not in df.columns:
+        return df
+    filtered = df[df["problem"] == problem]
+    return filtered if len(filtered) > 0 else None
+
+
+def filter_by_prompt_style(df, prompt_style: str, include_baselines: bool = True):
+    """Filter a DataFrame to only include data for a specific prompt style.
+
+    Args:
+        df: DataFrame with a 'prompt_style' column
+        prompt_style: Prompt style to filter by (full, approximate, natural, workflow)
+        include_baselines: If True, include baselines (which have no prompt_style)
+
+    Returns:
+        Filtered DataFrame or None if empty
+    """
+    if df is None:
+        return None
+    if "prompt_style" not in df.columns:
+        return df
+
+    if include_baselines:
+        # Include rows matching prompt_style OR baselines (prompt_style is None)
+        filtered = df[
+            (df["prompt_style"] == prompt_style) | (df["prompt_style"].isna())
+        ]
+    else:
+        filtered = df[df["prompt_style"] == prompt_style]
+
+    return filtered if len(filtered) > 0 else None
+
+
+def get_prompt_style_output_dir(prompt_style: str):
+    """Return output directory for a specific prompt style.
+
+    Args:
+        prompt_style: Prompt style (full, approximate, natural, workflow)
+
+    Returns:
+        Path to the output directory for this prompt style
+    """
+    output_dir = OUTPUT_DIR / prompt_style
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def is_baseline(model_name: str) -> bool:
+    """Check if a model name refers to a baseline (not an LLM agent).
+
+    Args:
+        model_name: Model name to check
+
+    Returns:
+        True if the model is a baseline
+    """
+    baseline_patterns = ["cGAN", "cgan", "CNN", "baseline"]
+    return any(pattern.lower() in model_name.lower() for pattern in baseline_patterns)
+
+
+def filter_models_only(df):
+    """Filter a DataFrame to only include LLM agent models (exclude baselines).
+
+    Args:
+        df: DataFrame with a 'model' column
+
+    Returns:
+        Filtered DataFrame or None if empty
+    """
+    if df is None:
+        return None
+    if "model" not in df.columns:
+        return df
+    filtered = df[~df["model"].apply(is_baseline)]
+    return filtered if len(filtered) > 0 else None
+
+
+def filter_baselines_only(df):
+    """Filter a DataFrame to only include baselines (exclude LLM agents).
+
+    Args:
+        df: DataFrame with a 'model' column
+
+    Returns:
+        Filtered DataFrame or None if empty
+    """
+    if df is None:
+        return None
+    if "model" not in df.columns:
+        return df
+    filtered = df[df["model"].apply(is_baseline)]
+    return filtered if len(filtered) > 0 else None
 
 
 def save_figure(fig, filename, output_dir=None, save_pdf=True):

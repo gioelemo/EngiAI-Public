@@ -20,6 +20,8 @@ import pandas as pd
 # Paths configuration
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 RESULTS_DIR = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
+BASELINES_DIR = RESULTS_DIR / "baselines"
+MODELS_DIR = RESULTS_DIR / "models"
 
 # Add project root to path to import config
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -30,22 +32,43 @@ GLOBAL_METRICS = ["mmd", "dpp", "rvc", "iog", "cog", "fog"]
 
 
 def load_cgan_results(problem: str) -> pd.DataFrame | None:
-    """Load CGAN evaluation results."""
+    """Load CGAN evaluation results.
+
+    Checks new location (baselines/cgan_cnn_2d/{problem}/) first, then legacy.
+
+    Args:
+        problem: Problem type (e.g., "beams2d")
+    """
+    # Try new location first: baselines/cgan_cnn_2d/{problem}/
     csv_path = (
-        RESULTS_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
+        BASELINES_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
     )
     if not csv_path.exists():
-        print(f"Warning: CGAN results not found at {csv_path}")
+        # Fall back to old legacy location
+        csv_path = (
+            RESULTS_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
+        )
+    if not csv_path.exists():
+        print("Warning: CGAN results not found")
         return None
     return pd.read_csv(csv_path)
 
 
 def load_agent_results(problem: str, model: str) -> pd.DataFrame | None:
-    """Load agent evaluation results."""
+    """Load agent evaluation results.
+
+    Checks new location (models/) first, then legacy location.
+    """
     model_safe = model.replace("/", "_").replace(":", "_")
-    csv_path = RESULTS_DIR / model_safe / problem / "output_quality_global_metrics.csv"
+    # Try new location first
+    csv_path = MODELS_DIR / model_safe / problem / "output_quality_global_metrics.csv"
     if not csv_path.exists():
-        print(f"Warning: Agent results not found at {csv_path}")
+        # Fall back to legacy location
+        csv_path = (
+            RESULTS_DIR / model_safe / problem / "output_quality_global_metrics.csv"
+        )
+    if not csv_path.exists():
+        print(f"Warning: Agent results not found for {model}")
         return None
     return pd.read_csv(csv_path)
 

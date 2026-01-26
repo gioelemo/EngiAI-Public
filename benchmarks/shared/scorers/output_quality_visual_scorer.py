@@ -206,17 +206,21 @@ def _save_comparison_image(
     problem_type = metadata.get("problem_type", "unknown")
     model_name = output.get("model", "unknown")
     seed = metadata.get("seed")
+    prompt_style = metadata.get("prompt_style", "full")
 
     # Sanitize model name for filesystem (replace / and : with _)
     model_safe = model_name.replace("/", "_").replace(":", "_")
 
     # Build output directory path, including seed subfolder if seed is provided
     # Go up to benchmarks/ directory (parent.parent.parent from scorers/)
+    # Use results/models/{model}/{prompt_style}/{problem}/ structure
     base_dir = (
         Path(__file__).parent.parent.parent
         / "evaluations"
         / "results"
+        / "models"
         / model_safe
+        / prompt_style
         / problem_type
         / "comparisons"
     )

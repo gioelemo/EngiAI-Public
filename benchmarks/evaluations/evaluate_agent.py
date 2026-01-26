@@ -50,6 +50,10 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "services"))
 
+# Results directory structure:
+# benchmarks/evaluations/results/models/{model_name}/{prompt_style}/{problem}/
+RESULTS_BASE_DIR = Path("benchmarks/evaluations/results/models")
+
 # Import output quality scorers
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
@@ -318,7 +322,7 @@ def parse_arguments() -> argparse.Namespace:
         "--output-csv",
         type=str,
         default=None,
-        help="Output CSV file to save metrics (will append if file exists). Default: benchmarks/evaluations/results/{model}/{problem}/output_quality_global_metrics.csv",
+        help="Output CSV file to save metrics (will append if file exists). Default: benchmarks/evaluations/results/models/{model}/{problem}/output_quality_global_metrics.csv",
     )
     parser.add_argument(
         "--prompt-style",
@@ -805,7 +809,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Save per-design metrics to CSV
     model_safe = model_name.replace("/", "_").replace(":", "_")
-    results_dir = Path(f"benchmarks/evaluations/results/{model_safe}/{args.problem}")
+    results_dir = RESULTS_BASE_DIR / model_safe / args.prompt_style / args.problem
     results_dir.mkdir(parents=True, exist_ok=True)
     design_metrics_csv = str(results_dir / "output_quality_design_metrics.csv")
     save_per_design_metrics(
@@ -856,10 +860,21 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Setup output directory for comparison images
     model_safe = model_name.replace("/", "_").replace(":", "_")
     if args.seed is not None:
-        comparison_dir = f"benchmarks/evaluations/results/{model_safe}/{args.problem}/comparisons/seed_{args.seed}"
+        comparison_dir = str(
+            RESULTS_BASE_DIR
+            / model_safe
+            / args.prompt_style
+            / args.problem
+            / "comparisons"
+            / f"seed_{args.seed}"
+        )
     else:
-        comparison_dir = (
-            f"benchmarks/evaluations/results/{model_safe}/{args.problem}/comparisons"
+        comparison_dir = str(
+            RESULTS_BASE_DIR
+            / model_safe
+            / args.prompt_style
+            / args.problem
+            / "comparisons"
         )
 
     # Pass evaluation object to compute global metrics (not results!)
@@ -930,8 +945,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
             csv_path = args.output_csv
         else:
             model_safe = model_name.replace("/", "_").replace(":", "_")
-            results_dir = Path(
-                f"benchmarks/evaluations/results/{model_safe}/{args.problem}"
+            results_dir = (
+                RESULTS_BASE_DIR / model_safe / args.prompt_style / args.problem
             )
             results_dir.mkdir(parents=True, exist_ok=True)
             csv_path = str(results_dir / "output_quality_global_metrics.csv")

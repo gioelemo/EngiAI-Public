@@ -27,15 +27,24 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Paths configuration
+# Add project root to path to import config
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+from config import config  # noqa: E402
+
+# Paths configuration (PROJECT_ROOT already defined above)
 ENGIOPT_ROOT = Path.home() / "EngiOpt"
 CONDA_PYTHON = (
     Path.home() / "miniforge3" / "envs" / "engineer-assistant" / "bin" / "python"
 )
 
 # Default output directory for all benchmark results
+# Structure:
+#   results/baselines/{baseline_type}/{problem}/                  - for baselines
+#   results/models/{model_name}/{prompt_style}/{problem}/         - for LLM agents
 RESULTS_DIR = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
+BASELINES_DIR = RESULTS_DIR / "baselines"
+MODELS_DIR = RESULTS_DIR / "models"
 
 
 def run_command(
@@ -205,7 +214,8 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     run_agent = not args.cgan_only
 
     # Setup output directories
-    cgan_results_dir = RESULTS_DIR / "cgan_cnn_2d" / args.problem
+    # CGAN: results/baselines/cgan_cnn_2d/{problem}/
+    cgan_results_dir = BASELINES_DIR / "cgan_cnn_2d" / args.problem
     cgan_results_dir.mkdir(parents=True, exist_ok=True)
     cgan_output_csv = cgan_results_dir / "output_quality_global_metrics.csv"
 
@@ -298,14 +308,11 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         print(f"Agent evaluations: {agent_success}/{len(args.seeds)} successful")
         if failed_seeds["agent"]:
             print(f"  Failed seeds: {failed_seeds['agent']}")
-        if args.model is not None:
-            model_safe = args.model.replace("/", "_").replace(":", "_")
-            agent_results_dir = RESULTS_DIR / model_safe / args.problem
-            print(f"  Results saved to: {agent_results_dir}")
-        else:
-            print(
-                f"  Results saved to: {RESULTS_DIR}/<model_from_config>/{args.problem}"
-            )
+        # Get actual model name (from args or config)
+        model_name = args.model if args.model is not None else config.llm_model
+        model_safe = model_name.replace("/", "_").replace(":", "_")
+        agent_results_dir = MODELS_DIR / model_safe / args.prompt_style / args.problem
+        print(f"  Results saved to: {agent_results_dir}")
 
     print()
     print("Evaluation complete!")
