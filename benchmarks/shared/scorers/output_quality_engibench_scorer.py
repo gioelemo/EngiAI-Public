@@ -406,9 +406,15 @@ def _compute_global_metrics_impl(  # noqa: PLR0912, PLR0915
         logger.info(f"Retrieved scores from evaluation: {len(scores)} trace(s)")
 
         # Get dataset rows to access metadata
-        dataset_rows = (
-            list(evaluation.dataset.rows) if hasattr(evaluation, "dataset") else []
-        )
+        # Check that dataset and rows are not None before converting to list
+        dataset_rows = []
+        if (
+            hasattr(evaluation, "dataset")
+            and evaluation.dataset is not None
+            and hasattr(evaluation.dataset, "rows")
+            and evaluation.dataset.rows is not None
+        ):
+            dataset_rows = list(evaluation.dataset.rows)
         logger.info(f"Retrieved {len(dataset_rows)} dataset rows for metadata")
 
         # Extract generated designs from scorer outputs

@@ -452,9 +452,15 @@ def save_per_design_metrics(  # noqa: PLR0912, PLR0915
             return
 
         # Get dataset rows for metadata (example IDs)
-        dataset_rows = (
-            list(evaluation.dataset.rows) if hasattr(evaluation, "dataset") else []
-        )
+        # Check that dataset and rows are not None before converting to list
+        dataset_rows = []
+        if (
+            hasattr(evaluation, "dataset")
+            and evaluation.dataset is not None
+            and hasattr(evaluation.dataset, "rows")
+            and evaluation.dataset.rows is not None
+        ):
+            dataset_rows = list(evaluation.dataset.rows)
 
     except Exception as e:
         print(f"⚠️  Error accessing evaluation results: {e}")

@@ -8,10 +8,16 @@ for analysis and visualization.
 import argparse
 import contextlib
 import csv
+import sys
 from collections import Counter
 from pathlib import Path
 
 import weave
+
+# Add project root to path to import config
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+from config import config  # noqa: E402
 
 # Constants
 REF_EXTRA_MIN_LENGTH = 3
@@ -452,9 +458,15 @@ def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Extract tool usage from Weave")
     parser.add_argument(
-        "--project", required=True, help="Weave project (entity/project)"
+        "--project",
+        default=None,
+        help="Weave project (entity/project). Defaults to config.weave_project",
     )
-    parser.add_argument("--model", required=True, help="Model ID (openai:gpt-5.1)")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Model ID (openai:gpt-5.1). Defaults to config.llm_model",
+    )
     parser.add_argument("--problem", required=True, help="Problem (beams2d)")
     parser.add_argument("--seed", type=int, help="Seed")
     parser.add_argument("--eval-id", help="Evaluation ID to filter by")
@@ -468,11 +480,13 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"Project: {args.project} | Model: {args.model} | Problem: {args.problem}")
+    # Use config values if not specified
+    project = args.project if args.project is not None else config.weave_project
+    model = args.model if args.model is not None else config.llm_model
 
-    data = extract_tool_usage_from_evaluation(
-        args.project, args.model, args.limit, args.eval_id
-    )
+    print(f"Project: {project} | Model: {model} | Problem: {args.problem}")
+
+    data = extract_tool_usage_from_evaluation(project, model, args.limit, args.eval_id)
 
     if not data:
         print("\n💡 Tip: Try increasing --limit if this is an older model.")
@@ -482,10 +496,10 @@ def main():
 
     output_path = (
         args.output
-        or f"benchmarks/evaluations/results/{args.model.replace('/', '_').replace(':', '_')}/{args.problem}/data.csv"
+        or f"benchmarks/evaluations/results/{model.replace('/', '_').replace(':', '_')}/{args.problem}/data.csv"
     )
 
-    save_tool_usage_csv(data, output_path, args.model, args.problem, args.seed)
+    save_tool_usage_csv(data, output_path, model, args.problem, args.seed)
 
 
 if __name__ == "__main__":

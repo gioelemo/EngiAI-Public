@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -19,6 +20,10 @@ import pandas as pd
 # Paths configuration
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 RESULTS_DIR = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
+
+# Add project root to path to import config
+sys.path.insert(0, str(PROJECT_ROOT))
+from config import config  # noqa: E402
 
 # Metrics to compare (these should be present in both CSVs)
 GLOBAL_METRICS = ["mmd", "dpp", "rvc", "iog", "cog", "fog"]
@@ -97,12 +102,23 @@ def compare_results(
     print("-" * 80)
 
     for metric in metrics:
-        cgan_row = cgan_stats[cgan_stats["metric"] == metric]
-        agent_row = agent_stats[agent_stats["metric"] == metric]
+        # Handle empty DataFrames (when results are not available)
+        cgan_row = (
+            cgan_stats[cgan_stats["metric"] == metric]
+            if "metric" in cgan_stats.columns
+            else pd.DataFrame()
+        )
+        agent_row = (
+            agent_stats[agent_stats["metric"] == metric]
+            if "metric" in agent_stats.columns
+            else pd.DataFrame()
+        )
 
         cgan_str = "N/A"
         agent_str = "N/A"
         better = "-"
+        cgan_mean = None
+        agent_mean = None
 
         if not cgan_row.empty:
             cgan_mean = cgan_row["mean"].to_numpy()[0]
@@ -117,7 +133,7 @@ def compare_results(
             agent_str = format_metric(agent_mean, agent_std, scientific)
 
         # Determine which is better (lower is better for all these metrics)
-        if not cgan_row.empty and not agent_row.empty:
+        if cgan_mean is not None and agent_mean is not None:
             if cgan_mean < agent_mean:
                 better = "CGAN"
             elif agent_mean < cgan_mean:
@@ -160,8 +176,8 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
-        help="Agent model to compare (default: gpt-4o)",
+        default=None,
+        help="Agent model to compare (defaults to config.llm_model)",
     )
     parser.add_argument(
         "--detailed",
@@ -176,15 +192,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Use config.llm_model if no model specified
+    model_name = args.model if args.model is not None else config.llm_model
+
     print("=" * 80)
     print("BENCHMARK RESULTS COMPARISON")
     print("=" * 80)
     print(f"\nProblem: {args.problem}")
-    print(f"Agent model: {args.model}")
+    print(f"Agent model: {model_name}")
 
     # Load results
     cgan_df = load_cgan_results(args.problem)
-    agent_df = load_agent_results(args.problem, args.model)
+    agent_df = load_agent_results(args.problem, model_name)
 
     if cgan_df is None and agent_df is None:
         print("\nNo results found. Run evaluations first:")
@@ -199,7 +218,7 @@ def main() -> None:
         if cgan_df is not None:
             print_detailed_results(cgan_df, "CGAN CNN 2D", GLOBAL_METRICS)
         if agent_df is not None:
-            print_detailed_results(agent_df, f"Agent ({args.model})", GLOBAL_METRICS)
+            print_detailed_results(agent_df, f"Agent ({model_name})", GLOBAL_METRICS)
 
     # Save comparison to CSV
     if args.output_csv:
@@ -218,16 +237,19 @@ def main() -> None:
         for metric in GLOBAL_METRICS:
             row = {"metric": metric, "problem": args.problem}
 
-            cgan_row = cgan_stats[cgan_stats["metric"] == metric]
-            if not cgan_row.empty:
-                row["cgan_mean"] = cgan_row["mean"].to_numpy()[0]
-                row["cgan_std"] = cgan_row["std"].to_numpy()[0]
+            # Handle empty DataFrames (when results are not available)
+            if "metric" in cgan_stats.columns:
+                cgan_row = cgan_stats[cgan_stats["metric"] == metric]
+                if not cgan_row.empty:
+                    row["cgan_mean"] = cgan_row["mean"].to_numpy()[0]
+                    row["cgan_std"] = cgan_row["std"].to_numpy()[0]
 
-            agent_row = agent_stats[agent_stats["metric"] == metric]
-            if not agent_row.empty:
-                row["agent_mean"] = agent_row["mean"].to_numpy()[0]
-                row["agent_std"] = agent_row["std"].to_numpy()[0]
-                row["agent_model"] = args.model
+            if "metric" in agent_stats.columns:
+                agent_row = agent_stats[agent_stats["metric"] == metric]
+                if not agent_row.empty:
+                    row["agent_mean"] = agent_row["mean"].to_numpy()[0]
+                    row["agent_std"] = agent_row["std"].to_numpy()[0]
+                    row["agent_model"] = model_name
 
             comparison_rows.append(row)
 

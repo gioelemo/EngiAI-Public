@@ -128,7 +128,11 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     x = np.arange(len(model_stats))
     width = 0.6
 
-    colors = [PLOT_STYLE["colors"][model] for model in model_stats["model"]]
+    # Use model-specific colors with fallback to green for unknown models
+    default_color = "#009E73"  # Green from colorblind-friendly palette
+    colors = [
+        PLOT_STYLE["colors"].get(model, default_color) for model in model_stats["model"]
+    ]
 
     bars1 = ax1.bar(
         x,
