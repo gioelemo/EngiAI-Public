@@ -220,8 +220,8 @@ def _generate_plots_for_problem(
     _generate_token_latency_plots(problem_tools, output_dir, problem)
 
 
-def main():
-    """Generate all visualizations."""
+def _parse_args():
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Generate benchmark visualizations")
     parser.add_argument(
         "--problem",
@@ -240,90 +240,76 @@ def main():
         action="store_true",
         help="Generate only combined plots (skip per-problem)",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    print("=" * 60)
-    print("Diversity vs Quality Analysis")
-    print("=" * 60)
 
+def _load_all_data():
+    """Load and combine all data sources.
+
+    Returns:
+        Tuple of (combined_global, combined_design, combined_tools) or None if no data.
+    """
     print("\nLoading data...")
     data = load_data()
 
     if not data:
         print("ERROR: No data found! Check file paths.")
-        return
+        return None
 
-    # Data summary
     print("\nData loaded:")
     for key, df in data.items():
         print(f"  {key}: {len(df)} rows")
 
-    # Combined dataframes
     combined_global = get_combined_global_df(data)
     combined_design = get_combined_design_df(data)
 
-    # Load tool usage data
     tool_data = load_tool_usage_data()
     combined_tools = get_combined_tool_usage_df(tool_data)
 
-    # Filter by prompt_style if specified
-    if args.prompt_style:
-        print(f"\nFiltering by prompt_style: {args.prompt_style}")
-        combined_global = filter_by_prompt_style(combined_global, args.prompt_style)
-        combined_design = filter_by_prompt_style(combined_design, args.prompt_style)
-        combined_tools = filter_by_prompt_style(combined_tools, args.prompt_style)
+    return combined_global, combined_design, combined_tools
 
-        if (
-            combined_global is None
-            and combined_design is None
-            and combined_tools is None
-        ):
-            print(f"WARNING: No data found for prompt_style '{args.prompt_style}'")
-            return
 
-    # Detect which problems have data
-    problems_with_data = set()
-    if combined_global is not None and "problem" in combined_global.columns:
-        problems_with_data.update(combined_global["problem"].unique())
-    if combined_design is not None and "problem" in combined_design.columns:
-        problems_with_data.update(combined_design["problem"].unique())
-    if combined_tools is not None and "problem" in combined_tools.columns:
-        problems_with_data.update(combined_tools["problem"].unique())
+def _apply_prompt_style_filter(
+    combined_global, combined_design, combined_tools, prompt_style
+):
+    """Filter all dataframes by prompt style.
 
-    print(f"\nProblems with data: {sorted(problems_with_data)}")
+    Returns:
+        Tuple of filtered (combined_global, combined_design, combined_tools) or None if empty.
+    """
+    print(f"\nFiltering by prompt_style: {prompt_style}")
+    filtered_global = filter_by_prompt_style(combined_global, prompt_style)
+    filtered_design = filter_by_prompt_style(combined_design, prompt_style)
+    filtered_tools = filter_by_prompt_style(combined_tools, prompt_style)
 
-    # Determine base output directory based on prompt_style filter
-    if args.prompt_style:
-        base_output_dir = get_prompt_style_output_dir(args.prompt_style)
-    else:
-        base_output_dir = get_output_dir()
+    if filtered_global is None and filtered_design is None and filtered_tools is None:
+        print(f"WARNING: No data found for prompt_style '{prompt_style}'")
+        return None
 
-    # If specific problem requested, only generate for that problem
-    if args.problem:
-        if args.problem not in problems_with_data:
-            print(f"WARNING: No data found for problem '{args.problem}'")
-            return
-        # Use problem subdirectory within the base output dir
-        if args.prompt_style:
-            output_dir = base_output_dir / args.problem
-            output_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            output_dir = get_problem_output_dir(args.problem)
-        _generate_plots_for_problem(
-            args.problem,
-            combined_global,
-            combined_design,
-            combined_tools,
-            base_output_dir=base_output_dir if args.prompt_style else None,
-        )
-        print("\n" + "=" * 60)
-        print(f"DONE! Figures saved to: {output_dir}")
-        print("=" * 60)
-        return
+    return filtered_global, filtered_design, filtered_tools
 
-    # If combined-only, skip per-problem plots
+
+def _detect_problems_with_data(combined_global, combined_design, combined_tools):
+    """Detect which problems have data in any of the dataframes."""
+    problems = set()
+    for df in [combined_global, combined_design, combined_tools]:
+        if df is not None and "problem" in df.columns:
+            problems.update(df["problem"].unique())
+    return problems
+
+
+def _generate_all_plots(
+    args, combined_global, combined_design, combined_tools, problems_with_data
+):
+    """Generate all requested plots based on args."""
+    base_output_dir = (
+        get_prompt_style_output_dir(args.prompt_style)
+        if args.prompt_style
+        else get_output_dir()
+    )
+
+    # Generate per-problem plots if not combined-only
     if not args.combined_only:
-        # Generate per-problem plots
         for problem in sorted(problems_with_data):
             _generate_plots_for_problem(
                 problem,
@@ -333,26 +319,89 @@ def main():
                 base_output_dir=base_output_dir if args.prompt_style else None,
             )
 
-    # Generate combined plots (all problems together)
-    output_dir = base_output_dir
+    # Generate combined plots
+    label = (
+        f"prompt_style: {args.prompt_style}"
+        if args.prompt_style
+        else "all prompt styles"
+    )
     print("\n" + "=" * 60)
-    if args.prompt_style:
-        print(f"GENERATING COMBINED PLOTS (prompt_style: {args.prompt_style})")
-    else:
-        print("GENERATING COMBINED PLOTS (all prompt styles)")
+    print(f"GENERATING COMBINED PLOTS ({label})")
     print("=" * 60)
-    print(f"Output directory: {output_dir}")
+    print(f"Output directory: {base_output_dir}")
 
-    _generate_global_plots(combined_global, output_dir)
-    _generate_design_plots(combined_design, output_dir)
-    _generate_tool_usage_plots(combined_tools, combined_design, output_dir)
-    _generate_token_latency_plots(combined_tools, output_dir)
+    _generate_global_plots(combined_global, base_output_dir)
+    _generate_design_plots(combined_design, base_output_dir)
+    _generate_tool_usage_plots(combined_tools, combined_design, base_output_dir)
+    _generate_token_latency_plots(combined_tools, base_output_dir)
 
     print("\n" + "=" * 60)
-    print(f"DONE! All figures saved to: {output_dir}")
+    print(f"DONE! All figures saved to: {base_output_dir}")
     if not args.combined_only:
-        print(f"Problem-specific figures in: {output_dir}/{{problem}}/")
+        print(f"Problem-specific figures in: {base_output_dir}/{{problem}}/")
     print("=" * 60)
+
+
+def main():
+    """Generate all visualizations."""
+    args = _parse_args()
+
+    print("=" * 60)
+    print("Diversity vs Quality Analysis")
+    print("=" * 60)
+
+    # Load data
+    data_result = _load_all_data()
+    if data_result is None:
+        return
+    combined_global, combined_design, combined_tools = data_result
+
+    # Apply prompt_style filter if specified
+    if args.prompt_style:
+        filter_result = _apply_prompt_style_filter(
+            combined_global, combined_design, combined_tools, args.prompt_style
+        )
+        if filter_result is None:
+            return
+        combined_global, combined_design, combined_tools = filter_result
+
+    # Detect problems with data
+    problems_with_data = _detect_problems_with_data(
+        combined_global, combined_design, combined_tools
+    )
+    print(f"\nProblems with data: {sorted(problems_with_data)}")
+
+    # Handle single problem case
+    if args.problem:
+        if args.problem not in problems_with_data:
+            print(f"WARNING: No data found for problem '{args.problem}'")
+            return
+        base_output_dir = (
+            get_prompt_style_output_dir(args.prompt_style)
+            if args.prompt_style
+            else None
+        )
+        _generate_plots_for_problem(
+            args.problem,
+            combined_global,
+            combined_design,
+            combined_tools,
+            base_output_dir=base_output_dir,
+        )
+        output_dir = (
+            base_output_dir / args.problem
+            if base_output_dir
+            else get_problem_output_dir(args.problem)
+        )
+        print("\n" + "=" * 60)
+        print(f"DONE! Figures saved to: {output_dir}")
+        print("=" * 60)
+        return
+
+    # Generate all plots
+    _generate_all_plots(
+        args, combined_global, combined_design, combined_tools, problems_with_data
+    )
 
 
 if __name__ == "__main__":
