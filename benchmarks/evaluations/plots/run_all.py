@@ -6,10 +6,12 @@ Run this script to generate all visualizations at once.
 Individual plots can also be run separately.
 
 Usage:
-    python run_all.py                    # Generate all figures (per-problem + combined)
-    python run_all.py --problem beams2d  # Generate only for beams2d
-    python run_all.py --combined-only    # Generate only combined plots
-    python plot_dpp_vs_fog.py            # Generate single figure
+    python run_all.py                           # Generate all figures (all prompt styles combined)
+    python run_all.py --prompt-style full       # Generate only for "full" prompt style
+    python run_all.py --problem beams2d         # Generate only for beams2d
+    python run_all.py --combined-only           # Generate only combined plots
+    python run_all.py --prompt-style full --problem beams2d  # Combine filters
+    python plot_dpp_vs_fog.py                   # Generate single figure
 """
 
 import argparse
@@ -30,11 +32,13 @@ from plot_tool_usage import (
 
 from utils import (
     filter_by_problem,
+    filter_by_prompt_style,
     get_combined_design_df,
     get_combined_global_df,
     get_combined_tool_usage_df,
     get_output_dir,
     get_problem_output_dir,
+    get_prompt_style_output_dir,
     load_data,
     load_tool_usage_data,
 )
@@ -181,6 +185,7 @@ def _generate_plots_for_problem(
     combined_global,
     combined_design,
     combined_tools,
+    base_output_dir=None,
 ):
     """Generate all plots for a specific problem.
 
@@ -189,13 +194,18 @@ def _generate_plots_for_problem(
         combined_global: Full global metrics DataFrame
         combined_design: Full design metrics DataFrame
         combined_tools: Full tool usage DataFrame
+        base_output_dir: Optional base output directory (for prompt_style filtering)
     """
     print("\n" + "=" * 60)
     print(f"GENERATING PLOTS FOR: {problem.upper()}")
     print("=" * 60)
 
     # Get problem-specific output directory
-    output_dir = get_problem_output_dir(problem)
+    if base_output_dir is not None:
+        output_dir = base_output_dir / problem
+        output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        output_dir = get_problem_output_dir(problem)
     print(f"Output directory: {output_dir}")
 
     # Filter data for this problem
@@ -218,6 +228,12 @@ def main():
         type=str,
         choices=["beams2d", "photonics2d", "thermoelastic2d"],
         help="Generate plots only for a specific problem",
+    )
+    parser.add_argument(
+        "--prompt-style",
+        type=str,
+        choices=["full", "approximate", "natural", "workflow"],
+        help="Generate plots only for a specific prompt style (saves to figures/{style}/)",
     )
     parser.add_argument(
         "--combined-only",
@@ -250,6 +266,21 @@ def main():
     tool_data = load_tool_usage_data()
     combined_tools = get_combined_tool_usage_df(tool_data)
 
+    # Filter by prompt_style if specified
+    if args.prompt_style:
+        print(f"\nFiltering by prompt_style: {args.prompt_style}")
+        combined_global = filter_by_prompt_style(combined_global, args.prompt_style)
+        combined_design = filter_by_prompt_style(combined_design, args.prompt_style)
+        combined_tools = filter_by_prompt_style(combined_tools, args.prompt_style)
+
+        if (
+            combined_global is None
+            and combined_design is None
+            and combined_tools is None
+        ):
+            print(f"WARNING: No data found for prompt_style '{args.prompt_style}'")
+            return
+
     # Detect which problems have data
     problems_with_data = set()
     if combined_global is not None and "problem" in combined_global.columns:
@@ -261,16 +292,31 @@ def main():
 
     print(f"\nProblems with data: {sorted(problems_with_data)}")
 
+    # Determine base output directory based on prompt_style filter
+    if args.prompt_style:
+        base_output_dir = get_prompt_style_output_dir(args.prompt_style)
+    else:
+        base_output_dir = get_output_dir()
+
     # If specific problem requested, only generate for that problem
     if args.problem:
         if args.problem not in problems_with_data:
             print(f"WARNING: No data found for problem '{args.problem}'")
             return
+        # Use problem subdirectory within the base output dir
+        if args.prompt_style:
+            output_dir = base_output_dir / args.problem
+            output_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            output_dir = get_problem_output_dir(args.problem)
         _generate_plots_for_problem(
-            args.problem, combined_global, combined_design, combined_tools
+            args.problem,
+            combined_global,
+            combined_design,
+            combined_tools,
+            base_output_dir=base_output_dir if args.prompt_style else None,
         )
         print("\n" + "=" * 60)
-        output_dir = get_problem_output_dir(args.problem)
         print(f"DONE! Figures saved to: {output_dir}")
         print("=" * 60)
         return
@@ -280,13 +326,20 @@ def main():
         # Generate per-problem plots
         for problem in sorted(problems_with_data):
             _generate_plots_for_problem(
-                problem, combined_global, combined_design, combined_tools
+                problem,
+                combined_global,
+                combined_design,
+                combined_tools,
+                base_output_dir=base_output_dir if args.prompt_style else None,
             )
 
     # Generate combined plots (all problems together)
-    output_dir = get_output_dir()
+    output_dir = base_output_dir
     print("\n" + "=" * 60)
-    print("GENERATING COMBINED PLOTS (all problems)")
+    if args.prompt_style:
+        print(f"GENERATING COMBINED PLOTS (prompt_style: {args.prompt_style})")
+    else:
+        print("GENERATING COMBINED PLOTS (all prompt styles)")
     print("=" * 60)
     print(f"Output directory: {output_dir}")
 

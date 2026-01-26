@@ -40,8 +40,8 @@ CONDA_PYTHON = (
 
 # Default output directory for all benchmark results
 # Structure:
-#   results/baselines/{baseline_type}/{model_id}/{problem}/  - for baselines
-#   results/models/{model_name}/{problem}/                   - for LLM agents
+#   results/baselines/{baseline_type}/{problem}/                  - for baselines
+#   results/models/{model_name}/{prompt_style}/{problem}/         - for LLM agents
 RESULTS_DIR = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
 BASELINES_DIR = RESULTS_DIR / "baselines"
 MODELS_DIR = RESULTS_DIR / "models"
@@ -311,7 +311,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         # Get actual model name (from args or config)
         model_name = args.model if args.model is not None else config.llm_model
         model_safe = model_name.replace("/", "_").replace(":", "_")
-        agent_results_dir = MODELS_DIR / model_safe / args.problem
+        agent_results_dir = MODELS_DIR / model_safe / args.prompt_style / args.problem
         print(f"  Results saved to: {agent_results_dir}")
 
     print()
