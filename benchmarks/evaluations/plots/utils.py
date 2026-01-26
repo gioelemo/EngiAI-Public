@@ -22,31 +22,90 @@ RESULTS_DIR = Path(__file__).parent.parent / "results"
 OUTPUT_DIR = Path(__file__).parent / "figures"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Data paths
-DATA_PATHS = {
-    "gpt_beams_global": RESULTS_DIR
-    / "openai_gpt-4.1/beams2d/output_quality_global_metrics.csv",
-    "gpt_beams_design": RESULTS_DIR
-    / "openai_gpt-4.1/beams2d/output_quality_design_metrics.csv",
-    "gpt_beams_tools": RESULTS_DIR / "openai_gpt-4.1/beams2d/data.csv",
-    "gpt_photonics_global": RESULTS_DIR
-    / "openai_gpt-4.1/photonics2d/output_quality_global_metrics.csv",
-    "gpt_photonics_design": RESULTS_DIR
-    / "openai_gpt-4.1/photonics2d/output_quality_design_metrics.csv",
-    "gpt_photonics_tools": RESULTS_DIR / "openai_gpt-4.1/photonics2d/data.csv",
-    "gpt5_beams_global": RESULTS_DIR
-    / "openai_gpt-5.1/beams2d/output_quality_global_metrics.csv",
-    "gpt5_beams_design": RESULTS_DIR
-    / "openai_gpt-5.1/beams2d/output_quality_design_metrics.csv",
-    "gpt5_beams_tools": RESULTS_DIR / "openai_gpt-5.1/beams2d/data.csv",
-    "gpt5_photonics_global": RESULTS_DIR
-    / "openai_gpt-5.1/photonics2d/output_quality_global_metrics.csv",
-    "gpt5_photonics_design": RESULTS_DIR
-    / "openai_gpt-5.1/photonics2d/output_quality_design_metrics.csv",
-    "gpt5_photonics_tools": RESULTS_DIR / "openai_gpt-5.1/photonics2d/data.csv",
-    "cgan_beams": Path(__file__).parent.parent.parent.parent
-    / "cgan_cnn_2d_beams2d_metrics.csv",
-}
+# Known problem types
+KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d"]
+
+# CGAN baseline directory
+CGAN_DIR = RESULTS_DIR / "cgan_cnn_2d"
+
+# Minimum parts when parsing keys like "{model}_{problem}_{type}"
+MIN_KEY_PARTS = 3
+
+
+def discover_data_paths() -> dict[str, Path]:
+    """Auto-discover available result files in the results directory.
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+
+    # Discover agent model directories (everything except cgan_cnn_2d)
+    if RESULTS_DIR.exists():
+        for model_dir in RESULTS_DIR.iterdir():
+            if not model_dir.is_dir():
+                continue
+
+            model_name = model_dir.name
+
+            # Skip CGAN directory (handled separately)
+            if model_name == "cgan_cnn_2d":
+                continue
+
+            for problem in KNOWN_PROBLEMS:
+                problem_dir = model_dir / problem
+
+                # Global metrics
+                global_path = problem_dir / "output_quality_global_metrics.csv"
+                if global_path.exists():
+                    key = f"{model_name}_{problem}_global"
+                    paths[key] = global_path
+
+                # Design metrics
+                design_path = problem_dir / "output_quality_design_metrics.csv"
+                if design_path.exists():
+                    key = f"{model_name}_{problem}_design"
+                    paths[key] = design_path
+
+                # Tool usage data
+                tools_path = problem_dir / "data.csv"
+                if tools_path.exists():
+                    key = f"{model_name}_{problem}_tools"
+                    paths[key] = tools_path
+
+    # Discover CGAN results
+    if CGAN_DIR.exists():
+        for problem in KNOWN_PROBLEMS:
+            cgan_path = CGAN_DIR / problem / "output_quality_global_metrics.csv"
+            if cgan_path.exists():
+                paths[f"cgan_{problem}_global"] = cgan_path
+
+    return paths
+
+
+def _get_model_label(model_name: str) -> str:
+    """Convert model directory name to display label.
+
+    Examples:
+        openai_gpt-4o -> GPT-4o
+        openai_gpt-4.1 -> GPT-4.1
+        anthropic_claude-3-5-sonnet -> Claude-3.5-Sonnet
+    """
+    # Remove provider prefix
+    if "_" in model_name:
+        parts = model_name.split("_", 1)
+        if parts[0] in ["openai", "anthropic", "google"]:
+            model_name = parts[1]
+
+    # Clean up common patterns
+    model_name = model_name.replace("gpt-", "GPT-")
+    model_name = model_name.replace("claude-", "Claude-")
+
+    return model_name
+
+
+# Legacy DATA_PATHS for backwards compatibility (auto-discovered)
+DATA_PATHS = discover_data_paths()
 
 # NeurIPS 2-column format dimensions (inches)
 # Single column: ~3.25", Full width: ~6.75"
@@ -237,9 +296,22 @@ def _load_cgan_metrics(path):
     except Exception as e:
         print(f"Warning: Could not load {path}: {e}")
         return None
-    df = df.rename(columns={"viol": "rvc"})
-    df["model"] = "cGAN-CNN"
-    df["problem"] = "beams2d"
+
+    # Rename columns for consistency
+    rename_map = {
+        "viol": "rvc",  # Old column name
+        "model_id": "model",  # From new benchmark script
+        "problem_id": "problem",  # From new benchmark script
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+    # Ensure model column exists with correct label
+    if "model" not in df.columns or df["model"].isna().all():
+        df["model"] = "cGAN-CNN"
+    else:
+        # Standardize model name
+        df["model"] = df["model"].replace({"cgan_cnn_2d": "cGAN-CNN"})
+
     return df
 
 
@@ -247,37 +319,55 @@ def load_data():
     """
     Load all metrics CSVs, clean and deduplicate.
 
+    Auto-discovers available results in the results directory.
+
     Returns:
         dict: Dictionary with loaded DataFrames
     """
     data = {}
 
-    # Global metrics
-    global_configs = [
-        ("gpt_beams_global", "GPT-4.1", "beams2d"),
-        ("gpt_photonics_global", "GPT-4.1", "photonics2d"),
-        ("gpt5_beams_global", "GPT-5.1", "beams2d"),
-        ("gpt5_photonics_global", "GPT-5.1", "photonics2d"),
-    ]
-    for key, model, problem in global_configs:
-        df = _load_global_metrics(DATA_PATHS[key], model, problem)
-        if df is not None:
-            data[key] = df
+    # Refresh discovered paths
+    discovered_paths = discover_data_paths()
 
-    # cGAN baseline
-    df = _load_cgan_metrics(DATA_PATHS["cgan_beams"])
-    if df is not None:
-        data["cgan_beams_global"] = df
+    # Load all discovered global metrics
+    for key, path in discovered_paths.items():
+        if not key.endswith("_global"):
+            continue
 
-    # Design-level metrics
-    design_configs = [
-        ("gpt_beams_design", "GPT-4.1"),
-        ("gpt_photonics_design", "GPT-4.1"),
-        ("gpt5_beams_design", "GPT-5.1"),
-        ("gpt5_photonics_design", "GPT-5.1"),
-    ]
-    for key, model in design_configs:
-        df = _load_design_metrics(DATA_PATHS[key], model)
+        # Parse key to extract model and problem
+        # Format: {model_name}_{problem}_global or cgan_{problem}_global
+        parts = key.rsplit("_", 2)  # Split from right: [model, problem, "global"]
+        if len(parts) < MIN_KEY_PARTS:
+            continue
+
+        problem = parts[-2]
+
+        if key.startswith("cgan_"):
+            # CGAN baseline
+            df = _load_cgan_metrics(path)
+            if df is not None:
+                df["problem"] = problem
+                data[key] = df
+        else:
+            # Agent model - extract model name
+            model_dir_name = "_".join(parts[:-2])  # Everything before problem
+            model_label = _get_model_label(model_dir_name)
+            df = _load_global_metrics(path, model_label, problem)
+            if df is not None:
+                data[key] = df
+
+    # Load all discovered design metrics
+    for key, path in discovered_paths.items():
+        if not key.endswith("_design"):
+            continue
+
+        parts = key.rsplit("_", 2)
+        if len(parts) < MIN_KEY_PARTS:
+            continue
+
+        model_dir_name = "_".join(parts[:-2])
+        model_label = _get_model_label(model_dir_name)
+        df = _load_design_metrics(path, model_label)
         if df is not None:
             data[key] = df
 
@@ -287,26 +377,36 @@ def load_data():
 def load_tool_usage_data():
     """Load tool usage data from CSV files.
 
+    Auto-discovers available tool usage files in the results directory.
+
     Returns:
         dict: Dictionary with loaded tool usage DataFrames
     """
     data = {}
 
-    # Tool usage configs
-    tool_configs = [
-        ("gpt_beams_tools", "GPT-4.1", "beams2d"),
-        ("gpt_photonics_tools", "GPT-4.1", "photonics2d"),
-        ("gpt5_beams_tools", "GPT-5.1", "beams2d"),
-        ("gpt5_photonics_tools", "GPT-5.1", "photonics2d"),
-    ]
+    # Refresh discovered paths
+    discovered_paths = discover_data_paths()
 
-    for key, model, problem in tool_configs:
-        path = DATA_PATHS[key]
-        if path.exists():
+    for key, path in discovered_paths.items():
+        if not key.endswith("_tools"):
+            continue
+
+        # Parse key: {model_name}_{problem}_tools
+        parts = key.rsplit("_", 2)
+        if len(parts) < MIN_KEY_PARTS:
+            continue
+
+        problem = parts[-2]
+        model_dir_name = "_".join(parts[:-2])
+        model_label = _get_model_label(model_dir_name)
+
+        try:
             df = pd.read_csv(path)
-            df["model"] = model
+            df["model"] = model_label
             df["problem"] = problem
             data[key] = df
+        except Exception as e:
+            print(f"Warning: Could not load {path}: {e}")
 
     return data
 
@@ -320,26 +420,17 @@ def get_combined_tool_usage_df(data):
     Returns:
         Combined DataFrame or None if no data available
     """
-    keys = [
-        "gpt_beams_tools",
-        "gpt_photonics_tools",
-        "gpt5_beams_tools",
-        "gpt5_photonics_tools",
-    ]
-    dfs = [data[key] for key in keys if key in data]
+    # Get all keys ending with _tools
+    keys = [k for k in data if k.endswith("_tools")]
+    dfs = [data[key] for key in keys]
     return pd.concat(dfs, ignore_index=True) if dfs else None
 
 
 def get_combined_global_df(data):
     """Combine all global metrics into a single DataFrame."""
-    keys = [
-        "gpt_beams_global",
-        "gpt_photonics_global",
-        "gpt5_beams_global",
-        "gpt5_photonics_global",
-        "cgan_beams_global",
-    ]
-    dfs = [data[key] for key in keys if key in data]
+    # Get all keys ending with _global
+    keys = [k for k in data if k.endswith("_global")]
+    dfs = [data[key] for key in keys]
     return pd.concat(dfs, ignore_index=True) if dfs else None
 
 
@@ -347,28 +438,24 @@ def get_combined_design_df(data):
     """Combine all design-level metrics into a single DataFrame."""
     design_dfs = []
 
-    if "gpt_beams_design" in data:
-        df = data["gpt_beams_design"].copy()
-        df["source"] = "GPT-4.1 (beams2d)"
-        df["problem"] = "beams2d"
-        design_dfs.append(df)
+    # Get all keys ending with _design
+    for key in data:
+        if not key.endswith("_design"):
+            continue
 
-    if "gpt_photonics_design" in data:
-        df = data["gpt_photonics_design"].copy()
-        df["source"] = "GPT-4.1 (photonics2d)"
-        df["problem"] = "photonics2d"
-        design_dfs.append(df)
+        df = data[key].copy()
 
-    if "gpt5_beams_design" in data:
-        df = data["gpt5_beams_design"].copy()
-        df["source"] = "GPT-5.1 (beams2d)"
-        df["problem"] = "beams2d"
-        design_dfs.append(df)
+        # Extract model and problem from key
+        parts = key.rsplit("_", 2)
+        if len(parts) >= MIN_KEY_PARTS:
+            problem = parts[-2]
+            model_dir_name = "_".join(parts[:-2])
+            model_label = _get_model_label(model_dir_name)
 
-    if "gpt5_photonics_design" in data:
-        df = data["gpt5_photonics_design"].copy()
-        df["source"] = "GPT-5.1 (photonics2d)"
-        df["problem"] = "photonics2d"
+            df["source"] = f"{model_label} ({problem})"
+            if "problem" not in df.columns:
+                df["problem"] = problem
+
         design_dfs.append(df)
 
     return pd.concat(design_dfs, ignore_index=True) if design_dfs else None
