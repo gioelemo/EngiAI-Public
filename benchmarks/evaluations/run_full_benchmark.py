@@ -16,7 +16,7 @@ Usage:
     python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 --n_samples 10 --agent-only
 
     # Specify custom model for agent
-    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 --n_samples 10 --agent-model gpt-4o
+    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 --n_samples 10 --model gpt-4o
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def run_agent_evaluation(  # noqa: PLR0913
     problem: str,
     n_samples: int,
     seed: int,
-    model: str,
+    model: str | None,
     prompt_style: str = "full",
     scorers: str = "generic",
 ) -> int:
@@ -119,13 +119,13 @@ def run_agent_evaluation(  # noqa: PLR0913
         str(n_samples),
         "--seed",
         str(seed),
-        "--model",
-        model,
         "--prompt-style",
         prompt_style,
         "--scorers",
         scorers,
     ]
+    if model is not None:
+        cmd.extend(["--model", model])
     return run_command(cmd, cwd=PROJECT_ROOT)
 
 
@@ -161,10 +161,10 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         help="Prompt style for agent evaluation (default: full)",
     )
     parser.add_argument(
-        "--agent-model",
+        "--model",
         type=str,
-        default="gpt-4o",
-        help="Model to use for agent evaluation (default: gpt-4o)",
+        default=None,
+        help="Model to use for agent evaluation (defaults to config.llm_model)",
     )
     parser.add_argument(
         "--scorers",
@@ -218,7 +218,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     print(f"Samples per seed: {args.n_samples}")
     print(f"Prompt style: {args.prompt_style}")
     if run_agent:
-        print(f"Agent model: {args.agent_model}")
+        print(f"Agent model: {args.model or '(from config.llm_model)'}")
         print(f"Scorers: {args.scorers}")
     if run_cgan:
         print(f"CGAN results: {cgan_output_csv}")
@@ -269,7 +269,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 args.problem,
                 args.n_samples,
                 seed,
-                args.agent_model,
+                args.model,
                 args.prompt_style,
                 args.scorers,
             )
@@ -298,9 +298,14 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         print(f"Agent evaluations: {agent_success}/{len(args.seeds)} successful")
         if failed_seeds["agent"]:
             print(f"  Failed seeds: {failed_seeds['agent']}")
-        model_safe = args.agent_model.replace("/", "_").replace(":", "_")
-        agent_results_dir = RESULTS_DIR / model_safe / args.problem
-        print(f"  Results saved to: {agent_results_dir}")
+        if args.model is not None:
+            model_safe = args.model.replace("/", "_").replace(":", "_")
+            agent_results_dir = RESULTS_DIR / model_safe / args.problem
+            print(f"  Results saved to: {agent_results_dir}")
+        else:
+            print(
+                f"  Results saved to: {RESULTS_DIR}/<model_from_config>/{args.problem}"
+            )
 
     print()
     print("Evaluation complete!")

@@ -6,7 +6,7 @@ comparison tables and summary statistics.
 
 Usage:
     python benchmarks/evaluations/compare_results.py --problem beams2d
-    python benchmarks/evaluations/compare_results.py --problem beams2d --agent-model gpt-4o
+    python benchmarks/evaluations/compare_results.py --problem beams2d --model gpt-4o
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ def main() -> None:
         help="Problem type (default: beams2d)",
     )
     parser.add_argument(
-        "--agent-model",
+        "--model",
         type=str,
         default="gpt-4o",
         help="Agent model to compare (default: gpt-4o)",
@@ -180,11 +180,11 @@ def main() -> None:
     print("BENCHMARK RESULTS COMPARISON")
     print("=" * 80)
     print(f"\nProblem: {args.problem}")
-    print(f"Agent model: {args.agent_model}")
+    print(f"Agent model: {args.model}")
 
     # Load results
     cgan_df = load_cgan_results(args.problem)
-    agent_df = load_agent_results(args.problem, args.agent_model)
+    agent_df = load_agent_results(args.problem, args.model)
 
     if cgan_df is None and agent_df is None:
         print("\nNo results found. Run evaluations first:")
@@ -199,9 +199,7 @@ def main() -> None:
         if cgan_df is not None:
             print_detailed_results(cgan_df, "CGAN CNN 2D", GLOBAL_METRICS)
         if agent_df is not None:
-            print_detailed_results(
-                agent_df, f"Agent ({args.agent_model})", GLOBAL_METRICS
-            )
+            print_detailed_results(agent_df, f"Agent ({args.model})", GLOBAL_METRICS)
 
     # Save comparison to CSV
     if args.output_csv:
@@ -229,7 +227,7 @@ def main() -> None:
             if not agent_row.empty:
                 row["agent_mean"] = agent_row["mean"].to_numpy()[0]
                 row["agent_std"] = agent_row["std"].to_numpy()[0]
-                row["agent_model"] = args.agent_model
+                row["agent_model"] = args.model
 
             comparison_rows.append(row)
 
