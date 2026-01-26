@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextvars
 import datetime
+import logging
 import random
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -28,6 +29,8 @@ if TYPE_CHECKING:
 
 
 matplotlib.use("Agg")  # Use non-interactive backend
+
+logger = logging.getLogger(__name__)
 
 # Constants
 EXPECTED_ARRAY_DIMENSIONS = 2  # For 2D beam design arrays
@@ -251,54 +254,67 @@ def create_problem(
 
 
 @tool
-def simulate_design(
+def simulate_design(  # noqa: PLR0913
     problem_type: str = "beams2d",
     design_description: str = "random design",
     problem_config: dict[str, Any] | None = None,
     seed: int = 0,
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
+    volume_fraction: float | None = None,
+    volfrac: float | None = None,
+    force_distribution: float | None = None,
+    forcedist: float | None = None,
+    rmin: float | None = None,
+    lambda1: float | None = None,
+    lambda2: float | None = None,
+    blur_radius: float | None = None,
+    weight: float | None = None,
 ) -> dict[str, Any]:
     """
     Simulate a design and return its performance metrics.
 
-    This unified tool works with any problem type available in EngiBench.
     Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:
-        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d', etc.)
-        design_description: Description of the design approach (e.g., "random design",
-            "optimized topology", "last design"). The tool will generate or retrieve
-            an appropriate design based on this description.
-        problem_config: Problem-specific configuration parameters (optional)
-            For beams2d: {"volfrac": 0.35, "force_distribution": 0.0}
-            For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
-            For photonics2d: {"lambda1": 1.2, "lambda2": 1.3, "blur_radius": 2}
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d')
+        design_description: Which design to simulate ("random design", "optimized design", "last design")
         seed: Random seed for reproducibility
 
+        Configuration parameters (pass directly OR in problem_config dict):
+        - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
+        - force_distribution / forcedist: Load position for beams2d (0.0 to 1.0)
+        - filter_radius / rmin: Density filter radius
+        - lambda1, lambda2: Wavelengths for photonics2d
+        - blur_radius: Blur radius for photonics2d
+        - weight: Objective weight for thermoelastic2d
+
+        problem_config: Alternative: pass all config as a dict
+
     Returns:
-        dict with simulation results (structure depends on problem type):
-        - success: bool
-        - For beams2d: compliance, volume_fraction_used, design_valid
-        - For thermoelastic2d: structural_compliance, thermal_compliance, volume_fraction_used
-        - For photonics2d: total_overlap
-        - message: str
+        dict with: success, compliance (beams2d), total_overlap (photonics2d), etc.
 
     Example:
-        >>> result = simulate_design(
-        ...     problem_type="beams2d",
-        ...     design_description="random design",
-        ...     problem_config={"volfrac": 0.4},
-        ...     seed=42
-        ... )
-        >>> print(f"Compliance: {result['compliance']}")
+        >>> simulate_design(problem_type="beams2d", design_description="optimized design", volume_fraction=0.4)
     """
     try:
-        if problem_config is None:
-            problem_config = {}
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distribution": force_distribution,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
 
         # Create a fresh problem instance for this simulation
         problem_class = get_problem_class(problem_type)
         try:
-            problem = problem_class(seed=seed, config=problem_config)
+            problem = problem_class(seed=seed, config=config)
         except TypeError as exc:
             # Fall back to seed-only initialization if config keyword is not supported
             msg = str(exc)
@@ -315,9 +331,7 @@ def simulate_design(
             set_unified_last_design(problem_type, design)
 
         # Run simulation
-        objectives = problem.simulate(
-            design=design, config=problem_config if problem_config else None
-        )
+        objectives = problem.simulate(design=design, config=config if config else None)
 
         # Format results based on problem type - use problem.objectives to dynamically extract
         problem_key = problem_type.lower()
@@ -360,55 +374,153 @@ def simulate_design(
         return result
 
 
+def _build_problem_config_from_flat_params(
+    problem_config: dict[str, Any] | None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Build problem_config from flat parameters, supporting common LLM parameter aliases.
+
+    LLMs often pass parameters with different names than expected. This function
+    normalizes them to the correct config keys.
+
+    Args:
+        problem_type: Type of problem (beams2d, photonics2d, thermoelastic2d)
+        problem_config: Existing problem_config dict (may contain aliased keys)
+        **kwargs: Flat parameters that may use aliases
+
+    Returns:
+        Normalized problem_config dict
+    """
+    # Parameter aliases: LLM name -> config key (shared across all problems)
+    all_aliases = {
+        # Beams2D aliases
+        "volume_fraction": "volfrac",
+        "vol_frac": "volfrac",
+        "volume": "volfrac",
+        "force_distribution": "forcedist",
+        "force_dist": "forcedist",
+        "load_position": "forcedist",
+        "filter_radius": "rmin",
+        # Photonics2D aliases
+        "wavelength1": "lambda1",
+        "wavelength_1": "lambda1",
+        "wavelength2": "lambda2",
+        "wavelength_2": "lambda2",
+        "blur": "blur_radius",
+    }
+
+    # Valid config keys that don't need aliasing
+    valid_keys = {
+        "volfrac",
+        "rmin",
+        "forcedist",
+        "lambda1",
+        "lambda2",
+        "blur_radius",
+        "weight",
+    }
+
+    # Keys to skip (not config parameters)
+    skip_keys = {
+        "problem_id",
+        "grid_size",
+        "problem_type",
+        "seed",
+        "save_result",
+        "design_description",
+        "save_path",
+    }
+
+    def normalize_params(params: dict[str, Any]) -> dict[str, Any]:
+        """Normalize a dict of parameters, applying aliases."""
+        config: dict[str, Any] = {}
+        for key, value in params.items():
+            if value is None or key in skip_keys:
+                continue
+            # Check if this is an alias
+            if key in all_aliases:
+                config[all_aliases[key]] = value
+            # Check if it's already a valid config key
+            elif key in valid_keys:
+                config[key] = value
+        return config
+
+    # If problem_config was provided, normalize it (may contain aliased keys)
+    if problem_config:
+        return normalize_params(problem_config)
+
+    # Otherwise normalize kwargs
+    return normalize_params(kwargs)
+
+
 @tool
-def optimize_design(
+def optimize_design(  # noqa: PLR0913
     problem_type: str = "beams2d",
     problem_config: dict[str, Any] | None = None,
     seed: int = 0,
     save_result: bool = True,
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
+    volume_fraction: float | None = None,
+    volfrac: float | None = None,
+    force_distribution: float | None = None,
+    forcedist: float | None = None,
+    rmin: float | None = None,
+    lambda1: float | None = None,
+    lambda2: float | None = None,
+    blur_radius: float | None = None,
+    weight: float | None = None,
 ) -> dict[str, Any]:
     """
-    Optimize a design using gradient-based optimization. ALWAYS provide problem_config dict with parameters!
+    ✅ USE THIS TOOL for: "optimize", "optimization", "topology optimization", "minimize compliance", "SIMP", "design a beam".
 
-    This unified tool works with any problem type available in EngiBench.
+    Optimize a design using physics-based gradient optimization (SIMP method).
+
+    This is the PRIMARY tool for all optimization and design tasks.
     Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:
-        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d', etc.)
-        problem_config: Problem-specific configuration parameters **REQUIRED for correct optimization**
-            For beams2d: {"volfrac": <volume_fraction>, "rmin": <filter_radius>, "forcedist": <load_position>}
-            For thermoelastic2d: {"volfrac": <volume_fraction>, "weight": 0.5, "rmin": 1.1}
-            For photonics2d: {"lambda1": <wavelength1>, "lambda2": <wavelength2>, "blur_radius": <blur>}
-            **WARNING**: If not provided, will use defaults which may not match requirements!
-        seed: Random seed for optimization (default: 0 for reproducibility)
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d')
+        seed: Random seed for optimization (default: 0)
         save_result: Whether to save the optimized design to outputs/ directory
 
+        Configuration parameters (pass directly OR in problem_config dict):
+        - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
+        - force_distribution / forcedist: Load position for beams2d (0.0 to 1.0)
+        - filter_radius / rmin: Density filter radius
+        - lambda1, lambda2: Wavelengths for photonics2d
+        - blur_radius: Blur radius for photonics2d
+        - weight: Objective weight for thermoelastic2d
+
+        problem_config: Alternative: pass all config as a dict (e.g., {"volfrac": 0.4, "rmin": 2.0})
+
     Returns:
-        dict with optimization results:
-        - success: bool
-        - problem_type: str
-        - design_shape: tuple
-        - optimized_design: list (the optimized design array)
-        - optimization_info: list (optimization history with objective values per step)
-        - save_path: str (if save_result=True)
-        - message: str
+        dict with: success, problem_type, design_shape, optimized_design, optimization_info, message
 
-        Note: To get objective values for the optimized design, call simulate_design
-        separately with design_description="optimized design".
+    Examples:
+        # Flat parameters (recommended for LLMs):
+        >>> optimize_design(problem_type="beams2d", volume_fraction=0.4, force_distribution=0.2, seed=42)
 
-    Example:
-        >>> result = optimize_design(
-        ...     problem_type="beams2d",
-        ...     problem_config={"volfrac": 0.4},
-        ...     seed=42
-        ... )
-        >>> # Then call simulate_design to get objective values
-        >>> sim_result = simulate_design(problem_type="beams2d", design_description="optimized design")
+        # Dict format (also supported):
+        >>> optimize_design(problem_type="beams2d", problem_config={"volfrac": 0.4, "forcedist": 0.2}, seed=42)
     """
     try:
-        # Convert None to empty dict for consistency
-        config = problem_config if problem_config is not None else {}
-        config_was_none = problem_config is None
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distribution": force_distribution,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        logger.info(
+            f"optimize_design called with problem_config={problem_config}, flat_params={flat_params}"
+        )
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
+        logger.info(f"Built config: {config}")
         config_was_empty = config == {}
 
         # Create a fresh problem instance for this optimization.
@@ -457,9 +569,9 @@ def optimize_design(
             optimization_info,
         )
 
-        # Add warning if problem_config was not provided or was empty
-        if config_was_none or config_was_empty:
-            warning_msg = " ⚠️ WARNING: No problem_config provided! Used defaults which may not match requirements!"
+        # Add warning if no configuration parameters were provided
+        if config_was_empty:
+            warning_msg = " ⚠️ WARNING: No config parameters provided! Used defaults which may not match requirements!"
             result["message"] = result.get("message", "") + warning_msg
             result["config_warning"] = True
 
@@ -651,49 +763,64 @@ def _format_optimization_result(
 
 
 @tool
-def render_design(
+def render_design(  # noqa: PLR0913
     problem_type: str = "beams2d",
     design_description: str = "random design",
     problem_config: dict[str, Any] | None = None,
     save_path: str = "design.png",
     seed: int | None = None,
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
+    volume_fraction: float | None = None,
+    volfrac: float | None = None,
+    force_distribution: float | None = None,
+    forcedist: float | None = None,
+    rmin: float | None = None,
+    lambda1: float | None = None,
+    lambda2: float | None = None,
+    blur_radius: float | None = None,
+    weight: float | None = None,
 ) -> dict[str, Any]:
     """
     Render a design as a visual heatmap and save it as an image file.
 
-    This unified tool works with any problem type available in EngiBench.
     Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
     Args:
-        problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
-        design_description: Description of the design to render (e.g., "random design",
-            "optimized topology", "initial design", "final design")
-        problem_config: Problem-specific configuration parameters (optional)
-            For beams2d: {"volfrac": 0.35, "force_distribution": 0.0}
-            For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
-            For photonics2d: {"lambda1": 1.2, "lambda2": 1.3, "blur_radius": 2}
-        save_path: Base filename for the image (will be saved in outputs/ directory)
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d')
+        design_description: Which design to render ("random design", "optimized design", "initial design")
+        save_path: Base filename for the image (saved in outputs/ directory)
         seed: Random seed for reproducibility (None = use random seed)
 
+        Configuration parameters (pass directly OR in problem_config dict):
+        - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
+        - force_distribution / forcedist: Load position for beams2d (0.0 to 1.0)
+        - filter_radius / rmin: Density filter radius
+        - lambda1, lambda2: Wavelengths for photonics2d
+        - blur_radius: Blur radius for photonics2d
+        - weight: Objective weight for thermoelastic2d
+
+        problem_config: Alternative: pass all config as a dict
+
     Returns:
-        dict with rendering results:
-        - success: bool
-        - save_path: str (full path where PNG image was saved)
-        - npy_path: str (full path where numpy array was saved)
-        - design_shape: tuple
-        - message: str
+        dict with: success, save_path, npy_path, design_shape, message
 
     Example:
-        >>> result = render_design(
-        ...     problem_type="beams2d",
-        ...     design_description="optimized design"
-        ... )
-        >>> print(result['save_path'])
+        >>> render_design(problem_type="beams2d", design_description="optimized design", volume_fraction=0.4)
     """
     try:
-        # Convert None to empty dict for consistency
-        if problem_config is None:
-            problem_config = {}
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distribution": force_distribution,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
 
         # Create outputs directory
         output_dir = Path("outputs")
@@ -715,7 +842,7 @@ def render_design(
 
         # Initialize problem with config (if provided) to ensure correct rendering parameters
         try:
-            problem: Problem = problem_class(seed=seed, config=problem_config)
+            problem: Problem = problem_class(seed=seed, config=config)
         except TypeError as exc:
             # Fall back to seed-only initialization if config keyword is not supported
             msg = str(exc)

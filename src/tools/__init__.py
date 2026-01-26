@@ -11,15 +11,15 @@ from src.tools.arxiv_tools import (
 )
 from src.tools.engibench import (
     create_problem,
-    get_dataset_info,
-    get_problem_details,
+    # get_dataset_info,  # Disabled to reduce LLM context
+    # get_problem_details,  # Disabled to reduce LLM context
     optimize_design,
     render_design,
     simulate_design,
 )
 from src.tools.engiopt import (
     download_wandb_model,
-    list_available_algorithms,
+    # list_available_algorithms,  # Disabled to reduce LLM context
     load_wandb_model,
     sample_designs_from_model,
 )
@@ -39,10 +39,10 @@ __all__ = [
     "create_search_tool",
     "download_wandb_model",
     "get_arxiv_paper",
-    "get_dataset_info",
+    # "get_dataset_info",  # Disabled to reduce LLM context
     "get_mmore_progress_callback",
-    "get_problem_details",
-    "list_available_algorithms",
+    # "get_problem_details",  # Disabled to reduce LLM context
+    # "list_available_algorithms",  # Disabled to reduce LLM context
     "load_wandb_model",
     "optimize_design",
     "render_design",

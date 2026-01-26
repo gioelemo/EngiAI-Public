@@ -148,17 +148,40 @@ class EngineeringAgent(weave.Model):
                 for tool_call in msg.tool_calls
             ]
 
-            # Log optimize_design calls to see what problem_config is being passed
+            # Log optimize_design calls to see what config is being passed
             for tc in tool_calls_info:
                 if tc["name"] == "optimize_design":
-                    # Check 'problem_config' parameter (current name)
-                    problem_config = tc["args"].get("problem_config", None)
-                    logger.debug(
-                        "optimize_design called with problem_config: %s", problem_config
+                    args = tc["args"]
+                    # Check for config: either problem_config dict or flat parameters
+                    problem_config = args.get("problem_config", None)
+                    # Flat config params (LLM may use aliases)
+                    flat_config_keys = {
+                        "volume_fraction",
+                        "volfrac",
+                        "force_distribution",
+                        "forcedist",
+                        "rmin",
+                        "lambda1",
+                        "lambda2",
+                        "blur_radius",
+                        "weight",
+                    }
+                    has_flat_params = any(
+                        args.get(k) is not None for k in flat_config_keys
                     )
-                    if problem_config is None:
+
+                    logger.debug(
+                        "optimize_design called with problem_config=%s, flat_params=%s",
+                        problem_config,
+                        {
+                            k: args.get(k)
+                            for k in flat_config_keys
+                            if args.get(k) is not None
+                        },
+                    )
+                    if problem_config is None and not has_flat_params:
                         logger.warning(
-                            "NO PROBLEM_CONFIG - agent is not passing configuration parameters!"
+                            "NO CONFIG - agent is not passing configuration parameters!"
                         )
 
             return {
@@ -723,8 +746,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     }
     eval_dataset = prepare_evaluation_dataset(prompts, args.samples, eval_metadata)
 
-    # Get or create Weave dataset
-    dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset"
+    # Get or create Weave dataset (include sample count to avoid conflicts)
+    dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset_n{args.samples}"
     if args.seed is not None:
         dataset_name += f"_seed_{args.seed}"
     dataset = get_or_create_dataset(eval_dataset, dataset_name, len(eval_dataset))

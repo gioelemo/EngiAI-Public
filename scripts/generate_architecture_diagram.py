@@ -63,7 +63,7 @@ tool_categories = {
     "download_wandb_model": "engiopt",
     "list_available_algorithms": "engiopt",
     "load_wandb_model": "engiopt",
-    "sample_designs_from_model": "engiopt",
+    "ml_gan_inference": "engiopt",
     # STL export tools
     "convert_design_to_stl": "stl",
     # Code execution tools (use CLI-based executor instead)
@@ -216,7 +216,7 @@ agents: list[AgentInfo] = [
             "download_wandb_model",
             "list_available_algorithms",
             "load_wandb_model",
-            "sample_designs_from_model",
+            "ml_gan_inference",
             # STL export tools (blue)
             "convert_design_to_stl",
         ],

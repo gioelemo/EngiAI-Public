@@ -16,15 +16,15 @@ PROBLEMS: dict[str, ProblemConfig] = {
         name="beams2d",
         dataset_name="IDEALLab/beams_2d_50_100_v0",
         design_field="optimal_design",
-        tool_name="optimize_design",
+        tool_name="simulate_design",
         objectives=[
             ObjectiveConfig(
                 name="compliance",
-                field_name="final_compliance",
-                target_field="compliance",  # Changed from "c" to match prompt generator
+                field_name="compliance",
+                target_field="compliance",
                 direction="minimize",
                 relative_error_threshold=0.2,
-                aliases=["final_c", "c"],
+                aliases=["c", "final_compliance", "final_c"],
             )
         ],
         conditions=[
@@ -48,7 +48,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
         name="photonics2d",
         dataset_name="IDEALLab/photonics_2d_120_120_v0",
         design_field="optimal_design",
-        tool_name="optimize_design",
+        tool_name="simulate_design",
         objectives=[
             ObjectiveConfig(
                 name="total_overlap",
@@ -88,29 +88,29 @@ PROBLEMS: dict[str, ProblemConfig] = {
         name="thermoelastic2d",
         dataset_name="IDEALLab/thermoelastic_2d_v0",
         design_field="optimal_design",
-        tool_name="optimize_design",
+        tool_name="simulate_design",
         objectives=[
             ObjectiveConfig(
                 name="structural_compliance",
-                field_name="final_structural_compliance",  # Extract final (optimized) value
+                field_name="structural_compliance",
                 target_field="structural_compliance",
                 direction="minimize",
                 relative_error_threshold=0.2,
                 weight=0.4,  # Primary structural objective
-                aliases=["struct_c", "sc", "structural_compliance"],
+                aliases=["struct_c", "sc", "final_structural_compliance"],
             ),
             ObjectiveConfig(
                 name="thermal_compliance",
-                field_name="final_thermal_compliance",  # Extract final (optimized) value
+                field_name="thermal_compliance",
                 target_field="thermal_compliance",
                 direction="minimize",
                 relative_error_threshold=0.2,
                 weight=0.4,  # Primary thermal objective
-                aliases=["thermal_c", "tc", "thermal_compliance"],
+                aliases=["thermal_c", "tc", "final_thermal_compliance"],
             ),
             ObjectiveConfig(
                 name="volume_fraction",
-                field_name="final_volume_fraction",  # Extract final (optimized) value
+                field_name="material_usage",
                 target_field="volume_fraction",
                 direction="minimize",
                 relative_error_threshold=0.1,
