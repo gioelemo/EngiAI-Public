@@ -50,7 +50,7 @@ def _discover_baseline_paths() -> dict[str, Path]:
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths = {}
+    paths: dict[str, Path] = {}
     if not BASELINES_DIR.exists():
         return paths
 
@@ -78,7 +78,7 @@ def _discover_models_dir_paths() -> dict[str, Path]:
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths = {}
+    paths: dict[str, Path] = {}
     if not MODELS_DIR.exists():
         return paths
 
@@ -104,7 +104,7 @@ def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Pa
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths = {}
+    paths: dict[str, Path] = {}
     problem = problem_dir.name
     model_name = model_dir.name
 
@@ -143,7 +143,7 @@ def discover_data_paths() -> dict[str, Path]:
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths = {}
+    paths: dict[str, Path] = {}
 
     # 1. Discover from results/models/
     paths.update(_discover_models_dir_paths())
@@ -189,7 +189,7 @@ def _get_model_label(model_name: str) -> str:
     return model_name
 
 
-def _parse_data_key(key: str) -> dict[str, str] | None:
+def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
     """Parse a data key to extract model, prompt_style, problem, and type.
 
     Key formats:
