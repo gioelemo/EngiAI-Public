@@ -584,8 +584,6 @@ def optimize_design(  # noqa: PLR0913
             warning_msg = " ⚠️ WARNING: No config parameters provided! Used defaults which may not match requirements!"
             result["message"] = result.get("message", "") + warning_msg
             result["config_warning"] = True
-
-        return result
     except ValueError as e:
         return {"success": False, "error": str(e)}
     except ImportError:
@@ -595,6 +593,8 @@ def optimize_design(  # noqa: PLR0913
         }
     except Exception as e:
         return {"success": False, "error": f"Optimization failed: {e!s}"}
+    else:
+        return result
 
 
 def _extract_figure_and_axis(render_result):

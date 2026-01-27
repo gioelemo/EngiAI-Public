@@ -64,12 +64,13 @@ def _try_load_design_from_path(design_path: str, example_id: int) -> np.ndarray 
             design_path,
             design_array.shape,
         )
-        return design_array
     except Exception as e:
         logger.debug(
             "Example %s: Failed to load design from %s: %s", example_id, design_path, e
         )
         return None
+    else:
+        return design_array
 
 
 def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
@@ -89,7 +90,6 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
         Design array if found, None otherwise
     """
     design_array = None
-    design_path = None
     tool_messages_count = 0
 
     for msg in messages:
@@ -133,13 +133,16 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
         # Try file-based extraction first (preferred for context efficiency)
         if has_design_path:
             # Extract design_path from the message
-            path_match = re.search(r"['\"]design_path['\"]\s*:\s*['\"]([^'\"]+)['\"]", content)
+            path_match = re.search(
+                r"['\"]design_path['\"]\s*:\s*['\"]([^'\"]+)['\"]", content
+            )
             if path_match:
                 current_design_path = path_match.group(1)
-                loaded_design = _try_load_design_from_path(current_design_path, example_id)
+                loaded_design = _try_load_design_from_path(
+                    current_design_path, example_id
+                )
                 if loaded_design is not None:
                     design_array = loaded_design
-                    design_path = current_design_path
                     # Continue iterating to get the LAST occurrence (most recent design)
                     continue
 

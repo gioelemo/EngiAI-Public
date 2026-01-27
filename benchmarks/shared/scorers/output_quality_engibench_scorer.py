@@ -6,6 +6,7 @@ after evaluation completes.
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -365,7 +366,7 @@ def compute_global_metrics(  # noqa: PLR0913
     )
 
 
-def _compute_global_metrics_impl(  # noqa: PLR0912, PLR0915
+def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
     evaluation: Any,
     dataset_name: str,
     sigma: float = 10.0,
@@ -400,9 +401,38 @@ def _compute_global_metrics_impl(  # noqa: PLR0912, PLR0915
         - n_failed: int (number of failed extractions)
     """
     # Use evaluation.get_scores() to extract scorer outputs
+    # Retry with delay because Weave backend may not have finished processing results
     try:
-        # Call get_scores() to get organized scorer outputs
-        scores = evaluation.get_scores()
+        scores = None
+        max_retries = 5
+        retry_delay = 3  # seconds
+        for attempt in range(max_retries):
+            try:
+                scores = evaluation.get_scores()
+                if scores is not None:
+                    break
+            except TypeError as retry_err:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        "Weave scores not ready yet (attempt %d/%d): %s. Retrying in %ds...",
+                        attempt + 1,
+                        max_retries,
+                        retry_err,
+                        retry_delay,
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    raise
+
+        if scores is None:
+            logger.error("Failed to retrieve scores after %d attempts", max_retries)
+            return {
+                "mmd": None,
+                "n_designs": 0,
+                "n_failed": 0,
+                "error": "Scores not available after retries",
+            }
+
         logger.info(f"Retrieved scores from evaluation: {len(scores)} trace(s)")
 
         # Get dataset rows to access metadata

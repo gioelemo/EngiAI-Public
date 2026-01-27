@@ -30,6 +30,7 @@ import json  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
 import sys  # noqa: E402
+import time  # noqa: E402
 import uuid  # noqa: E402
 from pathlib import Path  # noqa: E402
 from typing import Any, TypedDict  # noqa: E402
@@ -427,7 +428,28 @@ def save_per_design_metrics(  # noqa: PLR0912, PLR0915
     """
     try:
         # Use Weave's get_scores() API to access scorer outputs
-        scores = evaluation.get_scores()
+        # Retry with delay because Weave backend may not have finished processing results
+        scores = None
+        max_retries = 5
+        retry_delay = 3  # seconds
+        for attempt in range(max_retries):
+            try:
+                scores = evaluation.get_scores()
+                if scores is not None:
+                    break
+            except TypeError as retry_err:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        "Weave scores not ready yet (attempt %d/%d): %s. Retrying in %ds...",
+                        attempt + 1,
+                        max_retries,
+                        retry_err,
+                        retry_delay,
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    raise
+
         if not scores:
             print("⚠️  No scorer results available for per-design metrics")
             return
