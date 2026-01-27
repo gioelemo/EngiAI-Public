@@ -46,10 +46,40 @@ def get_hf_dataset(dataset_name: str, split: str = "test"):
     return _hf_dataset_cache[cache_key]
 
 
+def _try_load_design_from_path(design_path: str, example_id: int) -> np.ndarray | None:
+    """Try to load a design array from a file path.
+
+    Args:
+        design_path: Path to the .npy file containing the design
+        example_id: Example identifier for debug logging
+
+    Returns:
+        Design array if loaded successfully, None otherwise
+    """
+    try:
+        design_array = np.load(design_path)
+        logger.debug(
+            "Example %s: Loaded design from file %s (shape: %s)",
+            example_id,
+            design_path,
+            design_array.shape,
+        )
+        return design_array
+    except Exception as e:
+        logger.debug(
+            "Example %s: Failed to load design from %s: %s", example_id, design_path, e
+        )
+        return None
+
+
 def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
     messages: list, example_id: int
 ) -> np.ndarray | None:
     """Extract optimized design array from tool message history.
+
+    Supports two extraction methods:
+    1. Direct array extraction from 'optimized_design' field in tool output
+    2. File-based extraction from 'design_path' field (loads .npy file)
 
     Args:
         messages: List of messages from agent conversation
@@ -59,6 +89,7 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
         Design array if found, None otherwise
     """
     design_array = None
+    design_path = None
     tool_messages_count = 0
 
     for msg in messages:
@@ -72,7 +103,11 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
         if not isinstance(content, str):
             continue
 
-        if "optimized_design" not in content:
+        # Check for design_path (file-based storage) or optimized_design (direct array)
+        has_design_path = "design_path" in content
+        has_optimized_design = "optimized_design" in content
+
+        if not has_design_path and not has_optimized_design:
             # Debug: show what the content looks like
             content_preview = (
                 content[:DEBUG_PREVIEW_SHORT]
@@ -87,8 +122,30 @@ def extract_design_from_tool_messages(  # noqa: PLR0912, PLR0915
             )
             continue
 
-        # Found optimized_design in message
-        logger.debug("Example %s: Found optimized_design in tool message", example_id)
+        # Found design information in message
+        logger.debug(
+            "Example %s: Found design info in tool message (path=%s, array=%s)",
+            example_id,
+            has_design_path,
+            has_optimized_design,
+        )
+
+        # Try file-based extraction first (preferred for context efficiency)
+        if has_design_path:
+            # Extract design_path from the message
+            path_match = re.search(r"['\"]design_path['\"]\s*:\s*['\"]([^'\"]+)['\"]", content)
+            if path_match:
+                current_design_path = path_match.group(1)
+                loaded_design = _try_load_design_from_path(current_design_path, example_id)
+                if loaded_design is not None:
+                    design_array = loaded_design
+                    design_path = current_design_path
+                    # Continue iterating to get the LAST occurrence (most recent design)
+                    continue
+
+        # Fall back to direct array extraction if no design_path or file load failed
+        if not has_optimized_design:
+            continue
 
         # Parse the tool response - try multiple approaches
         result = None

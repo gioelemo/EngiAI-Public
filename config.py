@@ -62,6 +62,11 @@ class Config:
         self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4o")
         self.llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
 
+        # Ollama-specific configuration
+        # num_ctx controls the context window size for Ollama models (default: 32768)
+        # Increase this for models that support larger contexts or if hitting context limits
+        self.ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
+
         # Validate temperature is in valid range
         if not MIN_TEMPERATURE <= self.llm_temperature <= MAX_TEMPERATURE:
             raise ValueError(
