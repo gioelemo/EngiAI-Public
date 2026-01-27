@@ -6,6 +6,7 @@ Shared utilities for plots.
 - Plot styling
 """
 
+import re
 import shutil
 from pathlib import Path
 
@@ -31,69 +32,14 @@ KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow"]
 # Directory structure:
 # results/baselines/{baseline_type}/{problem}/                              - for baselines (CGAN, CNN, etc.)
 # results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/       - for LLM agent models
-# Legacy: results/models/{model_name}/{prompt_style}/{problem}/            - old structure (still supported)
-# Legacy: results/cgan_cnn_2d/{problem}/                                   - old structure (still supported)
-# Legacy: results/models/{model_name}/{problem}/                           - old structure (treat as "full")
-# Legacy: results/{model_name}/{problem}/                                  - old structure (still supported)
 BASELINES_DIR = RESULTS_DIR / "baselines"
 MODELS_DIR = RESULTS_DIR / "models"
 
 # Known RAG statuses
 KNOWN_RAG_STATUSES = ["rag", "no_rag"]
 
-# Known baseline types
-KNOWN_BASELINE_TYPES = ["cgan_cnn_2d"]
-
-# CGAN baseline directory (new structure is preferred)
-# New: baselines/cgan_cnn_2d/{model_id}/{problem}/
-CGAN_DIR = BASELINES_DIR / "cgan_cnn_2d"  # New structure (preferred)
-CGAN_DIR_LEGACY = RESULTS_DIR / "cgan_cnn_2d"  # Legacy (for backwards compat)
-
 # Minimum parts when parsing keys like "{model}_{prompt_style}_{problem}_{type}"
-# or legacy "{model}_{problem}_{type}"
-MIN_KEY_PARTS = 3  # Minimum for legacy format
-
-
-def _discover_model_paths(
-    model_dir: Path, model_name: str, prompt_style: str | None = None
-) -> dict[str, Path]:
-    """Discover result files for a single model directory.
-
-    Args:
-        model_dir: Path to the model directory (or model/prompt_style directory)
-        model_name: Name of the model (for key generation)
-        prompt_style: Optional prompt style (for key generation)
-
-    Returns:
-        Dictionary mapping keys to file paths
-    """
-    paths = {}
-
-    for problem in KNOWN_PROBLEMS:
-        problem_dir = model_dir / problem
-
-        # Build key prefix: model_promptstyle_problem or model_problem (legacy)
-        if prompt_style:
-            key_prefix = f"{model_name}_{prompt_style}_{problem}"
-        else:
-            key_prefix = f"{model_name}_{problem}"
-
-        # Global metrics
-        global_path = problem_dir / "output_quality_global_metrics.csv"
-        if global_path.exists():
-            paths[f"{key_prefix}_global"] = global_path
-
-        # Design metrics
-        design_path = problem_dir / "output_quality_design_metrics.csv"
-        if design_path.exists():
-            paths[f"{key_prefix}_design"] = design_path
-
-        # Tool usage data
-        tools_path = problem_dir / "data.csv"
-        if tools_path.exists():
-            paths[f"{key_prefix}_tools"] = tools_path
-
-    return paths
+MIN_KEY_PARTS = 3
 
 
 def _discover_baseline_paths() -> dict[str, Path]:
@@ -104,7 +50,7 @@ def _discover_baseline_paths() -> dict[str, Path]:
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths = {}
+    paths: dict[str, Path] = {}
     if not BASELINES_DIR.exists():
         return paths
 
@@ -124,64 +70,15 @@ def _discover_baseline_paths() -> dict[str, Path]:
     return paths
 
 
-def _discover_legacy_cgan_paths() -> dict[str, Path]:
-    """Discover CGAN results from legacy location only.
-
-    Legacy structure: results/cgan_cnn_2d/{problem}/
-    (NOT baselines/cgan_cnn_2d/ - that's handled by _discover_baseline_paths)
-
-    Returns:
-        Dictionary mapping keys to file paths
-    """
-    paths = {}
-    # Only check legacy location (results/cgan_cnn_2d/)
-    # New location (baselines/cgan_cnn_2d/) is handled by _discover_baseline_paths
-    if not (CGAN_DIR_LEGACY.exists() and CGAN_DIR_LEGACY.is_dir()):
-        return paths
-
-    for problem in KNOWN_PROBLEMS:
-        cgan_path = CGAN_DIR_LEGACY / problem / "output_quality_global_metrics.csv"
-        if cgan_path.exists():
-            paths[f"cgan_legacy_{problem}_global"] = cgan_path
-
-    return paths
-
-
-def _discover_legacy_model_paths() -> dict[str, Path]:
-    """Discover model results from legacy root location.
-
-    Legacy structure: results/{model_name}/{problem}/
-
-    Returns:
-        Dictionary mapping keys to file paths
-    """
-    paths = {}
-    if not RESULTS_DIR.exists():
-        return paths
-
-    skip_dirs = {"baselines", "models", *KNOWN_BASELINE_TYPES}
-    for model_dir in RESULTS_DIR.iterdir():
-        if not model_dir.is_dir():
-            continue
-        if model_dir.name in skip_dirs:
-            continue
-        paths.update(_discover_model_paths(model_dir, model_dir.name))
-
-    return paths
-
-
 def _discover_models_dir_paths() -> dict[str, Path]:
     """Discover model result files from the models directory.
 
-    Supports both new and legacy structures:
-        New:    results/models/{model}/{problem}/{prompt_style}/{rag_status}/
-        Legacy: results/models/{model}/{prompt_style}/{problem}/
-        Legacy: results/models/{model}/{problem}/  (treated as "full")
+    Structure: results/models/{model}/{problem}/{prompt_style}/{rag_status}/
 
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths = {}
+    paths: dict[str, Path] = {}
     if not MODELS_DIR.exists():
         return paths
 
@@ -195,9 +92,6 @@ def _discover_models_dir_paths() -> dict[str, Path]:
 
             if subdir.name in KNOWN_PROBLEMS:
                 paths.update(_discover_problem_subdir(model_dir, subdir))
-            elif subdir.name in KNOWN_PROMPT_STYLES:
-                # Legacy structure: model/prompt_style/problem/
-                paths.update(_discover_model_paths(subdir, model_dir.name, subdir.name))
 
     return paths
 
@@ -205,32 +99,36 @@ def _discover_models_dir_paths() -> dict[str, Path]:
 def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Path]:
     """Discover results under a model/problem/ directory.
 
-    Handles:
-        New:    model/problem/prompt_style/rag_status/  (CSVs in rag_status dir)
-        Legacy: model/problem/                           (CSVs directly in problem dir)
+    Structure: model/problem/prompt_style/rag_status/ (CSVs in rag_status dir)
 
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths = {}
-    found_new_structure = False
+    paths: dict[str, Path] = {}
+    problem = problem_dir.name
+    model_name = model_dir.name
 
     for ps_dir in problem_dir.iterdir():
         if not ps_dir.is_dir() or ps_dir.name not in KNOWN_PROMPT_STYLES:
             continue
-        # New structure: model/problem/prompt_style/rag_status/
+        prompt_style = ps_dir.name
         for rag_dir in ps_dir.iterdir():
-            if rag_dir.is_dir() and rag_dir.name in KNOWN_RAG_STATUSES:
-                paths.update(
-                    _discover_model_paths(rag_dir, model_dir.name, ps_dir.name)
-                )
-                found_new_structure = True
+            if not rag_dir.is_dir() or rag_dir.name not in KNOWN_RAG_STATUSES:
+                continue
 
-    if not found_new_structure:
-        # Legacy: model/problem/ with CSVs directly
-        global_path = problem_dir / "output_quality_global_metrics.csv"
-        if global_path.exists():
-            paths.update(_discover_model_paths(model_dir, model_dir.name, "full"))
+            key_prefix = f"{model_name}_{prompt_style}_{problem}"
+
+            global_path = rag_dir / "output_quality_global_metrics.csv"
+            if global_path.exists():
+                paths[f"{key_prefix}_global"] = global_path
+
+            design_path = rag_dir / "output_quality_design_metrics.csv"
+            if design_path.exists():
+                paths[f"{key_prefix}_design"] = design_path
+
+            tools_path = rag_dir / "data.csv"
+            if tools_path.exists():
+                paths[f"{key_prefix}_tools"] = tools_path
 
     return paths
 
@@ -238,34 +136,20 @@ def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Pa
 def discover_data_paths() -> dict[str, Path]:
     """Auto-discover available result files in the results directory.
 
-    Supports both new structure (baselines/, models/) and legacy structures.
-
     Directory structure:
-        New:
-            results/baselines/{baseline_type}/{problem}/
-            results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/
-        Legacy:
-            results/models/{model_name}/{prompt_style}/{problem}/
-            results/cgan_cnn_2d/{problem}/
-            results/models/{model_name}/{problem}/  (treated as "full" prompt style)
-            results/{model_name}/{problem}/
+        results/baselines/{baseline_type}/{problem}/
+        results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/
 
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths = {}
+    paths: dict[str, Path] = {}
 
-    # 1. Discover from results/models/ (new + legacy structures)
+    # 1. Discover from results/models/
     paths.update(_discover_models_dir_paths())
 
-    # 2. Discover from new structure: results/baselines/
+    # 2. Discover from results/baselines/
     paths.update(_discover_baseline_paths())
-
-    # 3. Legacy: Discover agent model directories at root
-    paths.update(_discover_legacy_model_paths())
-
-    # 4. Legacy: Discover CGAN results
-    paths.update(_discover_legacy_cgan_paths())
 
     return paths
 
@@ -277,27 +161,40 @@ def _get_model_label(model_name: str) -> str:
         openai_gpt-4o -> GPT-4o
         openai_gpt-4.1 -> GPT-4.1
         anthropic_claude-3-5-sonnet -> Claude-3.5-Sonnet
+        ollama_qwen3_8b-q8_0 -> Qwen3-8B-Q8_0
+        ollama_qwen3_4b -> Qwen3-4B
+        ollama_qwen3_4b-instruct-2507-q8_0 -> Qwen3-4B-Instruct-2507-Q8_0
     """
     # Remove provider prefix
     if "_" in model_name:
         parts = model_name.split("_", 1)
-        if parts[0] in ["openai", "anthropic", "google"]:
+        if parts[0] in ["openai", "anthropic", "google", "ollama"]:
             model_name = parts[1]
 
     # Clean up common patterns
     model_name = model_name.replace("gpt-", "GPT-")
     model_name = model_name.replace("claude-", "Claude-")
 
+    # Clean up Ollama-style model names (e.g., qwen3_8b-q8_0 -> Qwen3-8B-Q8_0)
+    if model_name.lower().startswith("qwen"):
+        # Replace underscores with hyphens for readability
+        model_name = model_name.replace("_", "-")
+        # Capitalize "qwen" prefix
+        model_name = "Qwen" + model_name[4:]
+        # Uppercase size suffixes like 8b, 4b
+        model_name = re.sub(
+            r"-(\d+)b", lambda m: f"-{m.group(1)}B", model_name, flags=re.IGNORECASE
+        )
+
     return model_name
 
 
-def _parse_data_key(key: str) -> dict[str, str] | None:
+def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
     """Parse a data key to extract model, prompt_style, problem, and type.
 
     Key formats:
-        New: {model}_{prompt_style}_{problem}_{type}
-        Legacy: {model}_{problem}_{type}
-        CGAN: cgan_cnn_2d_{problem}_{type} or cgan_legacy_{problem}_{type}
+        Model: {model}_{prompt_style}_{problem}_{type}
+        CGAN:  cgan_cnn_2d_{problem}_{type}
 
     Returns:
         Dictionary with 'model', 'prompt_style', 'problem', 'type' or None if invalid.
@@ -324,7 +221,6 @@ def _parse_data_key(key: str) -> dict[str, str] | None:
             "is_baseline": True,
         }
 
-    # Check if model_part includes prompt_style
     # Format: {model_name}_{prompt_style} where prompt_style is known
     for style in KNOWN_PROMPT_STYLES:
         if model_part.endswith(f"_{style}"):
@@ -337,18 +233,8 @@ def _parse_data_key(key: str) -> dict[str, str] | None:
                 "is_baseline": False,
             }
 
-    # Legacy format without prompt_style (treat as "full")
-    return {
-        "model": model_part,
-        "prompt_style": "full",
-        "problem": problem,
-        "type": data_type,
-        "is_baseline": False,
-    }
+    return None
 
-
-# Legacy DATA_PATHS for backwards compatibility (auto-discovered)
-DATA_PATHS = discover_data_paths()
 
 # NeurIPS 2-column format dimensions (inches)
 # Single column: ~3.25", Full width: ~6.75"
@@ -378,10 +264,6 @@ PLOT_STYLE = {
     "figsize_single_col_tall": (NEURIPS_COLUMN_WIDTH, 3.0),
     "figsize_full_width": (NEURIPS_FULL_WIDTH, 2.8),
     "figsize_full_width_tall": (NEURIPS_FULL_WIDTH, 4.0),
-    # Legacy sizes (for reference, prefer new sizes)
-    "figsize_scatter": (NEURIPS_COLUMN_WIDTH, 2.4),
-    "figsize_bars": (NEURIPS_FULL_WIDTH, 4.0),
-    "figsize_violin": (NEURIPS_COLUMN_WIDTH, 2.4),
     "dpi": 300,
     # Color palette for dynamic assignment (cycle through for models)
     "color_palette": COLOR_PALETTE,
@@ -403,6 +285,24 @@ PLOT_STYLE = {
         "annotation": 6,
     },
 }
+
+
+def make_label(model: str, problem: str, single_problem: bool = False) -> str:
+    """Create a display label for a model/problem combination.
+
+    When only one problem is present, omits the redundant problem suffix.
+
+    Args:
+        model: Model display name
+        problem: Problem name (e.g., "beams2d")
+        single_problem: If True, omit problem from label
+
+    Returns:
+        Display label string
+    """
+    if single_problem:
+        return model
+    return f"{model} ({problem})"
 
 
 def get_model_style(models: list[str]) -> dict[str, dict]:
@@ -724,13 +624,12 @@ def get_combined_design_df(data):
 
         df = data[key].copy()
 
-        # Extract model and problem from key
-        parts = key.rsplit("_", 2)
-        if len(parts) >= MIN_KEY_PARTS:
-            problem = parts[-2]
-            model_dir_name = "_".join(parts[:-2])
-            model_label = _get_model_label(model_dir_name)
+        parsed = _parse_data_key(key)
+        if parsed is not None:
+            problem = parsed["problem"]
+            model_label = _get_model_label(parsed["model"])
 
+            df["model_display"] = model_label
             df["source"] = f"{model_label} ({problem})"
             if "problem" not in df.columns:
                 df["problem"] = problem

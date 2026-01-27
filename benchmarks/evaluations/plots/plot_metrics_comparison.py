@@ -14,6 +14,7 @@ from utils import (
     get_combined_global_df,
     get_model_style,
     load_data,
+    make_label,
     save_figure,
     setup_style,
 )
@@ -42,6 +43,7 @@ def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
 
     groups = combined_df.groupby(["model", "problem"])
     font_sizes = PLOT_STYLE["font_sizes"]
+    single_problem = combined_df["problem"].nunique() == 1
 
     # Get dynamic styles for models
     models = list(combined_df["model"].unique())
@@ -60,7 +62,7 @@ def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
             if len(values) > 0:
                 means.append(values.mean())
                 stds.append(values.std())
-                labels.append(f"{model}\n({problem})")
+                labels.append(make_label(model, problem, single_problem))
                 bar_models.append(model)
 
         if means:
@@ -78,7 +80,12 @@ def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
                 linewidth=0.5,
             )
             ax.set_xticks(x)
-            ax.set_xticklabels(labels, fontsize=font_sizes["tick_label"])
+            ax.set_xticklabels(
+                labels,
+                fontsize=font_sizes["tick_label"],
+                rotation=30,
+                ha="right",
+            )
             ax.set_ylabel(ylabel)
             ax.grid(True, axis="y", alpha=0.3)
 

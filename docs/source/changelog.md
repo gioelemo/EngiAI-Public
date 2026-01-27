@@ -246,7 +246,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Dataset Management**
   - Improved dataset creation workflow with validation and error handling
-  - Added comparison images saved to `evaluations/results/{model}/{problem}/comparisons/`
+  - Added comparison images saved to `evaluations/results/models/{model}/{problem}/{prompt_style}/{rag_status}/comparisons/`
   - Better organization of evaluation data and results
   - Dataset split support (train/val/test) in prompt generation
   - Validation reports for prompt quality assurance
