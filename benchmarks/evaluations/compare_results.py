@@ -34,39 +34,38 @@ GLOBAL_METRICS = ["mmd", "dpp", "rvc", "iog", "cog", "fog"]
 def load_cgan_results(problem: str) -> pd.DataFrame | None:
     """Load CGAN evaluation results.
 
-    Checks new location (baselines/cgan_cnn_2d/{problem}/) first, then legacy.
-
     Args:
         problem: Problem type (e.g., "beams2d")
     """
-    # Try new location first: baselines/cgan_cnn_2d/{problem}/
     csv_path = (
         BASELINES_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
     )
-    if not csv_path.exists():
-        # Fall back to old legacy location
-        csv_path = (
-            RESULTS_DIR / "cgan_cnn_2d" / problem / "output_quality_global_metrics.csv"
-        )
     if not csv_path.exists():
         print("Warning: CGAN results not found")
         return None
     return pd.read_csv(csv_path)
 
 
-def load_agent_results(problem: str, model: str) -> pd.DataFrame | None:
+def load_agent_results(
+    problem: str, model: str, prompt_style: str = "full", rag_status: str = "no_rag"
+) -> pd.DataFrame | None:
     """Load agent evaluation results.
 
-    Checks new location (models/) first, then legacy location.
+    Args:
+        problem: Problem type (e.g., "beams2d")
+        model: Model name (e.g., "openai_gpt-4.1-mini")
+        prompt_style: Prompt style (default: "full")
+        rag_status: RAG status (default: "no_rag")
     """
     model_safe = model.replace("/", "_").replace(":", "_")
-    # Try new location first
-    csv_path = MODELS_DIR / model_safe / problem / "output_quality_global_metrics.csv"
-    if not csv_path.exists():
-        # Fall back to legacy location
-        csv_path = (
-            RESULTS_DIR / model_safe / problem / "output_quality_global_metrics.csv"
-        )
+    csv_path = (
+        MODELS_DIR
+        / model_safe
+        / problem
+        / prompt_style
+        / rag_status
+        / "output_quality_global_metrics.csv"
+    )
     if not csv_path.exists():
         print(f"Warning: Agent results not found for {model}")
         return None
