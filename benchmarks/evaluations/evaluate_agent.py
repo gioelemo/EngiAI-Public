@@ -61,6 +61,7 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
     """Return the RAG subdirectory name based on the mmore flag."""
     return "rag" if mmore_enabled else "no_rag"
 
+
 # Import output quality scorers
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
@@ -838,7 +839,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Save per-design metrics to CSV
     model_safe = model_name.replace("/", "_").replace(":", "_")
     rag_dir = _get_rag_dir(args.mmore_enabled)
-    results_dir = RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
+    results_dir = (
+        RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
+    )
     results_dir.mkdir(parents=True, exist_ok=True)
     design_metrics_csv = str(results_dir / "output_quality_design_metrics.csv")
     save_per_design_metrics(
@@ -979,7 +982,11 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
             model_safe = model_name.replace("/", "_").replace(":", "_")
             rag_dir = _get_rag_dir(args.mmore_enabled)
             results_dir = (
-                RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
+                RESULTS_BASE_DIR
+                / model_safe
+                / args.problem
+                / args.prompt_style
+                / rag_dir
             )
             results_dir.mkdir(parents=True, exist_ok=True)
             csv_path = str(results_dir / "output_quality_global_metrics.csv")

@@ -38,7 +38,7 @@ from utils import (
     get_combined_tool_usage_df,
     get_output_dir,
     get_problem_output_dir,
-    get_prompt_style_output_dir,
+    get_problem_prompt_output_dir,
     load_data,
     load_tool_usage_data,
 )
@@ -185,7 +185,7 @@ def _generate_plots_for_problem(
     combined_global,
     combined_design,
     combined_tools,
-    base_output_dir=None,
+    prompt_style: str | None = None,
 ):
     """Generate all plots for a specific problem.
 
@@ -194,16 +194,15 @@ def _generate_plots_for_problem(
         combined_global: Full global metrics DataFrame
         combined_design: Full design metrics DataFrame
         combined_tools: Full tool usage DataFrame
-        base_output_dir: Optional base output directory (for prompt_style filtering)
+        prompt_style: Optional prompt style for output directory (figures/{problem}/{prompt_style}/)
     """
     print("\n" + "=" * 60)
     print(f"GENERATING PLOTS FOR: {problem.upper()}")
     print("=" * 60)
 
-    # Get problem-specific output directory
-    if base_output_dir is not None:
-        output_dir = base_output_dir / problem
-        output_dir.mkdir(parents=True, exist_ok=True)
+    # Get problem-specific output directory: figures/{problem}/{prompt_style}/ or figures/{problem}/
+    if prompt_style is not None:
+        output_dir = get_problem_prompt_output_dir(problem, prompt_style)
     else:
         output_dir = get_problem_output_dir(problem)
     print(f"Output directory: {output_dir}")
@@ -233,7 +232,7 @@ def _parse_args():
         "--prompt-style",
         type=str,
         choices=["full", "approximate", "natural", "workflow"],
-        help="Generate plots only for a specific prompt style (saves to figures/{style}/)",
+        help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",
     )
     parser.add_argument(
         "--combined-only",
@@ -302,11 +301,7 @@ def _generate_all_plots(
     args, combined_global, combined_design, combined_tools, problems_with_data
 ):
     """Generate all requested plots based on args."""
-    base_output_dir = (
-        get_prompt_style_output_dir(args.prompt_style)
-        if args.prompt_style
-        else get_output_dir()
-    )
+    base_output_dir = get_output_dir()
 
     # Generate per-problem plots if not combined-only
     if not args.combined_only:
@@ -316,7 +311,7 @@ def _generate_all_plots(
                 combined_global,
                 combined_design,
                 combined_tools,
-                base_output_dir=base_output_dir if args.prompt_style else None,
+                prompt_style=args.prompt_style,
             )
 
     # Generate combined plots
@@ -338,7 +333,12 @@ def _generate_all_plots(
     print("\n" + "=" * 60)
     print(f"DONE! All figures saved to: {base_output_dir}")
     if not args.combined_only:
-        print(f"Problem-specific figures in: {base_output_dir}/{{problem}}/")
+        if args.prompt_style:
+            print(
+                f"Problem-specific figures in: {base_output_dir}/{{problem}}/{args.prompt_style}/"
+            )
+        else:
+            print(f"Problem-specific figures in: {base_output_dir}/{{problem}}/")
     print("=" * 60)
 
 
@@ -376,23 +376,17 @@ def main():
         if args.problem not in problems_with_data:
             print(f"WARNING: No data found for problem '{args.problem}'")
             return
-        base_output_dir = (
-            get_prompt_style_output_dir(args.prompt_style)
-            if args.prompt_style
-            else None
-        )
         _generate_plots_for_problem(
             args.problem,
             combined_global,
             combined_design,
             combined_tools,
-            base_output_dir=base_output_dir,
+            prompt_style=args.prompt_style,
         )
-        output_dir = (
-            base_output_dir / args.problem
-            if base_output_dir
-            else get_problem_output_dir(args.problem)
-        )
+        if args.prompt_style:
+            output_dir = get_problem_prompt_output_dir(args.problem, args.prompt_style)
+        else:
+            output_dir = get_problem_output_dir(args.problem)
         print("\n" + "=" * 60)
         print(f"DONE! Figures saved to: {output_dir}")
         print("=" * 60)

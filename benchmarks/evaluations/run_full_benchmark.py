@@ -331,7 +331,9 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         model_name = args.model if args.model is not None else config.llm_model
         model_safe = model_name.replace("/", "_").replace(":", "_")
         rag_dir = "rag" if args.mmore_enabled else "no_rag"
-        agent_results_dir = MODELS_DIR / model_safe / args.problem / args.prompt_style / rag_dir
+        agent_results_dir = (
+            MODELS_DIR / model_safe / args.problem / args.prompt_style / rag_dir
+        )
         print(f"  Results saved to: {agent_results_dir}")
 
     print()
