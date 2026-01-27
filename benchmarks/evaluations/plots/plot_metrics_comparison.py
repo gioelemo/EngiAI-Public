@@ -80,7 +80,12 @@ def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
                 linewidth=0.5,
             )
             ax.set_xticks(x)
-            ax.set_xticklabels(labels, fontsize=font_sizes["tick_label"])
+            ax.set_xticklabels(
+                labels,
+                fontsize=font_sizes["tick_label"],
+                rotation=30,
+                ha="right",
+            )
             ax.set_ylabel(ylabel)
             ax.grid(True, axis="y", alpha=0.3)
 
