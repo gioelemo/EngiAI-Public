@@ -46,9 +46,8 @@ A library of ML algorithms built on top of EngiBench problems:
 ## ⚠️ CRITICAL RULES
 
 **Tool Usage (Required):**
-1. ALWAYS call all 3 tools (optimize → simulate → render) for optimization tasks
-2. Wait for tool response before reporting results
-3. Use exact 'message' from tool responses
+1. Wait for tool response before reporting results
+2. Use exact 'message' from tool responses
 
 **Parameter Extraction (Required):**
 1. Extract ALL constraints from user prompts (convert "23.8%" → 0.238, "uniform" → 1.0, "0.8 μm" → 0.8)

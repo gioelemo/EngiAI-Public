@@ -458,7 +458,6 @@ def optimize_design(  # noqa: PLR0913
     problem_type: str = "beams2d",
     problem_config: dict[str, Any] | None = None,
     seed: int = 0,
-    save_result: bool = True,
     # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
     volume_fraction: float | None = None,
     volfrac: float | None = None,
@@ -478,10 +477,12 @@ def optimize_design(  # noqa: PLR0913
     This is the PRIMARY tool for all optimization and design tasks.
     Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
 
+    The optimized design is always saved to outputs/ directory to reduce context
+    consumption. Use np.load(design_path) to load the design array.
+
     Args:
         problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d')
         seed: Random seed for optimization (default: 0)
-        save_result: Whether to save the optimized design to outputs/ directory
 
         Configuration parameters (pass directly OR in problem_config dict):
         - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
@@ -494,7 +495,7 @@ def optimize_design(  # noqa: PLR0913
         problem_config: Alternative: pass all config as a dict (e.g., {"volfrac": 0.4, "rmin": 2.0})
 
     Returns:
-        dict with: success, problem_type, design_shape, optimized_design, optimization_info, message
+        dict with: success, problem_type, design_shape, design_path, optimization_info, message
 
     Examples:
         # Flat parameters (recommended for LLMs):
@@ -561,12 +562,21 @@ def optimize_design(  # noqa: PLR0913
         if hasattr(problem, "_current_beta"):
             set_final_beta(problem_type, problem._current_beta)
 
+        # Save design to file (always save to reduce context consumption)
+        output_dir = Path("outputs")
+        output_dir.mkdir(exist_ok=True)
+        base_path = output_dir / f"{problem_type}_design_optimized.npy"
+        versioned_path = _build_versioned_path(base_path, problem_type, "_optimized")
+        np.save(str(versioned_path), optimized_design)
+
         # Format results - note: we don't call simulate() here
         # The LLM should call simulate_design tool separately if needed
+        # Pass the design path instead of the full array to reduce context size
         result = _format_optimization_result(
             problem_type,
             optimized_design,
             optimization_info,
+            design_path=str(versioned_path),
         )
 
         # Add warning if no configuration parameters were provided
@@ -574,22 +584,6 @@ def optimize_design(  # noqa: PLR0913
             warning_msg = " ⚠️ WARNING: No config parameters provided! Used defaults which may not match requirements!"
             result["message"] = result.get("message", "") + warning_msg
             result["config_warning"] = True
-
-        # Save if requested
-        if save_result:
-            output_dir = Path("outputs")
-            output_dir.mkdir(exist_ok=True)
-            # Use versioned path to avoid overwriting in parallel execution
-            base_path = output_dir / f"{problem_type}_design_optimized.npy"
-            versioned_path = _build_versioned_path(
-                base_path, problem_type, "_optimized"
-            )
-            np.save(str(versioned_path), optimized_design)
-            result["save_path"] = str(versioned_path)
-            result["message"] += f" Saved to {versioned_path.name}"
-            return result
-        else:
-            return result
     except ValueError as e:
         return {"success": False, "error": str(e)}
     except ImportError:
@@ -599,6 +593,8 @@ def optimize_design(  # noqa: PLR0913
         }
     except Exception as e:
         return {"success": False, "error": f"Optimization failed: {e!s}"}
+    else:
+        return result
 
 
 def _extract_figure_and_axis(render_result):
@@ -725,16 +721,22 @@ def _format_optimization_result(
     problem_type: str,
     optimized_design: np.ndarray,
     optimization_info: dict,
+    design_path: str | None = None,
 ) -> dict[str, Any]:
     """Format optimization results.
 
     Note: This function does not include objective values. Use the simulate_design
     tool separately to get objective values for the optimized design.
 
+    To reduce context consumption for smaller LLM models, the full design array
+    is saved to a file and only the path is returned. The design can be loaded
+    with: np.load(design_path)
+
     Args:
         problem_type: Type of the problem being formatted
         optimized_design: The optimized design array
         optimization_info: Optimization history/metadata
+        design_path: Path where the design array was saved (if any)
 
     Returns:
         Dictionary with formatted results
@@ -753,11 +755,15 @@ def _format_optimization_result(
     result: dict[str, Any] = {
         "success": True,
         "problem_type": problem_key,
-        "design_shape": optimized_design.shape,
-        "optimized_design": optimized_design.tolist(),  # Convert to list for JSON serialization
+        "design_shape": list(optimized_design.shape),
         "optimization_info": serializable_opt_info,  # Now JSON-serializable
         "message": f"Optimized {problem_type} design. Use simulate_design tool to get objective values.",
     }
+
+    # Include design path for file-based access (reduces context size)
+    if design_path:
+        result["design_path"] = design_path
+        result["message"] += f" Design saved to {design_path}."
 
     return result
 

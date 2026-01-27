@@ -29,13 +29,17 @@ KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d"]
 KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow"]
 
 # Directory structure:
-# results/baselines/{baseline_type}/{problem}/                  - for baselines (CGAN, CNN, etc.)
-# results/models/{model_name}/{prompt_style}/{problem}/         - for LLM agent models
-# Legacy: results/cgan_cnn_2d/{problem}/                        - old structure (still supported)
-# Legacy: results/models/{model_name}/{problem}/                - old structure (treat as "full")
-# Legacy: results/{model_name}/{problem}/                       - old structure (still supported)
+# results/baselines/{baseline_type}/{problem}/                              - for baselines (CGAN, CNN, etc.)
+# results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/       - for LLM agent models
+# Legacy: results/models/{model_name}/{prompt_style}/{problem}/            - old structure (still supported)
+# Legacy: results/cgan_cnn_2d/{problem}/                                   - old structure (still supported)
+# Legacy: results/models/{model_name}/{problem}/                           - old structure (treat as "full")
+# Legacy: results/{model_name}/{problem}/                                  - old structure (still supported)
 BASELINES_DIR = RESULTS_DIR / "baselines"
 MODELS_DIR = RESULTS_DIR / "models"
+
+# Known RAG statuses
+KNOWN_RAG_STATUSES = ["rag", "no_rag"]
 
 # Known baseline types
 KNOWN_BASELINE_TYPES = ["cgan_cnn_2d"]
@@ -166,16 +170,82 @@ def _discover_legacy_model_paths() -> dict[str, Path]:
     return paths
 
 
+def _discover_models_dir_paths() -> dict[str, Path]:
+    """Discover model result files from the models directory.
+
+    Supports both new and legacy structures:
+        New:    results/models/{model}/{problem}/{prompt_style}/{rag_status}/
+        Legacy: results/models/{model}/{prompt_style}/{problem}/
+        Legacy: results/models/{model}/{problem}/  (treated as "full")
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+    if not MODELS_DIR.exists():
+        return paths
+
+    for model_dir in MODELS_DIR.iterdir():
+        if not model_dir.is_dir():
+            continue
+
+        for subdir in model_dir.iterdir():
+            if not subdir.is_dir():
+                continue
+
+            if subdir.name in KNOWN_PROBLEMS:
+                paths.update(_discover_problem_subdir(model_dir, subdir))
+            elif subdir.name in KNOWN_PROMPT_STYLES:
+                # Legacy structure: model/prompt_style/problem/
+                paths.update(_discover_model_paths(subdir, model_dir.name, subdir.name))
+
+    return paths
+
+
+def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Path]:
+    """Discover results under a model/problem/ directory.
+
+    Handles:
+        New:    model/problem/prompt_style/rag_status/  (CSVs in rag_status dir)
+        Legacy: model/problem/                           (CSVs directly in problem dir)
+
+    Returns:
+        Dictionary mapping keys to file paths
+    """
+    paths = {}
+    found_new_structure = False
+
+    for ps_dir in problem_dir.iterdir():
+        if not ps_dir.is_dir() or ps_dir.name not in KNOWN_PROMPT_STYLES:
+            continue
+        # New structure: model/problem/prompt_style/rag_status/
+        for rag_dir in ps_dir.iterdir():
+            if rag_dir.is_dir() and rag_dir.name in KNOWN_RAG_STATUSES:
+                paths.update(
+                    _discover_model_paths(rag_dir, model_dir.name, ps_dir.name)
+                )
+                found_new_structure = True
+
+    if not found_new_structure:
+        # Legacy: model/problem/ with CSVs directly
+        global_path = problem_dir / "output_quality_global_metrics.csv"
+        if global_path.exists():
+            paths.update(_discover_model_paths(model_dir, model_dir.name, "full"))
+
+    return paths
+
+
 def discover_data_paths() -> dict[str, Path]:
     """Auto-discover available result files in the results directory.
 
-    Supports both new structure (baselines/, models/) and legacy structure.
+    Supports both new structure (baselines/, models/) and legacy structures.
 
     Directory structure:
         New:
             results/baselines/{baseline_type}/{problem}/
-            results/models/{model_name}/{prompt_style}/{problem}/
+            results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/
         Legacy:
+            results/models/{model_name}/{prompt_style}/{problem}/
             results/cgan_cnn_2d/{problem}/
             results/models/{model_name}/{problem}/  (treated as "full" prompt style)
             results/{model_name}/{problem}/
@@ -185,35 +255,8 @@ def discover_data_paths() -> dict[str, Path]:
     """
     paths = {}
 
-    # 1. Discover from new structure: results/models/{model}/{prompt_style}/{problem}/
-    if MODELS_DIR.exists():
-        for model_dir in MODELS_DIR.iterdir():
-            if not model_dir.is_dir():
-                continue
-
-            # Check if subdirectories are prompt_style or problem directories
-            for subdir in model_dir.iterdir():
-                if not subdir.is_dir():
-                    continue
-
-                if subdir.name in KNOWN_PROMPT_STYLES:
-                    # New structure: model/prompt_style/problem/
-                    prompt_style_dir = subdir
-                    paths.update(
-                        _discover_model_paths(
-                            prompt_style_dir, model_dir.name, subdir.name
-                        )
-                    )
-                elif subdir.name in KNOWN_PROBLEMS:
-                    # Legacy structure: model/problem/ (treat as "full")
-                    # Only process if there's no prompt_style level
-                    # Check if this is directly a problem dir with results
-                    global_path = subdir / "output_quality_global_metrics.csv"
-                    if global_path.exists():
-                        paths.update(
-                            _discover_model_paths(model_dir, model_dir.name, "full")
-                        )
-                        break  # Found legacy structure, don't double-count
+    # 1. Discover from results/models/ (new + legacy structures)
+    paths.update(_discover_models_dir_paths())
 
     # 2. Discover from new structure: results/baselines/
     paths.update(_discover_baseline_paths())
@@ -766,6 +809,23 @@ def get_prompt_style_output_dir(prompt_style: str):
         Path to the output directory for this prompt style
     """
     output_dir = OUTPUT_DIR / prompt_style
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def get_problem_prompt_output_dir(problem: str, prompt_style: str) -> Path:
+    """Return output directory for a specific problem and prompt style.
+
+    Structure: figures/{problem}/{prompt_style}/
+
+    Args:
+        problem: Problem name (e.g., "beams2d")
+        prompt_style: Prompt style (e.g., "full", "approximate")
+
+    Returns:
+        Path to the output directory
+    """
+    output_dir = OUTPUT_DIR / problem / prompt_style
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 

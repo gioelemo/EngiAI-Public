@@ -48,7 +48,18 @@ class BaseAgent(ABC):
         logger.debug(
             f"Initializing {self.__class__.__name__} with temperature={self.temperature}"
         )
-        self.llm = init_chat_model(self.model_name, temperature=self.temperature)
+
+        # Build kwargs for model initialization
+        model_kwargs: dict = {"temperature": self.temperature}
+
+        # Add Ollama-specific configuration if using an Ollama model
+        if self.model_name.startswith("ollama:"):
+            model_kwargs["num_ctx"] = config.ollama_num_ctx
+            logger.debug(
+                f"Ollama model detected, using num_ctx={config.ollama_num_ctx}"
+            )
+
+        self.llm = init_chat_model(self.model_name, **model_kwargs)
         self.require_confirmation = require_confirmation
 
         # Initialize tools

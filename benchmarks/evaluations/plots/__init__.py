@@ -8,4 +8,5 @@ Story C: "Diversity vs Quality Trade-off"
 
 from .utils import PLOT_STYLE as PLOT_STYLE
 from .utils import get_output_dir as get_output_dir
+from .utils import get_problem_prompt_output_dir as get_problem_prompt_output_dir
 from .utils import load_data as load_data
