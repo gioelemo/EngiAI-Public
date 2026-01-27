@@ -32,14 +32,25 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     )
 
     # Filter to valid designs
-    valid_designs = combined_design_df[combined_design_df["design_found"]]
+    valid_designs = combined_design_df[combined_design_df["design_found"]].copy()
     font_sizes = PLOT_STYLE["font_sizes"]
+
+    # When all entries share the same problem, use just model names (no redundant problem suffix)
+    single_problem = (
+        valid_designs["problem"].nunique() == 1
+        if "problem" in valid_designs.columns
+        else False
+    )
+    if single_problem and "model_display" in valid_designs.columns:
+        valid_designs["_label"] = valid_designs["model_display"]
+    else:
+        valid_designs["_label"] = valid_designs["source"]
 
     sns.violinplot(
         data=valid_designs,
-        x="source",
+        x="_label",
         y="overall_score",
-        hue="source",
+        hue="_label",
         palette=[PLOT_STYLE["colors"]["beams2d"], PLOT_STYLE["colors"]["photonics2d"]],
         inner="box",
         legend=False,
@@ -53,11 +64,13 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     ax.grid(True, axis="y", alpha=0.3)
 
     # Rotate x-tick labels for readability
-    ax.tick_params(axis="x", rotation=15)
+    ax.tick_params(axis="x", rotation=30)
+    for label in ax.get_xticklabels():
+        label.set_ha("right")
 
     # Statistics annotations (smaller, cleaner)
-    for i, source in enumerate(valid_designs["source"].unique()):
-        subset = valid_designs[valid_designs["source"] == source]["overall_score"]
+    for i, source in enumerate(valid_designs["_label"].unique()):
+        subset = valid_designs[valid_designs["_label"] == source]["overall_score"]
         stats_text = f"$\\mu$={subset.mean():.2f}"
         ax.annotate(
             stats_text,

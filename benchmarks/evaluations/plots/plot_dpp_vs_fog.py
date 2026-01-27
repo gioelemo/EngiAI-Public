@@ -16,6 +16,7 @@ from utils import (
     get_combined_global_df,
     get_model_style,
     load_data,
+    make_label,
     save_figure,
     setup_style,
 )
@@ -39,6 +40,7 @@ def plot_dpp_vs_fog(combined_df, output_path=None, output_dir=None):
     model_styles = get_model_style(models)
     colors = PLOT_STYLE["colors"]
     font_sizes = PLOT_STYLE["font_sizes"]
+    single_problem = combined_df["problem"].nunique() == 1
 
     for model in models:
         for problem in combined_df["problem"].unique():
@@ -49,7 +51,7 @@ def plot_dpp_vs_fog(combined_df, output_path=None, output_dir=None):
                 ax.scatter(
                     subset["dpp"],
                     subset["fog"],
-                    label=f"{model} ({problem})",
+                    label=make_label(model, problem, single_problem),
                     marker=style["marker"],
                     c=colors.get(problem, style["color"]),
                     alpha=PLOT_STYLE["alpha"],

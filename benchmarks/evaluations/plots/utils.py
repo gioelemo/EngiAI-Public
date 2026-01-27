@@ -6,6 +6,7 @@ Shared utilities for plots.
 - Plot styling
 """
 
+import re
 import shutil
 from pathlib import Path
 
@@ -277,16 +278,30 @@ def _get_model_label(model_name: str) -> str:
         openai_gpt-4o -> GPT-4o
         openai_gpt-4.1 -> GPT-4.1
         anthropic_claude-3-5-sonnet -> Claude-3.5-Sonnet
+        ollama_qwen3_8b-q8_0 -> Qwen3-8B-Q8_0
+        ollama_qwen3_4b -> Qwen3-4B
+        ollama_qwen3_4b-instruct-2507-q8_0 -> Qwen3-4B-Instruct-2507-Q8_0
     """
     # Remove provider prefix
     if "_" in model_name:
         parts = model_name.split("_", 1)
-        if parts[0] in ["openai", "anthropic", "google"]:
+        if parts[0] in ["openai", "anthropic", "google", "ollama"]:
             model_name = parts[1]
 
     # Clean up common patterns
     model_name = model_name.replace("gpt-", "GPT-")
     model_name = model_name.replace("claude-", "Claude-")
+
+    # Clean up Ollama-style model names (e.g., qwen3_8b-q8_0 -> Qwen3-8B-Q8_0)
+    if model_name.lower().startswith("qwen"):
+        # Replace underscores with hyphens for readability
+        model_name = model_name.replace("_", "-")
+        # Capitalize "qwen" prefix
+        model_name = "Qwen" + model_name[4:]
+        # Uppercase size suffixes like 8b, 4b
+        model_name = re.sub(
+            r"-(\d+)b", lambda m: f"-{m.group(1)}B", model_name, flags=re.IGNORECASE
+        )
 
     return model_name
 
@@ -403,6 +418,24 @@ PLOT_STYLE = {
         "annotation": 6,
     },
 }
+
+
+def make_label(model: str, problem: str, single_problem: bool = False) -> str:
+    """Create a display label for a model/problem combination.
+
+    When only one problem is present, omits the redundant problem suffix.
+
+    Args:
+        model: Model display name
+        problem: Problem name (e.g., "beams2d")
+        single_problem: If True, omit problem from label
+
+    Returns:
+        Display label string
+    """
+    if single_problem:
+        return model
+    return f"{model} ({problem})"
 
 
 def get_model_style(models: list[str]) -> dict[str, dict]:
@@ -724,16 +757,28 @@ def get_combined_design_df(data):
 
         df = data[key].copy()
 
-        # Extract model and problem from key
-        parts = key.rsplit("_", 2)
-        if len(parts) >= MIN_KEY_PARTS:
-            problem = parts[-2]
-            model_dir_name = "_".join(parts[:-2])
-            model_label = _get_model_label(model_dir_name)
+        # Use structured key parsing to properly separate model/prompt_style/problem
+        parsed = _parse_data_key(key)
+        if parsed is not None:
+            problem = parsed["problem"]
+            model_label = _get_model_label(parsed["model"])
 
+            df["model_display"] = model_label
             df["source"] = f"{model_label} ({problem})"
             if "problem" not in df.columns:
                 df["problem"] = problem
+        else:
+            # Fallback to legacy parsing
+            parts = key.rsplit("_", 2)
+            if len(parts) >= MIN_KEY_PARTS:
+                problem = parts[-2]
+                model_dir_name = "_".join(parts[:-2])
+                model_label = _get_model_label(model_dir_name)
+
+                df["model_display"] = model_label
+                df["source"] = f"{model_label} ({problem})"
+                if "problem" not in df.columns:
+                    df["problem"] = problem
 
         design_dfs.append(df)
 
