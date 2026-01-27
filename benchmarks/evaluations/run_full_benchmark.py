@@ -40,8 +40,9 @@ CONDA_PYTHON = (
 
 # Default output directory for all benchmark results
 # Structure:
-#   results/baselines/{baseline_type}/{problem}/                  - for baselines
-#   results/models/{model_name}/{prompt_style}/{problem}/         - for LLM agents
+#   results/baselines/{baseline_type}/{problem}/                          - for baselines
+#   results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/    - for LLM agents
+#   where rag_status is "rag" (--mmore) or "no_rag" (default)
 RESULTS_DIR = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
 BASELINES_DIR = RESULTS_DIR / "baselines"
 MODELS_DIR = RESULTS_DIR / "models"
@@ -117,6 +118,7 @@ def run_agent_evaluation(  # noqa: PLR0913
     model: str | None,
     prompt_style: str = "full",
     scorers: str = "generic",
+    mmore_enabled: bool = False,
 ) -> int:
     """Run agent evaluation for a specific seed."""
     cmd = [
@@ -135,6 +137,8 @@ def run_agent_evaluation(  # noqa: PLR0913
     ]
     if model is not None:
         cmd.extend(["--model", model])
+    if mmore_enabled:
+        cmd.append("--mmore")
     return run_command(cmd, cwd=PROJECT_ROOT)
 
 
@@ -189,6 +193,19 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         help="Wandb entity for CGAN model artifacts (default: engibench)",
     )
     parser.add_argument(
+        "--mmore",
+        dest="mmore_enabled",
+        action="store_true",
+        default=False,
+        help="Enable MMORE RAG system for document retrieval (default: disabled)",
+    )
+    parser.add_argument(
+        "--no-mmore",
+        dest="mmore_enabled",
+        action="store_false",
+        help="Disable MMORE RAG system (default)",
+    )
+    parser.add_argument(
         "--cgan-only",
         action="store_true",
         help="Run only CGAN evaluation",
@@ -229,6 +246,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     print(f"Prompt style: {args.prompt_style}")
     if run_agent:
         print(f"Agent model: {args.model or '(from config.llm_model)'}")
+        print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
         print(f"Scorers: {args.scorers}")
     if run_cgan:
         print(f"CGAN results: {cgan_output_csv}")
@@ -282,6 +300,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 args.model,
                 args.prompt_style,
                 args.scorers,
+                args.mmore_enabled,
             )
             if ret == 0:
                 results["agent"][seed] = "success"
@@ -311,7 +330,8 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         # Get actual model name (from args or config)
         model_name = args.model if args.model is not None else config.llm_model
         model_safe = model_name.replace("/", "_").replace(":", "_")
-        agent_results_dir = MODELS_DIR / model_safe / args.prompt_style / args.problem
+        rag_dir = "rag" if args.mmore_enabled else "no_rag"
+        agent_results_dir = MODELS_DIR / model_safe / args.problem / args.prompt_style / rag_dir
         print(f"  Results saved to: {agent_results_dir}")
 
     print()
