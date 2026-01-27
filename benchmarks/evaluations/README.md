@@ -116,8 +116,8 @@ python evaluate_agent.py \
 ```
 
 Output:
-- Metrics saved to: `results/{model}/beams2d/metrics.csv`
-- Comparisons saved to: `results/{model}/beams2d/comparisons/seed_1/`
+- Metrics saved to: `results/models/{model}/beams2d/{prompt_style}/{rag_status}/metrics.csv`
+- Comparisons saved to: `results/models/{model}/beams2d/{prompt_style}/{rag_status}/comparisons/seed_1/`
 
 ### Multiple Seeds for Statistics
 

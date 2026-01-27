@@ -34,7 +34,7 @@ python benchmarks/evaluations/extract_data.py \
 
 This will create a CSV file at:
 ```
-benchmarks/evaluations/results/{model}/{problem}/data.csv
+benchmarks/evaluations/results/models/{model}/{problem}/{prompt_style}/{rag_status}/data.csv
 ```
 
 ### 2. Generate Visualizations

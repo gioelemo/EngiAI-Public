@@ -89,7 +89,7 @@ python evaluate_agent.py --problem beams2d --model gpt-4o --samples 5
 
 ### 4. View Results
 
-- **Local:** Check `evaluations/results/{model}/{problem}/comparisons/` for comparison images
+- **Local:** Check `evaluations/results/models/{model}/{problem}/{prompt_style}/{rag_status}/comparisons/` for comparison images
 - **Weave Dashboard:** View full metrics, traces, and comparisons in the Weave UI
 
 ## Seed-Based Evaluation
@@ -106,7 +106,7 @@ python evaluate_agent.py \
   --seed 1
 ```
 
-This saves metrics to `results/{model}/{problem}/metrics.csv` and comparison images to `results/{model}/{problem}/comparisons/seed_1/`.
+This saves metrics to `results/models/{model}/{problem}/{prompt_style}/{rag_status}/metrics.csv` and comparison images to `results/models/{model}/{problem}/{prompt_style}/{rag_status}/comparisons/seed_1/`.
 
 ### Multiple Seeds for Statistical Analysis
 
@@ -244,7 +244,7 @@ python compute_metrics_stats.py results/claude-3-5-sonnet-20241022/beams2d/metri
 # View detailed comparison in Weave dashboard
 ```
 
-Results are automatically organized by model in `results/{model}/{problem}/` for easy comparison.
+Results are automatically organized by model in `results/models/{model}/{problem}/{prompt_style}/{rag_status}/` for easy comparison.
 
 ## Evaluation Metrics
 
