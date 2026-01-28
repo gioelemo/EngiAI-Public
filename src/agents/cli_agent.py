@@ -10,7 +10,6 @@ Uses LangGraph's interrupt_before mechanism for human-in-the-loop confirmation.
 from src.agents.base_agent import BaseAgent
 from src.tools.cli import (
     execute_cli_command,
-    list_directory_contents,
     open_gui_application,
 )
 from src.utils.prompts import CLI_AGENT_SYSTEM_PROMPT
@@ -46,7 +45,6 @@ class CLIAgent(BaseAgent):
         """
         return [
             execute_cli_command,
-            list_directory_contents,
             open_gui_application,
         ]
 

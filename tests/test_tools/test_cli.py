@@ -17,7 +17,6 @@ from src.tools.cli import (
     _is_running_in_docker,
     _open_via_host_service,
     execute_cli_command,
-    list_directory_contents,
     open_gui_application,
 )
 
@@ -161,126 +160,6 @@ def test_execute_cli_command_without_check_exists():
         )
 
         assert "SUCCESS" in result
-
-
-# ============================================================================
-# LIST DIRECTORY CONTENTS TESTS
-# ============================================================================
-
-
-@pytest.mark.unit
-def test_list_directory_contents_success():
-    """Test listing directory contents successfully."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test files
-        test_dir = Path(tmpdir)
-        (test_dir / "file1.txt").write_text("test")
-        (test_dir / "file2.py").write_text("code")
-        (test_dir / "subdir").mkdir()
-
-        result = list_directory_contents.invoke({"directory_path": tmpdir})
-
-        assert "Found 3 item(s)" in result
-        assert "file1.txt" in result
-        assert "file2.py" in result
-        assert "[DIR]" in result
-        assert "subdir/" in result
-
-
-@pytest.mark.unit
-def test_list_directory_contents_with_pattern():
-    """Test listing directory contents with glob pattern."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_dir = Path(tmpdir)
-        (test_dir / "file1.txt").write_text("test")
-        (test_dir / "file2.py").write_text("code")
-        (test_dir / "file3.txt").write_text("test2")
-
-        result = list_directory_contents.invoke(
-            {"directory_path": tmpdir, "pattern": "*.txt"}
-        )
-
-        assert "Found 2 item(s)" in result
-        assert "file1.txt" in result
-        assert "file3.txt" in result
-        assert "file2.py" not in result
-
-
-@pytest.mark.unit
-def test_list_directory_contents_empty_directory():
-    """Test listing empty directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        result = list_directory_contents.invoke({"directory_path": tmpdir})
-
-        assert "No files found" in result
-
-
-@pytest.mark.unit
-def test_list_directory_contents_nonexistent_directory():
-    """Test listing nonexistent directory."""
-    result = list_directory_contents.invoke({"directory_path": "/nonexistent/path/xyz"})
-
-    assert "does not exist" in result
-
-
-@pytest.mark.unit
-def test_list_directory_contents_not_a_directory():
-    """Test listing when path is a file, not a directory."""
-    with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
-        try:
-            result = list_directory_contents.invoke({"directory_path": tmpfile.name})
-
-            assert "not a directory" in result
-        finally:
-            Path(tmpfile.name).unlink()
-
-
-@pytest.mark.unit
-def test_list_directory_contents_with_file_sizes():
-    """Test that file sizes are displayed correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_dir = Path(tmpdir)
-        # Create file larger than 1MB
-        large_file = test_dir / "large.txt"
-        large_file.write_bytes(b"x" * (2 * 1024 * 1024))  # 2 MB
-
-        # Create file larger than 1KB
-        medium_file = test_dir / "medium.txt"
-        medium_file.write_bytes(b"x" * (5 * 1024))  # 5 KB
-
-        # Create small file
-        small_file = test_dir / "small.txt"
-        small_file.write_bytes(b"x" * 100)  # 100 bytes
-
-        result = list_directory_contents.invoke({"directory_path": tmpdir})
-
-        assert "MB" in result  # Large file
-        assert "KB" in result  # Medium file
-        assert "bytes" in result  # Small file
-
-
-@pytest.mark.unit
-def test_list_directory_contents_no_matches_with_pattern():
-    """Test listing with pattern that matches no files."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_dir = Path(tmpdir)
-        (test_dir / "file.txt").write_text("test")
-
-        result = list_directory_contents.invoke(
-            {"directory_path": tmpdir, "pattern": "*.xyz"}
-        )
-
-        assert "No files found" in result
-        assert "*.xyz" in result
-
-
-@pytest.mark.unit
-def test_list_directory_contents_exception():
-    """Test exception handling in directory listing."""
-    with patch("pathlib.Path.exists", side_effect=Exception("Permission error")):
-        result = list_directory_contents.invoke({"directory_path": "/tmp"})
-
-        assert "Error listing directory" in result
 
 
 # ============================================================================
@@ -428,26 +307,6 @@ def test_execute_cli_command_with_special_characters():
 
 
 @pytest.mark.unit
-def test_list_directory_contents_sorted_output():
-    """Test that directory listing is sorted alphabetically."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_dir = Path(tmpdir)
-        # Create files in non-alphabetical order
-        (test_dir / "zebra.txt").write_text("test")
-        (test_dir / "alpha.txt").write_text("test")
-        (test_dir / "beta.txt").write_text("test")
-
-        result = list_directory_contents.invoke({"directory_path": tmpdir})
-
-        # Check that files appear in alphabetical order
-        alpha_pos = result.find("alpha.txt")
-        beta_pos = result.find("beta.txt")
-        zebra_pos = result.find("zebra.txt")
-
-        assert alpha_pos < beta_pos < zebra_pos
-
-
-@pytest.mark.unit
 def test_execute_cli_command_custom_timeout():
     """Test command execution with custom timeout."""
     mock_result = Mock()
@@ -485,15 +344,6 @@ def test_all_functions_work_without_external_dependencies():
         assert "not found" in result or mock_popen.called
 
 
-@pytest.mark.smoke
-def test_basic_cli_functionality():
-    """Smoke test to ensure basic CLI functionality works."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Test directory listing - doesn't require mocking
-        result = list_directory_contents.invoke({"directory_path": tmpdir})
-        assert "Found" in result or "No files found" in result
-
-
 # ============================================================================
 # PARAMETRIZED TESTS FOR COMPREHENSIVE COVERAGE
 # ============================================================================
@@ -512,33 +362,6 @@ def test_execute_cli_command_error_cases(command, expected_error):
     with patch("src.tools.cli.which", return_value=None):
         result = execute_cli_command.invoke({"command": command})
         assert expected_error in result
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "pattern,expected_files",
-    [
-        ("*.txt", ["file1.txt", "file2.txt"]),
-        ("*.py", ["script.py"]),
-        ("file1.*", ["file1.txt"]),
-    ],
-)
-def test_list_directory_contents_patterns(pattern, expected_files):
-    """Parametrized test for different glob patterns."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_dir = Path(tmpdir)
-        # Create test files
-        (test_dir / "file1.txt").write_text("test")
-        (test_dir / "file2.txt").write_text("test")
-        (test_dir / "script.py").write_text("code")
-        (test_dir / "data.json").write_text("{}")
-
-        result = list_directory_contents.invoke(
-            {"directory_path": tmpdir, "pattern": pattern}
-        )
-
-        for expected in expected_files:
-            assert expected in result
 
 
 # ============================================================================

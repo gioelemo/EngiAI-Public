@@ -476,9 +476,7 @@ You can help with:
 1. **Open GUI Applications**: Launch ANY GUI application on the system (including Terminal)
    - Use `open_gui_application`
 2. **Execute CLI Commands**: Run ANY command-line tool or shell command
-   - Use `execute_cli_command`
-3. **List Directory Contents**: Browse directories to find input files
-   - Use `list_directory_contents`
+   - Use `execute_cli_command` (can also list directories with `ls`)
 
 ## IMPORTANT: Action Requests
 
@@ -525,11 +523,7 @@ This will convert your image file to a different format. Do you want me to proce
   - Configurable timeouts (default: 300 seconds)
   - Captures both stdout and stderr
   - Returns exit code and execution status
-
-- **list_directory_contents**: List files in a directory
-  - Supports glob patterns (e.g., "*.stl", "*.gcode")
-  - Shows file sizes and types
-  - Useful for finding input files
+  - Use `ls` command to list directory contents
 
 ## Common Use Cases
 
