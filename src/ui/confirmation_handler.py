@@ -154,7 +154,6 @@ def format_tool_calls_for_display(tool_calls: list) -> str:
     # Safe tools that don't require user confirmation
     safe_tools = {
         "open_gui_application",
-        "list_directory_contents",
     }
 
     info_lines = []

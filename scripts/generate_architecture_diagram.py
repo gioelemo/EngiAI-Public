@@ -83,7 +83,6 @@ tool_categories = {
     "clear_document_memory": "rag",
     # CLI tools
     "execute_cli_command": "cli",
-    "list_directory_contents": "cli",
     "open_gui_application": "cli",
     # Add mappings for Prusa / printer-related tools (used by Prusa Agent)
     "get_printers": "mcp",
@@ -251,7 +250,7 @@ agents: list[AgentInfo] = [
         "y": 2.0,
         "tools": [
             "execute_cli_command",
-            "list_directory_contents",
+            "open_gui_application",
         ],
         "desc": "Local command execution, PrusaSlicer",
     },
