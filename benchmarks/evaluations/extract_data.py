@@ -154,7 +154,7 @@ def _process_score_and_predict_call(
         model_id = pred_output.get("model", "")
         seen_models.add(model_id)
 
-        if model_filter and model_filter not in model_id:
+        if model_filter and model_id != model_filter:
             return None
 
         # Extract token usage and latency from predict call summary
@@ -246,7 +246,7 @@ def _process_prediction_call(
         model_id = output.get("model", "")
         seen_models.add(model_id)
 
-        if model_filter and model_filter not in model_id:
+        if model_filter and model_id != model_filter:
             return None
 
         tool_names = [
