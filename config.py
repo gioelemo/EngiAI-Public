@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 MIN_TEMPERATURE = 0.0
 MAX_TEMPERATURE = 2.0
 
+# HTTP status codes
+HTTP_OK = 200
+
 
 def get_setting_from_db(key: str, default: Any = None) -> Any:
     """
@@ -53,6 +56,9 @@ class Config:
             load_dotenv(env_file)
         else:
             load_dotenv()
+
+        # MMORE health check cache
+        self._mmore_enabled: bool | None = None
 
         # Required API keys
         self.openai_api_key: str = os.getenv("OPENAI_API_KEY") or ""
@@ -193,6 +199,56 @@ class Config:
                 "$SCRATCH/datasets",
             )
         return self._hf_datasets_cache_remote
+
+    @property
+    def mmore_enabled(self) -> bool:
+        """Check if MMORE RAG system is enabled and running.
+
+        Returns True only if:
+        1. SKIP_MMORE env var is not "true"
+        2. MMORE service is actually reachable (health check)
+
+        The result is cached after the first check.
+        """
+        if self._mmore_enabled is not None:
+            return self._mmore_enabled
+
+        # Check if SKIP_MMORE is set to true
+        skip_mmore = os.getenv("SKIP_MMORE", "false").lower() == "true"
+        if skip_mmore:
+            logger.info("MMORE disabled via SKIP_MMORE=true")
+            self._mmore_enabled = False
+            return False
+
+        # Check if MMORE service is actually running
+        try:
+            import requests  # noqa: PLC0415
+
+            mmore_url = os.getenv("MMORE_RAG_URL", "http://localhost:8000").rstrip("/")
+            response = requests.get(f"{mmore_url}/", timeout=5)
+            is_healthy = response.status_code == HTTP_OK
+            if is_healthy:
+                logger.info(f"MMORE service is running at {mmore_url}")
+            else:
+                logger.warning(
+                    f"MMORE service returned status {response.status_code} at {mmore_url}"
+                )
+            self._mmore_enabled = is_healthy
+        except requests.RequestException as e:
+            logger.warning(f"MMORE service not reachable: {e}")
+            self._mmore_enabled = False
+        except ImportError:
+            logger.warning("requests library not installed, cannot check MMORE health")
+            self._mmore_enabled = False
+
+        return self._mmore_enabled
+
+    def reset_mmore_cache(self) -> None:
+        """Reset the MMORE enabled cache to force a fresh health check.
+
+        Call this after changing SKIP_MMORE env var at runtime.
+        """
+        self._mmore_enabled = None
 
     def setup_langsmith_tracing(self, project_name: str) -> None:
         """

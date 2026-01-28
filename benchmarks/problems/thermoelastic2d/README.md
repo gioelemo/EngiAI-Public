@@ -130,7 +130,6 @@ Objectives (all to minimize):
 2. Thermal compliance: Minimize thermal resistance for heat dissipation
 3. Volume fraction: Minimize material usage
 
-The design should be on a 64x64 grid with binary material distribution (0=void, 1=material).
 The weight parameter (0.50) controls the trade-off between structural (weight)
 and thermal (1-weight) objectives.
 ```

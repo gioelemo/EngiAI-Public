@@ -42,7 +42,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
             "constraint_match": 0.15,
             "objective_match": 0.2,
         },
-        prompt_file_template="beams2d_prompts_50_samples_{split}_{style}.json",
+        prompt_file_template="beams2d_prompts_{n_samples}_samples_{split}_{style}_seed{seed}.json",
     ),
     "photonics2d": ProblemConfig(
         name="photonics2d",

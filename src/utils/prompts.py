@@ -21,9 +21,25 @@ def _get_problem_examples_text() -> str:
     return ", ".join(f"'{p}'" for p in problems[:-1]) + f", or '{problems[-1]}'"
 
 
+def _get_rag_tool_usage_text() -> str:
+    if config.mmore_enabled:
+        return """### Knowledge Base Tools (RAG)
+- **search_documents**: Search uploaded documents for engineering knowledge, reference material, or design guidelines
+- **list_documents**: List all documents currently in the knowledge base
+- **add_document**: Add a local file (PDF, Office, image) to the knowledge base
+- **add_url_to_knowledge_base**: Download and index web content or documentation
+- **delete_document**: Remove a document from the knowledge base
+
+Use **search_documents** to look up reference material, design guidelines, or prior results before or during design tasks. This is especially useful when the user has uploaded papers or documentation.
+"""
+    else:
+        return ""
+
+
 def _build_engineering_agent_prompt() -> str:
     """Build the engineering agent system prompt dynamically from problem registry."""
     problems_list = _get_problem_examples_text()
+    rag_tool_usage = _get_rag_tool_usage_text()
 
     return f"""You are an engineering assistant specialized in structural design and optimization.
 
@@ -70,6 +86,8 @@ A library of ML algorithms built on top of EngiBench problems:
 
 ### Post-Processing
 - **convert_design_to_stl**: Convert .npy design files to STL for 3D printing
+
+{rag_tool_usage}
 
 ## Problem-Specific Configs
 
