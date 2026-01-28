@@ -664,6 +664,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Set SKIP_MMORE based on CLI flag (must be set before importing agent modules)
     os.environ["SKIP_MMORE"] = "false" if args.mmore_enabled else "true"
+    # Reset MMORE cache to pick up the new env var value
+    config.reset_mmore_cache()
 
     # Get problem configuration
     problem_config = PROBLEM_CONFIGS[args.problem]
