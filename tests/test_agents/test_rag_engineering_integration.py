@@ -345,16 +345,19 @@ class TestEngineeringAgentSystemPrompt:
     """Test that the engineering agent system prompt includes RAG documentation."""
 
     @pytest.mark.unit
+    @patch("src.utils.prompts.config")
     @patch("src.agents.engineering_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_prompt_mentions_rag_tools(
-        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
+        self, mock_init_llm, mock_mmore_cls, mock_config, mock_mmore_client
     ):
         """Test that system prompt documents the RAG tools."""
         from src.agents.engineering_agent import EngineeringAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
         mock_mmore_cls.return_value = mock_mmore_client
+        # Mock config.mmore_enabled to return True (simulates MMORE service running)
+        mock_config.mmore_enabled = True
 
         agent = EngineeringAgent()
         prompt = agent._get_system_prompt()

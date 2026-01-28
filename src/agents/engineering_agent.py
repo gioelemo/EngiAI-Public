@@ -28,7 +28,7 @@ from src.tools.engiopt import (
 )
 from src.tools.rag_tools import create_rag_tools
 from src.tools.stl_export import convert_design_to_stl
-from src.utils.prompts import ENGINEERING_AGENT_SYSTEM_PROMPT
+from src.utils.prompts import _build_engineering_agent_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -106,4 +106,5 @@ class EngineeringAgent(BaseAgent):
         Returns:
             System prompt string
         """
-        return ENGINEERING_AGENT_SYSTEM_PROMPT
+        # Call builder function dynamically to pick up current config.mmore_enabled
+        return _build_engineering_agent_prompt()
