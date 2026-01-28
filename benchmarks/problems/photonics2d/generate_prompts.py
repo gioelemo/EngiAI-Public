@@ -46,7 +46,6 @@ def create_prompt_from_conditions(
         f"- lambda2: {lambda2:.6f}\n"
         f"- blur_radius: {blur_radius:.6f}\n"
         f"- Target: Maximize total_overlap (field overlap integral)\n\n"
-        f"The photonic structure should be designed on a 120x120 grid.\n"
         f"Use binary material distribution (0=air, 1=dielectric material)."
     )
 

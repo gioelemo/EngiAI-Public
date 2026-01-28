@@ -54,7 +54,6 @@ def create_prompt_from_conditions(
         f"1. Structural compliance: Minimize structural deformation under mechanical loads\n"
         f"2. Thermal compliance: Minimize thermal resistance for heat dissipation\n"
         f"3. Volume fraction: Minimize material usage\n\n"
-        f"The design should be on a 64x64 grid with binary material distribution (0=void, 1=material).\n"
         f"The weight parameter ({weight:.2f}) controls the trade-off between structural (weight) "
         f"and thermal (1-weight) objectives."
     )

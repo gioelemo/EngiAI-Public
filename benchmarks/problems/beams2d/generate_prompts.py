@@ -125,7 +125,6 @@ def _create_full_prompt(volfrac: float, forcedist: float, rmin: float) -> str:
         f"Design requirements:\n"
         f"- Use a material volume fraction of {volfrac}\n"
         f"- Force distribution parameter: {forcedist}\n"
-        f"- The design should be on a 50x100 grid\n"
         f"- Minimum filter radius (rmin): {rmin}\n\n"
         f"Optimize the structure to minimize compliance while respecting the volume constraint."
     )
@@ -143,7 +142,6 @@ def _create_approximate_prompt(volfrac: float, forcedist: float, rmin: float) ->
         f"Design requirements:\n"
         f"- Use a material volume fraction of approximately {volfrac_approx}\n"
         f"- Force distribution parameter: around {forcedist_approx}\n"
-        f"- The design should be on a 50x100 grid\n"
         f"- Minimum filter radius (rmin): {rmin_approx}\n\n"
         f"Optimize the structure to minimize compliance while respecting the volume constraint."
     )
@@ -161,7 +159,6 @@ def _create_natural_prompt(volfrac: float, forcedist: float, compliance: float) 
         f"- The design should be {volfrac_desc}\n"
         f"- Apply {force_desc}\n"
         f"- The resulting structure should be {stiffness_desc}\n"
-        f"- The design should be on a 50x100 grid\n\n"
         f"Optimize the structure to minimize compliance while respecting the volume constraint."
     )
 
@@ -172,7 +169,6 @@ def _create_workflow_prompt(volfrac: float, forcedist: float, rmin: float) -> st
         f"Execute a 2D topology optimization and export the resulting geometry "
         f"as a 3D-printable STL file.\n\n"
         f"1. Optimization Configuration\n"
-        f"   - Grid Dimensions: 100 (x) by 50 (y)\n"
         f"   - Volume Fraction: {volfrac}\n"
         f"   - Force Distribution: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"

@@ -764,6 +764,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         problem=args.problem,
         split=args.split,
         style=args.prompt_style,
+        n_samples=args.samples,
     )
 
     # Load prompts
