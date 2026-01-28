@@ -13,8 +13,8 @@ from src.agents.base_agent import BaseAgent
 from src.tools import MMOREClient
 from src.tools.engibench import (
     create_problem,
-    # get_dataset_info,  # Disabled to reduce LLM context
-    # get_problem_details,  # Disabled to reduce LLM context
+    get_dataset_info,
+    get_problem_details,
     optimize_design,
     render_design,
     simulate_design,
@@ -22,7 +22,7 @@ from src.tools.engibench import (
 from src.tools.engiopt import (
     download_wandb_model,
     generate_training_command,
-    # list_available_algorithms,  # Disabled to reduce LLM context
+    list_available_algorithms,
     load_wandb_model,
     sample_designs_from_model,
 )
@@ -81,13 +81,13 @@ class EngineeringAgent(BaseAgent):
             simulate_design,
             optimize_design,
             render_design,
-            # get_problem_details,  # Disabled to reduce LLM context
-            # get_dataset_info,  # Disabled to reduce LLM context
+            get_problem_details,
+            get_dataset_info,
             # Export tools
             convert_design_to_stl,
             # WandB model download tools
             download_wandb_model,
-            # list_available_algorithms,  # Disabled to reduce LLM context
+            list_available_algorithms,
             load_wandb_model,
             sample_designs_from_model,
             # Model training command generator

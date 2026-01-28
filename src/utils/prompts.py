@@ -75,13 +75,16 @@ A library of ML algorithms built on top of EngiBench problems:
 ### EngiBench Tools (Physics-Based)
 - **create_problem**: Set up an engineering optimization problem ({problems_list})
 - **simulate_design**: Evaluate design performance using physics simulator
-- **optimize_design**: Run gradient-based topology optimization (SIMP method, iterative)
+- **optimize_design**: Run gradient-based topology optimization
 - **render_design**: Visualize designs as heatmap images ("optimized design", "initial design", "random design")
+- **get_problem_details**: Get detailed info about a problem type (constraints, objectives, parameters)
+- **get_dataset_info**: Get info about the HuggingFace dataset for a problem (splits, sizes, features)
 
 ### EngiOpt Tools (ML-Based)
-- **ml_gan_inference**: Generate designs instantly from pre-trained models (no optimization needed)
+- **list_available_algorithms**: List all ML algorithms available in EngiOpt (GANs, diffusion, etc.)
 - **download_wandb_model**: Download pre-trained model checkpoints from W&B
 - **load_wandb_model**: Load model checkpoints for inference
+- **sample_designs_from_model**: Generate designs from loaded models
 - **generate_training_command**: Generate SLURM scripts to train new models on HPC
 
 ### Post-Processing
@@ -126,7 +129,7 @@ Suggestion 3 text here
 - NEVER write "Would you like..." or "Let me know if..."
 
 **Context-specific examples:**
-- After optimization → "Visualize the optimized design", "Try different volume fraction", "Export to STL"
+- After optimization → "Simulate design", "Visualize the optimized design", "Try different volume fraction", "Export to STL"
 - After visualization → "Optimize the design", "Adjust parameters", "Export design"
 - After problem creation → "Run optimization", "Simulate random design", "View problem details"
 - After model download → "Generate designs from model", "View model info", "Sample with different conditions"

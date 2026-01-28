@@ -1247,7 +1247,7 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
 ) -> dict[str, Any]:
     """
     ⚠️ WARNING: DO NOT use this tool for optimization tasks!
-    If the user says "optimize", "topology optimization", "minimize compliance", or "SIMP" → use optimize_design instead!
+    If the user says "optimize", "topology optimization", "minimize compliance" → use optimize_design instead!
 
     This tool is ONLY for sampling from pre-trained GAN/Diffusion models.
     Use ONLY when user explicitly asks for: "GAN", "sample from model", "generative model", "ML inference".
