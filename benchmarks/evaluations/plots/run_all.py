@@ -332,13 +332,15 @@ def _generate_all_plots(
 
     print("\n" + "=" * 60)
     print(f"DONE! All figures saved to: {base_output_dir}")
-    if not args.combined_only:
+    if not args.combined_only and problems_with_data:
+        problems_list = ", ".join(sorted(problems_with_data))
         if args.prompt_style:
             print(
-                f"Problem-specific figures in: {base_output_dir}/{{problem}}/{args.prompt_style}/"
+                f"Problem-specific figures in: {base_output_dir}/<problem>/{args.prompt_style}/"
             )
         else:
-            print(f"Problem-specific figures in: {base_output_dir}/{{problem}}/")
+            print(f"Problem-specific figures in: {base_output_dir}/<problem>/")
+        print(f"  Problems: {problems_list}")
     print("=" * 60)
 
 

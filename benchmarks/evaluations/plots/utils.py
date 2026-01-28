@@ -99,7 +99,9 @@ def _discover_models_dir_paths() -> dict[str, Path]:
 def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Path]:
     """Discover results under a model/problem/ directory.
 
-    Structure: model/problem/prompt_style/rag_status/ (CSVs in rag_status dir)
+    Structure:
+        - model/problem/prompt_style/rag_status/ (CSVs in rag_status dir)
+        - model/problem/data.csv (tool usage from extract_data.py)
 
     Returns:
         Dictionary mapping keys to file paths
@@ -107,6 +109,12 @@ def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Pa
     paths: dict[str, Path] = {}
     problem = problem_dir.name
     model_name = model_dir.name
+
+    # Check for data.csv directly in problem directory (from extract_data.py)
+    direct_tools_path = problem_dir / "data.csv"
+    if direct_tools_path.exists():
+        key_prefix = f"{model_name}_full_{problem}"
+        paths[f"{key_prefix}_tools"] = direct_tools_path
 
     for ps_dir in problem_dir.iterdir():
         if not ps_dir.is_dir() or ps_dir.name not in KNOWN_PROMPT_STYLES:
