@@ -241,9 +241,11 @@ def run_prompt_generation_workflow(
     output_dir = (
         Path(__file__).parent.parent / "problems" / problem_name / "data" / "generated"
     )
+    # Add seed to file name if provided (for beams2d and similar problems)
+    seed_str = f"_seed{args.seed}" if args.seed is not None else "_seed0"
     output_file = (
         output_dir
-        / f"{problem_name}_prompts_{args.samples}_samples_{args.split}_{args.style}.json"
+        / f"{problem_name}_prompts_{args.samples}_samples_{args.split}_{args.style}{seed_str}.json"
     )
     save_prompts_locally(prompts, output_file, target_keys_to_keep)
 
