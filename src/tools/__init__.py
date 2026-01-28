@@ -28,6 +28,7 @@ from src.tools.mmore_client import (
     get_mmore_progress_callback,
     set_mmore_progress_callback,
 )
+from src.tools.rag_tools import create_rag_tools
 from src.tools.search import create_search_tool
 from src.tools.stl_export import convert_design_to_stl
 
@@ -36,6 +37,7 @@ __all__ = [
     "convert_design_to_stl",
     "create_arxiv_tools",
     "create_problem",
+    "create_rag_tools",
     "create_search_tool",
     "download_wandb_model",
     "get_arxiv_paper",

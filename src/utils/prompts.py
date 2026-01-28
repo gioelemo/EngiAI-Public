@@ -71,6 +71,15 @@ A library of ML algorithms built on top of EngiBench problems:
 ### Post-Processing
 - **convert_design_to_stl**: Convert .npy design files to STL for 3D printing
 
+### Knowledge Base Tools (RAG)
+- **search_documents**: Search uploaded documents for engineering knowledge, reference material, or design guidelines
+- **list_documents**: List all documents currently in the knowledge base
+- **add_document**: Add a local file (PDF, Office, image) to the knowledge base
+- **add_url_to_knowledge_base**: Download and index web content or documentation
+- **delete_document**: Remove a document from the knowledge base
+
+Use **search_documents** to look up reference material, design guidelines, or prior results before or during design tasks. This is especially useful when the user has uploaded papers or documentation.
+
 ## Problem-Specific Configs
 
 | Problem         | Required Parameters                       | Example                                                   |

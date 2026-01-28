@@ -423,7 +423,7 @@ class TestRAGAgentSystemPrompt:
 class TestRAGAgentAddURLTool:
     """Test the add_url_to_knowledge_base tool."""
 
-    @patch("src.agents.rag_agent.WebCrawler")
+    @patch("src.tools.rag_tools.WebCrawler")
     @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_add_url_direct_pdf(
@@ -445,8 +445,8 @@ class TestRAGAgentAddURLTool:
         add_url_tool = agent.tools_by_name["add_url_to_knowledge_base"]
 
         # Mock tempfile and requests for PDF download
-        with patch("src.agents.rag_agent.tempfile.NamedTemporaryFile") as mock_temp:
-            with patch("src.agents.rag_agent.requests.get") as mock_get:
+        with patch("src.tools.rag_tools.tempfile.NamedTemporaryFile") as mock_temp:
+            with patch("src.tools.rag_tools.requests.get") as mock_get:
                 mock_temp_file = Mock()
                 mock_temp_file.name = "/tmp/test.pdf"
                 mock_temp_file.__enter__ = Mock(return_value=mock_temp_file)
@@ -467,7 +467,7 @@ class TestRAGAgentAddURLTool:
 
                 assert "Successfully added" in result or "Error" in result
 
-    @patch("src.agents.rag_agent.WebCrawler")
+    @patch("src.tools.rag_tools.WebCrawler")
     @patch("src.agents.rag_agent.MMOREClient")
     @patch("src.agents.base_agent.init_chat_model")
     def test_add_url_with_crawling(
@@ -492,7 +492,7 @@ class TestRAGAgentAddURLTool:
         agent = RAGAgent()
         add_url_tool = agent.tools_by_name["add_url_to_knowledge_base"]
 
-        with patch("src.agents.rag_agent.tempfile.TemporaryDirectory") as mock_temp:
+        with patch("src.tools.rag_tools.tempfile.TemporaryDirectory") as mock_temp:
             mock_temp_dir = Mock()
             mock_temp_dir.name = "/tmp/test_dir"
             mock_temp_dir.__enter__ = Mock(return_value=mock_temp_dir)
