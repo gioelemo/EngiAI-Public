@@ -386,7 +386,8 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
         dataset_name: HuggingFace dataset name for ground truth
         sigma: Kernel bandwidth for MMD and DPP diversity
         save_comparisons: Whether to save comparison images (default: True)
-        comparison_output_dir: Directory to save comparison images (default: benchmarks/evaluations/results/mmd_comparisons)
+        comparison_output_dir: Directory to save comparison images. If None, comparisons are not saved.
+            Typical path: benchmarks/evaluations/results/models/{model}/{problem}/{prompt_style}/{rag_status}/comparisons/seed_{N}/
 
     Returns:
         dict with:
@@ -803,12 +804,9 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
         )
 
     # Save comparison visualizations if requested
-    if save_comparisons:
+    if save_comparisons and comparison_output_dir is not None:
         try:
-            output_dir = Path(
-                comparison_output_dir
-                or "benchmarks/evaluations/results/mmd_comparisons"
-            )
+            output_dir = Path(comparison_output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
 
             for i in range(len(gen_batch)):
