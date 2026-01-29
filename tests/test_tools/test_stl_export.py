@@ -686,6 +686,7 @@ def test_check_mesh_watertightness_without_trimesh(sample_2d_array):
 
     # Mock trimesh as unavailable
     import src.tools.stl_export
+
     original_available = src.tools.stl_export.TRIMESH_AVAILABLE
     src.tools.stl_export.TRIMESH_AVAILABLE = False
 
@@ -714,6 +715,7 @@ def test_watertightness_in_convert_output(tmp_path, sample_2d_array):
     outputs_dir.mkdir()
 
     with patch("src.tools.stl_export.Path") as mock_path_class:
+
         def path_side_effect(path_str):
             if path_str == "outputs":
                 return outputs_dir
@@ -752,6 +754,7 @@ def test_connectivity_vs_watertightness_independence(tmp_path):
     outputs_dir.mkdir()
 
     with patch("src.tools.stl_export.Path") as mock_path_class:
+
         def path_side_effect(path_str):
             if path_str == "outputs":
                 return outputs_dir
@@ -792,6 +795,7 @@ def test_watertightness_with_simple_design(tmp_path):
     outputs_dir.mkdir()
 
     with patch("src.tools.stl_export.Path") as mock_path_class:
+
         def path_side_effect(path_str):
             if path_str == "outputs":
                 return outputs_dir
@@ -836,6 +840,7 @@ def test_watertightness_metrics_accuracy(tmp_path):
     scale_z = 5.0
 
     with patch("src.tools.stl_export.Path") as mock_path_class:
+
         def path_side_effect(path_str):
             if path_str == "outputs":
                 return outputs_dir
@@ -881,6 +886,7 @@ def test_mesh_repair_functionality(tmp_path):
     outputs_dir.mkdir()
 
     with patch("src.tools.stl_export.Path") as mock_path_class:
+
         def path_side_effect(path_str):
             if path_str == "outputs":
                 return outputs_dir

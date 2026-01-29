@@ -16,6 +16,7 @@ from stl import mesh
 
 try:
     import trimesh
+
     TRIMESH_AVAILABLE = True
 except ImportError:
     TRIMESH_AVAILABLE = False
@@ -259,9 +260,6 @@ def _check_mesh_watertightness(
             try:
                 # Merge duplicate vertices (common issue with voxel meshes)
                 trimesh_mesh.merge_vertices()
-
-                # Remove duplicate faces
-                trimesh_mesh.remove_duplicate_faces()
 
                 # Fill holes if any
                 trimesh_mesh.fill_holes()

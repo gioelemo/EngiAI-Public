@@ -180,7 +180,10 @@ def _extract_watertightness_from_messages(
             continue
 
         # Check if this is a convert_design_to_stl tool result
-        if "is_watertight" not in content and "watertight_check_available" not in content:
+        if (
+            "is_watertight" not in content
+            and "watertight_check_available" not in content
+        ):
             continue
 
         logger.debug(
@@ -215,13 +218,17 @@ def _extract_watertightness_from_messages(
             if wt_match:
                 wt_value = wt_match.group(1)
                 is_wt = (
-                    True if wt_value == "True" else (False if wt_value == "False" else None)
+                    True
+                    if wt_value == "True"
+                    else (False if wt_value == "False" else None)
                 )
 
                 watertightness_metrics = {
                     "is_watertight": is_wt,
                     "volume_mm3": _extract_float_field(content, "volume_mm3"),
-                    "surface_area_mm2": _extract_float_field(content, "surface_area_mm2"),
+                    "surface_area_mm2": _extract_float_field(
+                        content, "surface_area_mm2"
+                    ),
                     "num_vertices": _extract_int_field(content, "num_vertices"),
                     "num_faces": _extract_int_field(content, "num_faces"),
                     "watertight_check_available": _extract_bool_field(
