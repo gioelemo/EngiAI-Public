@@ -5,6 +5,7 @@ This module provides functions to convert 2D beam topology designs
 into 3D STL files suitable for 3D printing or CAD software.
 """
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,12 @@ import numpy as np
 from langchain_core.tools import tool
 from scipy.ndimage import label
 from stl import mesh
+
+try:
+    import trimesh
+    TRIMESH_AVAILABLE = True
+except ImportError:
+    TRIMESH_AVAILABLE = False
 
 # Threshold for considering a cell as non-zero (for binary designs)
 CELL_THRESHOLD = 0.5
@@ -177,6 +184,138 @@ def _create_stl_from_heatmap_extruded(
     return beam_mesh
 
 
+def _check_mesh_watertightness(
+    stl_mesh: mesh.Mesh,
+    scale_xy: float = 1.0,  # noqa: ARG001
+    scale_z: float = 10.0,  # noqa: ARG001
+    attempt_repair: bool = True,
+) -> dict[str, Any]:
+    """
+    Check if STL mesh is watertight and extract 3D printability metrics.
+
+    Uses trimesh library to validate mesh topology and compute geometric properties.
+    If trimesh is not available, returns minimal info with warning.
+
+    A watertight mesh is a closed manifold solid with no holes, gaps, or non-manifold edges.
+    This is a critical requirement for 3D printing - non-watertight meshes may fail to slice
+    or produce unexpected results.
+
+    If the mesh is not watertight, this function can optionally attempt to repair it by:
+    - Merging duplicate vertices
+    - Removing duplicate faces
+    - Filling holes
+
+    Args:
+        stl_mesh: numpy-stl mesh object
+        scale_xy: XY scaling factor for volume/area units (reserved for future use)
+        scale_z: Z scaling factor for volume/area units (reserved for future use)
+        attempt_repair: Whether to attempt mesh repair if not watertight (default: True)
+
+    Returns:
+        Dictionary with:
+        - is_watertight: bool (True if closed manifold, None if check unavailable)
+        - volume_mm3: float (mesh volume in mm³, None if not watertight or unavailable)
+        - surface_area_mm2: float (mesh surface area in mm², None if unavailable)
+        - num_vertices: int (vertex count, None if unavailable)
+        - num_faces: int (face/triangle count, None if unavailable)
+        - watertight_check_available: bool (False if trimesh not installed)
+        - mesh_validation_time: float (seconds, 0.0 if check unavailable)
+        - mesh_repaired: bool (True if repair was attempted and successful)
+        - repair_attempted: bool (True if repair was attempted)
+    """
+    start_time = time.time()
+
+    # If trimesh not available, return minimal info
+    if not TRIMESH_AVAILABLE:
+        return {
+            "is_watertight": None,
+            "volume_mm3": None,
+            "surface_area_mm2": None,
+            "num_vertices": None,
+            "num_faces": len(stl_mesh.vectors),  # Can get this from numpy-stl
+            "watertight_check_available": False,
+            "mesh_validation_time": 0.0,
+            "mesh_repaired": False,
+            "repair_attempted": False,
+        }
+
+    try:
+        # Convert numpy-stl mesh to trimesh format
+        # numpy-stl stores mesh as Nx3x3 array (N triangles, 3 vertices, 3 coords)
+        vertices = stl_mesh.vectors.reshape(-1, 3)
+        faces = np.arange(len(vertices)).reshape(-1, 3)
+
+        # Create trimesh object
+        trimesh_mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+
+        # Check if mesh is watertight
+        is_watertight = trimesh_mesh.is_watertight
+        mesh_repaired = False
+        repair_attempted = False
+
+        # Attempt to repair mesh if not watertight
+        if not is_watertight and attempt_repair:
+            repair_attempted = True
+            try:
+                # Merge duplicate vertices (common issue with voxel meshes)
+                trimesh_mesh.merge_vertices()
+
+                # Remove duplicate faces
+                trimesh_mesh.remove_duplicate_faces()
+
+                # Fill holes if any
+                trimesh_mesh.fill_holes()
+
+                # Check if repair was successful
+                is_watertight_after_repair = trimesh_mesh.is_watertight
+                if is_watertight_after_repair:
+                    is_watertight = True
+                    mesh_repaired = True
+            except Exception:
+                # If repair fails, continue with original mesh
+                pass
+
+        # Compute volume (only meaningful for watertight meshes)
+        # Volume is in cubic units based on coordinate space
+        volume = trimesh_mesh.volume if is_watertight else None
+
+        # Compute surface area
+        surface_area = trimesh_mesh.area
+
+        # Get mesh complexity metrics
+        num_vertices = len(trimesh_mesh.vertices)
+        num_faces = len(trimesh_mesh.faces)
+
+        validation_time = time.time() - start_time
+
+        return {
+            "is_watertight": bool(is_watertight),
+            "volume_mm3": float(volume) if volume is not None else None,
+            "surface_area_mm2": float(surface_area),
+            "num_vertices": int(num_vertices),
+            "num_faces": int(num_faces),
+            "watertight_check_available": True,
+            "mesh_validation_time": float(validation_time),
+            "mesh_repaired": mesh_repaired,
+            "repair_attempted": repair_attempted,
+        }
+    except Exception as e:
+        # If trimesh validation fails, return error info
+        validation_time = time.time() - start_time
+        return {
+            "is_watertight": None,
+            "volume_mm3": None,
+            "surface_area_mm2": None,
+            "num_vertices": None,
+            "num_faces": len(stl_mesh.vectors),
+            "watertight_check_available": False,
+            "mesh_validation_time": float(validation_time),
+            "mesh_repaired": False,
+            "repair_attempted": False,
+            "error": f"Trimesh validation failed: {e!s}",
+        }
+
+
 @tool
 def convert_design_to_stl(  # noqa: PLR0913, PLR0912
     npy_file_path: str,
@@ -221,6 +360,17 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
         - stl_path: str (where STL file was saved)
         - npy_path: str (input file path)
         - num_triangles: int (number of triangles in the mesh)
+        - connected_design: bool (2D connectivity: single component in design array)
+        - num_components: int (2D connectivity: number of disconnected regions)
+        - is_watertight: bool | None (3D printability: mesh forms closed manifold solid)
+        - volume_mm3: float | None (mesh volume in mm³)
+        - surface_area_mm2: float | None (mesh surface area in mm²)
+        - num_vertices: int | None (mesh vertex count)
+        - num_faces: int | None (mesh face count)
+        - watertight_check_available: bool (whether trimesh validation was performed)
+        - mesh_validation_time: float (seconds spent on watertightness check)
+        - mesh_repaired: bool (whether mesh was successfully repaired)
+        - repair_attempted: bool (whether repair was attempted)
         - message: str
 
     Example:
@@ -321,6 +471,28 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
 
         num_triangles = len(beam_mesh.vectors)
 
+        # Check mesh watertightness for 3D printability assessment
+        watertightness_info = _check_mesh_watertightness(
+            beam_mesh,
+            scale_xy=scale_xy,
+            scale_z=scale_z,
+        )
+
+        # Build message with watertightness info if available
+        message = (
+            f"Successfully converted {input_path.name} to outputs/{output_path.name}"
+            + (" (mirrored along Y-axis)" if mirror_y else "")
+            + f". Created 3D extruded mesh with {num_triangles} triangles from {non_zero_count} cells. "
+            + f"Connected: {connected_design} ({num_components} component{'s' if num_components != 1 else ''}). "
+            + f"Dimensions: {width}x{height} grid, scaled by {scale_xy}x{scale_xy}x{scale_z}"
+        )
+
+        # Add watertightness info to message if check was performed
+        if watertightness_info.get("watertight_check_available"):
+            is_wt = watertightness_info.get("is_watertight")
+            if is_wt is not None:
+                message += f". Watertight: {is_wt}"
+
         return {
             "success": True,
             "stl_path": str(output_path),
@@ -333,11 +505,8 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
             "scale_xy": scale_xy,
             "scale_z": scale_z,
             "mirrored": mirror_y,
-            "message": f"Successfully converted {input_path.name} to outputs/{output_path.name}"
-            + (" (mirrored along Y-axis)" if mirror_y else "")
-            + f". Created 3D extruded mesh with {num_triangles} triangles from {non_zero_count} cells. "
-            + f"Connected: {connected_design} ({num_components} component{'s' if num_components != 1 else ''}). "
-            + f"Dimensions: {width}x{height} grid, scaled by {scale_xy}x{scale_xy}x{scale_z}",
+            "message": message,
+            **watertightness_info,  # Unpack all watertightness metrics
         }
     except ValueError as e:
         return {

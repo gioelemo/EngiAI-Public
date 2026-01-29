@@ -2,11 +2,33 @@
 
 This scorer uses problem configuration to extract objectives, check constraints,
 and compute scores without problem-specific code.
+
+Design Quality Metrics:
+-----------------------
+The scorer tracks two complementary types of connectivity/printability metrics:
+
+1. **2D Connectivity** (num_components, connected_design):
+   - Checks if the design array has disconnected regions at the density level
+   - Uses scipy.ndimage.label with 8-connectivity on the numpy array
+   - This is a PRECURSOR check before STL extrusion
+   - Computed from the design array directly
+
+2. **3D Watertightness** (is_watertight, volume_mm3, surface_area_mm2):
+   - Checks if the extruded mesh forms a closed manifold solid (no holes/gaps)
+   - Uses trimesh validation on the generated STL file
+   - This is the DEFINITIVE 3D printability check
+   - Extracted from STL export tool results
+
+**Important**: num_components==1 is necessary but NOT sufficient for watertightness.
+A design can be connected in 2D but non-watertight in 3D due to mesh generation issues.
+Both metrics provide valuable complementary information about design quality.
 """
 
 import base64
 import io
+import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -100,6 +122,9 @@ def _check_design_connectivity(design_array: np.ndarray) -> dict[str, Any]:
     Uses 8-connectivity (diagonals count) which is appropriate for 3D printing
     since diagonal voxels share edges when extruded.
 
+    This is a 2D precursor check before STL extrusion - it checks if the design
+    array has disconnected regions at the density level.
+
     Args:
         design_array: Design array (continuous densities 0-1)
 
@@ -115,6 +140,140 @@ def _check_design_connectivity(design_array: np.ndarray) -> dict[str, Any]:
         "connected_design": num_components == 1,
         "num_components": int(num_components),
     }
+
+
+def _extract_watertightness_from_messages(
+    messages: list, example_id: int
+) -> dict[str, Any]:
+    """Extract watertightness metrics from STL export tool calls.
+
+    Searches for convert_design_to_stl tool results in messages and
+    extracts 3D mesh validation metrics for printability assessment.
+
+    This provides true 3D mesh validation (watertightness) which is
+    complementary to 2D connectivity checks. A design can be connected
+    in 2D but non-watertight in 3D due to mesh generation issues.
+
+    Args:
+        messages: LangChain messages from agent execution
+        example_id: Example ID for logging
+
+    Returns:
+        Dictionary with watertightness metrics or empty dict if not found:
+        - is_watertight: bool | None
+        - volume_mm3: float | None
+        - surface_area_mm2: float | None
+        - num_vertices: int | None
+        - num_faces: int | None
+        - watertight_check_available: bool
+        - mesh_validation_time: float
+    """
+    watertightness_metrics = {}
+
+    for msg in messages:
+        # Check if this is a tool message (has tool_call_id)
+        if not hasattr(msg, "tool_call_id"):
+            continue
+
+        content = msg.content
+        if not isinstance(content, str):
+            continue
+
+        # Check if this is a convert_design_to_stl tool result
+        if "is_watertight" not in content and "watertight_check_available" not in content:
+            continue
+
+        logger.debug(
+            f"Example {example_id}: Found watertightness info in STL export tool result"
+        )
+
+        # Try to parse as JSON first (most reliable)
+        try:
+            # Try direct JSON parse
+            result = json.loads(content)
+            if isinstance(result, dict) and "is_watertight" in result:
+                watertightness_metrics = {
+                    "is_watertight": result.get("is_watertight"),
+                    "volume_mm3": result.get("volume_mm3"),
+                    "surface_area_mm2": result.get("surface_area_mm2"),
+                    "num_vertices": result.get("num_vertices"),
+                    "num_faces": result.get("num_faces"),
+                    "watertight_check_available": result.get(
+                        "watertight_check_available", False
+                    ),
+                    "mesh_validation_time": result.get("mesh_validation_time", 0.0),
+                }
+                # Continue to get the LAST occurrence (most recent STL export)
+                continue
+        except json.JSONDecodeError:
+            pass
+
+        # Fallback: regex extraction
+        try:
+            # Extract is_watertight
+            wt_match = re.search(r"['\"]is_watertight['\"]\s*:\s*(\w+)", content)
+            if wt_match:
+                wt_value = wt_match.group(1)
+                is_wt = (
+                    True if wt_value == "True" else (False if wt_value == "False" else None)
+                )
+
+                watertightness_metrics = {
+                    "is_watertight": is_wt,
+                    "volume_mm3": _extract_float_field(content, "volume_mm3"),
+                    "surface_area_mm2": _extract_float_field(content, "surface_area_mm2"),
+                    "num_vertices": _extract_int_field(content, "num_vertices"),
+                    "num_faces": _extract_int_field(content, "num_faces"),
+                    "watertight_check_available": _extract_bool_field(
+                        content, "watertight_check_available"
+                    ),
+                    "mesh_validation_time": _extract_float_field(
+                        content, "mesh_validation_time"
+                    )
+                    or 0.0,
+                }
+        except Exception as e:
+            logger.debug(
+                f"Example {example_id}: Failed to extract watertightness via regex: {e}"
+            )
+
+    if not watertightness_metrics:
+        logger.debug(
+            f"Example {example_id}: No watertightness metrics found (STL not generated)"
+        )
+
+    return watertightness_metrics
+
+
+def _extract_float_field(content: str, field: str) -> float | None:
+    """Extract float field from content string."""
+    match = re.search(rf"['\"]?{field}['\"]?\s*:([\d.\s]+)", content)
+    if match:
+        try:
+            return float(match.group(1).strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _extract_int_field(content: str, field: str) -> int | None:
+    """Extract int field from content string."""
+    match = re.search(rf"['\"]?{field}['\"]?\s*:(\d+)", content)
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+def _extract_bool_field(content: str, field: str) -> bool:
+    """Extract bool field from content string."""
+    match = re.search(rf"['\"]?{field}['\"]?\s*:\s*(\w+)", content)
+    if match:
+        value = match.group(1)
+        return value == "True"
+    return False
 
 
 def _calculate_constraint_score(
@@ -364,8 +523,12 @@ def score_output_quality_visual(
     # Calculate design metrics (universal)
     design_metrics = _calculate_design_metrics(design_array, ground_truth)
 
-    # Check design connectivity
+    # Check design connectivity (2D precursor check)
     connectivity_metrics = _check_design_connectivity(design_array)
+
+    # Extract watertightness metrics from STL export (3D printability check)
+    messages = output.get("messages", [])
+    watertightness_metrics = _extract_watertightness_from_messages(messages, example_id)
 
     # Get conditions from target or dataset row
     conditions = target if isinstance(target, dict) else {}
@@ -377,8 +540,7 @@ def score_output_quality_visual(
         design_array, conditions, problem_config, example_id
     )
 
-    # Extract objectives from messages
-    messages = output.get("messages", [])
+    # Extract objectives from messages (reuse messages already extracted above)
     agent_objectives = extract_objectives_from_tool_messages(
         messages, problem_config, example_id
     )
@@ -428,6 +590,7 @@ def score_output_quality_visual(
         "optimization_history": optimization_history,  # Store for optimality gap metrics
         **design_metrics,
         **connectivity_metrics,
+        **watertightness_metrics,  # 3D printability metrics
         **constraint_metrics,
         **objective_metrics,
     }
