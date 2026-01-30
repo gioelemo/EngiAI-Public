@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -809,3 +810,26 @@ def save_figure(fig, filename, output_dir=None, save_pdf=True):
         print(f"Saved: {pdf_path}")
 
     return path
+
+
+def identify_pareto_front(scores, minimize_x=False, minimize_y=True):
+    """
+    Finds the pareto-efficient points.
+    :param scores: An (n_points, 2) array [x_values, y_values]
+    :return: A boolean array indicating if each point is on the Pareto front.
+    """
+    is_efficient = np.ones(scores.shape[0], dtype=bool)
+    for i, c in enumerate(scores):
+        if is_efficient[i]:
+            # Keep any point with a lower cost (if minimizing) or higher (if maximizing)
+            # For DPP (X) we usually maximize, for FOG/MMD (Y) we minimize
+            if minimize_x and minimize_y:
+                is_efficient[is_efficient] = np.any(scores[is_efficient] < c, axis=1)
+            elif not minimize_x and minimize_y:
+                # Maximize X, Minimize Y
+                is_efficient[is_efficient] = np.any(
+                    [scores[is_efficient, 0] > c[0], scores[is_efficient, 1] < c[1]],
+                    axis=0,
+                )
+            is_efficient[i] = True  # Keep self
+    return is_efficient
