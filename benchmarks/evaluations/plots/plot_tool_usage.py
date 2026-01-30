@@ -308,7 +308,10 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
     # 1. Calculate average usage per example for each model
     # Dividing by the count of rows (examples) for each model
     model_tool_usage = tool_data.groupby("model")[tool_columns].mean().T * 100
-
+    # 2. ABBREVIATE NAMES HERE
+    model_tool_usage.columns = [
+        c.replace("-instruct-2507-q8-0", "-Inst") for c in model_tool_usage.columns
+    ]
     # 2. Clean up tool names
     model_tool_usage.index = [
         idx.replace("tool_", "") for idx in model_tool_usage.index
