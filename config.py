@@ -63,6 +63,7 @@ class Config:
         # Required API keys
         self.openai_api_key: str = os.getenv("OPENAI_API_KEY") or ""
         self.tavily_api_key: str = os.getenv("TAVILY_API_KEY") or ""
+        self.google_api_key: str = os.getenv("GOOGLE_API_KEY") or ""
 
         # Model configuration
         self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4o")
@@ -140,6 +141,7 @@ class Config:
         required_vars = {
             "OPENAI_API_KEY": self.openai_api_key,
             "TAVILY_API_KEY": self.tavily_api_key,
+            "GOOGLE_API_KEY": self.google_api_key,
         }
 
         missing_vars = [var for var, value in required_vars.items() if not value]
@@ -153,6 +155,7 @@ class Config:
         """Set environment variables for compatibility with existing code."""
         os.environ["OPENAI_API_KEY"] = self.openai_api_key
         os.environ["TAVILY_API_KEY"] = self.tavily_api_key
+        os.environ["GOOGLE_API_KEY"] = self.google_api_key
 
     @property
     def slurm_email_user(self) -> str:

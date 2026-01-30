@@ -6,7 +6,7 @@ This guide explains how to deploy the Engineer Assistant chatbot using Docker on
 
 - Docker installed on your system
 - Docker Compose (optional, but recommended)
-- API keys for OpenAI and Tavily
+- API keys for OpenAI and Tavily and Google
 
 ### External Services (Required)
 

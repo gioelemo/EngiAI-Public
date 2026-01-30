@@ -29,12 +29,16 @@ OPENAI_API_KEY=sk-your-openai-api-key-here
 # Tavily API Key (Required for web search)
 TAVILY_API_KEY=tvly-your-tavily-api-key-here
 
+# Google API Key (Required for all LLM operations)
+GOOGLE_API_KEY=sk-your-google-api-key-here
+
 # MMORE RAG Service (Required for document retrieval)
 MMORE_RAG_URL=http://localhost:8000
 ```
 
 **Where to get keys:**
 - **OpenAI**: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- **Google**: [https://google.com](https://google.com)
 - **Tavily**: [https://tavily.com/](https://tavily.com/)
 
 **External Services:**

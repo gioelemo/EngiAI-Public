@@ -295,6 +295,7 @@ streamlit run src/ui/streamlit_app.py
 ```env
 OPENAI_API_KEY=your-actual-openai-api-key-here
 TAVILY_API_KEY=your-actual-tavily-api-key-here
+GOOGLE_API_KEY=your-actual-google-api-key-here
 ```
 
 **Database Configuration:**
@@ -889,7 +890,8 @@ pip install -e .
 To use the chatbot functionality, you'll need:
 
 1. **OpenAI API Key**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
-2. **Tavily API Key**: Get from [Tavily](https://tavily.com/) for web search functionality
+2. **Google API Key**: Get from [Google Platform](https://google.com)
+3. **Tavily API Key**: Get from [Tavily](https://tavily.com/) for web search functionality
 
 Both are required for the chatbot to work properly.
 
@@ -921,7 +923,7 @@ Both are required for the chatbot to work properly.
 
 ### API & Configuration Issues
 - **Missing API keys error:** Ensure `.env` file exists with valid keys (copy from `.env.example`)
-- **Chatbot not responding:** Verify OpenAI API key is valid and has sufficient credits
+- **Chatbot not responding:** Verify OpenAI API key and Google API key are valid and has sufficient credits
 - **Web search not working:** Check Tavily API key in `.env` file
 - **Database errors:** Check `DATABASE_URL` in `.env` or delete `data/conversations.db` to reset
 - **"could not translate host name 'postgres'" error when running locally:**

@@ -93,7 +93,7 @@ Markers: `@pytest.mark.unit`, `@pytest.mark.slow`, `@pytest.mark.integration`, `
 ## Configuration
 
 Required environment variables (see `.env.example`):
-- `OPENAI_API_KEY`, `TAVILY_API_KEY` - Required API keys
+- `OPENAI_API_KEY`, `GOOGLE_API_KEY`,`TAVILY_API_KEY` - Required API keys
 - `LLM_MODEL` - Model spec (default: `openai:gpt-4o`)
 - `MMORE_RAG_URL` - RAG service URL
 - `DATABASE_URL` - Persistence (PostgreSQL or SQLite)

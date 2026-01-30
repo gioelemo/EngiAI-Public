@@ -20,7 +20,7 @@ docker-compose logs -f chatbot
    # Check your .env file
    cat .env | grep API_KEY
    ```
-   Solution: Ensure `OPENAI_API_KEY` and `TAVILY_API_KEY` are set
+   Solution: Ensure `OPENAI_API_KEY`, `GOOGLE_API_KEY`, and `TAVILY_API_KEY` are set
 
 2. **Port already in use**:
    ```bash
