@@ -335,7 +335,7 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
         fmt=".1f",
         cmap="YlOrRd",
         # Updated label to clarify this is the usage rate
-        cbar_kws={"label": "Usage Rate (%)", "shrink": 0.8},
+        cbar_kws={"label": r"Usage Rate (\%)", "shrink": 0.8},
         linewidths=0.3,
         ax=ax,
         annot_kws={"size": font_sizes["annotation"]},
