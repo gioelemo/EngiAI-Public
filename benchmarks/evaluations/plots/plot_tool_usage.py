@@ -347,6 +347,101 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
     return save_figure(fig, "tool_usage_heatmap_pct.png", output_dir)
 
 
+def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
+    """Plot how much each model deviates from the average tool usage."""
+    # 1. Calculate usage rate per model
+    tool_columns = [col for col in tool_data.columns if col.startswith("tool_")]
+    model_usage = tool_data.groupby("model")[tool_columns].mean() * 100
+
+    # 2. Calculate the average usage across ALL models
+    avg_usage = model_usage.mean()
+
+    # 3. Calculate Delta (Difference from Mean)
+    delta_usage = (model_usage - avg_usage).T
+    delta_usage.index = [idx.replace("tool_", "") for idx in delta_usage.index]
+
+    # Abbreviate model names as discussed
+    delta_usage.columns = [
+        c.replace("-instruct-2507-q8-0", "-Inst") for c in delta_usage.columns
+    ]
+
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col_tall"],  # Use standard tall format
+        constrained_layout=True,
+    )
+
+    # Use a diverging colormap (RdBu_r: Red is more, Blue is less)
+    sns.heatmap(
+        delta_usage,
+        annot=True,
+        fmt=".1f",
+        cmap="RdBu_r",
+        center=0,
+        linewidths=0.5,
+        ax=ax,
+        cbar_kws={"label": r"$\Delta$ Usage Rate (\%)", "shrink": 0.8},  # LaTeX math
+        annot_kws={"size": PLOT_STYLE["font_sizes"]["annotation"]},
+    )
+
+    save_figure(
+        fig, "tool_usage_delta_heatmap.png", output_dir
+    )  # Uses bbox_inches='tight'
+
+
+def plot_performance_distribution_by_tool_count(
+    combined_tools, combined_design, output_dir=None
+):
+    """Show the distribution of performance metrics relative to tools used."""
+    # Merge performance with tool usage counts
+    df = combined_design.merge(
+        combined_tools[["example_id", "model", "total_tools", "unique_tools"]],
+        on=["example_id", "model"],
+    )
+
+    fig, axes = plt.subplots(
+        1, 2, figsize=PLOT_STYLE["figsize_full_width"], constrained_layout=True
+    )
+    metrics = ["score", "iou"]
+    labels = ["Score", "IoU"]
+
+    for i, metric in enumerate(metrics):
+        ax = axes[i]
+
+        # FIX: Added hue="total_tools" and legend=False to resolve the FutureWarnings
+        sns.violinplot(
+            data=df,
+            x="total_tools",
+            y=metric,
+            hue="total_tools",
+            legend=False,
+            inner="quart",
+            palette="Pastel1",
+            linewidth=0.7,
+            ax=ax,
+            cut=0,
+        )
+
+        # Overlay Jittered Points
+        sns.stripplot(
+            data=df,
+            x="total_tools",
+            y=metric,
+            color="black",
+            size=2,
+            alpha=0.3,
+            jitter=True,
+            ax=ax,
+        )
+
+        ax.set_ylabel(labels[i], fontsize=PLOT_STYLE["font_sizes"]["axes_label"])
+        ax.set_xlabel(
+            "Total Tools Used", fontsize=PLOT_STYLE["font_sizes"]["axes_label"]
+        )
+        sns.despine(ax=ax)
+
+    save_figure(fig, "performance_stats_distribution.png", output_dir)
+
+
 def main():
     """Main execution."""
     setup_style()
@@ -398,6 +493,9 @@ def main():
         plot_tool_usage_vs_performance(combined_tools, combined_design)
     else:
         print(f"No design metrics found. Available keys: {list(data.keys())}")
+
+    plot_tool_usage_delta_heatmap(combined_tools)
+    plot_performance_distribution_by_tool_count(combined_tools, combined_design)
 
     print("\nAll visualizations complete!")
 
