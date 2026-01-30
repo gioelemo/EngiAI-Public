@@ -391,19 +391,13 @@ def main():
     data = load_data()
 
     # Try to get combined design data
-    design_keys = [
-        "gpt_beams_design",
-        "gpt_photonics_design",
-        "gpt5_beams_design",
-        "gpt5_photonics_design",
-    ]
-    design_dfs = [data[key] for key in design_keys if key in data]
+    design_dfs = [df for key, df in data.items() if key.endswith("_design")]
 
     if design_dfs:
         combined_design = pd.concat(design_dfs, ignore_index=True)
         plot_tool_usage_vs_performance(combined_tools, combined_design)
     else:
-        print("No design metrics found, skipping correlation plots")
+        print(f"No design metrics found. Available keys: {list(data.keys())}")
 
     print("\nAll visualizations complete!")
 
