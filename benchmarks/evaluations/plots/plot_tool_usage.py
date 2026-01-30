@@ -294,12 +294,7 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):
 
 
 def plot_tool_heatmap_by_model(tool_data, output_dir=None):
-    """Create heatmap showing which tools are used by which models (NeurIPS format).
-
-    Args:
-        tool_data: Combined tool usage DataFrame
-        output_dir: Optional output directory for saving
-    """
+    """Create heatmap showing tool usage percentages by model."""
     if tool_data is None or len(tool_data) == 0:
         print("No tool usage data available")
         return
@@ -307,29 +302,23 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
     setup_style()
     font_sizes = PLOT_STYLE["font_sizes"]
 
-    # Get tool columns
+    # 1. Get tool columns
     tool_columns = [col for col in tool_data.columns if col.startswith("tool_")]
 
-    if not tool_columns:
-        print("No tool columns found")
-        return
+    # 1. Calculate average usage per example for each model
+    # Dividing by the count of rows (examples) for each model
+    model_tool_usage = tool_data.groupby("model")[tool_columns].mean().T * 100
 
-    # Calculate average usage per model
-    model_tool_usage = (
-        tool_data.groupby("model")[tool_columns].sum().T
-    )  # Transpose so tools are rows
-
-    # Clean up tool names
+    # 2. Clean up tool names
     model_tool_usage.index = [
         idx.replace("tool_", "") for idx in model_tool_usage.index
     ]
 
-    # Filter out tools with zero usage
+    # 3. Filter out tools with zero usage and sort
     model_tool_usage = model_tool_usage[(model_tool_usage.sum(axis=1) > 0)].sort_values(
         by=model_tool_usage.columns.tolist(), ascending=False
     )
 
-    # Create heatmap with dynamic height
     n_tools = len(model_tool_usage)
     fig_height = min(max(2.4, n_tools * 0.2), 5.0)
     fig, ax = plt.subplots(
@@ -340,9 +329,10 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
     sns.heatmap(
         model_tool_usage,
         annot=True,
-        fmt=".0f",
+        fmt=".1f",
         cmap="YlOrRd",
-        cbar_kws={"label": "Count", "shrink": 0.8},
+        # Updated label to clarify this is the usage rate
+        cbar_kws={"label": "Usage Rate (%)", "shrink": 0.8},
         linewidths=0.3,
         ax=ax,
         annot_kws={"size": font_sizes["annotation"]},
@@ -351,7 +341,7 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
     ax.set_xlabel("")
     ax.set_ylabel("")
 
-    return save_figure(fig, "tool_usage_heatmap.png", output_dir)
+    return save_figure(fig, "tool_usage_heatmap_pct.png", output_dir)
 
 
 def main():
