@@ -332,7 +332,6 @@ PRUSA_MCP_URL=http://localhost:8765
 - `openai:gpt-4.1` (default, fast and cost-effective)
 - `openai:gpt-4o` (most capable OpenAI model)
 - `openai:gpt-3.5-turbo` (legacy, cheaper option)
-- `anthropic:claude-3-5-sonnet-20241022` (requires Anthropic API key)
 
 **LLM Tracing and Monitoring:**
 

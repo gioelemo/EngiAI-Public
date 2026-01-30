@@ -216,9 +216,6 @@ LLM_MODEL=openai:gpt-4o          # GPT-4 Optimized (recommended)
 LLM_MODEL=openai:gpt-4-turbo     # GPT-4 Turbo
 LLM_MODEL=openai:gpt-3.5-turbo   # GPT-3.5 (faster, cheaper)
 
-# Anthropic Models (if you have an API key)
-LLM_MODEL=anthropic:claude-3-opus
-LLM_MODEL=anthropic:claude-3-sonnet
 ```
 
 ### Model Parameters

@@ -133,9 +133,9 @@ Technology Stack
 ----------------
 
 * **Frameworks**: LangGraph, LangChain, Streamlit, Fabric
-* **LLMs**: OpenAI GPT-4o, GPT-4-turbo, Claude 3.5 Sonnet
+* **LLMs**: OpenAI GPT-4o, GPT-4-turbo,  Gemini-3-flash-preview, Ollama Qwen3
 * **Storage**: MMORE (RAG), PostgreSQL/SQLite (relational)
-* **Integrations**: EngiBench, Prusa Connect, Weights & Biases, Tavily
+* **Integrations**: EngiBench/EngiOpt, Prusa Connect, Weights & Biases, Tavily
 
 Deployment Options
 ------------------

@@ -295,7 +295,7 @@ config.setup_weave_tracing()  # Called at startup
 
 After initialization, all LangChain components are automatically traced:
 - Agent executions
-- LLM calls (OpenAI, Anthropic, etc.)
+- LLM calls (OpenAI, Google, etc.)
 - Tool usage
 - Chain invocations
 

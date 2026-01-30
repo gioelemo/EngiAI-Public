@@ -316,7 +316,7 @@ def _process_ai_response(
                 text_parts.append(item)
         full_response = "\n".join(text_parts) if text_parts else str(content)
     else:
-        # Plain string content (OpenAI, Anthropic, etc.)
+        # Plain string content (OpenAI, etc.)
         full_response = str(content)
 
     cleaned_response, suggested_prompts = extract_suggested_prompts(full_response)
