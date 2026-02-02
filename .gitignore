@@ -236,3 +236,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 src/ui/components/*/frontend/build/
+assets/architecture_simplified.pdf
+.gitignore
+assets/deployment_infrastructure.pdf
+.gitignore
+assets/architecture_simplified.png
+assets/deployment_infrastructure.png
