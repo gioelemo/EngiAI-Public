@@ -22,6 +22,7 @@ def test_config_loads_from_env():
         {
             "OPENAI_API_KEY": "test-key-123",
             "TAVILY_API_KEY": "test-tavily-key",
+            "GOOGLE_API_KEY": "test-google-key",
             "HPC_HOST_ALIAS": "test-cluster",
         },
     ):
@@ -32,6 +33,7 @@ def test_config_loads_from_env():
 
         assert config.openai_api_key == "test-key-123"
         assert config.tavily_api_key == "test-tavily-key"
+        assert config.google_api_key == "test-google-key"
         assert config.hpc_host_alias == "test-cluster"
 
 
@@ -43,6 +45,7 @@ def test_config_has_required_attributes():
     # Test that required attributes exist (may be empty strings)
     assert hasattr(config, "openai_api_key")
     assert hasattr(config, "tavily_api_key")
+    assert hasattr(config, "google_api_key")
     assert hasattr(config, "hpc_host_alias")
     assert hasattr(config, "llm_model")
     assert hasattr(config, "llm_temperature")
@@ -86,6 +89,15 @@ def test_config_validation_missing_tavily_key():
 
 
 @pytest.mark.unit
+def test_config_validation_missing_google_key():
+    """Test that config raises ValueError when GOOGLE_API_KEY is missing."""
+    with patch("config.load_dotenv"):  # Mock load_dotenv to prevent loading .env file
+        with patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key"}, clear=True):
+            with pytest.raises(ValueError):
+                Config()
+
+
+@pytest.mark.unit
 def test_config_validation_both_keys_missing():
     """Test that config raises ValueError when both required keys are missing."""
     with patch("config.load_dotenv"):  # Mock load_dotenv to prevent loading .env file
@@ -102,6 +114,7 @@ def test_config_sets_environment_variables():
         {
             "OPENAI_API_KEY": "test-openai",
             "TAVILY_API_KEY": "test-tavily",
+            "GOOGLE_API_KEY": "test-google",
         },
         clear=True,
     ):
@@ -110,6 +123,7 @@ def test_config_sets_environment_variables():
         # Verify env vars are set
         assert os.environ["OPENAI_API_KEY"] == "test-openai"
         assert os.environ["TAVILY_API_KEY"] == "test-tavily"
+        assert os.environ["GOOGLE_API_KEY"] == "test-google"
 
 
 @pytest.mark.unit
@@ -120,6 +134,7 @@ def test_config_property_slurm_email_user():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
         },
         clear=True,
     ):
@@ -139,6 +154,7 @@ def test_config_property_slurm_project_path():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
         },
         clear=True,
     ):
@@ -159,6 +175,7 @@ def test_config_property_hf_home_remote():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
         },
         clear=True,
     ):
@@ -179,6 +196,7 @@ def test_config_property_hf_datasets_cache_remote():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
         },
         clear=True,
     ):
@@ -199,6 +217,7 @@ def test_config_setup_langsmith_tracing_enabled():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
             "LANGCHAIN_TRACING": "true",
             "LANGCHAIN_ENDPOINT": "https://test.api.com",
         },
@@ -220,6 +239,7 @@ def test_config_setup_langsmith_tracing_disabled():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
             "LANGCHAIN_TRACING": "false",
         },
         clear=True,
@@ -243,6 +263,7 @@ def test_config_temperature_parsing():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
             "LLM_TEMPERATURE": "0.5",
         },
         clear=True,
@@ -274,6 +295,7 @@ def test_config_wandb_configuration():
         {
             "OPENAI_API_KEY": "test-key",
             "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
             "WANDB_ENTITY": "test-entity",
             "WANDB_REPORT_URL": "https://wandb.ai/test",
         },
