@@ -56,7 +56,9 @@ def generate_chat_title(user_message: str) -> str:
         import requests  # noqa: PLC0415
 
         # Extract provider and model from config (e.g., "openai:gpt-4.1" -> "openai", "gpt-4.1")
-        provider = config.llm_model.split(":")[0] if ":" in config.llm_model else "openai"
+        provider = (
+            config.llm_model.split(":")[0] if ":" in config.llm_model else "openai"
+        )
         model = (
             config.llm_model.split(":")[-1]
             if ":" in config.llm_model
@@ -78,15 +80,7 @@ Reply with ONLY the title, nothing else. No quotes, no punctuation at the end.""
                     "Content-Type": "application/json",
                 },
                 json={
-                    "contents": [
-                        {
-                            "parts": [
-                                {
-                                    "text": prompt
-                                }
-                            ]
-                        }
-                    ],
+                    "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "temperature": 0.3,
                         "maxOutputTokens": 20,
@@ -97,7 +91,9 @@ Reply with ONLY the title, nothing else. No quotes, no punctuation at the end.""
             response.raise_for_status()
 
             # Extract title from Google API response
-            title = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            title = response.json()["candidates"][0]["content"]["parts"][0][
+                "text"
+            ].strip()
         else:
             # Default to OpenAI API call
             response = requests.post(
