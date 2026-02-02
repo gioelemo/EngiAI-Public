@@ -491,11 +491,12 @@ def main():
     if design_dfs:
         combined_design = pd.concat(design_dfs, ignore_index=True)
         plot_tool_usage_vs_performance(combined_tools, combined_design)
+        plot_performance_distribution_by_tool_count(combined_tools, combined_design)
+
     else:
         print(f"No design metrics found. Available keys: {list(data.keys())}")
 
     plot_tool_usage_delta_heatmap(combined_tools)
-    plot_performance_distribution_by_tool_count(combined_tools, combined_design)
 
     print("\nAll visualizations complete!")
 
