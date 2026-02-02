@@ -239,8 +239,8 @@ yarn-debug.log*
 yarn-error.log*
 src/ui/components/*/frontend/build/
 assets/architecture_simplified.pdf
-.gitignore
-.gitignore
+assets/deployment_infrastructure.pdf
+assets/architecture_simplified.png
 assets/design_process.png
 assets/design_process.pdf
 assets/deployment_infrastructure.png
