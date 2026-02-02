@@ -73,7 +73,7 @@ browser_box = FancyBboxPatch(
     boxstyle="round,pad=0.05",
     edgecolor="black",
     facecolor="#E8F4F8",
-    linewidth=1.5,
+    linewidth=1.0,
 )
 ax.add_patch(browser_box)
 ax.text(
@@ -91,7 +91,7 @@ arrow_browser = FancyArrowPatch(
     (5, 7.7),
     arrowstyle="<->",
     mutation_scale=15,
-    linewidth=1.5,
+    linewidth=1.0,
     color="black",
 )
 ax.add_patch(arrow_browser)
@@ -106,8 +106,8 @@ chatbot_box = FancyBboxPatch(
     boxstyle="round,pad=0.05",
     edgecolor="black",
     facecolor=color_container,
-    linewidth=1.5,
-    alpha=0.7,
+    linewidth=1.0,
+    alpha=0.6,
 )
 ax.add_patch(chatbot_box)
 
@@ -143,8 +143,8 @@ postgres_box = FancyBboxPatch(
     boxstyle="round,pad=0.05",
     edgecolor="black",
     facecolor=color_db,
-    linewidth=1.5,
-    alpha=0.7,
+    linewidth=1.0,
+    alpha=0.4,
 )
 ax.add_patch(postgres_box)
 
@@ -174,9 +174,8 @@ arrow_db = FancyArrowPatch(
     (2.5, 5.0),
     arrowstyle="<->",
     mutation_scale=12,
-    linewidth=1.2,
+    linewidth=1.0,
     color="black",
-    alpha=0.6,
 )
 ax.add_patch(arrow_db)
 
@@ -190,8 +189,8 @@ prusa_box = FancyBboxPatch(
     boxstyle="round,pad=0.05",
     edgecolor="black",
     facecolor=color_container,
-    linewidth=1.5,
-    alpha=0.7,
+    linewidth=1.0,
+    alpha=0.4,
 )
 ax.add_patch(prusa_box)
 
@@ -221,9 +220,8 @@ arrow_prusa = FancyArrowPatch(
     (5.0, 5.0),
     arrowstyle="<->",
     mutation_scale=12,
-    linewidth=1.2,
+    linewidth=1.0,
     color="black",
-    alpha=0.6,
 )
 ax.add_patch(arrow_prusa)
 
@@ -237,8 +235,8 @@ mmore_box = FancyBboxPatch(
     boxstyle="round,pad=0.05",
     edgecolor="black",
     facecolor=color_container,
-    linewidth=1.5,
-    alpha=0.7,
+    linewidth=1.0,
+    alpha=0.4,
 )
 ax.add_patch(mmore_box)
 
@@ -267,9 +265,8 @@ arrow_mmore = FancyArrowPatch(
     (7.5, 5.0),
     arrowstyle="<->",
     mutation_scale=12,
-    linewidth=1.2,
+    linewidth=1.0,
     color="black",
-    alpha=0.6,
 )
 ax.add_patch(arrow_mmore)
 
@@ -279,20 +276,20 @@ ax.add_patch(arrow_mmore)
 
 # Unified External Services (APIs + HPC) - moved up closer to legend
 external_box = FancyBboxPatch(
-    (2.5, 2.5),
+    (2.5, 0.9),
     5.0,
     0.8,
     boxstyle="round,pad=0.05",
     edgecolor="gray",
     facecolor=color_external,
-    linewidth=1,
+    linewidth=1.0,
     linestyle="--",
 )
 ax.add_patch(external_box)
 
 ax.text(
     5.0,
-    3.1,
+    1.5,
     r"\textbf{External Services}",
     fontsize=label_size,
     ha="center",
@@ -301,7 +298,7 @@ ax.text(
 
 ax.text(
     5.0,
-    2.75,
+    1,
     r"OpenAI, Tavily, ArXiv, HPC Cluster",
     fontsize=small_size - 1,
     ha="center",
@@ -313,13 +310,12 @@ ax.text(
 # Use a curved arrow from bottom of chatbot
 arrow_external = FancyArrowPatch(
     (4.2, 6.5),
-    (4.5, 3.3),
+    (4.5, 1.7),
     arrowstyle="->",
     mutation_scale=12,
-    linewidth=1.2,
+    linewidth=1.0,
     color="black",
-    alpha=0.6,
-    connectionstyle="arc3,rad=0.2",
+    connectionstyle="arc3,rad=0.8",
 )
 ax.add_patch(arrow_external)
 
