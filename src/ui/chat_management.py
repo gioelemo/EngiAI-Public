@@ -55,7 +55,8 @@ def generate_chat_title(user_message: str) -> str:
         # This prevents title generation from cluttering Weave traces
         import requests  # noqa: PLC0415
 
-        # Extract model name from config (e.g., "openai:gpt-4.1" -> "gpt-4.1")
+        # Extract provider and model from config (e.g., "openai:gpt-4.1" -> "openai", "gpt-4.1")
+        provider = config.llm_model.split(":")[0] if ":" in config.llm_model else "openai"
         model = (
             config.llm_model.split(":")[-1]
             if ":" in config.llm_model
@@ -68,25 +69,55 @@ def generate_chat_title(user_message: str) -> str:
 
 Reply with ONLY the title, nothing else. No quotes, no punctuation at the end."""
 
-        # Direct OpenAI API call without LangChain instrumentation
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {config.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_tokens": 20,
-            },
-            timeout=10,
-        )
-        response.raise_for_status()
+        # Choose API based on provider
+        if provider.lower() == "google":
+            # Google Generative AI API call
+            response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={config.google_api_key}",
+                headers={
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "contents": [
+                        {
+                            "parts": [
+                                {
+                                    "text": prompt
+                                }
+                            ]
+                        }
+                    ],
+                    "generationConfig": {
+                        "temperature": 0.3,
+                        "maxOutputTokens": 20,
+                    },
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
 
-        # Extract title from response
-        title = response.json()["choices"][0]["message"]["content"].strip()
+            # Extract title from Google API response
+            title = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        else:
+            # Default to OpenAI API call
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {config.openai_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 20,
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            # Extract title from OpenAI response
+            title = response.json()["choices"][0]["message"]["content"].strip()
 
         # Remove quotes if present
         title = title.strip("\"'")
