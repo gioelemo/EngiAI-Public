@@ -48,14 +48,18 @@ benchmarks/
     ├── compute_metrics_stats.py  # Compute global metrics statistics
     ├── compute_design_stats.py   # Compute per-design metrics statistics
     └── results/               # Results organized by model and problem
-        └── {model-name}/
-            └── {problem-type}/
-                ├── metrics.csv           # Global metrics (MMD, DPP, RVC, gaps)
-                ├── design_metrics.csv    # Per-design metrics (IoU, accuracy, etc.)
-                └── comparisons/          # Design comparison images
-                    ├── seed_1/           # Per-seed comparisons
-                    ├── seed_2/
-                    └── ...
+        ├── models/                # LLM agent results
+        │   └── {model-name}/
+        │       └── {problem-type}/
+        │           └── {prompt-style}/
+        │               └── {rag-status}/
+        │                   ├── output_quality_global_metrics.csv   # Global metrics (MMD, DPP, RVC, gaps)
+        │                   ├── output_quality_design_metrics.csv   # Per-design metrics (IoU, accuracy, etc.)
+        │                   └── comparisons/          # Design comparison images
+        │                       ├── seed_1/           # Per-seed comparisons
+        │                       ├── seed_2/
+        │                       └── ...
+        └── baselines/         # Baseline method results (CGAN, etc.)
 ```
 
 ## Quick Start
@@ -89,7 +93,7 @@ python evaluate_agent.py --problem beams2d --model gpt-4o --samples 5
 
 ### 4. View Results
 
-- **Local:** Check `evaluations/results/models/{model}/{problem}/{prompt_style}/{rag_status}/comparisons/` for comparison images
+- **Local:** Check `evaluations/results/models/{model}/{problem}/{prompt_style}/{rag_status}/comparisons/seed_N/` for comparison images
 - **Weave Dashboard:** View full metrics, traces, and comparisons in the Weave UI
 
 ## Seed-Based Evaluation
@@ -106,7 +110,7 @@ python evaluate_agent.py \
   --seed 1
 ```
 
-This saves metrics to `results/models/{model}/{problem}/{prompt_style}/{rag_status}/metrics.csv` and comparison images to `results/models/{model}/{problem}/{prompt_style}/{rag_status}/comparisons/seed_1/`.
+This saves metrics to `results/models/{model}/{problem}/{prompt_style}/{rag_status}/output_quality_global_metrics.csv` and comparison images to `results/models/{model}/{problem}/{prompt_style}/{rag_status}/comparisons/seed_1/`.
 
 ### Multiple Seeds for Statistical Analysis
 
@@ -131,13 +135,13 @@ After running multiple seeds, compute mean ± standard deviation:
 
 ```bash
 cd benchmarks/evaluations
-python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv
+python compute_output_quality_global_stats.py results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_global_metrics.csv
 ```
 
 Output:
 ```
 ============================================================
-Metrics Statistics for results/openai_gpt-4.1/beams2d/metrics.csv
+Metrics Statistics for results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_global_metrics.csv
 ============================================================
 
 Number of runs: 10
@@ -238,8 +242,8 @@ done
 
 # Compare statistics
 cd benchmarks/evaluations
-python compute_metrics_stats.py results/gpt-4o/beams2d/metrics.csv
-python compute_metrics_stats.py results/claude-3-5-sonnet-20241022/beams2d/metrics.csv
+python compute_output_quality_global_stats.py results/models/openai_gpt-4o/beams2d/full/no_rag/output_quality_global_metrics.csv
+python compute_output_quality_global_stats.py results/models/anthropic_claude-3-5-sonnet-20241022/beams2d/full/no_rag/output_quality_global_metrics.csv
 
 # View detailed comparison in Weave dashboard
 ```
@@ -291,7 +295,7 @@ In addition to global metrics, every evaluation automatically saves per-design m
 
 **Analyze per-design metrics:**
 ```bash
-python compute_design_stats.py results/openai_gpt-4.1/beams2d/design_metrics.csv
+python compute_output_quality_design_stats.py results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_design_metrics.csv
 ```
 
 **Use cases:**
