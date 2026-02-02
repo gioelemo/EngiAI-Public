@@ -1301,6 +1301,17 @@ def render_sidebar() -> None:
     # Tavily API usage widget
     render_tavily_usage_widget()
 
+    # Current model display
+    with st.expander("🤖 Current Model", expanded=False):
+        model_display = config.llm_model
+        # Extract provider and model for cleaner display
+        if ":" in model_display:
+            provider, model = model_display.split(":", 1)
+            st.caption(f"**Provider:** {provider.capitalize()}")
+            st.caption(f"**Model:** {model}")
+        else:
+            st.caption(f"**Model:** {model_display}")
+
     st.markdown("---")
 
     # Filter chats to only show those with at least 1 message OR the active chat

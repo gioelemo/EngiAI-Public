@@ -46,7 +46,7 @@ def process_uploaded_images(
         )
 
         # For LangChain agent
-        # Note: PDF support varies by model. Claude 3.5 Sonnet and some others support PDFs
+        # Note: PDF support varies by model.
         # as if they were images using the same format
         images_for_agent.append(
             {

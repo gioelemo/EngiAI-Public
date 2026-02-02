@@ -95,7 +95,8 @@ Required environment variables:
 ```bash
 # OpenAI API Key (required)
 OPENAI_API_KEY=sk-...
-
+# Google API Key (required)
+GOOGLE_API_KEY=sk-...
 # Tavily API Key (for web search)
 TAVILY_API_KEY=tvly-...
 

@@ -301,7 +301,24 @@ def _process_ai_response(
     Returns:
         Tuple of (response parts, suggested prompts)
     """
-    full_response = str(final_message.content)
+    # Handle different content formats (string vs structured dict from Google models)
+    content = final_message.content
+    if isinstance(content, dict):
+        # Google models return {'type': 'text', 'text': '...', 'extras': {...}}
+        full_response = content.get("text", str(content))
+    elif isinstance(content, list):
+        # Handle list of content blocks (multimodal responses)
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text_parts.append(item.get("text", ""))
+            elif isinstance(item, str):
+                text_parts.append(item)
+        full_response = "\n".join(text_parts) if text_parts else str(content)
+    else:
+        # Plain string content (OpenAI, etc.)
+        full_response = str(content)
+
     cleaned_response, suggested_prompts = extract_suggested_prompts(full_response)
     cleaned_response = extract_and_display_validation_warnings(cleaned_response)
 
@@ -677,8 +694,25 @@ def display_message(message: dict, message_idx: int = 0) -> None:
         message_idx: Index of the message in the chat history for unique keys
     """
     with st.chat_message(message["role"]):
+        # Extract text from content (handle both string and structured dict formats)
+        raw_content = message["content"]
+        if isinstance(raw_content, dict):
+            # Google models return {'type': 'text', 'text': '...', 'extras': {...}}
+            content = raw_content.get("text", str(raw_content))
+        elif isinstance(raw_content, list):
+            # Handle list of content blocks
+            text_parts = []
+            for item in raw_content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_parts.append(item.get("text", ""))
+                elif isinstance(item, str):
+                    text_parts.append(item)
+            content = "\n".join(text_parts) if text_parts else str(raw_content)
+        else:
+            content = str(raw_content)
+
         # Fix LaTeX delimiters before displaying
-        content = fix_latex_delimiters(message["content"])
+        content = fix_latex_delimiters(content)
 
         # For assistant messages, also clean any suggestions block from content
         if message["role"] == "assistant":

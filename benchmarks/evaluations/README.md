@@ -6,7 +6,7 @@ This directory contains the unified evaluation infrastructure for benchmarking t
 
 The evaluation framework uses [Weave](https://wandb.ai/site/weave) to track and compare agent performance across:
 - Multiple problem types (beams2d, photonics2d, thermoelastic2d)
-- Multiple LLM models (GPT-4o, Claude, etc.)
+- Multiple LLM models (GPT-4o, Gemini, etc.)
 - Different model configurations (temperature, etc.)
 
 ## Quick Start
@@ -28,9 +28,6 @@ Evaluate different models on the same problem:
 ```bash
 # Evaluate GPT-4o
 python evaluate_agent.py --problem beams2d --model gpt-4o --samples 10
-
-# Evaluate Claude Sonnet
-python evaluate_agent.py --problem beams2d --model claude-3-5-sonnet-20241022 --samples 10
 ```
 
 ### Adjust Parameters
@@ -73,16 +70,20 @@ Results are automatically organized by model and problem type:
 
 ```
 results/
-├── {model-name}/
-│   └── {problem-type}/
-│       ├── metrics.csv           # Global metrics (MMD, DPP, RVC, IOG, COG, FOG) across seeds
-│       ├── design_metrics.csv    # Per-design metrics (IoU, accuracy, etc.) for each example
-│       └── comparisons/          # Comparison visualizations
-│           ├── seed_1/           # Per-seed comparisons (if using seeds)
-│           │   ├── comparison_example_0.png
-│           │   └── ...
-│           ├── seed_2/
-│           └── ...
+├── models/                      # LLM agent results
+│   └── {model-name}/
+│       └── {problem-type}/
+│           └── {prompt-style}/
+│               └── {rag-status}/
+│                   ├── output_quality_global_metrics.csv   # Global metrics (MMD, DPP, RVC, IOG, COG, FOG)
+│                   ├── output_quality_design_metrics.csv   # Per-design metrics (IoU, accuracy, etc.)
+│                   └── comparisons/          # Comparison visualizations
+│                       ├── seed_1/           # Per-seed comparisons (if using seeds)
+│                       │   ├── comparison_example_0.png
+│                       │   └── ...
+│                       ├── seed_2/
+│                       └── ...
+└── baselines/                   # Baseline method results (CGAN, etc.)
 ```
 
 Example:
@@ -95,10 +96,6 @@ results/
 │           ├── seed_1/
 │           ├── seed_2/
 │           └── seed_3/
-└── claude-3-5-sonnet-20241022/
-    └── beams2d/
-        ├── metrics.csv
-        └── comparisons/
 ```
 
 ## Seed-Based Evaluation
@@ -116,7 +113,7 @@ python evaluate_agent.py \
 ```
 
 Output:
-- Metrics saved to: `results/models/{model}/beams2d/{prompt_style}/{rag_status}/metrics.csv`
+- Metrics saved to: `results/models/{model}/beams2d/{prompt_style}/{rag_status}/output_quality_global_metrics.csv`
 - Comparisons saved to: `results/models/{model}/beams2d/{prompt_style}/{rag_status}/comparisons/seed_1/`
 
 ### Multiple Seeds for Statistics
@@ -141,13 +138,13 @@ Each run appends a row to the CSV file with the seed value tracked.
 After running multiple seeds, compute mean ± std:
 
 ```bash
-python compute_metrics_stats.py results/openai_gpt-4.1/beams2d/metrics.csv
+python compute_output_quality_global_stats.py results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_global_metrics.csv
 ```
 
 Output example:
 ```
 ============================================================
-Metrics Statistics for results/openai_gpt-4.1/beams2d/metrics.csv
+Metrics Statistics for results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_global_metrics.csv
 ============================================================
 
 Number of runs: 10
@@ -181,7 +178,7 @@ In addition to global metrics, per-design metrics are automatically saved for gr
 
 ### Design Metrics CSV Format
 
-The `design_metrics.csv` file contains per-example metrics:
+The `output_quality_design_metrics.csv` file contains per-example metrics:
 - `seed` - Random seed used
 - `example_id` - Problem instance identifier
 - `problem_id` - Problem type
@@ -199,13 +196,13 @@ The `design_metrics.csv` file contains per-example metrics:
 After running multiple seeds, compute per-design statistics:
 
 ```bash
-python compute_design_stats.py results/openai_gpt-4.1/beams2d/design_metrics.csv
+python compute_output_quality_design_stats.py results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_design_metrics.csv
 ```
 
 Output example:
 ```
 ============================================================
-Per-Design Metrics Statistics for results/openai_gpt-4.1/beams2d/design_metrics.csv
+Per-Design Metrics Statistics for results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_design_metrics.csv
 ============================================================
 
 Number of seeds: 10

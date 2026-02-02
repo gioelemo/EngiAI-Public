@@ -215,7 +215,9 @@ data/datasets/
 
 # Benchmark evaluation results (comparison images, model outputs)
 benchmarks/evaluations/results/
-benchmarks/evaluations/plots/
+benchmarks/evaluations/plots/figures/
+benchmarks/evaluations/results*/
+benchmarks/evaluations/plots/figures*/
 
 # Benchmark problem data (raw samples and generated prompts - can be regenerated)
 benchmarks/problems/*/data/raw/
@@ -237,10 +239,10 @@ yarn-debug.log*
 yarn-error.log*
 src/ui/components/*/frontend/build/
 assets/architecture_simplified.pdf
-.gitignore
 assets/deployment_infrastructure.pdf
-.gitignore
 assets/architecture_simplified.png
-assets/deployment_infrastructure.png
 assets/design_process.png
 assets/design_process.pdf
+assets/deployment_infrastructure.png
+assets/deployment_infrastructure.pdf
+assets/architecture_simplified.png

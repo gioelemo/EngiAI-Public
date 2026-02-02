@@ -12,7 +12,9 @@ import numpy as np
 import pytest
 
 from src.tools.stl_export import (
+    TRIMESH_AVAILABLE,
     _check_design_connectivity,
+    _check_mesh_watertightness,
     _create_stl_from_heatmap_extruded,
     _get_versioned_filename,
     _mirror_beam_along_y,
@@ -637,3 +639,280 @@ def test_connectivity_in_stl_output(tmp_path, sample_2d_array):
     assert "num_components" in result
     assert isinstance(result["connected_design"], bool)
     assert isinstance(result["num_components"], int)
+
+
+# ============================================================================
+# WATERTIGHTNESS CHECKING TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_check_mesh_watertightness_basic(sample_2d_array):
+    """Test that watertightness check returns expected fields."""
+    # Create a mesh
+    mesh = _create_stl_from_heatmap_extruded(sample_2d_array)
+
+    # Check watertightness
+    result = _check_mesh_watertightness(mesh)
+
+    # Assert all expected keys present
+    assert "is_watertight" in result
+    assert "volume_mm3" in result
+    assert "surface_area_mm2" in result
+    assert "num_vertices" in result
+    assert "num_faces" in result
+    assert "watertight_check_available" in result
+    assert "mesh_validation_time" in result
+
+    # Check types (values may be None if trimesh not available)
+    if result["watertight_check_available"]:
+        assert isinstance(result["is_watertight"], bool)
+        assert isinstance(result["surface_area_mm2"], float)
+        assert isinstance(result["num_vertices"], int)
+        assert isinstance(result["num_faces"], int)
+        assert isinstance(result["mesh_validation_time"], float)
+        assert result["mesh_validation_time"] >= 0
+    else:
+        # Without trimesh, should have minimal info
+        assert result["is_watertight"] is None
+        assert result["volume_mm3"] is None
+
+
+@pytest.mark.unit
+def test_check_mesh_watertightness_without_trimesh(sample_2d_array):
+    """Test graceful degradation when trimesh not available."""
+    # Create a mesh
+    mesh = _create_stl_from_heatmap_extruded(sample_2d_array)
+
+    # Mock trimesh as unavailable
+    import src.tools.stl_export
+
+    original_available = src.tools.stl_export.TRIMESH_AVAILABLE
+    src.tools.stl_export.TRIMESH_AVAILABLE = False
+
+    try:
+        result = _check_mesh_watertightness(mesh)
+
+        # Should return with check unavailable
+        assert result["watertight_check_available"] is False
+        assert result["is_watertight"] is None
+        assert result["volume_mm3"] is None
+        assert result["mesh_validation_time"] == 0.0
+        # Should still get face count from numpy-stl
+        assert result["num_faces"] == len(mesh.vectors)
+    finally:
+        # Restore original value
+        src.tools.stl_export.TRIMESH_AVAILABLE = original_available
+
+
+@pytest.mark.unit
+def test_watertightness_in_convert_output(tmp_path, sample_2d_array):
+    """Test that STL conversion includes watertightness metrics."""
+    npy_path = tmp_path / "design.npy"
+    np.save(npy_path, sample_2d_array)
+
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+
+    with patch("src.tools.stl_export.Path") as mock_path_class:
+
+        def path_side_effect(path_str):
+            if path_str == "outputs":
+                return outputs_dir
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        result = convert_design_to_stl.invoke(
+            {
+                "npy_file_path": str(npy_path),
+                "stl_file_path": str(outputs_dir / "test.stl"),
+            }
+        )
+
+    # Verify watertightness metrics are included
+    assert result["success"] is True
+    assert "is_watertight" in result
+    assert "volume_mm3" in result
+    assert "surface_area_mm2" in result
+    assert "num_vertices" in result
+    assert "num_faces" in result
+    assert "watertight_check_available" in result
+    assert "mesh_validation_time" in result
+
+
+@pytest.mark.unit
+def test_connectivity_vs_watertightness_independence(tmp_path):
+    """Test that 2D connectivity and 3D watertightness are tracked separately."""
+    # Create a simple connected design
+    design = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+
+    npy_path = tmp_path / "design.npy"
+    np.save(npy_path, design)
+
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+
+    with patch("src.tools.stl_export.Path") as mock_path_class:
+
+        def path_side_effect(path_str):
+            if path_str == "outputs":
+                return outputs_dir
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        result = convert_design_to_stl.invoke(
+            {
+                "npy_file_path": str(npy_path),
+                "stl_file_path": str(outputs_dir / "test.stl"),
+            }
+        )
+
+    # Verify both metrics exist independently
+    assert result["success"] is True
+    assert "connected_design" in result
+    assert "num_components" in result
+    assert "is_watertight" in result
+
+    # Both should be tracked even if connected
+    assert result["connected_design"] is True
+    assert result["num_components"] == 1
+    # is_watertight tracked separately (value depends on trimesh availability)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TRIMESH_AVAILABLE, reason="trimesh not installed")
+def test_watertightness_with_simple_design(tmp_path):
+    """Integration test with actual trimesh validation."""
+    # Create a simple connected design that should be watertight
+    design = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+
+    npy_path = tmp_path / "design.npy"
+    np.save(npy_path, design)
+
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+
+    with patch("src.tools.stl_export.Path") as mock_path_class:
+
+        def path_side_effect(path_str):
+            if path_str == "outputs":
+                return outputs_dir
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        result = convert_design_to_stl.invoke(
+            {
+                "npy_file_path": str(npy_path),
+                "stl_file_path": str(outputs_dir / "test.stl"),
+            }
+        )
+
+    # With trimesh available, should have full validation
+    assert result["success"] is True
+    assert result["watertight_check_available"] is True
+    assert isinstance(result["is_watertight"], bool)
+    assert isinstance(result["volume_mm3"], (float, type(None)))
+    assert isinstance(result["surface_area_mm2"], float)
+    assert result["surface_area_mm2"] > 0
+    assert isinstance(result["num_vertices"], int)
+    assert result["num_vertices"] > 0
+    assert isinstance(result["mesh_validation_time"], float)
+    assert result["mesh_validation_time"] >= 0
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TRIMESH_AVAILABLE, reason="trimesh not installed")
+def test_watertightness_metrics_accuracy(tmp_path):
+    """Test that volume/area calculations are reasonable for known geometry."""
+    # Create 2x2 grid with all cells filled
+    design = np.ones((2, 2))
+
+    npy_path = tmp_path / "design.npy"
+    np.save(npy_path, design)
+
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+
+    scale_xy = 10.0
+    scale_z = 5.0
+
+    with patch("src.tools.stl_export.Path") as mock_path_class:
+
+        def path_side_effect(path_str):
+            if path_str == "outputs":
+                return outputs_dir
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        result = convert_design_to_stl.invoke(
+            {
+                "npy_file_path": str(npy_path),
+                "stl_file_path": str(outputs_dir / "test.stl"),
+                "scale_xy": scale_xy,
+                "scale_z": scale_z,
+            }
+        )
+
+    # Expected: 2x2 grid of cubes, each cube is scale_xy x scale_xy x scale_z
+    # Total volume = 4 cubes * (10 * 10 * 5) = 2000
+    # But trimesh might report slightly different due to shared faces
+
+    assert result["success"] is True
+    if result["is_watertight"]:
+        # Volume should be in reasonable range
+        assert result["volume_mm3"] is not None
+        assert result["volume_mm3"] > 1000  # At least 50% of theoretical
+        assert result["volume_mm3"] < 3000  # Not more than 150% of theoretical
+
+    # Surface area should be positive
+    assert result["surface_area_mm2"] > 0
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TRIMESH_AVAILABLE, reason="trimesh not installed")
+def test_mesh_repair_functionality(tmp_path):
+    """Test that mesh repair is attempted and tracked."""
+    # Create a simple connected design
+    design = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+
+    npy_path = tmp_path / "design.npy"
+    np.save(npy_path, design)
+
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+
+    with patch("src.tools.stl_export.Path") as mock_path_class:
+
+        def path_side_effect(path_str):
+            if path_str == "outputs":
+                return outputs_dir
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        result = convert_design_to_stl.invoke(
+            {
+                "npy_file_path": str(npy_path),
+                "stl_file_path": str(outputs_dir / "test.stl"),
+            }
+        )
+
+    # Verify repair metrics are present
+    assert result["success"] is True
+    assert "repair_attempted" in result
+    assert "mesh_repaired" in result
+    assert isinstance(result["repair_attempted"], bool)
+    assert isinstance(result["mesh_repaired"], bool)
+
+    # If mesh was initially non-watertight, repair should have been attempted
+    # If repair succeeded, is_watertight should be True and mesh_repaired should be True
+    if result["mesh_repaired"]:
+        assert result["is_watertight"] is True
+        assert result["repair_attempted"] is True
+        # After repair, volume should be available
+        assert result["volume_mm3"] is not None
+        assert result["volume_mm3"] > 0
