@@ -198,7 +198,7 @@ Tools are reusable functions that agents use to complete tasks.
 - **Fabric**: SSH/remote execution
 
 ### Models
-- **LLMs**: OpenAI GPT-4o, GPT-4-turbo, Claude 3.5 Sonnet
+- **LLMs**: OpenAI GPT-4o, Gemini 3 flash
 - **Embeddings**: text-embedding-3-small (OpenAI)
 
 ### Storage

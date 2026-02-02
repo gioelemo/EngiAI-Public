@@ -6,7 +6,7 @@ This directory contains the unified evaluation infrastructure for benchmarking t
 
 The evaluation framework uses [Weave](https://wandb.ai/site/weave) to track and compare agent performance across:
 - Multiple problem types (beams2d, photonics2d, thermoelastic2d)
-- Multiple LLM models (GPT-4o, Claude, etc.)
+- Multiple LLM models (GPT-4o, Gemini, etc.)
 - Different model configurations (temperature, etc.)
 
 ## Quick Start
@@ -28,9 +28,6 @@ Evaluate different models on the same problem:
 ```bash
 # Evaluate GPT-4o
 python evaluate_agent.py --problem beams2d --model gpt-4o --samples 10
-
-# Evaluate Claude Sonnet
-python evaluate_agent.py --problem beams2d --model claude-3-5-sonnet-20241022 --samples 10
 ```
 
 ### Adjust Parameters
@@ -92,24 +89,13 @@ results/
 Example:
 ```
 results/
-└── models/
-    ├── openai_gpt-4.1/
-    │   └── beams2d/
-    │       └── full/
-    │           └── no_rag/
-    │               ├── output_quality_global_metrics.csv
-    │               ├── output_quality_design_metrics.csv
-    │               └── comparisons/
-    │                   ├── seed_1/
-    │                   ├── seed_2/
-    │                   └── seed_3/
-    └── anthropic_claude-3-5-sonnet-20241022/
-        └── beams2d/
-            └── full/
-                └── no_rag/
-                    ├── output_quality_global_metrics.csv
-                    ├── output_quality_design_metrics.csv
-                    └── comparisons/
+├── openai_gpt-4.1/
+│   └── beams2d/
+│       ├── metrics.csv
+│       └── comparisons/
+│           ├── seed_1/
+│           ├── seed_2/
+│           └── seed_3/
 ```
 
 ## Seed-Based Evaluation

@@ -6,7 +6,7 @@ This directory contains benchmarking and evaluation infrastructure for the engin
 
 The benchmarks evaluate the agent's performance on engineering design tasks across:
 - **Multiple problem types** (beams2d, photonics2d, thermoelastic2d)
-- **Multiple LLM models** (GPT-4o, Claude Sonnet, etc.)
+- **Multiple LLM models** (GPT-4o, Google Gemini, etc.)
 - **Different configurations** (temperature, parameters, etc.)
 
 Results are tracked using [Weave](https://wandb.ai/site/weave) for easy comparison and visualization.
@@ -230,20 +230,9 @@ for seed in {1..10}; do
     --seed $seed
 done
 
-# Evaluate Claude Sonnet with 10 seeds
-for seed in {1..10}; do
-  python evaluations/evaluate_agent.py \
-    --problem beams2d \
-    --model claude-3-5-sonnet-20241022 \
-    --samples 50 \
-    --scorers engibench \
-    --seed $seed
-done
-
 # Compare statistics
 cd benchmarks/evaluations
-python compute_output_quality_global_stats.py results/models/openai_gpt-4o/beams2d/full/no_rag/output_quality_global_metrics.csv
-python compute_output_quality_global_stats.py results/models/anthropic_claude-3-5-sonnet-20241022/beams2d/full/no_rag/output_quality_global_metrics.csv
+python compute_metrics_stats.py results/gpt-4o/beams2d/metrics.csv
 
 # View detailed comparison in Weave dashboard
 ```

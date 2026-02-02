@@ -215,7 +215,9 @@ data/datasets/
 
 # Benchmark evaluation results (comparison images, model outputs)
 benchmarks/evaluations/results/
-benchmarks/evaluations/plots/
+benchmarks/evaluations/plots/figures/
+benchmarks/evaluations/results*/
+benchmarks/evaluations/plots/figures*/
 
 # Benchmark problem data (raw samples and generated prompts - can be regenerated)
 benchmarks/problems/*/data/raw/

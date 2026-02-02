@@ -49,12 +49,12 @@ def test_prusa_agent_custom_model():
     with patch("src.agents.prusa_agent.init_chat_model") as mock_init:
         mock_init.return_value = MagicMock()
         agent = PrusaAgent(
-            model_name="claude-3-sonnet",
+            model_name="gpt-5-mini",
             temperature=0.5,
             skip_mcp=True,
         )
 
-        assert agent.model_name == "claude-3-sonnet"
+        assert agent.model_name == "gpt-5-mini"
         assert agent.temperature == 0.5
 
 

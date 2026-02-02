@@ -33,11 +33,12 @@ cd engineer-assistant
 
 ```bash
 cp .env.example .env
-# Edit .env with your OpenAI and Tavily API keys
+# Edit .env with your OpenAI, Google and Tavily API keys
 ```
 
 Get API keys from:
 - [OpenAI](https://platform.openai.com/api-keys)
+- [Google](https://google.com/)
 - [Tavily](https://tavily.com/)
 
 **Important:** Verify `MMORE_RAG_URL=http://localhost:8000` in your `.env` file points to your running MMORE service.

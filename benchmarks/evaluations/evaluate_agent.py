@@ -6,8 +6,6 @@ on engineering design tasks across multiple problem types and LLM models.
 
 Usage:
     python evaluate_agent.py --problem beams2d --model gpt-4o --samples 5
-    python evaluate_agent.py --problem thermoelastic2d --model claude-3-5-sonnet --samples 10
-
 Reference: https://docs.wandb.ai/weave/guides/core-types/evaluations
 """
 
@@ -601,7 +599,7 @@ def create_contextual_scorer(
 
     Args:
         scorer_func: Original scorer function to wrap
-        model_name: Model name (e.g., "gpt-4o", "claude-3-5-sonnet") [unused, kept for signature compatibility]
+        model_name: Model name (e.g., "gpt-4o", "gemini-3-flash-preview") [unused, kept for signature compatibility]
         problem_type: Problem type (e.g., "beams2d", "thermoelastic2d") [unused, kept for signature compatibility]
         scorer_type: Scorer identifier (e.g., "output_quality_visual", "engibench")
 

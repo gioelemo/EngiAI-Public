@@ -53,6 +53,7 @@ The application will open automatically in your default browser at `http://local
 The UI automatically uses the configuration from `config.py`. Make sure your environment variables are set:
 
 - `OPENAI_API_KEY`: Your OpenAI API key (required)
+- `GOOGLE_API_KEY`: Your Google API key (required)
 - `TAVILY_API_KEY`: Tavily search API key (for search agent)
 
 ## Customization

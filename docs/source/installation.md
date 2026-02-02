@@ -50,6 +50,7 @@ cp .env.example .env
 
 Required configuration:
 - **OpenAI API Key**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
+- **Google API Key**: Get from [Google Platform](https://google.com)
 - **Tavily API Key**: Get from [Tavily](https://tavily.com/)
 - **MMORE_RAG_URL**: URL to MMORE service (default: `http://localhost:8000`)
 
