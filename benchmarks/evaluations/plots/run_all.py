@@ -49,7 +49,6 @@ from utils import (  # noqa: E402
     get_combined_design_df,
     get_combined_global_df,
     get_combined_tool_usage_df,
-    get_output_dir,
     get_problem_output_dir,
     get_problem_prompt_output_dir,
     load_data,
