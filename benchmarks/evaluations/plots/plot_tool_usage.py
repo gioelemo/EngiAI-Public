@@ -366,6 +366,7 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
 
     ax.set_xlabel("")
     ax.set_ylabel("")
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
 
     return save_figure(fig, "tool_usage_heatmap_pct.png", output_dir)
 
@@ -405,6 +406,8 @@ def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
         cbar_kws={"label": r"$\Delta$ Usage Rate (\%)", "shrink": 0.8},  # LaTeX math
         annot_kws={"size": PLOT_STYLE["font_sizes"]["annotation"]},
     )
+
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
 
     save_figure(
         fig, "tool_usage_delta_heatmap.png", output_dir
