@@ -125,7 +125,8 @@ def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Pa
             if not rag_dir.is_dir() or rag_dir.name not in KNOWN_RAG_STATUSES:
                 continue
 
-            key_prefix = f"{model_name}_{prompt_style}_{problem}"
+            rag_status = rag_dir.name  # "rag" or "no_rag"
+            key_prefix = f"{model_name}_{prompt_style}_{rag_status}_{problem}"
 
             global_path = rag_dir / "output_quality_global_metrics.csv"
             if global_path.exists():
@@ -199,14 +200,14 @@ def _get_model_label(model_name: str) -> str:
 
 
 def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
-    """Parse a data key to extract model, prompt_style, problem, and type.
+    """Parse a data key to extract model, prompt_style, rag_status, problem, and type.
 
     Key formats:
-        Model: {model}_{prompt_style}_{problem}_{type}
+        Model: {model}_{prompt_style}_{rag_status}_{problem}_{type}
         CGAN:  cgan_cnn_2d_{problem}_{type}
 
     Returns:
-        Dictionary with 'model', 'prompt_style', 'problem', 'type' or None if invalid.
+        Dictionary with 'model', 'prompt_style', 'rag_status', 'problem', 'type' or None if invalid.
     """
     parts = key.rsplit("_", 2)  # Split from right: [model_part, problem, type]
     if len(parts) < MIN_KEY_PARTS:
@@ -225,18 +226,29 @@ def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
         return {
             "model": model_part,
             "prompt_style": None,
+            "rag_status": None,
             "problem": problem,
             "type": data_type,
             "is_baseline": True,
         }
 
-    # Format: {model_name}_{prompt_style} where prompt_style is known
+    # Format: {model_name}_{prompt_style}_{rag_status}
+    # Try to extract rag_status first
+    rag_status = None
+    for status in KNOWN_RAG_STATUSES:
+        if model_part.endswith(f"_{status}"):
+            rag_status = status
+            model_part = model_part[: -(len(status) + 1)]  # Remove _status suffix
+            break
+
+    # Now extract prompt_style
     for style in KNOWN_PROMPT_STYLES:
         if model_part.endswith(f"_{style}"):
             model_name = model_part[: -(len(style) + 1)]  # Remove _style suffix
             return {
                 "model": model_name,
                 "prompt_style": style,
+                "rag_status": rag_status,
                 "problem": problem,
                 "type": data_type,
                 "is_baseline": False,
@@ -430,7 +442,7 @@ def get_output_dir():
     return OUTPUT_DIR
 
 
-def _load_global_metrics(path, model, problem, prompt_style="full"):
+def _load_global_metrics(path, model, problem, prompt_style="full", rag_status=None):
     """Load and clean global metrics for a specific model/problem."""
     if not path.exists():
         return None
@@ -456,10 +468,11 @@ def _load_global_metrics(path, model, problem, prompt_style="full"):
     df["model"] = model
     df["problem"] = problem
     df["prompt_style"] = prompt_style
+    df["rag_status"] = rag_status
     return df
 
 
-def _load_design_metrics(path, model, prompt_style="full"):
+def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
     """Load and clean design-level metrics for a specific model."""
     if not path.exists():
         return None
@@ -471,6 +484,7 @@ def _load_design_metrics(path, model, prompt_style="full"):
     df = df.drop_duplicates(subset=["seed", "example_id"], keep="first")
     df["model"] = model
     df["prompt_style"] = prompt_style
+    df["rag_status"] = rag_status
     return df
 
 
@@ -534,12 +548,16 @@ def load_data():
             if df is not None:
                 df["problem"] = problem
                 df["prompt_style"] = None  # Baselines don't have prompt_style
+                df["rag_status"] = None  # Baselines don't have rag_status
                 data[key] = df
         else:
             # Agent model - get display label
             model_label = _get_model_label(parsed["model"])
             prompt_style = parsed.get("prompt_style", "full")
-            df = _load_global_metrics(path, model_label, problem, prompt_style)
+            rag_status = parsed.get("rag_status")
+            df = _load_global_metrics(
+                path, model_label, problem, prompt_style, rag_status
+            )
             if df is not None:
                 data[key] = df
 
@@ -554,7 +572,8 @@ def load_data():
 
         model_label = _get_model_label(parsed["model"])
         prompt_style = parsed.get("prompt_style", "full")
-        df = _load_design_metrics(path, model_label, prompt_style)
+        rag_status = parsed.get("rag_status")
+        df = _load_design_metrics(path, model_label, prompt_style, rag_status)
         if df is not None:
             data[key] = df
 
@@ -578,7 +597,7 @@ def load_tool_usage_data():
         if not key.endswith("_tools"):
             continue
 
-        # Parse key: {model_name}_{prompt_style}_{problem}_tools
+        # Parse key: {model_name}_{prompt_style}_{rag_status}_{problem}_tools
         parsed = _parse_data_key(key)
         if parsed is None:
             continue
@@ -586,12 +605,14 @@ def load_tool_usage_data():
         problem = parsed["problem"]
         model_label = _get_model_label(parsed["model"])
         prompt_style = parsed.get("prompt_style", "full")
+        rag_status = parsed.get("rag_status")
 
         try:
             df = pd.read_csv(path)
             df["model"] = model_label
             df["problem"] = problem
             df["prompt_style"] = prompt_style
+            df["rag_status"] = rag_status
             data[key] = df
         except Exception as e:
             print(f"Warning: Could not load {path}: {e}")
@@ -707,6 +728,31 @@ def filter_by_prompt_style(df, prompt_style: str, include_baselines: bool = True
     return filtered if len(filtered) > 0 else None
 
 
+def filter_by_rag_status(df, rag_status: str, include_baselines: bool = True):
+    """Filter a DataFrame to only include data for a specific RAG status.
+
+    Args:
+        df: DataFrame with a 'rag_status' column
+        rag_status: RAG status to filter by ("rag", "no_rag")
+        include_baselines: If True, include baselines (which have no rag_status)
+
+    Returns:
+        Filtered DataFrame or None if empty
+    """
+    if df is None:
+        return None
+    if "rag_status" not in df.columns:
+        return df
+
+    if include_baselines:
+        # Include rows matching rag_status OR baselines (rag_status is None)
+        filtered = df[(df["rag_status"] == rag_status) | (df["rag_status"].isna())]
+    else:
+        filtered = df[df["rag_status"] == rag_status]
+
+    return filtered if len(filtered) > 0 else None
+
+
 def get_prompt_style_output_dir(prompt_style: str):
     """Return output directory for a specific prompt style.
 
@@ -721,19 +767,25 @@ def get_prompt_style_output_dir(prompt_style: str):
     return output_dir
 
 
-def get_problem_prompt_output_dir(problem: str, prompt_style: str) -> Path:
-    """Return output directory for a specific problem and prompt style.
+def get_problem_prompt_output_dir(
+    problem: str, prompt_style: str, rag_status: str | None = None
+) -> Path:
+    """Return output directory for a specific problem, prompt style, and RAG status.
 
-    Structure: figures/{problem}/{prompt_style}/
+    Structure: figures/{problem}/{prompt_style}/{rag_status}/
 
     Args:
         problem: Problem name (e.g., "beams2d")
         prompt_style: Prompt style (e.g., "full", "approximate")
+        rag_status: RAG status (e.g., "rag", "no_rag"), optional for backwards compatibility
 
     Returns:
         Path to the output directory
     """
-    output_dir = OUTPUT_DIR / problem / prompt_style
+    if rag_status is not None:
+        output_dir = OUTPUT_DIR / problem / prompt_style / rag_status
+    else:
+        output_dir = OUTPUT_DIR / problem / prompt_style
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
