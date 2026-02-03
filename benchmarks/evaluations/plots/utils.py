@@ -817,11 +817,12 @@ def is_baseline(model_name: str) -> bool:
     return any(pattern.lower() in model_name.lower() for pattern in baseline_patterns)
 
 
-def filter_models_only(df):
-    """Filter a DataFrame to only include LLM agent models (exclude baselines).
+def filter_by_model_type(df, model_type: str):
+    """Filter a DataFrame by model type (baseline or agent).
 
     Args:
         df: DataFrame with a 'model' column
+        model_type: Type of model to include ("baseline" or "agent")
 
     Returns:
         Filtered DataFrame or None if empty
@@ -830,24 +831,16 @@ def filter_models_only(df):
         return None
     if "model" not in df.columns:
         return df
-    filtered = df[~df["model"].apply(is_baseline)]
-    return filtered if len(filtered) > 0 else None
 
+    if model_type == "baseline":
+        filtered = df[df["model"].apply(is_baseline)]
+    elif model_type == "agent":
+        filtered = df[~df["model"].apply(is_baseline)]
+    else:
+        raise ValueError(
+            f"model_type must be 'baseline' or 'agent', got '{model_type}'"
+        )
 
-def filter_baselines_only(df):
-    """Filter a DataFrame to only include baselines (exclude LLM agents).
-
-    Args:
-        df: DataFrame with a 'model' column
-
-    Returns:
-        Filtered DataFrame or None if empty
-    """
-    if df is None:
-        return None
-    if "model" not in df.columns:
-        return df
-    filtered = df[df["model"].apply(is_baseline)]
     return filtered if len(filtered) > 0 else None
 
 

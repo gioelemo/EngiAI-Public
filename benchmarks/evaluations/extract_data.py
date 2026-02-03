@@ -469,6 +469,20 @@ def main():
     )
     parser.add_argument("--problem", required=True, help="Problem (beams2d)")
     parser.add_argument("--seed", type=int, help="Seed")
+    parser.add_argument(
+        "--prompt-style",
+        type=str,
+        default="full",
+        choices=["full", "approximate", "natural", "workflow"],
+        help="Prompt style used (default: full)",
+    )
+    parser.add_argument(
+        "--rag-status",
+        type=str,
+        default="no_rag",
+        choices=["rag", "no_rag"],
+        help="RAG status (default: no_rag)",
+    )
     parser.add_argument("--eval-id", help="Evaluation ID to filter by")
     parser.add_argument("--output", help="Output path")
     parser.add_argument(
@@ -496,7 +510,7 @@ def main():
 
     output_path = (
         args.output
-        or f"benchmarks/evaluations/results/models/{model.replace('/', '_').replace(':', '_')}/{args.problem}/data.csv"
+        or f"benchmarks/evaluations/results/models/{model.replace('/', '_').replace(':', '_')}/{args.problem}/{args.prompt_style}/{args.rag_status}/data.csv"
     )
 
     save_tool_usage_csv(data, output_path, model, args.problem, args.seed)

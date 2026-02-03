@@ -19,16 +19,22 @@ Usage:
 """
 
 import argparse
+import sys
+from pathlib import Path
 
-from generate_summary_table import create_summary_table
-from plot_design_quality import plot_design_quality
-from plot_dpp_vs_fog import plot_dpp_vs_fog
-from plot_dpp_vs_mmd import plot_dpp_vs_mmd
-from plot_iou_vs_objective import plot_iou_vs_objective
-from plot_metrics_comparison import plot_metrics_comparison
-from plot_success_curves import plot_convergence_profile
-from plot_token_latency import plot_latency, plot_token_usage
-from plot_tool_usage import (
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from generate_summary_table import create_summary_table  # noqa: E402
+from plot_design_quality import plot_design_quality  # noqa: E402
+from plot_dpp_vs_fog import plot_dpp_vs_fog  # noqa: E402
+from plot_dpp_vs_mmd import plot_dpp_vs_mmd  # noqa: E402
+from plot_iou_vs_objective import plot_iou_vs_objective  # noqa: E402
+from plot_metrics_comparison import plot_metrics_comparison  # noqa: E402
+from plot_success_curves import plot_convergence_profile  # noqa: E402
+from plot_token_latency import plot_latency, plot_token_usage  # noqa: E402
+from plot_tool_usage import (  # noqa: E402
     plot_performance_distribution_by_tool_count,
     plot_tool_heatmap_by_model,
     plot_tool_usage_by_model,
@@ -37,7 +43,8 @@ from plot_tool_usage import (
     plot_tool_usage_vs_performance,
 )
 
-from utils import (
+from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
+from utils import (  # noqa: E402
     filter_by_problem,
     filter_by_prompt_style,
     filter_by_rag_status,
@@ -203,7 +210,7 @@ def _generate_token_latency_plots(
     plot_latency(combined_tools, output_dir)
 
 
-def _generate_plots_for_problem(
+def _generate_plots_for_problem(  # noqa: PLR0913
     problem: str,
     combined_global,
     combined_design,
@@ -258,7 +265,7 @@ def _parse_args():
     parser.add_argument(
         "--problem",
         type=str,
-        choices=["beams2d", "photonics2d", "thermoelastic2d"],
+        choices=list(PROBLEMS.keys()),
         help="Generate plots only for a specific problem",
     )
     parser.add_argument(
@@ -367,7 +374,7 @@ def _detect_rag_statuses_with_data(combined_global, combined_design, combined_to
     return rag_statuses
 
 
-def _generate_all_plots(
+def _generate_all_plots(  # noqa: PLR0913
     args,
     combined_global,
     combined_design,
@@ -445,7 +452,7 @@ def _generate_all_plots(
     print("=" * 60)
 
 
-def main():
+def main():  # noqa: PLR0912
     """Generate all visualizations."""
     args = _parse_args()
 

@@ -392,7 +392,7 @@ Use the dedicated make command that sets the correct `MMORE_RAG_URL`:
 
 ```bash
 # Run evaluation with MMORE enabled
-make mmore-eval-run ARGS="--problem beams2d --samples 5 --scorers all --seed 1 --prompt full"
+make mmore-eval-run ARGS="--problem beams2d --samples 5 --scorers all --seed 1 --prompt-style full"
 ```
 
 Or manually set the environment variable:
@@ -403,7 +403,7 @@ MMORE_RAG_URL=http://localhost:8001 python benchmarks/evaluations/evaluate_agent
   --samples 5 \
   --scorers all \
   --seed 1 \
-  --prompt full \
+  --prompt-style full \
   --mmore
 ```
 
@@ -424,10 +424,10 @@ Run evaluations with and without MMORE to compare RAG impact:
 
 ```bash
 # Without MMORE (default)
-python evaluate_agent.py --problem beams2d --samples 10 --seed 1 --prompt full
+python evaluate_agent.py --problem beams2d --samples 10 --seed 1 --prompt-style full
 
 # With MMORE
-make mmore-eval-run ARGS="--problem beams2d --samples 10 --seed 1 --prompt full"
+make mmore-eval-run ARGS="--problem beams2d --samples 10 --seed 1 --prompt-style full"
 ```
 
 Results are automatically tagged with `mmore_on` or `mmore_off` in Weave trace names for easy comparison.
