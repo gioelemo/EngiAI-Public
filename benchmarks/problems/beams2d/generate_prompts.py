@@ -75,10 +75,10 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
             {"name": "simulate_design", "count": 1},
-            {"name": "render_design", "count": 1},
             {"name": "convert_design_to_stl", "count": 1},
         ],
-        "optimal_call_count": 4,
+        "optimal_call_count": 3,
+        "success_criteria": "stl_export",  # Success = STL file generated correctly
     },
 }
 
@@ -248,6 +248,7 @@ def create_prompt_from_conditions(
             "expected_stiffness": compliance_desc,
             "prompt_style": prompt_style,
             "prompt_style_description": style_config["description"],
+            "success_criteria": style_config.get("success_criteria", "render_design"),
         },
         # Optimal tool call sequence for efficiency scoring (style-specific)
         "optimal_tool_calls": style_config["optimal_tool_calls"],
