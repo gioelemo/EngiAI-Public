@@ -101,7 +101,7 @@ def run_cgan_evaluation(
         problem,
         "--seed",
         str(seed),
-        "--samples",
+        "--n-samples",
         str(samples),
         "--output_csv",
         str(output_csv),
