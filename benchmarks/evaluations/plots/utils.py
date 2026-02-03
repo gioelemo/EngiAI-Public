@@ -171,6 +171,7 @@ def _get_model_label(model_name: str) -> str:
         openai_gpt-4o -> GPT-4o
         openai_gpt-4.1 -> GPT-4.1
         anthropic_claude-3-5-sonnet -> Claude-3.5-Sonnet
+        google_genai_gemini-3-flash-preview -> Gemini-3-Flash
         ollama_qwen3_8b-q8_0 -> Qwen3-8B-Q8_0
         ollama_qwen3_4b -> Qwen3-4B
         ollama_qwen3_4b-instruct-2507-q8_0 -> Qwen3-4B-Instruct-2507-Q8_0
@@ -181,11 +182,20 @@ def _get_model_label(model_name: str) -> str:
         if parts[0] in ["openai", "anthropic", "google", "ollama"]:
             model_name = parts[1]
 
+    # Clean up Google models (e.g., genai_gemini-3-flash-preview -> Gemini-3-Flash)
+    if "gemini" in model_name.lower():
+        # Remove "genai_" prefix if present
+        model_name = model_name.replace("genai_", "")
+        # Remove "-preview" suffix if present
+        model_name = model_name.replace("-preview", "")
+        # Capitalize Gemini
+        model_name = model_name.replace("gemini", "Gemini")
+
     # Clean up common patterns
     model_name = model_name.replace("gpt-", "GPT-")
     model_name = model_name.replace("claude-", "Claude-")
 
-    # Clean up Ollama-style model names (e.g., qwen3_8b-q8_0 -> Qwen3-8B-Q8_0)
+    # Clean up Ollama-style model names (e.g., qwen3_8b-q8_0 -> Qwen3-8B-Q8)
     if model_name.lower().startswith("qwen"):
         # Replace underscores with hyphens for readability
         model_name = model_name.replace("_", "-")
@@ -195,6 +205,10 @@ def _get_model_label(model_name: str) -> str:
         model_name = re.sub(
             r"-(\d+)b", lambda m: f"-{m.group(1)}B", model_name, flags=re.IGNORECASE
         )
+        # Remove verbose parts like "-instruct-2507" to shorten the name
+        model_name = re.sub(r"-instruct-\d+", "", model_name, flags=re.IGNORECASE)
+        # Shorten quantization format: -q8_0 or -q8-0 -> -Q8
+        model_name = re.sub(r"-q(\d+)[_-]0", r"-Q\1", model_name, flags=re.IGNORECASE)
 
     return model_name
 
