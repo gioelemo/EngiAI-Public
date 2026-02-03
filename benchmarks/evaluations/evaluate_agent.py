@@ -836,7 +836,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     print()
 
-    await asyncio.sleep(10)  # Wait for Weave to sync evaluation results
+    await asyncio.sleep(30)  # Wait for Weave to sync evaluation results
 
     # Save per-design metrics to CSV
     model_safe = model_name.replace("/", "_").replace(":", "_")
