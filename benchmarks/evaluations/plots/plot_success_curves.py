@@ -12,7 +12,9 @@ from utils import (
 )
 
 
-def plot_convergence_profile(combined_df, output_name="convergence_profile.png"):
+def plot_convergence_profile(
+    combined_df, output_name="convergence_profile.png", output_dir=None
+):
     setup_style()
     fig, ax = plt.subplots(
         figsize=PLOT_STYLE["figsize_single_col"], constrained_layout=True
@@ -62,7 +64,7 @@ def plot_convergence_profile(combined_df, output_name="convergence_profile.png")
     )
 
     sns.despine()
-    save_figure(fig, output_name)
+    save_figure(fig, output_name, output_dir)
 
 
 def main():

@@ -26,10 +26,13 @@ from plot_dpp_vs_fog import plot_dpp_vs_fog
 from plot_dpp_vs_mmd import plot_dpp_vs_mmd
 from plot_iou_vs_objective import plot_iou_vs_objective
 from plot_metrics_comparison import plot_metrics_comparison
+from plot_success_curves import plot_convergence_profile
 from plot_token_latency import plot_latency, plot_token_usage
 from plot_tool_usage import (
+    plot_performance_distribution_by_tool_count,
     plot_tool_heatmap_by_model,
     plot_tool_usage_by_model,
+    plot_tool_usage_delta_heatmap,
     plot_tool_usage_frequency,
     plot_tool_usage_vs_performance,
 )
@@ -69,19 +72,23 @@ def _generate_global_plots(combined_global, output_dir, problem: str | None = No
     print(f"  Global metrics: {len(combined_global)} rows")
 
     # 1. DPP vs FOG
-    print("\n[1/4] DPP vs FOG scatter...")
+    print("\n[1/5] DPP vs FOG scatter...")
     plot_dpp_vs_fog(combined_global, "dpp_vs_fog.png", output_dir)
 
     # 2. DPP vs MMD
-    print("\n[2/4] DPP vs MMD scatter...")
+    print("\n[2/5] DPP vs MMD scatter...")
     plot_dpp_vs_mmd(combined_global, "dpp_vs_mmd.png", output_dir)
 
     # 3. Metrics comparison bars
-    print("\n[3/4] Metrics comparison bars...")
+    print("\n[3/5] Metrics comparison bars...")
     plot_metrics_comparison(combined_global, "metrics_comparison.png", output_dir)
 
-    # 4. Summary table
-    print("\n[4/4] Summary statistics table...")
+    # 4. Convergence profile
+    print("\n[4/5] Convergence profile...")
+    plot_convergence_profile(combined_global, "convergence_profile.png", output_dir)
+
+    # 5. Summary table
+    print("\n[5/5] Summary statistics table...")
     create_summary_table(combined_global, output_dir)
 
 
@@ -136,23 +143,34 @@ def _generate_tool_usage_plots(
     print(f"  Tool usage: {len(combined_tools)} records")
 
     # Tool usage frequency
-    print("\n[1/4] Tool usage frequency...")
+    print("\n[1/6] Tool usage frequency...")
     plot_tool_usage_frequency(combined_tools, output_dir)
 
     # Tool usage by model
-    print("\n[2/4] Tool usage by model...")
+    print("\n[2/6] Tool usage by model...")
     plot_tool_usage_by_model(combined_tools, output_dir)
 
     # Tool usage heatmap
-    print("\n[3/4] Tool usage heatmap...")
+    print("\n[3/6] Tool usage heatmap...")
     plot_tool_heatmap_by_model(combined_tools, output_dir)
+
+    # Tool usage delta heatmap
+    print("\n[4/6] Tool usage delta heatmap...")
+    plot_tool_usage_delta_heatmap(combined_tools, output_dir)
+
+    # Performance distribution by tool count
+    if combined_design is not None:
+        print("\n[5/6] Performance distribution by tool count...")
+        plot_performance_distribution_by_tool_count(
+            combined_tools, combined_design, output_dir
+        )
 
     # Tool usage vs performance
     if combined_design is not None:
-        print("\n[4/4] Tool usage vs performance...")
+        print("\n[6/6] Tool usage vs performance...")
         plot_tool_usage_vs_performance(combined_tools, combined_design, output_dir)
     else:
-        print("\n[4/4] Skipping tool usage vs performance (no design data)")
+        print("\n[5/6] Skipping performance plots (no design data)")
 
 
 def _generate_token_latency_plots(

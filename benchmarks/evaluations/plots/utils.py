@@ -36,8 +36,8 @@ KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow"]
 BASELINES_DIR = RESULTS_DIR / "baselines"
 MODELS_DIR = RESULTS_DIR / "models"
 
-# Known RAG statuses
-KNOWN_RAG_STATUSES = ["rag", "no_rag"]
+# Known RAG statuses (order matters: check longer patterns first!)
+KNOWN_RAG_STATUSES = ["no_rag", "rag"]
 
 # Minimum parts when parsing keys like "{model}_{prompt_style}_{problem}_{type}"
 MIN_KEY_PARTS = 3
