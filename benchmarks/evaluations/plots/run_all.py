@@ -2,19 +2,17 @@
 """
 Generate All Figures
 
-Run this script to generate all visualizations at once.
+Run this script to generate all visualizations for a specific problem.
 Individual plots can also be run separately.
 
 Plots are organized by RAG status to avoid file overwriting:
     figures/{problem}/{prompt_style}/{rag_status}/
 
 Usage:
-    python run_all.py                                    # Generate all figures
-    python run_all.py --prompt-style full                # Filter by prompt style
-    python run_all.py --rag-status rag                   # Filter by RAG status
-    python run_all.py --problem beams2d                  # Generate for specific problem
-    python run_all.py --prompt-style full --rag-status no_rag  # Combine filters
-    python run_all.py --combined-only                    # Generate only combined plots
+    python run_all.py --problem beams2d                  # Generate for specific problem (required)
+    python run_all.py --problem beams2d --prompt-style full  # Filter by prompt style
+    python run_all.py --problem beams2d --rag-status rag     # Filter by RAG status
+    python run_all.py --problem beams2d --prompt-style full --rag-status no_rag  # Combine filters
     python plot_dpp_vs_fog.py                            # Generate single figure
 """
 
@@ -266,7 +264,8 @@ def _parse_args():
         "--problem",
         type=str,
         choices=list(PROBLEMS.keys()),
-        help="Generate plots only for a specific problem",
+        required=True,
+        help="Problem to generate plots for (required)",
     )
     parser.add_argument(
         "--prompt-style",
@@ -279,11 +278,6 @@ def _parse_args():
         type=str,
         choices=["rag", "no_rag"],
         help="Filter by RAG status (rag or no_rag)",
-    )
-    parser.add_argument(
-        "--combined-only",
-        action="store_true",
-        help="Generate only combined plots (skip per-problem)",
     )
     return parser.parse_args()
 
@@ -374,84 +368,6 @@ def _detect_rag_statuses_with_data(combined_global, combined_design, combined_to
     return rag_statuses
 
 
-def _generate_all_plots(  # noqa: PLR0913
-    args,
-    combined_global,
-    combined_design,
-    combined_tools,
-    problems_with_data,
-    rag_statuses_with_data,
-):
-    """Generate all requested plots based on args."""
-    base_output_dir = get_output_dir()
-
-    # Determine which RAG statuses to generate plots for
-    if args.rag_status:
-        # User explicitly specified RAG status via command line - use that
-        rag_statuses_to_plot = [args.rag_status]
-    elif rag_statuses_with_data:
-        # Auto-detect RAG statuses from data
-        rag_statuses_to_plot = sorted(rag_statuses_with_data)
-    else:
-        # No RAG data and no filter specified
-        rag_statuses_to_plot = []
-
-    # Generate per-problem plots if not combined-only
-    if not args.combined_only:
-        for problem in sorted(problems_with_data):
-            # Generate plots for each RAG status separately
-            if rag_statuses_to_plot:
-                # Create separate folders for each RAG status
-                for rag_status in rag_statuses_to_plot:
-                    _generate_plots_for_problem(
-                        problem,
-                        combined_global,
-                        combined_design,
-                        combined_tools,
-                        prompt_style=args.prompt_style,
-                        rag_status=rag_status,
-                    )
-            else:
-                # No RAG data, generate plots without RAG subfolder
-                _generate_plots_for_problem(
-                    problem,
-                    combined_global,
-                    combined_design,
-                    combined_tools,
-                    prompt_style=args.prompt_style,
-                    rag_status=None,
-                )
-
-    # Generate combined plots
-    label = (
-        f"prompt_style: {args.prompt_style}"
-        if args.prompt_style
-        else "all prompt styles"
-    )
-    print("\n" + "=" * 60)
-    print(f"GENERATING COMBINED PLOTS ({label})")
-    print("=" * 60)
-    print(f"Output directory: {base_output_dir}")
-
-    _generate_global_plots(combined_global, base_output_dir)
-    _generate_design_plots(combined_design, base_output_dir)
-    _generate_tool_usage_plots(combined_tools, combined_design, base_output_dir)
-    _generate_token_latency_plots(combined_tools, base_output_dir)
-
-    print("\n" + "=" * 60)
-    print(f"DONE! All figures saved to: {base_output_dir}")
-    if not args.combined_only and problems_with_data:
-        problems_list = ", ".join(sorted(problems_with_data))
-        if args.prompt_style:
-            print(
-                f"Problem-specific figures in: {base_output_dir}/<problem>/{args.prompt_style}/"
-            )
-        else:
-            print(f"Problem-specific figures in: {base_output_dir}/<problem>/")
-        print(f"  Problems: {problems_list}")
-    print("=" * 60)
-
-
 def main():  # noqa: PLR0912
     """Generate all visualizations."""
     args = _parse_args()
@@ -494,72 +410,64 @@ def main():  # noqa: PLR0912
     print(f"\nProblems with data: {sorted(problems_with_data)}")
     print(f"RAG statuses with data: {sorted(rag_statuses_with_data)}")
 
-    # Handle single problem case
-    if args.problem:
-        if args.problem not in problems_with_data:
-            print(f"WARNING: No data found for problem '{args.problem}'")
-            return
+    # Require a specific problem to be specified
+    if not args.problem:
+        print("\nERROR: --problem argument is required")
+        print("Please specify a problem: --problem beams2d")
+        print(f"Available problems: {sorted(problems_with_data)}")
+        return
 
-        # Determine which RAG statuses to generate plots for
-        if args.rag_status:
-            # User explicitly specified RAG status via command line - use that
-            rag_statuses_to_plot = [args.rag_status]
-        elif rag_statuses_with_data:
-            # Auto-detect RAG statuses from data
-            rag_statuses_to_plot = sorted(rag_statuses_with_data)
-        else:
-            # No RAG data and no filter specified
-            rag_statuses_to_plot = []
+    if args.problem not in problems_with_data:
+        print(f"WARNING: No data found for problem '{args.problem}'")
+        return
 
-        # Generate plots
-        if rag_statuses_to_plot:
-            # Generate separate folders for each RAG status
-            for rag_status in rag_statuses_to_plot:
-                _generate_plots_for_problem(
-                    args.problem,
-                    combined_global,
-                    combined_design,
-                    combined_tools,
-                    prompt_style=args.prompt_style,
-                    rag_status=rag_status,
-                )
-            if args.prompt_style:
-                base_output = f"figures/{args.problem}/{args.prompt_style}/"
-            else:
-                base_output = f"figures/{args.problem}/"
-            print("\n" + "=" * 60)
-            print(f"DONE! Figures saved to: {base_output}{{rag_status}}/")
-            print("=" * 60)
-        else:
-            # No RAG data, generate plots without RAG subfolder
+    # Determine which RAG statuses to generate plots for
+    if args.rag_status:
+        # User explicitly specified RAG status via command line - use that
+        rag_statuses_to_plot = [args.rag_status]
+    elif rag_statuses_with_data:
+        # Auto-detect RAG statuses from data
+        rag_statuses_to_plot = sorted(rag_statuses_with_data)
+    else:
+        # No RAG data and no filter specified
+        rag_statuses_to_plot = []
+
+    # Generate plots
+    if rag_statuses_to_plot:
+        # Generate separate folders for each RAG status
+        for rag_status in rag_statuses_to_plot:
             _generate_plots_for_problem(
                 args.problem,
                 combined_global,
                 combined_design,
                 combined_tools,
                 prompt_style=args.prompt_style,
-                rag_status=None,
+                rag_status=rag_status,
             )
-            if args.prompt_style:
-                output_dir = get_problem_prompt_output_dir(
-                    args.problem, args.prompt_style
-                )
-            else:
-                output_dir = get_problem_output_dir(args.problem)
-            print("\n" + "=" * 60)
-            print(f"DONE! Figures saved to: {output_dir}")
-            print("=" * 60)
-        return
-
-    # Generate all plots
-    _generate_all_plots(
-        args,
-        combined_global,
-        combined_design,
-        combined_tools,
-        problems_with_data,
-        rag_statuses_with_data,
-    )
+        if args.prompt_style:
+            base_output = f"figures/{args.problem}/{args.prompt_style}/"
+        else:
+            base_output = f"figures/{args.problem}/"
+        print("\n" + "=" * 60)
+        print(f"DONE! Figures saved to: {base_output}{{rag_status}}/")
+        print("=" * 60)
+    else:
+        # No RAG data, generate plots without RAG subfolder
+        _generate_plots_for_problem(
+            args.problem,
+            combined_global,
+            combined_design,
+            combined_tools,
+            prompt_style=args.prompt_style,
+            rag_status=None,
+        )
+        if args.prompt_style:
+            output_dir = get_problem_prompt_output_dir(args.problem, args.prompt_style)
+        else:
+            output_dir = get_problem_output_dir(args.problem)
+        print("\n" + "=" * 60)
+        print(f"DONE! Figures saved to: {output_dir}")
+        print("=" * 60)
 
 
 if __name__ == "__main__":
