@@ -76,7 +76,7 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
             {"name": "optimize_design", "count": 1},
             {"name": "simulate_design", "count": 1},
             {"name": "render_design", "count": 1},
-            {"name": "export_stl", "count": 1},
+            {"name": "convert_design_to_stl", "count": 1},
         ],
         "optimal_call_count": 4,
     },
