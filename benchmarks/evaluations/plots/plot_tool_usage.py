@@ -134,6 +134,9 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     model_styles = get_model_style(models)
     colors = [model_styles[model]["color"] for model in model_stats["model"]]
 
+    # Check if only one problem (don't show problem name if so)
+    single_problem = model_stats["problem"].nunique() == 1
+
     bars1 = ax1.bar(
         x,
         model_stats["avg_total"],
@@ -147,11 +150,21 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     ax1.set_xlabel("")
     ax1.set_ylabel("Avg. Total Tool Calls")
     ax1.set_xticks(x)
-    ax1.set_xticklabels(
-        [f"{row['model']}\n({row['problem']})" for _, row in model_stats.iterrows()],
-        rotation=0,
-        ha="center",
-    )
+    if single_problem:
+        ax1.set_xticklabels(
+            [row["model"] for _, row in model_stats.iterrows()],
+            rotation=0,
+            ha="center",
+        )
+    else:
+        ax1.set_xticklabels(
+            [
+                f"{row['model']}\n({row['problem']})"
+                for _, row in model_stats.iterrows()
+            ],
+            rotation=0,
+            ha="center",
+        )
     ax1.grid(axis="y", alpha=0.3)
 
     # Add value labels
@@ -180,11 +193,21 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     ax2.set_xlabel("")
     ax2.set_ylabel("Avg. Unique Tools")
     ax2.set_xticks(x)
-    ax2.set_xticklabels(
-        [f"{row['model']}\n({row['problem']})" for _, row in model_stats.iterrows()],
-        rotation=0,
-        ha="center",
-    )
+    if single_problem:
+        ax2.set_xticklabels(
+            [row["model"] for _, row in model_stats.iterrows()],
+            rotation=0,
+            ha="center",
+        )
+    else:
+        ax2.set_xticklabels(
+            [
+                f"{row['model']}\n({row['problem']})"
+                for _, row in model_stats.iterrows()
+            ],
+            rotation=0,
+            ha="center",
+        )
     ax2.grid(axis="y", alpha=0.3)
 
     # Add value labels
