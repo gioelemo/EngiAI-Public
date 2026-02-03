@@ -71,7 +71,7 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     # Statistics annotations (smaller, cleaner)
     for i, source in enumerate(valid_designs["_label"].unique()):
         subset = valid_designs[valid_designs["_label"] == source]["overall_score"]
-        stats_text = f"$\\mu$={subset.mean():.2f}"
+        stats_text = f"$\\mu$={subset.mean():.2f}, $\\sigma$={subset.std():.2f}"
         ax.annotate(
             stats_text,
             xy=(i, 0.02),
