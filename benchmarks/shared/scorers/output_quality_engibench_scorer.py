@@ -559,21 +559,40 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
                             f"Extracted dataset_split: {dataset_split}, problem_type: {problem_type}"
                         )
 
-                # Now extract conditions using the example_id to get the correct row
+                # Extract conditions by matching example_id with dataset rows
+                # CRITICAL: all_outputs may be sorted differently than dataset_rows!
+                # We must find the dataset row where metadata.example_id == scorer_output.example_id
                 conditions = {}
-                if example_id < len(dataset_rows):
-                    conditions_row = dataset_rows[example_id]
-                    # Extract conditions from the correct dataset row
-                    if hasattr(conditions_row, "conditions"):
-                        conditions = conditions_row.conditions
-                    elif (
-                        isinstance(conditions_row, dict)
-                        and "conditions" in conditions_row
-                    ):
-                        conditions = conditions_row["conditions"]
-                    elif isinstance(conditions_row, dict):
+                matched_row = None
+
+                # Search for matching example_id in dataset_rows
+                for row_idx, row in enumerate(dataset_rows):
+                    row_example_id = None
+
+                    # Try to get example_id from metadata
+                    if hasattr(row, "metadata") and isinstance(row.metadata, dict):
+                        row_example_id = row.metadata.get("example_id")
+                    elif isinstance(row, dict) and "metadata" in row:
+                        metadata_dict = row.get("metadata", {})
+                        if isinstance(metadata_dict, dict):
+                            row_example_id = metadata_dict.get("example_id")
+
+                    # Match found
+                    if row_example_id == example_id:
+                        matched_row = row
+                        logger.debug(
+                            f"Output {idx} (example_id={example_id}): Matched with dataset row {row_idx}"
+                        )
+                        break
+
+                # Extract conditions from matched row
+                if matched_row is not None:
+                    if hasattr(matched_row, "conditions"):
+                        conditions = matched_row.conditions
+                    elif isinstance(matched_row, dict) and "conditions" in matched_row:
+                        conditions = matched_row["conditions"]
+                    elif isinstance(matched_row, dict):
                         # For problems like photonics2d, extract top-level condition fields
-                        # Common condition fields: lambda1, lambda2, blur_radius, volume_fraction, etc.
                         condition_keys = [
                             "lambda1",
                             "lambda2",
@@ -583,10 +602,18 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
                             "youngs_modulus",
                         ]
                         conditions = {
-                            k: conditions_row.get(k)
+                            k: matched_row.get(k)
                             for k in condition_keys
-                            if k in conditions_row
+                            if k in matched_row
                         }
+
+                    logger.debug(
+                        f"Output {idx} (example_id={example_id}): Extracted conditions: volfrac={conditions.get('volfrac')}"
+                    )
+                else:
+                    logger.warning(
+                        f"Output {idx}: Could not find dataset row with example_id={example_id}"
+                    )
 
                 logger.debug(
                     f"Output {idx}: Successfully extracted design for example_id={example_id}"

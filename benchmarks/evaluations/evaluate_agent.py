@@ -289,7 +289,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--samples",
         type=int,
-        default=5,
+        default=10,
         help="Number of samples to evaluate",
     )
     parser.add_argument(

@@ -7,16 +7,16 @@ the dataset for fair comparison.
 
 Usage:
     # Run both agent and CGAN for seeds 1-5
-    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 4 5 --n_samples 10
+    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 4 5 --samples 10
 
     # Run only CGAN baseline
-    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 --n_samples 10 --cgan-only
+    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 --samples 10 --cgan-only
 
     # Run only agent evaluation
-    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 --n_samples 10 --agent-only
+    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 --samples 10 --agent-only
 
     # Specify custom model for agent
-    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 --n_samples 10 --model gpt-4o
+    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 --samples 10 --model gpt-4o
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from pathlib import Path
 # Add project root to path to import config
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from config import config  # noqa: E402
 
 # Paths configuration (PROJECT_ROOT already defined above)
@@ -66,7 +67,7 @@ def run_command(
 
 def generate_prompts(
     problem: str,
-    n_samples: int,
+    samples: int,
     seed: int,
     prompt_style: str = "full",
 ) -> int:
@@ -75,7 +76,7 @@ def generate_prompts(
         str(CONDA_PYTHON),
         str(PROJECT_ROOT / "benchmarks" / "problems" / problem / "generate_prompts.py"),
         "--samples",
-        str(n_samples),
+        str(samples),
         "--seed",
         str(seed),
         "--style",
@@ -86,7 +87,7 @@ def generate_prompts(
 
 def run_cgan_evaluation(
     problem: str,
-    n_samples: int,
+    samples: int,
     seed: int,
     output_csv: Path,
     wandb_entity: str | None = None,
@@ -100,8 +101,8 @@ def run_cgan_evaluation(
         problem,
         "--seed",
         str(seed),
-        "--n_samples",
-        str(n_samples),
+        "--samples",
+        str(samples),
         "--output_csv",
         str(output_csv),
     ]
@@ -113,7 +114,7 @@ def run_cgan_evaluation(
 
 def run_agent_evaluation(  # noqa: PLR0913
     problem: str,
-    n_samples: int,
+    samples: int,
     seed: int,
     model: str | None,
     prompt_style: str = "full",
@@ -127,7 +128,7 @@ def run_agent_evaluation(  # noqa: PLR0913
         "--problem",
         problem,
         "--samples",
-        str(n_samples),
+        str(samples),
         "--seed",
         str(seed),
         "--prompt-style",
@@ -150,7 +151,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         "--problem",
         type=str,
         default="beams2d",
-        choices=["beams2d", "photonics2d", "thermoelastic2d"],
+        choices=list(PROBLEMS.keys()),
         help="Problem type to evaluate (default: beams2d)",
     )
     parser.add_argument(
@@ -161,7 +162,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         help="Random seeds to run (default: 1 2 3 4 5)",
     )
     parser.add_argument(
-        "--n_samples",
+        "--samples",
         type=int,
         default=10,
         help="Number of samples per seed (default: 10)",
@@ -242,7 +243,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     print()
     print(f"Problem: {args.problem}")
     print(f"Seeds: {args.seeds}")
-    print(f"Samples per seed: {args.n_samples}")
+    print(f"Samples per seed: {args.samples}")
     print(f"Prompt style: {args.prompt_style}")
     if run_agent:
         print(f"Agent model: {args.model or '(from config.llm_model)'}")
@@ -267,7 +268,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             print(f"\n[Seed {seed}] Generating prompts...")
             ret = generate_prompts(
                 args.problem,
-                args.n_samples,
+                args.samples,
                 seed,
                 args.prompt_style,
             )
@@ -279,7 +280,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             print(f"\n[Seed {seed}] Running CGAN evaluation...")
             ret = run_cgan_evaluation(
                 args.problem,
-                args.n_samples,
+                args.samples,
                 seed,
                 cgan_output_csv,
                 args.wandb_entity,
@@ -295,7 +296,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             print(f"\n[Seed {seed}] Running agent evaluation...")
             ret = run_agent_evaluation(
                 args.problem,
-                args.n_samples,
+                args.samples,
                 seed,
                 args.model,
                 args.prompt_style,

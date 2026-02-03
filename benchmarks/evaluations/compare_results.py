@@ -25,6 +25,7 @@ MODELS_DIR = RESULTS_DIR / "models"
 
 # Add project root to path to import config
 sys.path.insert(0, str(PROJECT_ROOT))
+from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from config import config  # noqa: E402
 
 # Metrics to compare (these should be present in both CSVs)
@@ -192,7 +193,7 @@ def main() -> None:
         "--problem",
         type=str,
         default="beams2d",
-        choices=["beams2d", "photonics2d", "thermoelastic2d"],
+        choices=list(PROBLEMS.keys()),
         help="Problem type (default: beams2d)",
     )
     parser.add_argument(
