@@ -135,7 +135,7 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     colors = [model_styles[model]["color"] for model in model_stats["model"]]
 
     # Check if only one problem (don't show problem name if so)
-    single_problem = model_stats["problem"].nunique() == 1
+    single_problem = len(model_stats["problem"].unique()) == 1
 
     bars1 = ax1.bar(
         x,
@@ -193,6 +193,7 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     ax2.set_xlabel("")
     ax2.set_ylabel("Avg. Unique Tools")
     ax2.set_xticks(x)
+    single_problem = len(model_stats["problem"].unique()) == 1
     if single_problem:
         ax2.set_xticklabels(
             [row["model"] for _, row in model_stats.iterrows()],

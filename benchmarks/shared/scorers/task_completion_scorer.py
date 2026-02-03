@@ -54,7 +54,7 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     return None
 
 
-def score_task_completion(
+def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001 - Required by scorer interface
     metadata: dict[str, Any],
