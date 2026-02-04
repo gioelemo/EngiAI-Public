@@ -478,6 +478,99 @@ def _load_dataset_and_ground_truth(
     return hf_dataset, ground_truth
 
 
+def _compute_hierarchical_score(
+    problem_config: Any,
+    metrics_data: dict[str, Any],
+    design_found: bool,
+    metadata: dict[str, Any],
+) -> tuple[float, dict[str, float]]:
+    """Compute hierarchical composite score from multiple categories.
+
+    Categories:
+    1. Design Quality: IoU, pixel accuracy, constraint match, objective match
+    2. Tool Efficiency: efficiency ratio, sequence score (from metadata)
+    3. Task Completion: whether the task was completed successfully
+    4. Printability: connectivity and watertightness
+
+    Args:
+        problem_config: Problem configuration with score_categories
+        metrics_data: Dictionary containing all metrics:
+            - design_metrics: dict with iou, pixel_accuracy
+            - constraint_score: float
+            - objective_score: float
+            - connectivity_metrics: dict with connected_design, num_components
+            - watertightness_metrics: dict with is_watertight, etc.
+        design_found: Whether design was successfully found
+        metadata: Metadata dict (may contain tool_calls_info from tool_use_scorer)
+
+    Returns:
+        Tuple of (overall_score, category_scores_dict)
+    """
+    # Extract metrics from metrics_data
+    design_metrics = metrics_data.get("design_metrics", {})
+    constraint_score = metrics_data.get("constraint_score", 0.0)
+    objective_score = metrics_data.get("objective_score", 0.0)
+    connectivity_metrics = metrics_data.get("connectivity_metrics", {})
+    watertightness_metrics = metrics_data.get("watertightness_metrics", {})
+
+    category_scores = {}
+
+    # 1. Design Quality Category
+    dq_weights = problem_config.get_metric_weights("design_quality")
+    if dq_weights:
+        design_quality_score = (
+            dq_weights.get("iou", 0.0) * design_metrics.get("iou", 0.0)
+            + dq_weights.get("pixel_accuracy", 0.0)
+            * design_metrics.get("pixel_accuracy", 0.0)
+            + dq_weights.get("constraint_match", 0.0) * constraint_score
+            + dq_weights.get("objective_match", 0.0) * objective_score
+        )
+        category_scores["design_quality"] = float(design_quality_score)
+
+    # 2. Tool Efficiency Category (extract from metadata if available)
+    tool_efficiency_score = 0.0
+    te_weights = problem_config.get_metric_weights("tool_efficiency")
+    if te_weights:
+        # Check if tool usage metrics are available in metadata
+        # (they would be if tool_use_scorer ran and passed results)
+        efficiency_ratio = metadata.get("efficiency_ratio", 1.0)  # Default to perfect
+        sequence_score = metadata.get("sequence_score", 1.0)  # Default to perfect
+
+        tool_efficiency_score = (
+            te_weights.get("efficiency_ratio", 0.0) * efficiency_ratio
+            + te_weights.get("sequence_score", 0.0) * sequence_score
+        )
+        category_scores["tool_efficiency"] = float(tool_efficiency_score)
+
+    # 3. Task Completion Category
+    tc_weights = problem_config.get_metric_weights("task_completion")
+    if tc_weights:
+        # Task completion: 1.0 if design found, 0.0 otherwise
+        task_completion_score = 1.0 if design_found else 0.0
+        category_scores["task_completion"] = float(task_completion_score)
+
+    # 4. Printability Category
+    pr_weights = problem_config.get_metric_weights("printability")
+    if pr_weights:
+        # Convert boolean metrics to 0/1
+        connected = 1.0 if connectivity_metrics.get("connected_design", False) else 0.0
+        watertight = 1.0 if watertightness_metrics.get("is_watertight", False) else 0.0
+
+        printability_score = (
+            pr_weights.get("connectivity", 0.0) * connected
+            + pr_weights.get("watertightness", 0.0) * watertight
+        )
+        category_scores["printability"] = float(printability_score)
+
+    # Compute overall score as weighted sum of category scores
+    overall_score = 0.0
+    for category_name, category_score in category_scores.items():
+        category_weight = problem_config.get_category_weight(category_name)
+        overall_score += category_weight * category_score
+
+    return float(overall_score), category_scores
+
+
 def score_output_quality_visual(
     output: dict[str, Any],
     target: dict[str, Any],
@@ -571,13 +664,18 @@ def score_output_quality_visual(
         agent_objectives, target_objectives, problem_config, example_id
     )
 
-    # Compute weighted overall score
-    weights = problem_config.design_metrics_weights
-    score = (
-        weights["iou"] * design_metrics["iou"]
-        + weights["pixel_accuracy"] * design_metrics["pixel_accuracy"]
-        + weights["constraint_match"] * constraint_score
-        + weights["objective_match"] * objective_score
+    # Compute hierarchical composite score
+    overall_score, category_scores = _compute_hierarchical_score(
+        problem_config=problem_config,
+        metrics_data={
+            "design_metrics": design_metrics,
+            "constraint_score": constraint_score,
+            "objective_score": objective_score,
+            "connectivity_metrics": connectivity_metrics,
+            "watertightness_metrics": watertightness_metrics,
+        },
+        design_found=True,
+        metadata=metadata,
     )
 
     # Extract optimization history from messages for global metrics
@@ -587,7 +685,7 @@ def score_output_quality_visual(
 
     # Build result dictionary
     result: dict[str, Any] = {
-        "score": float(score),
+        "score": float(overall_score),  # Hierarchical composite score
         "design_found": True,
         "problem_type": problem_name,
         "constraint_score": float(constraint_score),
@@ -595,6 +693,8 @@ def score_output_quality_visual(
         "example_id": example_id,  # Store for correct mapping in global metrics
         "design": design_array.tolist(),  # Store design for global metrics computation
         "optimization_history": optimization_history,  # Store for optimality gap metrics
+        # Category scores
+        **{f"{cat}_score": score for cat, score in category_scores.items()},
         **design_metrics,
         **connectivity_metrics,
         **watertightness_metrics,  # 3D printability metrics

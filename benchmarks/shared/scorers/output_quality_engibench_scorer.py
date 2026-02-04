@@ -6,7 +6,6 @@ after evaluation completes.
 """
 
 import logging
-import time
 from pathlib import Path
 from typing import Any
 
@@ -367,7 +366,7 @@ def compute_global_metrics(  # noqa: PLR0913
 
 
 def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
-    evaluation: Any,
+    results: Any,
     dataset_name: str,
     sigma: float = 10.0,
     save_comparisons: bool = True,
@@ -375,14 +374,14 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
 ) -> dict[str, Any]:
     """Internal implementation of global metrics computation.
 
-    Compute global MMD, DPP diversity, optimality gap, and RVC metrics from evaluation object.
+    Compute global MMD, DPP diversity, optimality gap, and RVC metrics from evaluation results.
 
     This function retrieves generated designs and optimization histories from scorer results
     and computes MMD (similarity to dataset), DPP diversity (design variability),
     optimality gap metrics (IOG, COG, FOG), and RVC (constraint violations) across the full set.
 
     Args:
-        evaluation: Weave Evaluation object (after evaluate() has been called)
+        results: Weave Evaluation results object (returned from evaluate())
         dataset_name: HuggingFace dataset name for ground truth
         sigma: Kernel bandwidth for MMD and DPP diversity
         save_comparisons: Whether to save comparison images (default: True)
@@ -401,52 +400,60 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
         - n_designs: int (number of valid designs)
         - n_failed: int (number of failed extractions)
     """
-    # Use evaluation.get_scores() to extract scorer outputs
-    # Retry with delay because Weave backend may not have finished processing results
+    # Extract scorer outputs from results.rows instead of using get_scores()
     try:
-        scores = None
-        max_retries = 5
-        retry_delay = 3  # seconds
-        for attempt in range(max_retries):
-            try:
-                scores = evaluation.get_scores()
-                if scores is not None:
-                    break
-            except TypeError as retry_err:
-                if attempt < max_retries - 1:
-                    logger.warning(
-                        "Weave scores not ready yet (attempt %d/%d): %s. Retrying in %ds...",
-                        attempt + 1,
-                        max_retries,
-                        retry_err,
-                        retry_delay,
-                    )
-                    time.sleep(retry_delay)
-                else:
-                    raise
+        # Results can be either a dict or an object with .rows attribute
+        logger.info(f"Results type: {type(results)}")
 
-        if scores is None:
-            logger.error("Failed to retrieve scores after %d attempts", max_retries)
+        # Handle ResultsWrapper or similar objects with .rows attribute
+        if hasattr(results, 'rows'):
+            # Extract all_outputs from rows (list of dicts where each dict has scorer outputs)
+            logger.info(f"Results has .rows attribute with {len(results.rows)} rows")
+            all_outputs = []
+            for row in results.rows:
+                # Each row is a dict with scorer outputs
+                # Find the output_quality_visual or engibench scorer result
+                for key in ['output_quality_visual', 'score_output_quality_visual',
+                            'engibench', 'score_output_quality_engibench']:
+                    if key in row:
+                        all_outputs.append(row[key])
+                        break
+                else:
+                    # No known scorer found, check all values for one that looks like scorer output
+                    for value in row.values():
+                        if isinstance(value, dict) and 'design' in value:
+                            all_outputs.append(value)
+                            break
+            logger.info(f"Extracted {len(all_outputs)} outputs from rows")
+        elif isinstance(results, dict):
+            # Original dict format
+            logger.info(f"Results keys: {list(results.keys())}")
+
+            # Find scorer outputs in the results dict
+            all_outputs = []
+            for key in ['output_quality_visual', 'score_output_quality_visual',
+                        'engibench', 'score_output_quality_engibench']:
+                if key in results:
+                    all_outputs = results[key]
+                    logger.info(f"Found scorer outputs under key '{key}'")
+                    break
+
+            # Make sure it's a list
+            if not isinstance(all_outputs, list):
+                all_outputs = [all_outputs] if all_outputs else []
+        else:
+            logger.error("Results is not a dict or object with .rows attribute")
             return {
                 "mmd": None,
+                "dpp_diversity": None,
+                "rvc": None,
+                "iog": None,
+                "cog": None,
+                "fog": None,
                 "n_designs": 0,
                 "n_failed": 0,
-                "error": "Scores not available after retries",
+                "error": "Invalid results format",
             }
-
-        logger.info(f"Retrieved scores from evaluation: {len(scores)} trace(s)")
-
-        # Get dataset rows to access metadata
-        # Check that dataset and rows are not None before converting to list
-        dataset_rows = []
-        if (
-            hasattr(evaluation, "dataset")
-            and evaluation.dataset is not None
-            and hasattr(evaluation.dataset, "rows")
-            and evaluation.dataset.rows is not None
-        ):
-            dataset_rows = list(evaluation.dataset.rows)
-        logger.info(f"Retrieved {len(dataset_rows)} dataset rows for metadata")
 
         # Extract generated designs from scorer outputs
         generated_designs: list[np.ndarray] = []
@@ -457,61 +464,22 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
         dataset_split: str = "test"  # Default split
         n_failed: int = 0
 
-        # Get only the LATEST trace (most recent evaluation)
-        # scores dict keys are trace IDs - we want the last one
-        if not scores:
-            logger.error("No scores found in evaluation")
-            return {
-                "mmd": None,
-                "n_designs": 0,
-                "n_failed": 0,
-                "error": "No scores found",
-            }
-
-        # Get the last trace (most recent evaluation)
-        logger.info(f"Score keys: {list(scores.keys())}")
-        latest_trace_id = list(scores.keys())[-1]
-        latest_trace_scores = scores[latest_trace_id]
-        logger.info(
-            f"Using latest trace {latest_trace_id}: scorers={list(latest_trace_scores.keys())}"
-        )
-
-        # Collect outputs from the latest trace only
-        # Try engibench first (lightweight), then output_quality_visual (comprehensive)
-        all_outputs = []
-
-        # Try engibench scorer
-        # Match both old naming (with prefixes) and new naming (without prefixes)
-        for key in latest_trace_scores:
-            if key.endswith("_engibench") or key in (
-                "score_output_quality_engibench",
-                "engibench",
-            ):
-                all_outputs = latest_trace_scores[key]
-                logger.info(
-                    f"Found {len(all_outputs)} outputs for {key} in latest trace (using engibench scorer)"
-                )
-                break
-
-        # Fall back to output_quality_visual if engibench not found
-        # Match both old naming (with prefixes) and new naming (without prefixes)
-        if not all_outputs:
-            for key in latest_trace_scores:
-                if key.endswith("_output_quality_visual") or key in (
-                    "score_output_quality_visual",
-                    "output_quality_visual",
-                ):
-                    all_outputs = latest_trace_scores[key]
-                    logger.info(
-                        f"Found {len(all_outputs)} outputs for {key} in latest trace (using output_quality_visual scorer)"
-                    )
-                    break
-
         if not all_outputs:
             logger.warning(
-                f"No compatible scorer outputs found in latest trace {latest_trace_id}. "
-                f"Available keys: {list(latest_trace_scores.keys())}"
+                f"No compatible scorer outputs found in results. "
+                f"Available keys: {list(results.keys())}"
             )
+            return {
+                "mmd": None,
+                "dpp_diversity": None,
+                "rvc": None,
+                "iog": None,
+                "cog": None,
+                "fog": None,
+                "n_designs": 0,
+                "n_failed": 0,
+                "error": "No scorer outputs found",
+            }
 
         logger.info(f"Total outputs from current evaluation: {len(all_outputs)}")
 
@@ -541,79 +509,14 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
                 # Extract example_id from scorer output (stored by score_output_quality_engibench)
                 example_id = scorer_output.get("example_id", idx)
 
-                # Extract dataset_split and problem_type from first valid example
-                if len(generated_designs) == 0 and idx < len(dataset_rows):
-                    # Try to get from dataset row metadata
-                    dataset_row = dataset_rows[idx]
-                    metadata = None
+                # Extract problem_type from scorer output
+                if len(generated_designs) == 0:
+                    problem_type = scorer_output.get("problem_type")
+                    logger.info(f"Extracted problem_type: {problem_type}")
 
-                    if hasattr(dataset_row, "metadata"):
-                        metadata = dataset_row.metadata
-                    elif isinstance(dataset_row, dict) and "metadata" in dataset_row:
-                        metadata = dataset_row["metadata"]
-
-                    if isinstance(metadata, dict):
-                        dataset_split = metadata.get("dataset_split", "test")
-                        problem_type = metadata.get("problem_type")
-                        logger.info(
-                            f"Extracted dataset_split: {dataset_split}, problem_type: {problem_type}"
-                        )
-
-                # Extract conditions by matching example_id with dataset rows
-                # CRITICAL: all_outputs may be sorted differently than dataset_rows!
-                # We must find the dataset row where metadata.example_id == scorer_output.example_id
-                conditions = {}
-                matched_row = None
-
-                # Search for matching example_id in dataset_rows
-                for row_idx, row in enumerate(dataset_rows):
-                    row_example_id = None
-
-                    # Try to get example_id from metadata
-                    if hasattr(row, "metadata") and isinstance(row.metadata, dict):
-                        row_example_id = row.metadata.get("example_id")
-                    elif isinstance(row, dict) and "metadata" in row:
-                        metadata_dict = row.get("metadata", {})
-                        if isinstance(metadata_dict, dict):
-                            row_example_id = metadata_dict.get("example_id")
-
-                    # Match found
-                    if row_example_id == example_id:
-                        matched_row = row
-                        logger.debug(
-                            f"Output {idx} (example_id={example_id}): Matched with dataset row {row_idx}"
-                        )
-                        break
-
-                # Extract conditions from matched row
-                if matched_row is not None:
-                    if hasattr(matched_row, "conditions"):
-                        conditions = matched_row.conditions
-                    elif isinstance(matched_row, dict) and "conditions" in matched_row:
-                        conditions = matched_row["conditions"]
-                    elif isinstance(matched_row, dict):
-                        # For problems like photonics2d, extract top-level condition fields
-                        condition_keys = [
-                            "lambda1",
-                            "lambda2",
-                            "blur_radius",
-                            "volume_fraction",
-                            "max_stress",
-                            "youngs_modulus",
-                        ]
-                        conditions = {
-                            k: matched_row.get(k)
-                            for k in condition_keys
-                            if k in matched_row
-                        }
-
-                    logger.debug(
-                        f"Output {idx} (example_id={example_id}): Extracted conditions: volfrac={conditions.get('volfrac')}"
-                    )
-                else:
-                    logger.warning(
-                        f"Output {idx}: Could not find dataset row with example_id={example_id}"
-                    )
+                # Extract conditions from scorer output (if available)
+                # Otherwise use empty dict - not critical for global metrics
+                conditions = scorer_output.get("conditions", {})
 
                 logger.debug(
                     f"Output {idx}: Successfully extracted design for example_id={example_id}"
