@@ -325,7 +325,7 @@ def save_global_metrics(
     print(f"\n✅ Global metrics saved to: {output_path}")
 
 
-def main():  # noqa: PLR0915
+def main():  # noqa: PLR0912, PLR0915
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Compute global metrics from extracted design data"
@@ -391,53 +391,94 @@ def main():  # noqa: PLR0915
         print("❌ No design data found")
         return
 
-    # Extract valid designs and metadata
-    (
-        generated_designs,
-        example_ids,
-        conditions_list,
-        optimization_histories,
-        n_failed,
-    ) = extract_valid_designs(design_data)
+    # Extract model name from design data
+    model_name = design_data[0].get("model_id", "unknown") if design_data else "unknown"
+    print(f"Model: {model_name}")
 
-    # Compute MMD and DPP
-    print("\n" + "=" * 60)
-    print("MMD & DPP DIVERSITY")
-    print("=" * 60)
-    mmd_value, dpp_value = compute_mmd_and_dpp(
-        generated_designs, dataset_name, args.sigma, args.split
-    )
+    # Group designs by seed
+    designs_by_seed: dict[int, list[dict]] = {}
+    for design in design_data:
+        seed = design.get("seed")
+        if seed is not None:
+            if seed not in designs_by_seed:
+                designs_by_seed[seed] = []
+            designs_by_seed[seed].append(design)
 
-    # Compute optimality gaps
-    print("\n" + "=" * 60)
-    print("OPTIMALITY GAPS (IOG/COG/FOG)")
-    print("=" * 60)
-    iog, cog, fog = compute_optimality_gaps(
-        optimization_histories, example_ids, dataset_name, args.problem, args.split
-    )
+    print(f"Found {len(designs_by_seed)} unique seeds: {sorted(designs_by_seed.keys())}")
 
-    # Compute RVC
-    print("\n" + "=" * 60)
-    print("CONSTRAINT VIOLATIONS (RVC)")
-    print("=" * 60)
-    rvc_value, rvc_details = compute_rvc_metric(
-        generated_designs, conditions_list, example_ids
-    )
+    if not designs_by_seed:
+        print("❌ No designs with seed information found")
+        return
+
+    # Compute metrics per seed
+    per_seed_metrics = []
+
+    for seed in sorted(designs_by_seed.keys()):
+        print("\n" + "=" * 60)
+        print(f"PROCESSING SEED {seed}")
+        print("=" * 60)
+
+        seed_designs = designs_by_seed[seed]
+
+        # Extract valid designs for this seed
+        (
+            generated_designs,
+            example_ids,
+            conditions_list,
+            optimization_histories,
+            n_failed,
+        ) = extract_valid_designs(seed_designs)
+
+        if not generated_designs:
+            print(f"⚠️  No valid designs for seed {seed}, skipping")
+            continue
+
+        # Compute MMD and DPP
+        print("\n" + "-" * 60)
+        print("MMD & DPP DIVERSITY")
+        print("-" * 60)
+        mmd_value, dpp_value = compute_mmd_and_dpp(
+            generated_designs, dataset_name, args.sigma, args.split
+        )
+
+        # Compute optimality gaps
+        print("\n" + "-" * 60)
+        print("OPTIMALITY GAPS (IOG/COG/FOG)")
+        print("-" * 60)
+        iog, cog, fog = compute_optimality_gaps(
+            optimization_histories, example_ids, dataset_name, args.problem, args.split
+        )
+
+        # Compute RVC
+        print("\n" + "-" * 60)
+        print("CONSTRAINT VIOLATIONS (RVC)")
+        print("-" * 60)
+        rvc_value, rvc_details = compute_rvc_metric(
+            generated_designs, conditions_list, example_ids
+        )
+
+        # Store metrics for this seed
+        seed_metrics = {
+            "seed": seed,
+            "n_designs": len(generated_designs),
+            "n_failed": n_failed,
+            "mmd": mmd_value,
+            "dpp_diversity": dpp_value,
+            "iog": iog,
+            "cog": cog,
+            "fog": fog,
+            "rvc": rvc_value,
+            "rvc_details": rvc_details,
+        }
+        per_seed_metrics.append(seed_metrics)
 
     # Aggregate results
     global_metrics = {
         "problem": args.problem,
         "dataset": dataset_name,
+        "model": model_name,
         "sigma": args.sigma,
-        "n_designs": len(generated_designs),
-        "n_failed": n_failed,
-        "mmd": mmd_value,
-        "dpp_diversity": dpp_value,
-        "iog": iog,
-        "cog": cog,
-        "fog": fog,
-        "rvc": rvc_value,
-        "rvc_details": rvc_details,
+        "per_seed_metrics": per_seed_metrics,
     }
 
     # Determine output path
@@ -454,15 +495,24 @@ def main():  # noqa: PLR0915
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    print(f"Valid designs: {len(generated_designs)}/{len(design_data)}")
-    if mmd_value is not None:
-        print(f"MMD: {mmd_value:.6f}")
-    if dpp_value is not None:
-        print(f"DPP Diversity: {dpp_value:.6e}")
-    if iog is not None:
-        print(f"IOG: {iog:.4f} | COG: {cog:.4f} | FOG: {fog:.4f}")
-    if rvc_value is not None:
-        print(f"RVC: {rvc_value:.4f} ({rvc_value * 100:.2f}%)")
+    print(f"Model: {model_name}")
+    print(f"Total designs: {len(design_data)}")
+    print(f"Seeds processed: {len(per_seed_metrics)}")
+    print("\nPer-seed results:")
+    for seed_metrics in per_seed_metrics:
+        seed = seed_metrics["seed"]
+        n_designs = seed_metrics["n_designs"]
+        print(f"\n  Seed {seed} ({n_designs} designs):")
+        if seed_metrics.get("mmd") is not None:
+            print(f"    MMD: {seed_metrics['mmd']:.6f}")
+        if seed_metrics.get("dpp_diversity") is not None:
+            print(f"    DPP: {seed_metrics['dpp_diversity']:.6e}")
+        if seed_metrics.get("iog") is not None:
+            print(
+                f"    IOG: {seed_metrics['iog']:.4f} | COG: {seed_metrics['cog']:.4f} | FOG: {seed_metrics['fog']:.4f}"
+            )
+        if seed_metrics.get("rvc") is not None:
+            print(f"    RVC: {seed_metrics['rvc']:.4f} ({seed_metrics['rvc'] * 100:.2f}%)")
     print("=" * 60)
 
 
