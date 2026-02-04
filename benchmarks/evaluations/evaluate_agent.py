@@ -80,9 +80,12 @@ class ProblemConfig(TypedDict):
 
 
 # Problem-specific configurations
-# NOTE: The --scorers flag controls which metrics are computed:
-# - "generic" or "all": Per-design metrics (IoU, pixel accuracy, constraints, objectives) + global metrics (MMD, DPP, RVC, IOG, COG, FOG)
-# - "engibench": Lightweight design extraction only (faster, minimal metrics in evaluation table)
+# NOTE: The --scorers flag controls which metrics are computed during evaluation:
+# - "output_quality": Per-design metrics (IoU, pixel accuracy, constraints, objectives)
+# - "all": output_quality + task_completion + tool_use (comprehensive per-design metrics)
+# - "task_completion": Check if render_design tool was called successfully
+# - "tool_use": Tool efficiency and sequence correctness
+# Global metrics (MMD, DPP, RVC, IOG, COG, FOG) are computed offline by compute_global_metrics.py
 # Build PROBLEM_CONFIGS from the central problem registry to avoid duplication
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     name: {
