@@ -301,14 +301,13 @@ def parse_arguments() -> argparse.Namespace:
         "--scorers",
         type=str,
         default="all",
-        choices=["output_quality", "engibench", "all", "task_completion", "tool_use"],
+        choices=["output_quality", "task_completion", "tool_use", "all"],
         help=(
             "Metrics to compute: "
             "'output_quality' (per-design metrics only), "
-            "'all' (output_quality + task_completion + tool_use for comprehensive metrics), "
-            "'engibench' (lightweight design extraction only, use for faster evaluations), "
             "'task_completion' (check if render_design tool was called successfully), "
             "'tool_use' (compute tool use efficiency and sequence correctness)"
+            "'all' (output_quality + task_completion + tool_use for comprehensive metrics), "
         ),
     )
     parser.add_argument(
