@@ -1,13 +1,14 @@
 """
-Extract per-design metrics from Weave evaluation traces.
+Extract complete per-design data from Weave evaluation traces.
 
-This script fetches evaluation results from Weave and extracts scorer outputs
-including design quality, tool efficiency, task completion, and printability metrics.
+This script fetches evaluation results from Weave and extracts ALL scorer outputs
+including metrics, design arrays, optimization histories, and metadata.
+Saves to JSON format for offline global metrics computation.
 """
 
 import argparse
 import contextlib
-import csv
+import json
 import sys
 from pathlib import Path
 
@@ -148,12 +149,12 @@ def _extract_metrics_from_scorers(
     return result
 
 
-def _process_score_call_for_metrics(
+def _process_score_call_for_complete_data(
     score_call,
     model_filter: str | None,
     seen_models: set,
 ) -> dict | None:
-    """Process a predict_and_score call and extract per-design metrics.
+    """Process a predict_and_score call and extract ALL data for offline processing.
 
     Args:
         score_call: The predict_and_score call (has example metadata and scorer outputs)
@@ -161,7 +162,7 @@ def _process_score_call_for_metrics(
         seen_models: Set to track seen models
 
     Returns:
-        Design metrics dict if successful, None otherwise
+        Complete design data dict if successful, None otherwise
     """
     try:
         # Extract example data from score_call inputs
@@ -209,8 +210,32 @@ def _process_score_call_for_metrics(
         )
         result.update(metrics)
 
-        # Skip if no actual metrics were extracted
-        has_metrics = any(
+        # Extract complete data from output_quality scorer for global metrics
+        if isinstance(output_quality, dict):
+            # Design array (as list for JSON serialization)
+            design = output_quality.get("design")
+            result["design"] = design if design is not None else None
+
+            # Design found flag
+            result["design_found"] = output_quality.get("design_found", False)
+
+            # Optimization history
+            opt_history = output_quality.get("optimization_history")
+            result["optimization_history"] = opt_history if opt_history else []  # type: ignore[assignment]
+
+            # Conditions (constraints, loads, etc.)
+            conditions = output_quality.get("conditions")
+            result["conditions"] = conditions if conditions else {}  # type: ignore[assignment]
+
+            # Problem type
+            result["problem_type"] = output_quality.get("problem_type")
+
+            # Ground truth design (if available)
+            gt_design = output_quality.get("gt_design")
+            result["gt_design"] = gt_design if gt_design is not None else None
+
+        # Skip if no actual data was extracted
+        has_data = any(
             v is not None
             for k, v in result.items()
             if k not in ["example_id", "seed", "problem_id", "model_id"]
@@ -219,16 +244,16 @@ def _process_score_call_for_metrics(
     except Exception:
         return None
     else:
-        return result if has_metrics else None
+        return result if has_data else None
 
 
-def extract_design_metrics_from_evaluation(
+def extract_complete_design_data_from_evaluation(
     project: str,
     model_filter: str | None = None,
     limit: int = 100,
     eval_id: str | None = None,
 ) -> list[dict]:
-    """Extract per-design metrics from Weave evaluations.
+    """Extract complete per-design data from Weave evaluations.
 
     Args:
         project: Weave project name (e.g., "entity/project")
@@ -237,7 +262,7 @@ def extract_design_metrics_from_evaluation(
         eval_id: Optional evaluation ID to fetch predict_and_score calls from
 
     Returns:
-        List of dictionaries with design metrics per example
+        List of dictionaries with complete design data (metrics, arrays, histories) per example
     """
     client = weave.init(project)
 
@@ -276,11 +301,11 @@ def extract_design_metrics_from_evaluation(
                 f"  Processed {idx}/{len(score_calls_list)} calls, extracted {len(results)} designs..."
             )
 
-        result = _process_score_call_for_metrics(score_call, model_filter, seen_models)
+        result = _process_score_call_for_complete_data(score_call, model_filter, seen_models)
         if result:
             results.append(result)
 
-    print(f"✅ Extracted metrics from {len(results)} designs")
+    print(f"✅ Extracted complete data from {len(results)} designs")
     if len(results) == 0 and seen_models:
         print(f"   Models found in data: {', '.join(sorted(seen_models))}")
         if model_filter:
@@ -288,84 +313,40 @@ def extract_design_metrics_from_evaluation(
     return results
 
 
-def save_design_metrics_csv(
-    metrics_data: list[dict],
+def save_complete_design_data_json(
+    design_data: list[dict],
     output_path: str,
-    model_id: str,
-    problem_id: str,
-    seed: int | None = None,
 ) -> None:
-    """Save per-design metrics to CSV."""
-    rows = []
-    for data in metrics_data:
-        row = {
-            "example_id": data.get("example_id"),
-            "model_id": data.get("model_id", model_id),
-            "problem_id": data.get("problem_id", problem_id),
-            "seed": data.get("seed", seed),  # Use extracted seed, fallback to arg
-            # Overall and category scores
-            "overall_score": data.get("overall_score"),
-            "design_quality_score": data.get("design_quality_score"),
-            "tool_efficiency_score": data.get("tool_efficiency_score"),
-            "task_completion_score": data.get("task_completion_score"),
-            "printability_score": data.get("printability_score"),
-            # Design quality metrics
-            "iou": data.get("iou"),
-            "pixel_accuracy": data.get("pixel_accuracy"),
-            "mse": data.get("mse"),
-            "ssim": data.get("ssim"),
-            "constraint_match": data.get("constraint_match"),
-            "objective_match": data.get("objective_match"),
-            # Tool efficiency metrics
-            "efficiency_ratio": data.get("efficiency_ratio"),
-            "sequence_score": data.get("sequence_score"),
-            # Task completion metrics
-            "success_rate": data.get("success_rate"),
-            # Printability metrics
-            "connectivity": data.get("connectivity"),
-            "watertightness": data.get("watertightness"),
-        }
+    """Save complete per-design data to JSON file.
 
-        rows.append(row)
-
-    if not rows:
+    Args:
+        design_data: List of design data dictionaries
+        output_path: Path to output JSON file
+    """
+    if not design_data:
         print("No data to save")
         return
-
-    # Use fixed column order
-    columns = [
-        "seed",
-        "example_id",
-        "model_id",
-        "problem_id",
-        "overall_score",
-        "design_quality_score",
-        "tool_efficiency_score",
-        "task_completion_score",
-        "printability_score",
-        "iou",
-        "pixel_accuracy",
-        "mse",
-        "ssim",
-        "constraint_match",
-        "objective_match",
-        "efficiency_ratio",
-        "sequence_score",
-        "success_rate",
-        "connectivity",
-        "watertightness",
-    ]
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_file.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Save as JSON with indentation for readability
+    with output_file.open("w") as f:
+        json.dump(design_data, f, indent=2)
 
     print(f"✅ Saved to: {output_path}")
-    print(f"   Designs: {len(rows)}")
+    print(f"   Designs: {len(design_data)}")
+
+    # Print data summary
+    total_size_mb = output_file.stat().st_size / (1024 * 1024)
+    print(f"   File size: {total_size_mb:.2f} MB")
+
+    # Count designs with optimization histories
+    with_histories = sum(
+        1 for d in design_data
+        if d.get("optimization_history") and len(d.get("optimization_history", [])) > 0
+    )
+    print(f"   With optimization histories: {with_histories}/{len(design_data)}")
 
 
 def print_summary(metrics_data: list[dict]) -> None:
@@ -432,7 +413,7 @@ def print_summary(metrics_data: list[dict]) -> None:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Extract per-design metrics from Weave"
+        description="Extract complete per-design data (metrics + arrays + histories) from Weave"
     )
     parser.add_argument(
         "--project",
@@ -477,23 +458,24 @@ def main():
 
     print(f"Project: {project} | Model: {model} | Problem: {args.problem}")
 
-    data = extract_design_metrics_from_evaluation(
+    data = extract_complete_design_data_from_evaluation(
         project, model, args.limit, args.eval_id
     )
 
     if not data:
         print("\n💡 Tip: Try increasing --limit if this is an older model.")
         print("   Example: --limit 500")
+        return
 
     print_summary(data)
 
-    # Default output path matches evaluate_agent.py structure
+    # Default output path for complete design data (JSON format)
     output_path = (
         args.output
-        or f"benchmarks/evaluations/results/models/{model.replace('/', '_').replace(':', '_')}/{args.problem}/{args.prompt_style}/{args.rag_status}/output_quality_design_metrics.csv"
+        or f"benchmarks/evaluations/results/models/{model.replace('/', '_').replace(':', '_')}/{args.problem}/{args.prompt_style}/{args.rag_status}/design_data.json"
     )
 
-    save_design_metrics_csv(data, output_path, model, args.problem, args.seed)
+    save_complete_design_data_json(data, output_path)
 
 
 if __name__ == "__main__":
