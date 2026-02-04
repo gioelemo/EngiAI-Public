@@ -435,7 +435,7 @@ All benchmarks use the main project dependencies from `pyproject.toml`:
 
 ### Design Comparison Methodology
 
-The pixel-wise design comparison (via the generic scorer) measures how similar the agent's design is to the ground truth. Large differences are expected because:
+The pixel-wise design comparison (via the output quality scorer) measures how similar the agent's design is to the ground truth. Large differences are expected because:
 
 1. **Multiple Local Optima** - Topology optimization has many valid solutions
 2. **Sensitivity to Initialization** - Different random seeds produce different designs

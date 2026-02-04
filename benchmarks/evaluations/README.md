@@ -237,7 +237,7 @@ All problems use the output quality scorer (`score_output_quality`) which provid
   - Compliance scoring (beams2d)
   - Total overlap scoring (photonics2d)
 
-The generic scorer is configuration-driven via `benchmarks.shared.problem_registry`, which defines objectives, constraints, and weights for each problem type.
+The output quality scorer is configuration-driven via `benchmarks.shared.problem_registry`, which defines objectives, constraints, and weights for each problem type.
 
 See [../problems/beams2d/SCORING_METRICS.md](../problems/beams2d/SCORING_METRICS.md) for detailed beams2d metric definitions.
 
