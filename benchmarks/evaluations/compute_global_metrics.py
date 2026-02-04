@@ -27,11 +27,8 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from benchmarks.shared.metrics import dpp_diversity, mmd, optimality_gap  # noqa: E402
+from benchmarks.shared.metrics import compute_rvc, dpp_diversity, mmd, optimality_gap  # noqa: E402
 from benchmarks.shared.problem_registry import get_problem_config  # noqa: E402
-from benchmarks.shared.scorers.output_quality_engibench_scorer import (  # noqa: E402
-    compute_rvc,
-)
 from benchmarks.shared.utils import get_hf_dataset  # noqa: E402
 from config import config  # noqa: E402
 
