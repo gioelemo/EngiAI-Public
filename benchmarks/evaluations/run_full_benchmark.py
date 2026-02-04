@@ -306,6 +306,11 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 args.scorers,
                 args.mmore_enabled,
             )
+            if ret == 0:
+                results["agent"][seed] = "success"
+            else:
+                results["agent"][seed] = "failed"
+                failed_seeds["agent"].append(seed)
 
     # Print summary
     print()
