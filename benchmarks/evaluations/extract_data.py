@@ -125,11 +125,14 @@ def _extract_metrics_from_scorers(
                 "pixel_accuracy": output_quality.get("pixel_accuracy"),
                 "mse": output_quality.get("mse"),
                 "ssim": output_quality.get("ssim"),
-                "constraint_match": output_quality.get("constraint_match"),
-                "objective_match": output_quality.get("objective_match"),
-                # Printability metrics
-                "connectivity": output_quality.get("connectivity"),
-                "watertightness": output_quality.get("watertightness"),
+                "constraint_score": output_quality.get("constraint_score"),
+                "objective_score": output_quality.get("objective_score"),
+                # Printability metrics (use actual field names from scorer)
+                "connected_design": output_quality.get("connected_design"),
+                "num_components": output_quality.get("num_components"),
+                "is_watertight": output_quality.get("is_watertight"),
+                "volume_mm3": output_quality.get("volume_mm3"),
+                "surface_area_mm2": output_quality.get("surface_area_mm2"),
             }
         )
 

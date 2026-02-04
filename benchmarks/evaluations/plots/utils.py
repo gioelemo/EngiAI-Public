@@ -566,13 +566,16 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
                     "pixel_accuracy": design.get("pixel_accuracy"),
                     "mse": design.get("mse"),
                     "ssim": design.get("ssim"),
-                    "constraint_match": design.get("constraint_match"),
-                    "objective_match": design.get("objective_match"),
+                    "constraint_score": design.get("constraint_score"),
+                    "objective_score": design.get("objective_score"),
                     "efficiency_ratio": design.get("efficiency_ratio"),
                     "sequence_score": design.get("sequence_score"),
                     "success_rate": design.get("success_rate"),
-                    "connectivity": design.get("connectivity"),
-                    "watertightness": design.get("watertightness"),
+                    "connected_design": design.get("connected_design"),
+                    "num_components": design.get("num_components"),
+                    "is_watertight": design.get("is_watertight"),
+                    "volume_mm3": design.get("volume_mm3"),
+                    "surface_area_mm2": design.get("surface_area_mm2"),
                 }
                 rows.append(row)
 
