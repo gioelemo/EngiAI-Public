@@ -356,37 +356,6 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 args.scorers,
                 args.mmore_enabled,
             )
-            if ret == 0:
-                results["agent"][seed] = "success"
-
-                # Step 4: Extract data from Weave to JSON
-                print(f"\n[Seed {seed}] Extracting design data from Weave...")
-                model_name = args.model if args.model is not None else config.llm_model
-                rag_status = "rag" if args.mmore_enabled else "no_rag"
-                ret = extract_agent_data(
-                    args.problem,
-                    model_name,
-                    args.prompt_style,
-                    rag_status,
-                    seed,
-                )
-                if ret != 0:
-                    print(f"Warning: Data extraction failed for seed {seed}")
-
-                # Step 5: Compute global metrics from extracted data
-                print(f"\n[Seed {seed}] Computing global metrics...")
-                ret = compute_agent_metrics(
-                    args.problem,
-                    model_name,
-                    args.prompt_style,
-                    rag_status,
-                    seed,
-                )
-                if ret != 0:
-                    print(f"Warning: Metrics computation failed for seed {seed}")
-            else:
-                results["agent"][seed] = "failed"
-                failed_seeds["agent"].append(seed)
 
     # Print summary
     print()
