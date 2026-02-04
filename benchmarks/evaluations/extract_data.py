@@ -166,6 +166,15 @@ def _extract_metrics_from_scorers(
             }
         )
 
+        # Extract individual tool call counts from tool_call_breakdown
+        # This preserves the actual number of times each tool was called
+        tool_breakdown = tool_use.get("tool_call_breakdown", {})
+        if isinstance(tool_breakdown, dict):
+            for tool_name, count in tool_breakdown.items():
+                # Prefix with "tool_" and store the actual count
+                # Plots can convert to binary (>0) if they need usage rates
+                result[f"tool_{tool_name}"] = count
+
         # Also extract any individual tool usage fields (tool_*)
         result.update(
             {

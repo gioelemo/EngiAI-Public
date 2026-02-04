@@ -34,8 +34,12 @@ def plot_tool_usage_frequency(tool_data, output_dir=None):
 
     setup_style()
 
-    # Get all tool columns (columns starting with 'tool_')
-    tool_columns = [col for col in tool_data.columns if col.startswith("tool_")]
+    # Get all tool columns (exclude metric fields like tool_efficiency_score)
+    exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
+    tool_columns = [
+        col for col in tool_data.columns
+        if col.startswith("tool_") and col not in exclude_metrics
+    ]
 
     if not tool_columns:
         print("No tool columns found in data")
@@ -95,6 +99,13 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
 
     setup_style()
     font_sizes = PLOT_STYLE["font_sizes"]
+
+    # Get tool columns (exclude metric fields)
+    exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
+    tool_columns = [
+        col for col in tool_data.columns
+        if col.startswith("tool_") and col not in exclude_metrics
+    ]
 
     # Calculate average tools per example for each model
     model_stats = (
@@ -342,12 +353,21 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
     setup_style()
     font_sizes = PLOT_STYLE["font_sizes"]
 
-    # 1. Get tool columns
-    tool_columns = [col for col in tool_data.columns if col.startswith("tool_")]
+    # 1. Get tool columns (exclude metric fields like tool_efficiency_score)
+    # Only include fields from actual tool calls, not computed scores
+    exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
+    tool_columns = [
+        col for col in tool_data.columns
+        if col.startswith("tool_") and col not in exclude_metrics
+    ]
 
-    # 1. Calculate average usage per example for each model
-    # Dividing by the count of rows (examples) for each model
-    model_tool_usage = tool_data.groupby("model")[tool_columns].mean().T * 100
+    # 1. Calculate usage rate (% of examples where tool was called at least once)
+    # Convert counts to binary (>0 means used) then take mean per model
+    model_tool_usage = (
+        tool_data.groupby("model")[tool_columns]
+        .apply(lambda x: (x > 0).mean())
+        .T * 100
+    )
     # 2. ABBREVIATE NAMES HERE
     model_tool_usage.columns = [
         c.replace("-instruct-2507-q8-0", "-Inst") for c in model_tool_usage.columns
@@ -390,8 +410,12 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
 
 def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
     """Plot how much each model deviates from the average tool usage."""
-    # 1. Calculate usage rate per model
-    tool_columns = [col for col in tool_data.columns if col.startswith("tool_")]
+    # 1. Calculate usage rate per model (exclude metric fields)
+    exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
+    tool_columns = [
+        col for col in tool_data.columns
+        if col.startswith("tool_") and col not in exclude_metrics
+    ]
     model_usage = tool_data.groupby("model")[tool_columns].mean() * 100
 
     # 2. Calculate the average usage across ALL models
