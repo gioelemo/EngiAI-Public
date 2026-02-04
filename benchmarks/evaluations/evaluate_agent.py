@@ -411,8 +411,6 @@ def get_or_create_dataset(
 
 def create_contextual_scorer(
     scorer_func: Any,
-    model_name: str,  # noqa: ARG001 - Kept for signature compatibility
-    problem_type: str,  # noqa: ARG001 - Kept for signature compatibility
     scorer_type: str,
 ) -> Any:
     """Create a scorer wrapper with evaluation context in its trace name.
@@ -530,7 +528,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Wrap scorers with evaluation context for better trace naming in Weave UI
     scorers = [
-        create_contextual_scorer(scorer_func, model_name, args.problem, scorer_type)
+        create_contextual_scorer(scorer_func, scorer_type)
         for scorer_func, scorer_type in zip(base_scorers, scorer_types, strict=False)
     ]
 
@@ -650,9 +648,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Print summary
     print_evaluation_summary(results, scorers)
 
-    print()
-
-    await asyncio.sleep(60)  # Wait for Weave to sync evaluation results
+    await asyncio.sleep(30)  # Wait for Weave to sync evaluation results
 
     # Save per-design metrics to CSV
     model_safe = model_name.replace("/", "_").replace(":", "_")
