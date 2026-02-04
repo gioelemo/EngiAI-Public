@@ -253,6 +253,18 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # 
         print(f"Missing required columns: {missing_cols}")
         return
 
+    # Check if tool usage data is actually populated (not all null)
+    if merged["total_tools"].isna().all() or merged["unique_tools"].isna().all():
+        print("⚠️  Tool usage metrics (total_tools, unique_tools) are not available")
+        print("   Skipping tool usage vs performance correlation plot")
+        return
+
+    # Drop rows with missing tool data for correlation analysis
+    merged = merged.dropna(subset=["total_tools", "unique_tools"])
+    if len(merged) == 0:
+        print("No valid tool usage data for correlation plot")
+        return
+
     # Create scatter plots
     fig, axes = plt.subplots(
         2, 2, figsize=PLOT_STYLE["figsize_full_width_tall"], constrained_layout=True

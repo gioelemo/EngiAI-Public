@@ -525,6 +525,7 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
                 "example_id": design.get("example_id"),
                 "problem_id": design.get("problem_id"),
                 "model_id": design.get("model_id"),
+                "design_found": design.get("design_found", False),
                 "overall_score": design.get("overall_score"),
                 "design_quality_score": design.get("design_quality_score"),
                 "tool_efficiency_score": design.get("tool_efficiency_score"),

@@ -115,6 +115,7 @@ def _extract_metrics_from_scorers(
     if isinstance(output_quality, dict):
         result.update(
             {
+                "design_found": output_quality.get("design_found", False),
                 "overall_score": output_quality.get("score"),
                 "design_quality_score": output_quality.get("design_quality_score"),
                 "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
@@ -127,12 +128,21 @@ def _extract_metrics_from_scorers(
                 "ssim": output_quality.get("ssim"),
                 "constraint_score": output_quality.get("constraint_score"),
                 "objective_score": output_quality.get("objective_score"),
+                "constraint_violations": output_quality.get("constraint_violations"),
+                # Objective metrics (compliance, etc.)
+                "agent_compliance": output_quality.get("agent_compliance"),
+                "target_compliance": output_quality.get("target_compliance"),
+                "compliance_relative_error": output_quality.get("compliance_relative_error"),
+                "compliance_score": output_quality.get("compliance_score"),
                 # Printability metrics (use actual field names from scorer)
                 "connected_design": output_quality.get("connected_design"),
                 "num_components": output_quality.get("num_components"),
                 "is_watertight": output_quality.get("is_watertight"),
                 "volume_mm3": output_quality.get("volume_mm3"),
                 "surface_area_mm2": output_quality.get("surface_area_mm2"),
+                "watertight_check_available": output_quality.get("watertight_check_available"),
+                "mesh_validation_time": output_quality.get("mesh_validation_time"),
+                "comparison_image_generated": output_quality.get("comparison_image_generated"),
             }
         )
 
@@ -218,6 +228,10 @@ def _process_score_call_for_complete_data(
             "problem_id": problem_id,
             "model_id": model_id,
         }
+
+        # Extract root-level metrics
+        result["response_length"] = score_output.get("response_length")
+        result["model_latency"] = score_output.get("model_latency")
 
         # Extract all metrics from scorers
         metrics = _extract_metrics_from_scorers(
