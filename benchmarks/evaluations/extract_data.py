@@ -136,12 +136,24 @@ def _extract_metrics_from_scorers(
             }
         )
 
-    # Extract tool efficiency metrics
+    # Extract tool efficiency metrics and detailed tool usage
     if isinstance(tool_use, dict):
+        # Always extract these standard metrics
         result.update(
             {
                 "efficiency_ratio": tool_use.get("efficiency_ratio"),
                 "sequence_score": tool_use.get("sequence_score"),
+                "total_tools": tool_use.get("total_tools"),
+                "unique_tools": tool_use.get("unique_tools"),
+            }
+        )
+
+        # Also extract any individual tool usage fields (tool_*)
+        result.update(
+            {
+                key: value
+                for key, value in tool_use.items()
+                if key.startswith("tool_") and isinstance(value, (int, float, bool))
             }
         )
 

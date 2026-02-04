@@ -23,12 +23,10 @@ warnings.filterwarnings(
 
 import argparse  # noqa: E402
 import asyncio  # noqa: E402
-import csv  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
 import sys  # noqa: E402
-import traceback  # noqa: E402
 import uuid  # noqa: E402
 from pathlib import Path  # noqa: E402
 from typing import Any, TypedDict  # noqa: E402
@@ -324,12 +322,6 @@ def parse_arguments() -> argparse.Namespace:
         help="Random seed for optimization (e.g., 1, 2, 3). Run multiple times with different seeds to collect statistics.",
     )
     parser.add_argument(
-        "--output-csv",
-        type=str,
-        default=None,
-        help="Output CSV file to save metrics (will append if file exists). Default: benchmarks/evaluations/results/models/{model}/{problem}/output_quality_global_metrics.csv",
-    )
-    parser.add_argument(
         "--prompt-style",
         type=str,
         default="full",
@@ -412,151 +404,6 @@ def get_or_create_dataset(
         weave.publish(dataset)
         print(f"📦 Published new evaluation dataset to Weave ({num_samples} samples)")
     return dataset
-
-
-def save_per_design_metrics(  # noqa: PLR0912, PLR0915
-    evaluation_results: Any,
-    csv_path: str,
-    seed: int | None,
-    problem_id: str,
-    model_id: str,
-) -> None:
-    """Save per-design metrics to CSV file.
-
-    Args:
-        evaluation_results: Weave evaluation results object (has .rows attribute)
-        csv_path: Path to save CSV file
-        seed: Random seed used (if any)
-        problem_id: Problem type
-        model_id: Model name
-    """
-    try:
-        # Access per-example results from evaluation object
-        if not hasattr(evaluation_results, "rows"):
-            print("⚠️  Evaluation results object doesn't have 'rows' attribute")
-            print(f"Debug: Type: {type(evaluation_results)}")
-            print(f"Debug: Available attributes: {dir(evaluation_results)}")
-            return
-
-        results_data = evaluation_results.rows
-        print(f"✓ Found {len(results_data)} evaluation rows")
-
-        # Extract per-design metrics from rows
-        design_metrics_list = []
-        for i, row in enumerate(results_data):
-            # Each row is a dict - keys might be scorer names or IDs
-            # Try to find scorer results by checking for expected keys
-            scorer_result = None
-
-            # First try known scorer names
-            for key in [
-                "output_quality_visual",
-                "score_output_quality_visual",
-                "engibench",
-                "score_output_quality_engibench",
-            ]:
-                if key in row:
-                    scorer_result = row[key]
-                    break
-
-            # If not found, check all values for one that looks like a scorer output
-            if not scorer_result:
-                for value in row.values():
-                    if isinstance(value, dict) and "score" in value and "iou" in value:
-                        scorer_result = value
-                        break
-
-            if not scorer_result or not isinstance(scorer_result, dict):
-                continue
-
-            # Get example_id from scorer result
-            example_id = scorer_result.get("example_id", i)
-
-            # Debug: Check what keys are in scorer_result
-            if i == 0:  # Only print for first result
-                print(f"Debug: Scorer result keys: {list(scorer_result.keys())}")
-                category_score_keys = [k for k in scorer_result if "_score" in k]
-                print(f"Debug: Category score keys found: {category_score_keys}")
-
-            # Build metrics row
-            metrics_row = {
-                "seed": seed if seed is not None else 0,
-                "example_id": example_id,
-                "problem_id": problem_id,
-                "model_id": model_id,
-                # Main metrics
-                "overall_score": scorer_result.get("score", 0.0),
-                "iou": scorer_result.get("iou", 0.0),
-                "pixel_accuracy": scorer_result.get("pixel_accuracy", 0.0),
-                "mse": scorer_result.get("mse", 0.0),
-                "constraint_score": scorer_result.get("constraint_score", 0.0),
-                "objective_score": scorer_result.get("objective_score", 0.0),
-            }
-
-            # Add any additional constraint/objective specific metrics
-            for key, value in scorer_result.items():
-                if key not in metrics_row and isinstance(value, (int, float)):
-                    metrics_row[key] = value
-
-            design_metrics_list.append(metrics_row)
-
-    except Exception as e:
-        print(f"⚠️  Error accessing evaluation results: {e}")
-        traceback.print_exc()
-        return
-
-    if not design_metrics_list:
-        print("⚠️  No design metrics extracted")
-        return
-
-    # Check if file exists to determine if we need header
-    csv_file = Path(csv_path)
-    csv_file.parent.mkdir(parents=True, exist_ok=True)
-    file_exists = csv_file.exists()
-
-    # Get all possible fieldnames from all rows (in case some have extra fields)
-    all_keys: set[str] = set()
-    for row in design_metrics_list:
-        all_keys.update(row.keys())
-
-    # Ensure standard fields come first
-    standard_fields = [
-        "seed",
-        "example_id",
-        "problem_id",
-        "model_id",
-        "overall_score",
-        "iou",
-        "pixel_accuracy",
-        "mse",
-        "constraint_score",
-        "objective_score",
-    ]
-
-    # If file exists, read existing header and merge with new keys
-    if file_exists:
-        with csv_file.open("r", newline="") as f:
-            reader = csv.reader(f)
-            existing_fieldnames = next(reader, [])
-        # Use existing order and add any new fields at the end
-        new_keys = [k for k in all_keys if k not in existing_fieldnames]
-        fieldnames = existing_fieldnames + sorted(new_keys)
-    else:
-        # New file: sort and put standard fields first
-        fieldnames = sorted(all_keys)
-        fieldnames = [f for f in standard_fields if f in fieldnames] + [
-            f for f in fieldnames if f not in standard_fields
-        ]
-
-    # Append to CSV
-    with csv_file.open("a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if not file_exists:
-            writer.writeheader()
-        writer.writerows(design_metrics_list)
-
-    print(f"📊 Per-design metrics saved to: {csv_path}")
-    print(f"   ({len(design_metrics_list)} designs)")
 
 
 def create_contextual_scorer(
@@ -818,85 +665,6 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
     )
     results_dir.mkdir(parents=True, exist_ok=True)
-    design_metrics_csv = str(results_dir / "output_quality_design_metrics.csv")
-
-    # Initialize eval_results to None (will be populated if score calls succeed)
-    eval_results = None
-
-    # Get per-example results from evaluation scorer calls
-    try:
-        # Try to get scorer calls which contain per-example results
-        score_calls = evaluation.get_score_calls()
-        print(f"Debug: score_calls type: {type(score_calls)}")
-        print(
-            f"Debug: score_calls keys: {list(score_calls.keys()) if isinstance(score_calls, dict) else 'N/A'}"
-        )
-
-        # Extract per-example scorer outputs from score calls dict
-        if score_calls and isinstance(score_calls, dict):
-            # score_calls is a dict where keys are trace IDs (one per evaluation run)
-            # Get the most recent evaluation run (last key in dict, since dicts maintain insertion order)
-            print(f"Debug: Found {len(score_calls)} evaluation runs")
-            latest_trace_id = list(score_calls.keys())[-1]
-            print(f"Debug: Using latest trace ID: {latest_trace_id}")
-
-            # Get calls from the latest evaluation run only
-            current_run_calls = score_calls[latest_trace_id]
-            print(f"Debug: Latest run has {len(current_run_calls)} scorer calls")
-
-            # Group calls by example (scorer calls are ordered by example)
-            # Assuming 3 scorers (output_quality_visual, task_completion, tool_use)
-            # and N examples, we have N * 3 calls total
-            num_scorers = (
-                len(args.scorers.split(","))
-                if "," in args.scorers
-                else len(base_scorers)
-            )
-            num_examples = len(current_run_calls) // num_scorers
-
-            print(
-                f"Debug: Detected {num_examples} examples with {num_scorers} scorers each"
-            )
-
-            # Build a simple results object with rows attribute
-            # Each row should be a dict with scorer outputs
-            class ResultsWrapper:
-                def __init__(self, calls_list, num_examples):
-                    self.rows = []
-                    # Group calls by example
-                    for i in range(num_examples):
-                        row = {}
-                        # Get all scorer calls for this example
-                        # Calls are ordered: [ex0_scorer0, ex0_scorer1, ex0_scorer2, ex1_scorer0, ...]
-                        # or might be: [scorer0_ex0, scorer0_ex1, ..., scorer1_ex0, ...]
-                        # We need to figure out the ordering
-                        for call in calls_list:
-                            if hasattr(call, "output") and isinstance(
-                                call.output, dict
-                            ):
-                                example_id = call.output.get("example_id", -1)
-                                if example_id == i:
-                                    # Use a unique key for this call (could be scorer name or ID)
-                                    call_id = id(call)  # Use object ID as unique key
-                                    row[call_id] = call.output
-                        if row:  # Only add row if it has data
-                            self.rows.append(row)
-
-            eval_results = ResultsWrapper(current_run_calls, num_examples)
-            print(f"✓ Extracted {len(eval_results.rows)} rows from score calls")
-
-            save_per_design_metrics(
-                eval_results,
-                design_metrics_csv,
-                args.seed,
-                args.problem,
-                model_name,
-            )
-        else:
-            print("⚠️  No score calls found or invalid format")
-    except Exception as e:
-        print(f"⚠️  Error getting scorer call results: {e}")
-        traceback.print_exc()
 
     # Compute global metrics for all scorer types (all scorers now support design extraction)
     # Skip for task_completion and tool_use scorers which don't extract designs
@@ -937,7 +705,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print("📊 View detailed per-example results in Weave dashboard")
     print()
     print("Next steps:")
-    print("  1. Run extract_data.py to export per-design metrics from Weave to CSV")
+    print("  1. Run extract_data.py to export per-design metrics to JSON")
     print("  2. Run compute_global_metrics.py to calculate global metrics per seed")
     print("  3. Run generate_plots.py to create visualizations")
     print()

@@ -48,11 +48,9 @@ from utils import (  # noqa: E402
     filter_by_rag_status,
     get_combined_design_df,
     get_combined_global_df,
-    get_combined_tool_usage_df,
     get_problem_output_dir,
     get_problem_prompt_output_dir,
     load_data,
-    load_tool_usage_data,
 )
 
 
@@ -301,8 +299,8 @@ def _load_all_data():
     combined_global = get_combined_global_df(data)
     combined_design = get_combined_design_df(data)
 
-    tool_data = load_tool_usage_data()
-    combined_tools = get_combined_tool_usage_df(tool_data)
+    # Tool usage data is now included in design data (JSON pipeline)
+    combined_tools = combined_design  # Same DataFrame, includes tool metrics
 
     return combined_global, combined_design, combined_tools
 

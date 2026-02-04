@@ -102,8 +102,7 @@ def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Pa
     """Discover results under a model/problem/ directory.
 
     Structure:
-        - model/problem/prompt_style/rag_status/ (CSVs in rag_status dir)
-        - model/problem/data.csv (tool usage from extract_data.py)
+        - model/problem/prompt_style/rag_status/ (JSON files in rag_status dir)
 
     Returns:
         Dictionary mapping keys to file paths
@@ -111,12 +110,6 @@ def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Pa
     paths: dict[str, Path] = {}
     problem = problem_dir.name
     model_name = model_dir.name
-
-    # Check for data.csv directly in problem directory (from extract_data.py)
-    direct_tools_path = problem_dir / "data.csv"
-    if direct_tools_path.exists():
-        key_prefix = f"{model_name}_full_{problem}"
-        paths[f"{key_prefix}_tools"] = direct_tools_path
 
     for ps_dir in problem_dir.iterdir():
         if not ps_dir.is_dir() or ps_dir.name not in KNOWN_PROMPT_STYLES:
@@ -129,30 +122,15 @@ def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Pa
             rag_status = rag_dir.name  # "rag" or "no_rag"
             key_prefix = f"{model_name}_{prompt_style}_{rag_status}_{problem}"
 
-            # Check for new JSON format first
+            # Check for global metrics JSON
             global_json_path = rag_dir / "global_metrics.json"
             if global_json_path.exists():
                 paths[f"{key_prefix}_global"] = global_json_path
-            else:
-                # Fallback to old CSV format
-                global_csv_path = rag_dir / "output_quality_global_metrics.csv"
-                if global_csv_path.exists():
-                    paths[f"{key_prefix}_global"] = global_csv_path
 
-            # Check for new JSON format for design data
+            # Check for design data JSON
             design_json_path = rag_dir / "design_data.json"
             if design_json_path.exists():
                 paths[f"{key_prefix}_design"] = design_json_path
-            else:
-                # Fallback to old CSV format
-                design_csv_path = rag_dir / "output_quality_design_metrics.csv"
-                if design_csv_path.exists():
-                    paths[f"{key_prefix}_design"] = design_csv_path
-
-            # Tool usage data (still CSV from extract_data.py - deprecated)
-            tools_path = rag_dir / "data.csv"
-            if tools_path.exists():
-                paths[f"{key_prefix}_tools"] = tools_path
 
     return paths
 
@@ -161,8 +139,8 @@ def discover_data_paths() -> dict[str, Path]:
     """Auto-discover available result files in the results directory.
 
     Directory structure:
-        results/baselines/{baseline_type}/{problem}/
-        results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/
+        results/baselines/{baseline_type}/{problem}/                          - CSV files
+        results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/   - JSON files
 
     Returns:
         Dictionary mapping keys to file paths
@@ -473,56 +451,41 @@ def get_output_dir():
 def _load_global_metrics(path, model, problem, prompt_style="full", rag_status=None):
     """Load and clean global metrics for a specific model/problem.
 
-    Supports both JSON (new format from compute_global_metrics.py) and CSV (legacy).
+    Expects JSON format from compute_global_metrics.py.
     """
     if not path.exists():
         return None
 
+    if path.suffix != ".json":
+        print(f"Warning: Expected JSON file, got {path.suffix} for {path}")
+        return None
+
     try:
-        # Check if it's JSON format (new)
-        if path.suffix == ".json":
-            with path.open() as f:
-                data = json.load(f)
+        with path.open() as f:
+            data = json.load(f)
 
-            # Convert per_seed_metrics to DataFrame rows
-            if "per_seed_metrics" not in data:
-                print(f"Warning: No per_seed_metrics in {path}")
-                return None
+        # Convert per_seed_metrics to DataFrame rows
+        if "per_seed_metrics" not in data:
+            print(f"Warning: No per_seed_metrics in {path}")
+            return None
 
-            rows = []
-            for seed_metrics in data["per_seed_metrics"]:
-                row = {
-                    "seed": seed_metrics["seed"],
-                    "n_samples": seed_metrics.get("n_designs", seed_metrics.get("n_failed", 0)),
-                    "mmd": seed_metrics.get("mmd"),
-                    "dpp": seed_metrics.get("dpp_diversity"),
-                    "dpp_diversity": seed_metrics.get("dpp_diversity"),
-                    "iog": seed_metrics.get("iog"),
-                    "cog": seed_metrics.get("cog"),
-                    "fog": seed_metrics.get("fog"),
-                    "rvc": seed_metrics.get("rvc"),
-                    # Remove rvc_details to avoid large nested objects
-                }
-                rows.append(row)
-
-            df = pd.DataFrame(rows)
-
-        else:
-            # Legacy CSV format
-            df = pd.read_csv(path, on_bad_lines="skip")
-
-            # Rename columns for consistency (same as CGAN)
-            rename_map = {
-                "model_id": "model_id_orig",  # Preserve original
-                "problem_id": "problem",
+        rows = []
+        for seed_metrics in data["per_seed_metrics"]:
+            row = {
+                "seed": seed_metrics["seed"],
+                "n_samples": seed_metrics.get("n_designs", seed_metrics.get("n_failed", 0)),
+                "mmd": seed_metrics.get("mmd"),
+                "dpp": seed_metrics.get("dpp_diversity"),
+                "dpp_diversity": seed_metrics.get("dpp_diversity"),
+                "iog": seed_metrics.get("iog"),
+                "cog": seed_metrics.get("cog"),
+                "fog": seed_metrics.get("fog"),
+                "rvc": seed_metrics.get("rvc"),
+                # Remove rvc_details to avoid large nested objects
             }
-            df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+            rows.append(row)
 
-            # Filter to rows with valid n_samples (numeric)
-            if "n_samples" in df.columns:
-                df = df[pd.to_numeric(df["n_samples"], errors="coerce").notna()]
-                df["n_samples"] = pd.to_numeric(df["n_samples"])
-                df = df.drop_duplicates(subset=["seed", "n_samples"], keep="first")
+        df = pd.DataFrame(rows)
 
     except Exception as e:
         print(f"Warning: Could not load {path}: {e}")
@@ -538,53 +501,57 @@ def _load_global_metrics(path, model, problem, prompt_style="full", rag_status=N
 def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
     """Load and clean design-level metrics for a specific model.
 
-    Supports both JSON (new format from extract_data.py) and CSV (legacy).
+    Expects JSON format from extract_data.py.
     """
     if not path.exists():
         return None
 
+    if path.suffix != ".json":
+        print(f"Warning: Expected JSON file, got {path.suffix} for {path}")
+        return None
+
     try:
-        # Check if it's JSON format (new)
-        if path.suffix == ".json":
-            with path.open() as f:
-                data = json.load(f)
+        with path.open() as f:
+            data = json.load(f)
 
-            # Convert list of design dicts to DataFrame
-            # Extract only the metric fields, not the full design arrays
-            rows = []
-            for design in data:
-                row = {
-                    "seed": design.get("seed"),
-                    "example_id": design.get("example_id"),
-                    "problem_id": design.get("problem_id"),
-                    "overall_score": design.get("overall_score"),
-                    "design_quality_score": design.get("design_quality_score"),
-                    "tool_efficiency_score": design.get("tool_efficiency_score"),
-                    "task_completion_score": design.get("task_completion_score"),
-                    "printability_score": design.get("printability_score"),
-                    "iou": design.get("iou"),
-                    "pixel_accuracy": design.get("pixel_accuracy"),
-                    "mse": design.get("mse"),
-                    "ssim": design.get("ssim"),
-                    "constraint_score": design.get("constraint_score"),
-                    "objective_score": design.get("objective_score"),
-                    "efficiency_ratio": design.get("efficiency_ratio"),
-                    "sequence_score": design.get("sequence_score"),
-                    "success_rate": design.get("success_rate"),
-                    "connected_design": design.get("connected_design"),
-                    "num_components": design.get("num_components"),
-                    "is_watertight": design.get("is_watertight"),
-                    "volume_mm3": design.get("volume_mm3"),
-                    "surface_area_mm2": design.get("surface_area_mm2"),
-                }
-                rows.append(row)
+        # Convert list of design dicts to DataFrame
+        # Extract only the metric fields, not the full design arrays
+        rows = []
+        for design in data:
+            row = {
+                "seed": design.get("seed"),
+                "example_id": design.get("example_id"),
+                "problem_id": design.get("problem_id"),
+                "model_id": design.get("model_id"),
+                "overall_score": design.get("overall_score"),
+                "design_quality_score": design.get("design_quality_score"),
+                "tool_efficiency_score": design.get("tool_efficiency_score"),
+                "task_completion_score": design.get("task_completion_score"),
+                "printability_score": design.get("printability_score"),
+                "iou": design.get("iou"),
+                "pixel_accuracy": design.get("pixel_accuracy"),
+                "mse": design.get("mse"),
+                "ssim": design.get("ssim"),
+                "constraint_score": design.get("constraint_score"),
+                "objective_score": design.get("objective_score"),
+                "efficiency_ratio": design.get("efficiency_ratio"),
+                "sequence_score": design.get("sequence_score"),
+                "total_tools": design.get("total_tools"),
+                "unique_tools": design.get("unique_tools"),
+                "success_rate": design.get("success_rate"),
+                "connected_design": design.get("connected_design"),
+                "num_components": design.get("num_components"),
+                "is_watertight": design.get("is_watertight"),
+                "volume_mm3": design.get("volume_mm3"),
+                "surface_area_mm2": design.get("surface_area_mm2"),
+            }
 
-            df = pd.DataFrame(rows)
+            # Also include any individual tool usage fields (tool_*)
+            row.update({k: v for k, v in design.items() if k.startswith("tool_")})
 
-        else:
-            # Legacy CSV format
-            df = pd.read_csv(path, on_bad_lines="skip")
+            rows.append(row)
 
+        df = pd.DataFrame(rows)
         df = df.drop_duplicates(subset=["seed", "example_id"], keep="first")
 
     except Exception as e:
@@ -627,7 +594,7 @@ def _load_cgan_metrics(path):
 
 def load_data():
     """
-    Load all metrics CSVs, clean and deduplicate.
+    Load all metrics from JSON files, clean and deduplicate.
 
     Auto-discovers available results in the results directory.
 
@@ -690,58 +657,37 @@ def load_data():
 
 
 def load_tool_usage_data():
-    """Load tool usage data from CSV files.
+    """DEPRECATED: Tool usage data is now included in design_data.json.
 
-    Auto-discovers available tool usage files in the results directory.
+    This function is kept for backwards compatibility but will return empty.
+    Tool efficiency metrics (efficiency_ratio, sequence_score) are available
+    in the design-level data loaded by load_data().
+
+    For detailed per-tool usage tracking, the tool_use scorer would need to
+    be updated to output individual tool counts in its scorer output.
 
     Returns:
-        dict: Dictionary with loaded tool usage DataFrames
+        dict: Empty dictionary (no separate tool usage files in JSON pipeline)
     """
-    data = {}
-
-    # Refresh discovered paths
-    discovered_paths = discover_data_paths()
-
-    for key, path in discovered_paths.items():
-        if not key.endswith("_tools"):
-            continue
-
-        # Parse key: {model_name}_{prompt_style}_{rag_status}_{problem}_tools
-        parsed = _parse_data_key(key)
-        if parsed is None:
-            continue
-
-        problem = parsed["problem"]
-        model_label = _get_model_label(parsed["model"])
-        prompt_style = parsed.get("prompt_style", "full")
-        rag_status = parsed.get("rag_status")
-
-        try:
-            df = pd.read_csv(path)
-            df["model"] = model_label
-            df["problem"] = problem
-            df["prompt_style"] = prompt_style
-            df["rag_status"] = rag_status
-            data[key] = df
-        except Exception as e:
-            print(f"Warning: Could not load {path}: {e}")
-
-    return data
+    print("⚠️  Note: Detailed tool usage tracking is not implemented in JSON pipeline")
+    print("   Tool efficiency metrics are available in design-level data")
+    return {}
 
 
-def get_combined_tool_usage_df(data):
-    """Combine all tool usage data into a single DataFrame.
+def get_combined_tool_usage_df(data):  # noqa: ARG001
+    """DEPRECATED: Get tool usage data from design-level metrics instead.
+
+    Tool efficiency metrics (efficiency_ratio, sequence_score) are now part of
+    the design-level data. Use get_combined_design_df() to access them.
 
     Args:
-        data: Dictionary with tool usage DataFrames
+        data: Dictionary with DataFrames (unused, kept for compatibility)
 
     Returns:
-        Combined DataFrame or None if no data available
+        None (detailed tool usage not available in JSON pipeline)
     """
-    # Get all keys ending with _tools
-    keys = [k for k in data if k.endswith("_tools")]
-    dfs = [data[key] for key in keys]
-    return pd.concat(dfs, ignore_index=True) if dfs else None
+    print("⚠️  Note: Use get_combined_design_df() for tool efficiency metrics")
+    print("   (efficiency_ratio, sequence_score are included in design data)")
 
 
 def get_combined_global_df(data):

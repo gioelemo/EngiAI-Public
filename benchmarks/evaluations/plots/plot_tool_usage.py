@@ -9,15 +9,13 @@ This script creates plots showing:
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import seaborn as sns
 
 from utils import (
     PLOT_STYLE,
-    get_combined_tool_usage_df,
+    get_combined_design_df,
     get_model_style,
     load_data,
-    load_tool_usage_data,
     save_figure,
     setup_style,
 )
@@ -226,31 +224,33 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     return save_figure(fig, "tool_usage_by_model.png", output_dir)
 
 
-def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):
+def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # noqa: ARG001
     """Plot correlation between tool usage and performance (NeurIPS format).
 
     Args:
-        tool_data: Combined tool usage DataFrame
-        design_data: Combined design metrics DataFrame
+        tool_data: Combined design DataFrame with tool usage metrics
+        design_data: Combined design DataFrame (unused, kept for compatibility)
         output_dir: Optional output directory for saving
     """
-    if tool_data is None or design_data is None:
+    if tool_data is None:
         print("Missing data for correlation plot")
         return
 
     setup_style()
     font_sizes = PLOT_STYLE["font_sizes"]
 
-    # Merge tool usage with design metrics
-    merged = tool_data.merge(
-        design_data,
-        on=["example_id", "model_id", "problem_id"],
-        how="inner",
-        suffixes=("_tool", "_design"),
-    )
+    # In the JSON pipeline, tool_data and design_data are the same DataFrame
+    merged = tool_data
 
     if len(merged) == 0:
-        print("No matching examples found between tool usage and design metrics")
+        print("No data available for correlation plot")
+        return
+
+    # Check for required columns
+    required_cols = ["total_tools", "unique_tools", "overall_score", "iou"]
+    missing_cols = [col for col in required_cols if col not in merged.columns]
+    if missing_cols:
+        print(f"Missing required columns: {missing_cols}")
         return
 
     # Create scatter plots
@@ -266,13 +266,17 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):
     ]
 
     # Get dynamic styles for models
-    models = list(merged["model_tool"].unique())
+    models = list(merged["model"].unique()) if "model" in merged.columns else []
+    if not models:
+        print("No model information available in data")
+        return
+
     model_styles = get_model_style(models)
 
     for ax, (x_col, y_col, x_label, y_label) in zip(axes.flat, metrics, strict=False):
         # Plot by model
         for model in models:
-            model_data = merged[merged["model_tool"] == model]
+            model_data = merged[merged["model"] == model]
             style = model_styles[model]
             ax.scatter(
                 model_data[x_col],
@@ -416,20 +420,28 @@ def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
 
 
 def plot_performance_distribution_by_tool_count(
-    combined_tools, combined_design, output_dir=None
+    combined_tools, combined_design, output_dir=None  # noqa: ARG001
 ):
-    """Show the distribution of performance metrics relative to tools used."""
-    # Merge performance with tool usage counts
-    df = combined_design.merge(
-        combined_tools[["example_id", "model", "total_tools", "unique_tools"]],
-        on=["example_id", "model"],
-    )
+    """Show the distribution of performance metrics relative to tools used.
+
+    Args:
+        combined_tools: Combined design DataFrame with tool usage metrics
+        combined_design: Unused, kept for compatibility
+        output_dir: Optional output directory for saving
+    """
+    # In the JSON pipeline, tool data and design data are in the same DataFrame
+    df = combined_tools
+
+    # Check for required columns
+    if "total_tools" not in df.columns or "overall_score" not in df.columns:
+        print("Missing required columns (total_tools or overall_score)")
+        return
 
     fig, axes = plt.subplots(
         1, 2, figsize=PLOT_STYLE["figsize_full_width"], constrained_layout=True
     )
-    metrics = ["score", "iou"]
-    labels = ["Score", "IoU"]
+    metrics = ["overall_score", "iou"]
+    labels = ["Overall Score", "IoU"]
 
     for i, metric in enumerate(metrics):
         ax = axes[i]
@@ -497,12 +509,12 @@ def main():
     """Main execution."""
     setup_style()
 
-    print("Loading tool usage data...")
-    tool_data = load_tool_usage_data()
-    combined_tools = get_combined_tool_usage_df(tool_data)
+    print("Loading design data (includes tool usage metrics)...")
+    data = load_data()
+    combined_design = get_combined_design_df(data)
 
-    if combined_tools is None or len(combined_tools) == 0:
-        print("No tool usage data found. Please run extract_data.py first.")
+    if combined_design is None or len(combined_design) == 0:
+        print("No design data found. Please run extract_data.py first.")
         print("\nExample:")
         print("  python benchmarks/evaluations/extract_data.py \\")
         print("    --project YOUR_PROJECT \\")
@@ -510,44 +522,45 @@ def main():
         print("    --problem beams2d")
         return
 
-    print(f"Loaded {len(combined_tools)} tool usage records")
+    # Check if tool usage data is available
+    if "total_tools" not in combined_design.columns:
+        print("\n⚠️  Tool usage data not found in design data.")
+        print("Tool usage metrics (total_tools, unique_tools, tool_*) are not present.")
+        print("This might mean:")
+        print("  1. The tool_use scorer didn't output these fields")
+        print("  2. The data was extracted before tool usage support was added")
+        print("\nRe-run extract_data.py to get the latest data with tool usage.")
+        return
+
+    print(f"Loaded {len(combined_design)} design records with tool usage data")
 
     # Print summary statistics
     print("\n" + "=" * 60)
     print("TOOL USAGE STATISTICS")
     print("=" * 60)
-    print(f"Total examples: {len(combined_tools)}")
-    print(
-        f"Average tools per example: {combined_tools['total_tools'].mean():.2f} +/- {combined_tools['total_tools'].std():.2f}"
-    )
-    print(
-        f"Average unique tools: {combined_tools['unique_tools'].mean():.2f} +/- {combined_tools['unique_tools'].std():.2f}"
-    )
+    print(f"Total examples: {len(combined_design)}")
+    if "total_tools" in combined_design.columns:
+        print(
+            f"Average tools per example: {combined_design['total_tools'].mean():.2f} +/- {combined_design['total_tools'].std():.2f}"
+        )
+    if "unique_tools" in combined_design.columns:
+        print(
+            f"Average unique tools: {combined_design['unique_tools'].mean():.2f} +/- {combined_design['unique_tools'].std():.2f}"
+        )
     print("=" * 60)
 
     # Generate plots
     print("\nGenerating tool usage visualizations...")
 
-    plot_tool_usage_frequency(combined_tools)
-    plot_tool_usage_by_model(combined_tools)
-    plot_tool_heatmap_by_model(combined_tools)
+    plot_tool_usage_frequency(combined_design)
+    plot_tool_usage_by_model(combined_design)
+    plot_tool_heatmap_by_model(combined_design)
 
-    # Try to correlate with performance if design data is available
-    print("\nAttempting to correlate tool usage with performance...")
-    data = load_data()
-
-    # Try to get combined design data
-    design_dfs = [df for key, df in data.items() if key.endswith("_design")]
-
-    if design_dfs:
-        combined_design = pd.concat(design_dfs, ignore_index=True)
-        plot_tool_usage_vs_performance(combined_tools, combined_design)
-        plot_performance_distribution_by_tool_count(combined_tools, combined_design)
-
-    else:
-        print(f"No design metrics found. Available keys: {list(data.keys())}")
-
-    plot_tool_usage_delta_heatmap(combined_tools)
+    # Correlation plots (design data already has performance metrics)
+    print("\nGenerating correlation plots...")
+    plot_tool_usage_vs_performance(combined_design, combined_design)
+    plot_performance_distribution_by_tool_count(combined_design, combined_design)
+    plot_tool_usage_delta_heatmap(combined_design)
 
     print("\nAll visualizations complete!")
 
