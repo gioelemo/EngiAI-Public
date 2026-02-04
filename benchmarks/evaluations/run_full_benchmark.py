@@ -118,7 +118,7 @@ def run_agent_evaluation(  # noqa: PLR0913
     seed: int,
     model: str | None,
     prompt_style: str = "full",
-    scorers: str = "generic",
+    scorers: str = "all",
     mmore_enabled: bool = False,
 ) -> int:
     """Run agent evaluation for a specific seed."""
@@ -140,6 +140,56 @@ def run_agent_evaluation(  # noqa: PLR0913
         cmd.extend(["--model", model])
     if mmore_enabled:
         cmd.append("--mmore")
+    return run_command(cmd, cwd=PROJECT_ROOT)
+
+
+def extract_agent_data(
+    problem: str,
+    model: str,
+    prompt_style: str,
+    rag_status: str,
+    seed: int,
+) -> int:
+    """Extract design data from Weave to JSON for a specific seed."""
+    cmd = [
+        str(CONDA_PYTHON),
+        str(PROJECT_ROOT / "benchmarks" / "evaluations" / "extract_data.py"),
+        "--problem",
+        problem,
+        "--model",
+        model,
+        "--prompt-style",
+        prompt_style,
+        "--rag-status",
+        rag_status,
+        "--seed",
+        str(seed),
+    ]
+    return run_command(cmd, cwd=PROJECT_ROOT)
+
+
+def compute_agent_metrics(
+    problem: str,
+    model: str,
+    prompt_style: str,
+    rag_status: str,
+    seed: int,
+) -> int:
+    """Compute global metrics from extracted data for a specific seed."""
+    cmd = [
+        str(CONDA_PYTHON),
+        str(PROJECT_ROOT / "benchmarks" / "evaluations" / "compute_global_metrics.py"),
+        "--problem",
+        problem,
+        "--model",
+        model,
+        "--prompt-style",
+        prompt_style,
+        "--rag-status",
+        rag_status,
+        "--seed",
+        str(seed),
+    ]
     return run_command(cmd, cwd=PROJECT_ROOT)
 
 
@@ -183,9 +233,9 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     parser.add_argument(
         "--scorers",
         type=str,
-        default="generic",
-        choices=["generic", "engibench", "all", "task_completion", "tool_use"],
-        help="Scorer set for agent evaluation (default: generic)",
+        default="all",
+        choices=["output_quality", "engibench", "all", "task_completion", "tool_use"],
+        help="Scorer set for agent evaluation (default: all)",
     )
     parser.add_argument(
         "--wandb-entity",
@@ -305,6 +355,32 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             )
             if ret == 0:
                 results["agent"][seed] = "success"
+
+                # Step 4: Extract data from Weave to JSON
+                print(f"\n[Seed {seed}] Extracting design data from Weave...")
+                model_name = args.model if args.model is not None else config.llm_model
+                rag_status = "rag" if args.mmore_enabled else "no_rag"
+                ret = extract_agent_data(
+                    args.problem,
+                    model_name,
+                    args.prompt_style,
+                    rag_status,
+                    seed,
+                )
+                if ret != 0:
+                    print(f"Warning: Data extraction failed for seed {seed}")
+
+                # Step 5: Compute global metrics from extracted data
+                print(f"\n[Seed {seed}] Computing global metrics...")
+                ret = compute_agent_metrics(
+                    args.problem,
+                    model_name,
+                    args.prompt_style,
+                    rag_status,
+                    seed,
+                )
+                if ret != 0:
+                    print(f"Warning: Metrics computation failed for seed {seed}")
             else:
                 results["agent"][seed] = "failed"
                 failed_seeds["agent"].append(seed)
