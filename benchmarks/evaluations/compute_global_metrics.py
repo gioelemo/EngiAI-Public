@@ -332,7 +332,7 @@ def save_global_metrics(
     print(f"\n✅ Global metrics saved to: {output_path}")
 
 
-def main():  # noqa: PLR0912, PLR0915
+def main() -> None:  # noqa: PLR0912, PLR0915
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Compute global metrics from extracted design data"
@@ -551,9 +551,9 @@ def main():  # noqa: PLR0912, PLR0915
                 f"    IOG: {seed_metrics['iog']:.4f} | COG: {seed_metrics['cog']:.4f} | FOG: {seed_metrics['fog']:.4f}"
             )
         if seed_metrics.get("rvc") is not None:
-            print(
-                f"    RVC: {seed_metrics['rvc']:.4f} ({seed_metrics['rvc'] * 100:.2f}%)"
-            )
+            rvc_val = seed_metrics["rvc"]
+            if isinstance(rvc_val, float):
+                print(f"    RVC: {rvc_val:.4f} ({rvc_val * 100:.2f}%)")
     print("=" * 60)
 
 
