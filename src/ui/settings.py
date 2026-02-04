@@ -771,12 +771,8 @@ def _render_paper_import_settings() -> None:
     papers_state_file = os.getenv("PAPERS_STATE_FILE", "data/local_import_state.json")
 
     # Display configuration (show host path to user)
-    display_path = (
-        papers_source_dir_host if papers_source_dir_host else papers_source_dir
-    )
-    st.info(
-        f"**Papers directory (host):** `{display_path if display_path else 'Not configured'}`"
-    )
+    display_path = papers_source_dir_host or papers_source_dir
+    st.info(f"**Papers directory (host):** `{display_path or 'Not configured'}`")
 
     if not papers_source_dir:
         st.warning(

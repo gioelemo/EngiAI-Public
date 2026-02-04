@@ -266,11 +266,11 @@ def _process_score_call_for_complete_data(
 
             # Optimization history
             opt_history = output_quality.get("optimization_history")
-            result["optimization_history"] = opt_history if opt_history else []  # type: ignore[assignment]
+            result["optimization_history"] = opt_history or []  # type: ignore[assignment]
 
             # Conditions (constraints, loads, etc.)
             conditions = output_quality.get("conditions")
-            result["conditions"] = conditions if conditions else {}  # type: ignore[assignment]
+            result["conditions"] = conditions or {}  # type: ignore[assignment]
 
             # Problem type
             result["problem_type"] = output_quality.get("problem_type")

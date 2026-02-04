@@ -62,10 +62,8 @@ class MMOREClient:
         Args:
             base_url: Base URL of mmore service (defaults to MMORE_RAG_URL env var)
         """
-        base_url_str: str = (
-            base_url
-            if base_url
-            else (os.getenv("MMORE_RAG_URL") or "http://localhost:8000")
+        base_url_str: str = base_url or (
+            os.getenv("MMORE_RAG_URL") or "http://localhost:8000"
         )
         self.base_url = base_url_str.rstrip("/")
         logger.info(f"MMORE client initialized with URL: {self.base_url}")

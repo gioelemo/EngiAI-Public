@@ -250,7 +250,9 @@ def explore_dataset(
     print_statistics(stats)
 
     # Determine problem name from dataset
-    problem_name = dataset_name.split("/")[-1].replace("_v0", "").replace("_", "")
+    problem_name = (
+        dataset_name.rsplit("/", maxsplit=1)[-1].replace("_v0", "").replace("_", "")
+    )
 
     # Set output directory
     if output_dir is None:

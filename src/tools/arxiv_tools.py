@@ -132,7 +132,7 @@ def get_arxiv_paper(
 - Paper: {paper.entry_id}
 - PDF: {paper.pdf_url}
 
-**DOI:** {paper.doi if paper.doi else "N/A"}
+**DOI:** {paper.doi or "N/A"}
 """
     except StopIteration:
         return f"Paper with ID '{arxiv_id}' not found on ArXiv"

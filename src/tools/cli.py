@@ -150,7 +150,7 @@ def execute_cli_command(
                 return f"Error: Command '{executable}' not found in PATH. Please ensure it's installed and accessible."
 
         # Set working directory
-        cwd = working_dir if working_dir else str(Path.cwd())
+        cwd = working_dir or str(Path.cwd())
         if working_dir and not Path(working_dir).exists():
             return f"Error: Working directory '{working_dir}' does not exist"
 

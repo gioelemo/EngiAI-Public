@@ -39,7 +39,7 @@ def _parse_voices_from_env() -> dict[str, str]:
             name, voice_id = cleaned.split(":", 1)
             voices[name.strip()] = voice_id.strip()
 
-    return voices if voices else _DEFAULT_ELEVENLABS_VOICE_IDS.copy()
+    return voices or _DEFAULT_ELEVENLABS_VOICE_IDS.copy()
 
 
 # ElevenLabs voice ID mappings (loaded from env or defaults)

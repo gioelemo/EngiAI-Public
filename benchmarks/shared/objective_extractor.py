@@ -103,7 +103,7 @@ def _extract_objectives_from_dict(
                 f"Example {example_id}: Extracted {obj_config.name}={value} from dict"
             )
 
-    return result if result else None
+    return result or None
 
 
 def _extract_objectives_from_string(
@@ -185,7 +185,7 @@ def _extract_objectives_from_string(
                 )
                 break  # Found this objective, move to next
 
-    return result if result else None
+    return result or None
 
 
 def calculate_objective_score(
