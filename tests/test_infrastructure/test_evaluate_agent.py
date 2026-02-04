@@ -145,7 +145,7 @@ class TestScorerIntegration:
             "model": "test",
         }
 
-    @patch("benchmarks.shared.scorers.output_quality_visual_scorer.get_hf_dataset")
+    @patch("benchmarks.shared.scorers.output_quality_scorer.get_hf_dataset")
     def test_generic_scorer_beams2d(self, mock_get_hf_dataset):
         """Test generic scorer with beams2d problem."""
         # Create target with ground truth design
@@ -190,7 +190,7 @@ class TestScorerIntegration:
         assert 0.0 <= score_result["score"] <= 1.0
         assert score_result["design_found"] is True
 
-    @patch("benchmarks.shared.scorers.output_quality_visual_scorer.get_hf_dataset")
+    @patch("benchmarks.shared.scorers.output_quality_scorer.get_hf_dataset")
     def test_generic_scorer_photonics2d(self, mock_get_hf_dataset):
         """Test generic scorer with photonics2d problem."""
         design = rng.random((120, 120))
