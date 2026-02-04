@@ -31,7 +31,6 @@ from plot_dpp_vs_mmd import plot_dpp_vs_mmd  # noqa: E402
 from plot_iou_vs_objective import plot_iou_vs_objective  # noqa: E402
 from plot_metrics_comparison import plot_metrics_comparison  # noqa: E402
 from plot_success_curves import plot_convergence_profile  # noqa: E402
-from plot_token_latency import plot_latency, plot_token_usage  # noqa: E402
 from plot_tool_usage import (  # noqa: E402
     plot_performance_distribution_by_tool_count,
     plot_tool_heatmap_by_model,
@@ -175,36 +174,6 @@ def _generate_tool_usage_plots(
         print("\n[5/6] Skipping performance plots (no design data)")
 
 
-def _generate_token_latency_plots(
-    combined_tools, output_dir, problem: str | None = None
-):
-    """Generate token usage and latency plots.
-
-    Args:
-        combined_tools: DataFrame with tool usage data (includes token/latency)
-        output_dir: Directory to save figures
-        problem: Optional problem name (if None, generates for all data)
-    """
-    label = f" [{problem}]" if problem else " [combined]"
-    print("\n" + "-" * 40)
-    print(f"Generating token usage and latency plots{label}...")
-    print("-" * 40)
-
-    if combined_tools is None or len(combined_tools) == 0:
-        print("  ⚠️  No tool usage data found. Run extract_data.py first.")
-        return
-
-    print(f"  Tool usage: {len(combined_tools)} records")
-
-    # Token usage plot
-    print("\n[1/2] Token usage plot...")
-    plot_token_usage(combined_tools, output_dir)
-
-    # Latency plot
-    print("\n[2/2] Latency plot...")
-    plot_latency(combined_tools, output_dir)
-
-
 def _generate_plots_for_problem(  # noqa: PLR0913
     problem: str,
     combined_global,
@@ -251,7 +220,7 @@ def _generate_plots_for_problem(  # noqa: PLR0913
     _generate_global_plots(problem_global, output_dir, problem)
     _generate_design_plots(problem_design, output_dir, problem)
     _generate_tool_usage_plots(problem_tools, problem_design, output_dir, problem)
-    _generate_token_latency_plots(problem_tools, output_dir, problem)
+    # Token/latency plots removed - data not consistently available in Weave
 
 
 def _parse_args():

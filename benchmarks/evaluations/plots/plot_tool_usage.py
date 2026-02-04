@@ -37,7 +37,8 @@ def plot_tool_usage_frequency(tool_data, output_dir=None):
     # Get all tool columns (exclude metric fields like tool_efficiency_score)
     exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
     tool_columns = [
-        col for col in tool_data.columns
+        col
+        for col in tool_data.columns
         if col.startswith("tool_") and col not in exclude_metrics
     ]
 
@@ -99,13 +100,6 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
 
     setup_style()
     font_sizes = PLOT_STYLE["font_sizes"]
-
-    # Get tool columns (exclude metric fields)
-    exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
-    tool_columns = [
-        col for col in tool_data.columns
-        if col.startswith("tool_") and col not in exclude_metrics
-    ]
 
     # Calculate average tools per example for each model
     model_stats = (
@@ -357,16 +351,15 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
     # Only include fields from actual tool calls, not computed scores
     exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
     tool_columns = [
-        col for col in tool_data.columns
+        col
+        for col in tool_data.columns
         if col.startswith("tool_") and col not in exclude_metrics
     ]
 
     # 1. Calculate usage rate (% of examples where tool was called at least once)
     # Convert counts to binary (>0 means used) then take mean per model
     model_tool_usage = (
-        tool_data.groupby("model")[tool_columns]
-        .apply(lambda x: (x > 0).mean())
-        .T * 100
+        tool_data.groupby("model")[tool_columns].apply(lambda x: (x > 0).mean()).T * 100
     )
     # 2. ABBREVIATE NAMES HERE
     model_tool_usage.columns = [
@@ -413,7 +406,8 @@ def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
     # 1. Calculate usage rate per model (exclude metric fields)
     exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
     tool_columns = [
-        col for col in tool_data.columns
+        col
+        for col in tool_data.columns
         if col.startswith("tool_") and col not in exclude_metrics
     ]
     model_usage = tool_data.groupby("model")[tool_columns].mean() * 100
