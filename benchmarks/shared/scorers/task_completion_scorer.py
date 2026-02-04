@@ -206,7 +206,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
             # Check success flag
             if result.get("success", False):
                 stl_success = True
-                stl_save_path = result.get("stl_file_path")
+                stl_save_path = result.get("stl_path")
                 stl_details = {
                     "mesh_vertices": result.get("mesh_vertices"),
                     "mesh_faces": result.get("mesh_faces"),
