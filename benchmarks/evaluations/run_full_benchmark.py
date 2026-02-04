@@ -140,7 +140,10 @@ def run_agent_evaluation(  # noqa: PLR0913
         cmd.extend(["--model", model])
     if mmore_enabled:
         cmd.append("--mmore")
-    return run_command(cmd, cwd=PROJECT_ROOT)
+
+    # Set SKIP_MMORE env var to prevent health check warnings when RAG is disabled
+    env = {"SKIP_MMORE": "false" if mmore_enabled else "true"}
+    return run_command(cmd, cwd=PROJECT_ROOT, env=env)
 
 
 def extract_agent_data(
