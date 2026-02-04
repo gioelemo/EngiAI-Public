@@ -117,12 +117,14 @@ python evaluate_agent.py \
 This evaluates the agent and saves results to Weave. To extract metrics:
 
 ```bash
-# Extract per-design data from Weave
-python extract_data.py --problem beams2d --seed 1
+# Extract per-design data from Weave (seed is auto-detected from evaluation metadata)
+python extract_data.py --problem beams2d
 
-# Compute global metrics
-python compute_global_metrics.py --problem beams2d --seed 1
+# Compute global metrics from extracted data
+python compute_global_metrics.py --problem beams2d
 ```
+
+**Note:** Seeds are automatically detected from the evaluation metadata stored in Weave. The scripts aggregate data from all seeds found in the evaluations into single `design_data.json` and `global_metrics.json` files.
 
 ### Multiple Seeds for Statistical Analysis
 
@@ -135,11 +137,11 @@ for seed in {1..10}; do
     --problem beams2d \
     --samples 50 \
     --seed $seed
-
-  # Extract and compute metrics for each seed
-  python extract_data.py --problem beams2d --seed $seed
-  python compute_global_metrics.py --problem beams2d
 done
+
+# After all evaluations complete, extract and compute metrics once
+python extract_data.py --problem beams2d
+python compute_global_metrics.py --problem beams2d
 ```
 
 All seeds are aggregated into single files: `design_data.json` and `global_metrics.json`.
