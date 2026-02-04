@@ -61,7 +61,7 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
 # Import output quality scorers
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
-    score_output_quality_visual,
+    score_output_quality,
     score_task_completion,
     score_tool_use,
 )
@@ -90,7 +90,7 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
         "prompt_file": problem.prompt_file_template.replace(
             "{problem}", name
         ),  # Replace placeholder
-        "scorers": [score_output_quality_visual],  # All problems use generic scorer
+        "scorers": [score_output_quality],  # All problems use output quality scorer
     }
     for name, problem in PROBLEMS.items()
 }
@@ -297,11 +297,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--scorers",
         type=str,
-        default="generic",
-        choices=["generic", "engibench", "all", "task_completion", "tool_use"],
+        default="all",
+        choices=["output_quality", "engibench", "all", "task_completion", "tool_use"],
         help=(
             "Metrics to compute: "
-            "'generic' or 'all' (detailed per-design metrics + global metrics: MMD, DPP, RVC, optimality gaps), "
+            "'output_quality' (per-design metrics only), "
+            "'all' (output_quality + task_completion + tool_use for comprehensive metrics), "
             "'engibench' (lightweight design extraction only, use for faster evaluations), "
             "'task_completion' (check if render_design tool was called successfully), "
             "'tool_use' (compute tool use efficiency and sequence correctness)"
@@ -420,7 +421,7 @@ def create_contextual_scorer(
         scorer_func: Original scorer function to wrap
         model_name: Model name (e.g., "gpt-4o", "gemini-3-flash-preview") [unused, kept for signature compatibility]
         problem_type: Problem type (e.g., "beams2d", "thermoelastic2d") [unused, kept for signature compatibility]
-        scorer_type: Scorer identifier (e.g., "output_quality_visual", "engibench")
+        scorer_type: Scorer identifier (e.g., "output_quality", "task_completion")
 
     Returns:
         Wrapped scorer function with contextual trace name
@@ -495,18 +496,10 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     base_scorers = []
     scorer_types = []
 
-    if args.scorers == "generic":
-        # Only per-design metrics from generic scorer
-        base_scorers = [score_output_quality_visual]
-        scorer_types = ["output_quality_visual"]
-    elif args.scorers == "all":
-        # Use output_quality_visual + task_completion + tool_use for comprehensive metrics
-        base_scorers = [
-            score_output_quality_visual,
-            score_task_completion,
-            score_tool_use,
-        ]
-        scorer_types = ["output_quality_visual", "task_completion", "tool_use"]
+    if args.scorers == "output_quality":
+        # Only per-design metrics from output quality scorer
+        base_scorers = [score_output_quality]
+        scorer_types = ["output_quality"]
     elif args.scorers == "task_completion":
         # Task completion scorer: checks if render_design was called successfully
         base_scorers = [score_task_completion]
@@ -515,9 +508,22 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         # Tool use scorer: compute efficiency ratio and sequence correctness
         base_scorers = [score_tool_use]
         scorer_types = ["tool_use"]
+    elif args.scorers == "all":
+        # Use output_quality + task_completion + tool_use for comprehensive metrics
+        base_scorers = [
+            score_output_quality,
+            score_task_completion,
+            score_tool_use,
+        ]
+        scorer_types = ["output_quality", "task_completion", "tool_use"]
     else:
-        base_scorers = [score_output_quality_visual]
-        scorer_types = ["output_quality_visual"]
+        # Default: run all scorers for comprehensive evaluation
+        base_scorers = [
+            score_output_quality,
+            score_task_completion,
+            score_tool_use,
+        ]
+        scorer_types = ["output_quality", "task_completion", "tool_use"]
 
     # Wrap scorers with evaluation context for better trace naming in Weave UI
     scorers = [

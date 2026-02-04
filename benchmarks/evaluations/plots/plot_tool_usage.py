@@ -224,7 +224,7 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
     return save_figure(fig, "tool_usage_by_model.png", output_dir)
 
 
-def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # noqa: ARG001
+def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # noqa: ARG001, PLR0911
     """Plot correlation between tool usage and performance (NeurIPS format).
 
     Args:

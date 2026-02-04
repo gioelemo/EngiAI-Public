@@ -14,7 +14,7 @@ from benchmarks.shared.problem_registry import (
     list_problems,
     register_problem,
 )
-from benchmarks.shared.scorers import score_output_quality_visual
+from benchmarks.shared.scorers import score_output_quality
 from benchmarks.shared.utils import (
     create_design_comparison,
     extract_design_from_tool_messages,
@@ -33,5 +33,5 @@ __all__ = [
     "get_problem_config",
     "list_problems",
     "register_problem",
-    "score_output_quality_visual",
+    "score_output_quality",
 ]

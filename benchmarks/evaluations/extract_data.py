@@ -215,7 +215,7 @@ def _process_score_call_for_complete_data(
         if not scores or not isinstance(scores, dict):
             return None
 
-        output_quality = scores.get("output_quality_visual", {})
+        output_quality = scores.get("output_quality", {})
         task_completion = scores.get("task_completion", {})
         tool_use = scores.get("tool_use", {})
 

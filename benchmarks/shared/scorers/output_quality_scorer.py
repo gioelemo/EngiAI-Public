@@ -571,12 +571,12 @@ def _compute_hierarchical_score(
     return float(overall_score), category_scores
 
 
-def score_output_quality_visual(
+def score_output_quality(
     output: dict[str, Any],
     target: dict[str, Any],
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    """Visual quality scorer for topology optimization problems.
+    """Output quality scorer for topology optimization problems.
 
     Uses problem configuration to:
     - Extract design from messages
