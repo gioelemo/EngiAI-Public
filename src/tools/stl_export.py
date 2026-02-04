@@ -273,16 +273,22 @@ def _check_mesh_watertightness(
                 # If repair fails, continue with original mesh
                 pass
 
-        # Compute volume (only meaningful for watertight meshes)
-        # Volume is in cubic units based on coordinate space
-        volume = trimesh_mesh.volume if is_watertight else None
+        # Get mesh complexity metrics (always available)
+        num_vertices = len(trimesh_mesh.vertices)
+        num_faces = len(trimesh_mesh.faces)
 
         # Compute surface area
         surface_area = trimesh_mesh.area
 
-        # Get mesh complexity metrics
-        num_vertices = len(trimesh_mesh.vertices)
-        num_faces = len(trimesh_mesh.faces)
+        # Compute volume (only meaningful for watertight meshes)
+        # Volume calculation can raise exceptions even for valid meshes, so wrap in try-except
+        volume = None
+        if is_watertight:
+            try:
+                volume = trimesh_mesh.volume
+            except Exception:
+                # Volume calculation failed, but mesh is still valid
+                pass
 
         validation_time = time.time() - start_time
 
