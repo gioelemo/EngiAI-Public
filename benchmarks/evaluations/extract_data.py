@@ -159,8 +159,10 @@ def _extract_metrics_from_scorers(
             {
                 "efficiency_ratio": tool_use.get("efficiency_ratio"),
                 "sequence_score": tool_use.get("sequence_score"),
-                "total_tools": tool_use.get("total_tools"),
-                "unique_tools": tool_use.get("unique_tools"),
+                "total_tools": tool_use.get("actual_call_count"),  # Map to total_tools
+                "unique_tools": len(
+                    tool_use.get("tool_call_breakdown", {})
+                ),  # Count unique tools
             }
         )
 

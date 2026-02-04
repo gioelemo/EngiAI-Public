@@ -61,7 +61,6 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
 # Import output quality scorers
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
-    score_output_quality_engibench,
     score_output_quality_visual,
     score_task_completion,
     score_tool_use,
@@ -500,10 +499,6 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         # Only per-design metrics from generic scorer
         base_scorers = [score_output_quality_visual]
         scorer_types = ["output_quality_visual"]
-    elif args.scorers == "engibench":
-        # Lightweight scorer for design extraction + global metrics computed after
-        base_scorers = [score_output_quality_engibench]
-        scorer_types = ["engibench"]
     elif args.scorers == "all":
         # Use output_quality_visual + task_completion + tool_use for comprehensive metrics
         base_scorers = [
