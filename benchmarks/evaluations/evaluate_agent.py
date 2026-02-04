@@ -63,7 +63,6 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
 # Import output quality scorers
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
-    compute_global_metrics,
     score_output_quality_engibench,
     score_output_quality_visual,
     score_task_completion,
@@ -931,150 +930,18 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     print()
     print("=" * 60)
-    print("COMPUTING GLOBAL METRICS")
+    print("EVALUATION COMPLETE")
     print("=" * 60)
     print()
-    print("Computing metrics across all generated designs...")
-
-    # Setup output directory for comparison images
-    model_safe = model_name.replace("/", "_").replace(":", "_")
-    rag_dir = _get_rag_dir(args.mmore_enabled)
-    if args.seed is not None:
-        comparison_dir = str(
-            RESULTS_BASE_DIR
-            / model_safe
-            / args.problem
-            / args.prompt_style
-            / rag_dir
-            / "comparisons"
-            / f"seed_{args.seed}"
-        )
-    else:
-        comparison_dir = str(
-            RESULTS_BASE_DIR
-            / model_safe
-            / args.problem
-            / args.prompt_style
-            / rag_dir
-            / "comparisons"
-        )
-
-    # Pass per-example results to compute global metrics
-    # Use eval_results if available (from get_score_calls), otherwise fallback to results dict
-    results_for_global = eval_results if eval_results is not None else results
-    global_metrics = compute_global_metrics(
-        results_for_global,
-        dataset_name=problem_config["dataset_name"],
-        sigma=10.0,
-        save_comparisons=True,
-        comparison_output_dir=comparison_dir,
-        model_name=model_name,
-        problem_type=args.problem,
-        seed=args.seed,
-    )
-
+    print("✅ Agent evaluation finished successfully!")
+    print("📊 View detailed per-example results in Weave dashboard")
     print()
-    print("Global Metrics:")
-    print(
-        f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.6e}"
-        if global_metrics.get("mmd") is not None
-        else "  • MMD: Failed to compute"
-    )
-    print(
-        f"  • DPP Diversity: {global_metrics.get('dpp_diversity', 'N/A'):.6e}"
-        if global_metrics.get("dpp_diversity") is not None
-        else "  • DPP Diversity: Failed to compute"
-    )
-    print(
-        f"  • RVC (Ratio of Violated Constraints): {global_metrics.get('rvc', 'N/A'):.4f}"
-        if global_metrics.get("rvc") is not None
-        else "  • RVC: No constraints to check"
-    )
-
-    # Print detailed RVC information if available
-    rvc_details = global_metrics.get("rvc_details")
-    if rvc_details and rvc_details.get("n_violations", 0) > 0:
-        print(
-            f"    - Designs with violations: {rvc_details['n_violations']}/{rvc_details['n_total']}"
-        )
-        violation_summary = rvc_details.get("violation_summary", {})
-        if violation_summary:
-            print("    - Most common constraint violations:")
-            for constraint_name, count in sorted(
-                violation_summary.items(), key=lambda x: x[1], reverse=True
-            )[:3]:  # Show top 3
-                print(f"      • {constraint_name}: {count} design(s)")
-    print(
-        f"  • IOG (Initial Optimality Gap): {global_metrics.get('iog', 'N/A'):.6e}"
-        if global_metrics.get("iog") is not None
-        else "  • IOG: No optimization history found"
-    )
-    print(
-        f"  • COG (Cumulative Optimality Gap): {global_metrics.get('cog', 'N/A'):.6e}"
-        if global_metrics.get("cog") is not None
-        else "  • COG: No optimization history found"
-    )
-    print(
-        f"  • FOG (Final Optimality Gap): {global_metrics.get('fog', 'N/A'):.6e}"
-        if global_metrics.get("fog") is not None
-        else "  • FOG: No optimization history found"
-    )
-    print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
-    print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")
-
-    # Save metrics to CSV if requested
-    if args.output_csv or args.seed is not None:
-        # Determine output CSV path
-        if args.output_csv:
-            csv_path = args.output_csv
-        else:
-            model_safe = model_name.replace("/", "_").replace(":", "_")
-            rag_dir = _get_rag_dir(args.mmore_enabled)
-            results_dir = (
-                RESULTS_BASE_DIR
-                / model_safe
-                / args.problem
-                / args.prompt_style
-                / rag_dir
-            )
-            results_dir.mkdir(parents=True, exist_ok=True)
-            csv_path = str(results_dir / "output_quality_global_metrics.csv")
-
-        # Prepare metrics row
-        metrics_row = {
-            "iog": global_metrics.get("iog"),
-            "cog": global_metrics.get("cog"),
-            "fog": global_metrics.get("fog"),
-            "mmd": global_metrics.get("mmd"),
-            "dpp": global_metrics.get("dpp_diversity"),
-            "rvc": global_metrics.get("rvc"),
-            "seed": args.seed if args.seed is not None else 0,
-            "problem_id": args.problem,
-            "model_id": model_name,
-            "prompt_style": args.prompt_style,
-            "mmore_enabled": args.mmore_enabled,
-            "n_samples": args.samples,
-            "sigma": 10.0,  # Default sigma used in compute_global_metrics
-        }
-
-        # Check if file exists to determine if we need header
-        csv_file = Path(csv_path)
-        file_exists = csv_file.exists()
-
-        # Append to CSV
-        with csv_file.open("a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=metrics_row.keys())
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow(metrics_row)
-
-        print()
-        print(f"📊 Metrics saved to: {csv_path}")
-
+    print("Next steps:")
+    print("  1. Run extract_data.py to export per-design metrics from Weave to CSV")
+    print("  2. Run compute_global_metrics.py to calculate global metrics per seed")
+    print("  3. Run generate_plots.py to create visualizations")
     print()
     print("🎉 Evaluation complete!")
-    print("📊 View detailed results in Weave dashboard")
-    print(f"📁 Comparison images saved to: {comparison_dir}/")
 
 
 if __name__ == "__main__":
