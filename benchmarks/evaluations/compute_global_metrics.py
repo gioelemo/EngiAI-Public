@@ -6,9 +6,11 @@ global metrics (MMD, DPP, IOG/COG/FOG, RVC) offline without needing Weave.
 
 Usage:
     python benchmarks/evaluations/compute_global_metrics.py \\
-        --input design_data.json \\
-        --problem beams2d
+        --problem beams2d \
+        --prompt-style workflow \
+        --rag-status no_rag
 
+The input path is auto-constructed from model/problem/prompt-style/rag-status.
 The dataset is auto-detected from the problem config (e.g., IDEALLab/beams_2d_50_100_v0).
 You can override with --dataset if needed.
 """
@@ -333,14 +335,32 @@ def main():  # noqa: PLR0912, PLR0915
         description="Compute global metrics from extracted design data"
     )
     parser.add_argument(
-        "--input",
-        required=True,
-        help="Path to design_data.json file",
+        "--model",
+        default=None,
+        help="Model ID (openai:gpt-5.1). Defaults to config.llm_model",
     )
     parser.add_argument(
         "--problem",
         required=True,
         help="Problem type (beams2d, photonics2d, thermoelastic2d)",
+    )
+    parser.add_argument(
+        "--prompt-style",
+        type=str,
+        default="full",
+        choices=["full", "approximate", "natural", "workflow", "rag"],
+        help="Prompt style used (default: full)",
+    )
+    parser.add_argument(
+        "--rag-status",
+        type=str,
+        default="no_rag",
+        choices=["rag", "no_rag"],
+        help="RAG status (default: no_rag)",
+    )
+    parser.add_argument(
+        "--input",
+        help="Override input path (default: auto-construct from model/problem/prompt-style/rag-status)",
     )
     parser.add_argument(
         "--dataset",
@@ -364,6 +384,15 @@ def main():  # noqa: PLR0912, PLR0915
 
     args = parser.parse_args()
 
+    # Use config model if not specified
+    model = args.model if args.model is not None else config.llm_model
+
+    # Construct input path if not explicitly provided
+    if args.input:
+        input_path = args.input
+    else:
+        input_path = f"benchmarks/evaluations/results/models/{model.replace('/', '_').replace(':', '_')}/{args.problem}/{args.prompt_style}/{args.rag_status}/design_data.json"
+
     # Auto-detect dataset from problem config if not provided
     if args.dataset is None:
         try:
@@ -380,14 +409,17 @@ def main():  # noqa: PLR0912, PLR0915
     print("=" * 60)
     print("COMPUTING GLOBAL METRICS")
     print("=" * 60)
-    print(f"Input: {args.input}")
+    print(f"Model: {model}")
+    print(f"Input: {input_path}")
     print(f"Dataset: {dataset_name}")
     print(f"Problem: {args.problem}")
+    print(f"Prompt Style: {args.prompt_style}")
+    print(f"RAG Status: {args.rag_status}")
     print(f"Sigma: {args.sigma}")
     print("=" * 60)
 
     # Load design data
-    design_data = load_design_data(args.input)
+    design_data = load_design_data(input_path)
 
     if not design_data:
         print("❌ No design data found")
@@ -489,8 +521,8 @@ def main():  # noqa: PLR0912, PLR0915
     if args.output:
         output_path = args.output
     else:
-        input_path = Path(args.input)
-        output_path = str(input_path.parent / "global_metrics.json")
+        input_path_obj = Path(input_path)
+        output_path = str(input_path_obj.parent / "global_metrics.json")
 
     # Save results
     save_global_metrics(global_metrics, output_path)
