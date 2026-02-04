@@ -85,10 +85,8 @@ results/
 │       └── {problem-type}/
 │           └── {prompt-style}/
 │               └── {rag-status}/
-│                   ├── designs_seed_1.json           # Per-design metrics
-│                   ├── designs_seed_2.json
-│                   ├── global_metrics_seed_1.json    # Global metrics
-│                   ├── global_metrics_seed_2.json
+│                   ├── design_data.json              # Per-design metrics (all seeds)
+│                   ├── global_metrics.json           # Global metrics (all seeds)
 │                   └── comparisons/          # Comparison visualizations
 │                       ├── seed_1/           # Per-seed comparisons
 │                       │   ├── comparison_example_0.png
@@ -117,9 +115,9 @@ python run_full_benchmark.py \
 
 This runs the complete pipeline:
 1. Evaluates agent and saves to Weave
-2. Extracts per-design data to `designs_seed_1.json`
-3. Computes global metrics to `global_metrics_seed_1.json`
-4. Saves comparisons to `comparisons/seed_1/`
+2. Extracts per-design data to `design_data.json` (aggregates all seeds)
+3. Computes global metrics to `global_metrics.json` (aggregates all seeds)
+4. Saves comparisons to `comparisons/seed_N/` (per-seed visualizations)
 
 ### Multiple Seeds for Statistics
 
@@ -134,7 +132,7 @@ python run_full_benchmark.py \
   --agent-only
 ```
 
-Each seed creates separate JSON files: `designs_seed_N.json` and `global_metrics_seed_N.json`.
+All seeds are aggregated into single files: `design_data.json` and `global_metrics.json`.
 
 ### Analyzing Results
 
@@ -158,7 +156,7 @@ python compare_results.py --problem beams2d --model {your-model}
 
 ### JSON Metrics Format
 
-Global metrics files (`global_metrics_seed_N.json`) contain:
+The global metrics file (`global_metrics.json`) contains per-seed results:
 - `iog` - Initial Optimality Gap
 - `cog` - Cumulative Optimality Gap
 - `fog` - Final Optimality Gap
@@ -172,15 +170,15 @@ Global metrics files (`global_metrics_seed_N.json`) contain:
 - `rag_status` - RAG system status
 - `n_samples` - Number of samples
 
-Per-design metrics files (`designs_seed_N.json`) contain arrays with individual design evaluations.
+The per-design metrics file (`design_data.json`) contains an array with all design evaluations across all seeds.
 
 ## Per-Design Metrics Analysis
 
-Per-design metrics are automatically saved to JSON files for granular analysis.
+Per-design metrics are automatically saved to a single JSON file for granular analysis.
 
 ### Design Metrics JSON Format
 
-The `designs_seed_N.json` files contain arrays with per-example metrics:
+The `design_data.json` file contains an array with per-example metrics from all seeds:
 - `seed` - Random seed used
 - `example_id` - Problem instance identifier
 - `problem` - Problem type

@@ -56,10 +56,8 @@ benchmarks/
         │       └── {problem-type}/
         │           └── {prompt-style}/
         │               └── {rag-status}/
-        │                   ├── designs_seed_1.json       # Per-design metrics
-        │                   ├── designs_seed_2.json
-        │                   ├── global_metrics_seed_1.json  # Global metrics
-        │                   ├── global_metrics_seed_2.json
+        │                   ├── design_data.json              # Per-design metrics (all seeds)
+        │                   ├── global_metrics.json           # Global metrics (all seeds)
         │                   └── comparisons/          # Design comparison images
         │                       ├── seed_1/
         │                       └── seed_2/
@@ -140,11 +138,11 @@ for seed in {1..10}; do
 
   # Extract and compute metrics for each seed
   python extract_data.py --problem beams2d --seed $seed
-  python compute_global_metrics.py --problem beams2d --seed $seed
+  python compute_global_metrics.py --problem beams2d
 done
 ```
 
-Each seed creates separate JSON files: `designs_seed_N.json` and `global_metrics_seed_N.json`.
+All seeds are aggregated into single files: `design_data.json` and `global_metrics.json`.
 
 ### Analyze Results
 
@@ -163,7 +161,7 @@ This generates:
 
 ### Metrics Output Format
 
-Global metrics JSON files (`global_metrics_seed_N.json`) contain:
+The global metrics file (`global_metrics.json`) contains per-seed results with:
 - `iog` - Initial Optimality Gap
 - `cog` - Cumulative Optimality Gap
 - `fog` - Final Optimality Gap
@@ -176,7 +174,7 @@ Global metrics JSON files (`global_metrics_seed_N.json`) contain:
 - `prompt_style` - Prompt style used
 - `rag_status` - RAG system status
 
-Per-design metrics JSON files (`designs_seed_N.json`) contain arrays with individual design metrics.
+The per-design metrics file (`design_data.json`) contains an array with individual design metrics from all seeds.
 
 ## Available Problems
 
@@ -284,7 +282,7 @@ Global metrics computed offline from extracted design data (via `compute_global_
 
 ### Per-Design Metrics
 
-Per-design metrics are saved to JSON files (`designs_seed_N.json`) during the extraction step:
+Per-design metrics are saved to a single JSON file (`design_data.json`) during the extraction step:
 
 **Automatic metrics tracked:**
 - `overall_score` - Weighted overall design score
