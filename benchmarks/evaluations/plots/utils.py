@@ -534,7 +534,6 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
                 "iou": design.get("iou"),
                 "pixel_accuracy": design.get("pixel_accuracy"),
                 "mse": design.get("mse"),
-                "ssim": design.get("ssim"),
                 "constraint_score": design.get("constraint_score"),
                 "objective_score": design.get("objective_score"),
                 "efficiency_ratio": design.get("efficiency_ratio"),

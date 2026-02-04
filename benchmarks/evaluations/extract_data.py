@@ -125,7 +125,6 @@ def _extract_metrics_from_scorers(
                 "iou": output_quality.get("iou"),
                 "pixel_accuracy": output_quality.get("pixel_accuracy"),
                 "mse": output_quality.get("mse"),
-                "ssim": output_quality.get("ssim"),
                 "constraint_score": output_quality.get("constraint_score"),
                 "objective_score": output_quality.get("objective_score"),
                 "constraint_violations": output_quality.get("constraint_violations"),
