@@ -51,7 +51,7 @@ dependencies = [
     "trimesh>=4.0.0",
     "wandb==0.24.1",
     "watchdog==6.0.0",
-    "weave==0.52.25",
+    "weave==0.52.26",
 ]
 
 [project.optional-dependencies]
