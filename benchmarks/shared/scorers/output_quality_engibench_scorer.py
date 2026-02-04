@@ -406,22 +406,26 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
         logger.info(f"Results type: {type(results)}")
 
         # Handle ResultsWrapper or similar objects with .rows attribute
-        if hasattr(results, 'rows'):
+        if hasattr(results, "rows"):
             # Extract all_outputs from rows (list of dicts where each dict has scorer outputs)
             logger.info(f"Results has .rows attribute with {len(results.rows)} rows")
             all_outputs = []
             for row in results.rows:
                 # Each row is a dict with scorer outputs
                 # Find the output_quality_visual or engibench scorer result
-                for key in ['output_quality_visual', 'score_output_quality_visual',
-                            'engibench', 'score_output_quality_engibench']:
+                for key in [
+                    "output_quality_visual",
+                    "score_output_quality_visual",
+                    "engibench",
+                    "score_output_quality_engibench",
+                ]:
                     if key in row:
                         all_outputs.append(row[key])
                         break
                 else:
                     # No known scorer found, check all values for one that looks like scorer output
                     for value in row.values():
-                        if isinstance(value, dict) and 'design' in value:
+                        if isinstance(value, dict) and "design" in value:
                             all_outputs.append(value)
                             break
             logger.info(f"Extracted {len(all_outputs)} outputs from rows")
@@ -431,8 +435,12 @@ def _compute_global_metrics_impl(  # noqa: PLR0911, PLR0912, PLR0915
 
             # Find scorer outputs in the results dict
             all_outputs = []
-            for key in ['output_quality_visual', 'score_output_quality_visual',
-                        'engibench', 'score_output_quality_engibench']:
+            for key in [
+                "output_quality_visual",
+                "score_output_quality_visual",
+                "engibench",
+                "score_output_quality_engibench",
+            ]:
                 if key in results:
                     all_outputs = results[key]
                     logger.info(f"Found scorer outputs under key '{key}'")

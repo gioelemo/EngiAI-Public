@@ -155,16 +155,12 @@ class ProblemConfig:
         for category_name, category_config in self.score_categories.items():
             # Extract category weight
             if "weight" not in category_config:
-                raise ValueError(
-                    f"Category '{category_name}' must have a 'weight' key"
-                )
+                raise ValueError(f"Category '{category_name}' must have a 'weight' key")
             category_weight = category_config["weight"]
             category_weights_sum += category_weight
 
             # Validate metric weights within category sum to 1.0
-            metric_weights = {
-                k: v for k, v in category_config.items() if k != "weight"
-            }
+            metric_weights = {k: v for k, v in category_config.items() if k != "weight"}
             if metric_weights:  # Only validate if there are metrics
                 metric_sum = sum(metric_weights.values())
                 if not (WEIGHT_SUM_MIN <= metric_sum <= WEIGHT_SUM_MAX):

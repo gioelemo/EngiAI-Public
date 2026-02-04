@@ -450,8 +450,12 @@ def save_per_design_metrics(  # noqa: PLR0912, PLR0915
             scorer_result = None
 
             # First try known scorer names
-            for key in ['output_quality_visual', 'score_output_quality_visual',
-                        'engibench', 'score_output_quality_engibench']:
+            for key in [
+                "output_quality_visual",
+                "score_output_quality_visual",
+                "engibench",
+                "score_output_quality_engibench",
+            ]:
                 if key in row:
                     scorer_result = row[key]
                     break
@@ -459,7 +463,7 @@ def save_per_design_metrics(  # noqa: PLR0912, PLR0915
             # If not found, check all values for one that looks like a scorer output
             if not scorer_result:
                 for value in row.values():
-                    if isinstance(value, dict) and 'score' in value and 'iou' in value:
+                    if isinstance(value, dict) and "score" in value and "iou" in value:
                         scorer_result = value
                         break
 
@@ -472,7 +476,7 @@ def save_per_design_metrics(  # noqa: PLR0912, PLR0915
             # Debug: Check what keys are in scorer_result
             if i == 0:  # Only print for first result
                 print(f"Debug: Scorer result keys: {list(scorer_result.keys())}")
-                category_score_keys = [k for k in scorer_result if '_score' in k]
+                category_score_keys = [k for k in scorer_result if "_score" in k]
                 print(f"Debug: Category score keys found: {category_score_keys}")
 
             # Build metrics row
@@ -825,7 +829,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         # Try to get scorer calls which contain per-example results
         score_calls = evaluation.get_score_calls()
         print(f"Debug: score_calls type: {type(score_calls)}")
-        print(f"Debug: score_calls keys: {list(score_calls.keys()) if isinstance(score_calls, dict) else 'N/A'}")
+        print(
+            f"Debug: score_calls keys: {list(score_calls.keys()) if isinstance(score_calls, dict) else 'N/A'}"
+        )
 
         # Extract per-example scorer outputs from score calls dict
         if score_calls and isinstance(score_calls, dict):
@@ -842,10 +848,16 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
             # Group calls by example (scorer calls are ordered by example)
             # Assuming 3 scorers (output_quality_visual, task_completion, tool_use)
             # and N examples, we have N * 3 calls total
-            num_scorers = len(args.scorers.split(',')) if ',' in args.scorers else len(base_scorers)
+            num_scorers = (
+                len(args.scorers.split(","))
+                if "," in args.scorers
+                else len(base_scorers)
+            )
             num_examples = len(current_run_calls) // num_scorers
 
-            print(f"Debug: Detected {num_examples} examples with {num_scorers} scorers each")
+            print(
+                f"Debug: Detected {num_examples} examples with {num_scorers} scorers each"
+            )
 
             # Build a simple results object with rows attribute
             # Each row should be a dict with scorer outputs
@@ -860,8 +872,10 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
                         # or might be: [scorer0_ex0, scorer0_ex1, ..., scorer1_ex0, ...]
                         # We need to figure out the ordering
                         for call in calls_list:
-                            if hasattr(call, 'output') and isinstance(call.output, dict):
-                                example_id = call.output.get('example_id', -1)
+                            if hasattr(call, "output") and isinstance(
+                                call.output, dict
+                            ):
+                                example_id = call.output.get("example_id", -1)
                                 if example_id == i:
                                     # Use a unique key for this call (could be scorer name or ID)
                                     call_id = id(call)  # Use object ID as unique key

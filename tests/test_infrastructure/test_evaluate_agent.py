@@ -145,7 +145,7 @@ class TestScorerIntegration:
             "model": "test",
         }
 
-    @patch('benchmarks.shared.scorers.output_quality_visual_scorer.get_hf_dataset')
+    @patch("benchmarks.shared.scorers.output_quality_visual_scorer.get_hf_dataset")
     def test_generic_scorer_beams2d(self, mock_get_hf_dataset):
         """Test generic scorer with beams2d problem."""
         # Create target with ground truth design
@@ -153,10 +153,12 @@ class TestScorerIntegration:
 
         # Mock the HuggingFace dataset to avoid network calls in CI
         mock_dataset = Mock()
-        mock_dataset.__getitem__ = Mock(return_value={
-            'optimal_design': target_design.tolist(),  # Ground truth design (keep 2D shape)
-            'c': 95.0,  # Compliance
-        })
+        mock_dataset.__getitem__ = Mock(
+            return_value={
+                "optimal_design": target_design.tolist(),  # Ground truth design (keep 2D shape)
+                "c": 95.0,  # Compliance
+            }
+        )
         mock_dataset.__len__ = Mock(return_value=100)  # Dataset size
         mock_get_hf_dataset.return_value = mock_dataset
 
@@ -188,7 +190,7 @@ class TestScorerIntegration:
         assert 0.0 <= score_result["score"] <= 1.0
         assert score_result["design_found"] is True
 
-    @patch('benchmarks.shared.scorers.output_quality_visual_scorer.get_hf_dataset')
+    @patch("benchmarks.shared.scorers.output_quality_visual_scorer.get_hf_dataset")
     def test_generic_scorer_photonics2d(self, mock_get_hf_dataset):
         """Test generic scorer with photonics2d problem."""
         design = rng.random((120, 120))
@@ -196,10 +198,12 @@ class TestScorerIntegration:
 
         # Mock the HuggingFace dataset to avoid network calls in CI
         mock_dataset = Mock()
-        mock_dataset.__getitem__ = Mock(return_value={
-            'optimal_design': target_design.tolist(),  # Ground truth design (keep 2D shape)
-            'total_overlap': 0.90,
-        })
+        mock_dataset.__getitem__ = Mock(
+            return_value={
+                "optimal_design": target_design.tolist(),  # Ground truth design (keep 2D shape)
+                "total_overlap": 0.90,
+            }
+        )
         mock_dataset.__len__ = Mock(return_value=100)  # Dataset size
         mock_get_hf_dataset.return_value = mock_dataset
 
