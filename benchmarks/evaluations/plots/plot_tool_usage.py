@@ -460,6 +460,30 @@ def plot_performance_distribution_by_tool_count(
             ax=ax,
         )
 
+        # Add mean and std annotations
+        font_sizes = PLOT_STYLE["font_sizes"]
+        for j, tool_count in enumerate(sorted(df["total_tools"].unique())):
+            subset = df[df["total_tools"] == tool_count][metric]
+            if len(subset) > 0:
+                stats_text = f"$\\mu$={subset.mean():.2f}\n$\\sigma$={subset.std():.2f}"
+                # Place annotation at the top of the data range (not axis limit)
+                y_max = subset.max()
+                y_min = subset.min()
+                y_pos = y_min + (y_max - y_min) * 0.5  # Center of data range
+                ax.annotate(
+                    stats_text,
+                    xy=(j, y_pos),
+                    ha="center",
+                    va="center",
+                    fontsize=font_sizes["annotation"],
+                    bbox={
+                        "boxstyle": "round,pad=0.3",
+                        "facecolor": "white",
+                        "alpha": 0.85,
+                        "edgecolor": "0.8",
+                    },
+                )
+
         ax.set_ylabel(labels[i], fontsize=PLOT_STYLE["font_sizes"]["axes_label"])
         ax.set_xlabel(
             "Total Tools Used", fontsize=PLOT_STYLE["font_sizes"]["axes_label"]
