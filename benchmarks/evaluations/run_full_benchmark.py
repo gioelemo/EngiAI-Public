@@ -187,7 +187,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         "--scorers",
         type=str,
         default="all",
-        choices=["output_quality", "engibench", "all", "task_completion", "tool_use"],
+        choices=["output_quality", "task_completion", "tool_use", "all"],
         help="Scorer set for agent evaluation (default: all)",
     )
     parser.add_argument(
