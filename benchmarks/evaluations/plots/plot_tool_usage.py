@@ -420,7 +420,9 @@ def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
 
 
 def plot_performance_distribution_by_tool_count(
-    combined_tools, combined_design, output_dir=None  # noqa: ARG001
+    combined_tools,
+    combined_design,  # noqa: ARG001
+    output_dir=None,
 ):
     """Show the distribution of performance metrics relative to tools used.
 

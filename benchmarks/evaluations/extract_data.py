@@ -316,7 +316,9 @@ def extract_complete_design_data_from_evaluation(
                 f"  Processed {idx}/{len(score_calls_list)} calls, extracted {len(results)} designs..."
             )
 
-        result = _process_score_call_for_complete_data(score_call, model_filter, seen_models)
+        result = _process_score_call_for_complete_data(
+            score_call, model_filter, seen_models
+        )
         if result:
             results.append(result)
 
@@ -358,7 +360,8 @@ def save_complete_design_data_json(
 
     # Count designs with optimization histories
     with_histories = sum(
-        1 for d in design_data
+        1
+        for d in design_data
         if d.get("optimization_history") and len(d.get("optimization_history", [])) > 0
     )
     print(f"   With optimization histories: {with_histories}/{len(design_data)}")

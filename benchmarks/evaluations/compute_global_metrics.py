@@ -197,7 +197,9 @@ def compute_optimality_gaps(  # noqa: PLR0912, PLR0915
             "thermal_compliance": "thermal_compliance",
         }
         dataset_field = field_mapping.get(objective_field, objective_field)
-        print(f"Using objective field: '{dataset_field}' (from config: '{objective_field}')")
+        print(
+            f"Using objective field: '{dataset_field}' (from config: '{objective_field}')"
+        )
     except Exception as e:
         print(f"❌ Failed to get problem config: {e}")
         return None, None, None
@@ -404,7 +406,9 @@ def main():  # noqa: PLR0912, PLR0915
                 designs_by_seed[seed] = []
             designs_by_seed[seed].append(design)
 
-    print(f"Found {len(designs_by_seed)} unique seeds: {sorted(designs_by_seed.keys())}")
+    print(
+        f"Found {len(designs_by_seed)} unique seeds: {sorted(designs_by_seed.keys())}"
+    )
 
     if not designs_by_seed:
         print("❌ No designs with seed information found")
@@ -512,7 +516,9 @@ def main():  # noqa: PLR0912, PLR0915
                 f"    IOG: {seed_metrics['iog']:.4f} | COG: {seed_metrics['cog']:.4f} | FOG: {seed_metrics['fog']:.4f}"
             )
         if seed_metrics.get("rvc") is not None:
-            print(f"    RVC: {seed_metrics['rvc']:.4f} ({seed_metrics['rvc'] * 100:.2f}%)")
+            print(
+                f"    RVC: {seed_metrics['rvc']:.4f} ({seed_metrics['rvc'] * 100:.2f}%)"
+            )
     print("=" * 60)
 
 
