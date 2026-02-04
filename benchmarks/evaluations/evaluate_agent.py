@@ -558,17 +558,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     if args.seed is not None:
         expected_eval_run_name += f"_seed_{args.seed}"
 
-    # Global metrics trace name includes model and problem for organization
-    expected_global_metrics_name = (
-        f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_global_metrics"
-    )
-    if args.seed is not None:
-        expected_global_metrics_name += f"_seed_{args.seed}"
-
     print("Expected Weave trace names:")
     print(f"  Evaluation: {expected_eval_run_name}")
     print(f"  Scorers: {expected_scorer_names}")
-    print(f"  Global Metrics: {expected_global_metrics_name}")
     print()
 
     # Initialize Weave
