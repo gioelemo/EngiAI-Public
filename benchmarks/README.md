@@ -152,7 +152,13 @@ After running multiple seeds, use the plotting tools:
 
 ```bash
 cd benchmarks/evaluations/plots
-python run_all.py --problem beams2d --model {your-model}
+python run_all.py --problem beams2d
+```
+
+Plots are generated for all models found in the results directory. You can filter by prompt style or RAG status:
+
+```bash
+python run_all.py --problem beams2d --prompt-style full --rag-status no_rag
 ```
 
 This generates:
@@ -302,8 +308,11 @@ Per-design metrics are saved to a single JSON file (`design_data.json`) during t
 
 **Analyze per-design metrics:**
 ```bash
-# Generate comprehensive plots
-python benchmarks/evaluations/plots/run_all.py --problem beams2d --model {your-model}
+# Generate comprehensive plots (for all models in results)
+python benchmarks/evaluations/plots/run_all.py --problem beams2d
+
+# Or filter by prompt style and RAG status
+python benchmarks/evaluations/plots/run_all.py --problem beams2d --prompt-style full --rag-status no_rag
 ```
 
 **Use cases:**

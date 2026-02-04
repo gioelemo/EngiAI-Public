@@ -139,14 +139,19 @@ All seeds are aggregated into single files: `design_data.json` and `global_metri
 After running multiple seeds, generate visualizations:
 
 ```bash
-python plots/run_all.py --problem beams2d --model {your-model}
+python plots/run_all.py --problem beams2d
+```
+
+Plots are generated for all models found in the results directory. You can filter by prompt style or RAG status:
+
+```bash
+python plots/run_all.py --problem beams2d --prompt-style full --rag-status no_rag
 ```
 
 This creates:
 - Global metrics plots (MMD, DPP, RVC, optimality gaps)
 - Per-design metrics analysis
 - Tool usage statistics
-- Token and latency analysis
 
 Or compare against baselines:
 
@@ -202,7 +207,13 @@ The `design_data.json` file contains an array with per-example metrics from all 
 Use the plotting tools to analyze per-design metrics:
 
 ```bash
-python plots/run_all.py --problem beams2d --model {your-model}
+python plots/run_all.py --problem beams2d
+```
+
+Plots are generated for all models in the results directory. Filter by prompt style or RAG status if needed:
+
+```bash
+python plots/run_all.py --problem beams2d --prompt-style full --rag-status no_rag
 ```
 
 This generates comprehensive analysis including:
