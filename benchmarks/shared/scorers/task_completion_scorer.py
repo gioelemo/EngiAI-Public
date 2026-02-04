@@ -105,10 +105,6 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     is_workflow = prompt_style == "workflow"
     success_criteria = "stl_export" if is_workflow else "render_design"
 
-    # Determine success criteria based on prompt style
-    is_workflow = prompt_style == "workflow"
-    success_criteria = "stl_export" if is_workflow else "render_design"
-
     # Track render_design calls
     render_called = False
     render_success = False
