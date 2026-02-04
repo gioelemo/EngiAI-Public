@@ -444,7 +444,6 @@ def main():
         help="Model ID (openai:gpt-5.1). Defaults to config.llm_model",
     )
     parser.add_argument("--problem", required=True, help="Problem (beams2d)")
-    parser.add_argument("--seed", type=int, help="Seed")
     parser.add_argument(
         "--prompt-style",
         type=str,
