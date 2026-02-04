@@ -146,56 +146,6 @@ def run_agent_evaluation(  # noqa: PLR0913
     return run_command(cmd, cwd=PROJECT_ROOT, env=env)
 
 
-def extract_agent_data(
-    problem: str,
-    model: str,
-    prompt_style: str,
-    rag_status: str,
-    seed: int,
-) -> int:
-    """Extract design data from Weave to JSON for a specific seed."""
-    cmd = [
-        str(CONDA_PYTHON),
-        str(PROJECT_ROOT / "benchmarks" / "evaluations" / "extract_data.py"),
-        "--problem",
-        problem,
-        "--model",
-        model,
-        "--prompt-style",
-        prompt_style,
-        "--rag-status",
-        rag_status,
-        "--seed",
-        str(seed),
-    ]
-    return run_command(cmd, cwd=PROJECT_ROOT)
-
-
-def compute_agent_metrics(
-    problem: str,
-    model: str,
-    prompt_style: str,
-    rag_status: str,
-    seed: int,
-) -> int:
-    """Compute global metrics from extracted data for a specific seed."""
-    cmd = [
-        str(CONDA_PYTHON),
-        str(PROJECT_ROOT / "benchmarks" / "evaluations" / "compute_global_metrics.py"),
-        "--problem",
-        problem,
-        "--model",
-        model,
-        "--prompt-style",
-        prompt_style,
-        "--rag-status",
-        rag_status,
-        "--seed",
-        str(seed),
-    ]
-    return run_command(cmd, cwd=PROJECT_ROOT)
-
-
 def main() -> None:  # noqa: PLR0912, PLR0915
     parser = argparse.ArgumentParser(
         description="Run full benchmark evaluation for agent and CGAN baselines"
