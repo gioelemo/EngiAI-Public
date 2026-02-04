@@ -699,7 +699,10 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print("Next steps:")
     print("  1. Run extract_data.py to export per-design metrics to JSON")
     print("  2. Run compute_global_metrics.py to calculate global metrics per seed")
-    print("  3. Run generate_plots.py to create visualizations")
+    print(
+        f'  3. Run "python benchmarks/evaluations/plots/run_all.py --problem {args.problem}" '
+        "to create visualizations"
+    )
     print()
     print("🎉 Evaluation complete!")
 
