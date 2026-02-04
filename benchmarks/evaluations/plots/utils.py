@@ -6,6 +6,7 @@ Shared utilities for plots.
 - Plot styling
 """
 
+import json
 import re
 import shutil
 from pathlib import Path
@@ -128,14 +129,27 @@ def _discover_problem_subdir(model_dir: Path, problem_dir: Path) -> dict[str, Pa
             rag_status = rag_dir.name  # "rag" or "no_rag"
             key_prefix = f"{model_name}_{prompt_style}_{rag_status}_{problem}"
 
-            global_path = rag_dir / "output_quality_global_metrics.csv"
-            if global_path.exists():
-                paths[f"{key_prefix}_global"] = global_path
+            # Check for new JSON format first
+            global_json_path = rag_dir / "global_metrics.json"
+            if global_json_path.exists():
+                paths[f"{key_prefix}_global"] = global_json_path
+            else:
+                # Fallback to old CSV format
+                global_csv_path = rag_dir / "output_quality_global_metrics.csv"
+                if global_csv_path.exists():
+                    paths[f"{key_prefix}_global"] = global_csv_path
 
-            design_path = rag_dir / "output_quality_design_metrics.csv"
-            if design_path.exists():
-                paths[f"{key_prefix}_design"] = design_path
+            # Check for new JSON format for design data
+            design_json_path = rag_dir / "design_data.json"
+            if design_json_path.exists():
+                paths[f"{key_prefix}_design"] = design_json_path
+            else:
+                # Fallback to old CSV format
+                design_csv_path = rag_dir / "output_quality_design_metrics.csv"
+                if design_csv_path.exists():
+                    paths[f"{key_prefix}_design"] = design_csv_path
 
+            # Tool usage data (still CSV from extract_data.py - deprecated)
             tools_path = rag_dir / "data.csv"
             if tools_path.exists():
                 paths[f"{key_prefix}_tools"] = tools_path
@@ -457,27 +471,62 @@ def get_output_dir():
 
 
 def _load_global_metrics(path, model, problem, prompt_style="full", rag_status=None):
-    """Load and clean global metrics for a specific model/problem."""
+    """Load and clean global metrics for a specific model/problem.
+
+    Supports both JSON (new format from compute_global_metrics.py) and CSV (legacy).
+    """
     if not path.exists():
         return None
+
     try:
-        df = pd.read_csv(path, on_bad_lines="skip")
+        # Check if it's JSON format (new)
+        if path.suffix == ".json":
+            with path.open() as f:
+                data = json.load(f)
+
+            # Convert per_seed_metrics to DataFrame rows
+            if "per_seed_metrics" not in data:
+                print(f"Warning: No per_seed_metrics in {path}")
+                return None
+
+            rows = []
+            for seed_metrics in data["per_seed_metrics"]:
+                row = {
+                    "seed": seed_metrics["seed"],
+                    "n_samples": seed_metrics.get("n_designs", seed_metrics.get("n_failed", 0)),
+                    "mmd": seed_metrics.get("mmd"),
+                    "dpp": seed_metrics.get("dpp_diversity"),
+                    "dpp_diversity": seed_metrics.get("dpp_diversity"),
+                    "iog": seed_metrics.get("iog"),
+                    "cog": seed_metrics.get("cog"),
+                    "fog": seed_metrics.get("fog"),
+                    "rvc": seed_metrics.get("rvc"),
+                    # Remove rvc_details to avoid large nested objects
+                }
+                rows.append(row)
+
+            df = pd.DataFrame(rows)
+
+        else:
+            # Legacy CSV format
+            df = pd.read_csv(path, on_bad_lines="skip")
+
+            # Rename columns for consistency (same as CGAN)
+            rename_map = {
+                "model_id": "model_id_orig",  # Preserve original
+                "problem_id": "problem",
+            }
+            df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+            # Filter to rows with valid n_samples (numeric)
+            if "n_samples" in df.columns:
+                df = df[pd.to_numeric(df["n_samples"], errors="coerce").notna()]
+                df["n_samples"] = pd.to_numeric(df["n_samples"])
+                df = df.drop_duplicates(subset=["seed", "n_samples"], keep="first")
+
     except Exception as e:
         print(f"Warning: Could not load {path}: {e}")
         return None
-
-    # Rename columns for consistency (same as CGAN)
-    rename_map = {
-        "model_id": "model_id_orig",  # Preserve original
-        "problem_id": "problem",
-    }
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
-
-    # Filter to rows with valid n_samples (numeric)
-    if "n_samples" in df.columns:
-        df = df[pd.to_numeric(df["n_samples"], errors="coerce").notna()]
-        df["n_samples"] = pd.to_numeric(df["n_samples"])
-        df = df.drop_duplicates(subset=["seed", "n_samples"], keep="first")
 
     df["model"] = model
     df["problem"] = problem
@@ -487,15 +536,58 @@ def _load_global_metrics(path, model, problem, prompt_style="full", rag_status=N
 
 
 def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
-    """Load and clean design-level metrics for a specific model."""
+    """Load and clean design-level metrics for a specific model.
+
+    Supports both JSON (new format from extract_data.py) and CSV (legacy).
+    """
     if not path.exists():
         return None
+
     try:
-        df = pd.read_csv(path, on_bad_lines="skip")
+        # Check if it's JSON format (new)
+        if path.suffix == ".json":
+            with path.open() as f:
+                data = json.load(f)
+
+            # Convert list of design dicts to DataFrame
+            # Extract only the metric fields, not the full design arrays
+            rows = []
+            for design in data:
+                row = {
+                    "seed": design.get("seed"),
+                    "example_id": design.get("example_id"),
+                    "problem_id": design.get("problem_id"),
+                    "overall_score": design.get("overall_score"),
+                    "design_quality_score": design.get("design_quality_score"),
+                    "tool_efficiency_score": design.get("tool_efficiency_score"),
+                    "task_completion_score": design.get("task_completion_score"),
+                    "printability_score": design.get("printability_score"),
+                    "iou": design.get("iou"),
+                    "pixel_accuracy": design.get("pixel_accuracy"),
+                    "mse": design.get("mse"),
+                    "ssim": design.get("ssim"),
+                    "constraint_match": design.get("constraint_match"),
+                    "objective_match": design.get("objective_match"),
+                    "efficiency_ratio": design.get("efficiency_ratio"),
+                    "sequence_score": design.get("sequence_score"),
+                    "success_rate": design.get("success_rate"),
+                    "connectivity": design.get("connectivity"),
+                    "watertightness": design.get("watertightness"),
+                }
+                rows.append(row)
+
+            df = pd.DataFrame(rows)
+
+        else:
+            # Legacy CSV format
+            df = pd.read_csv(path, on_bad_lines="skip")
+
+        df = df.drop_duplicates(subset=["seed", "example_id"], keep="first")
+
     except Exception as e:
         print(f"Warning: Could not load {path}: {e}")
         return None
-    df = df.drop_duplicates(subset=["seed", "example_id"], keep="first")
+
     df["model"] = model
     df["prompt_style"] = prompt_style
     df["rag_status"] = rag_status
