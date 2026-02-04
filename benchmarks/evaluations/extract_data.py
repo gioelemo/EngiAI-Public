@@ -132,7 +132,9 @@ def _extract_metrics_from_scorers(
                 # Objective metrics (compliance, etc.)
                 "agent_compliance": output_quality.get("agent_compliance"),
                 "target_compliance": output_quality.get("target_compliance"),
-                "compliance_relative_error": output_quality.get("compliance_relative_error"),
+                "compliance_relative_error": output_quality.get(
+                    "compliance_relative_error"
+                ),
                 "compliance_score": output_quality.get("compliance_score"),
                 # Printability metrics (use actual field names from scorer)
                 "connected_design": output_quality.get("connected_design"),
@@ -140,9 +142,13 @@ def _extract_metrics_from_scorers(
                 "is_watertight": output_quality.get("is_watertight"),
                 "volume_mm3": output_quality.get("volume_mm3"),
                 "surface_area_mm2": output_quality.get("surface_area_mm2"),
-                "watertight_check_available": output_quality.get("watertight_check_available"),
+                "watertight_check_available": output_quality.get(
+                    "watertight_check_available"
+                ),
                 "mesh_validation_time": output_quality.get("mesh_validation_time"),
-                "comparison_image_generated": output_quality.get("comparison_image_generated"),
+                "comparison_image_generated": output_quality.get(
+                    "comparison_image_generated"
+                ),
             }
         )
 
