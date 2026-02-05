@@ -528,7 +528,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Wrap scorers with evaluation context for better trace naming in Weave UI
     scorers = [
         create_contextual_scorer(scorer_func, scorer_type)
-        for scorer_func, scorer_type in zip(base_scorers, scorer_types, strict=False)
+        for scorer_func, scorer_type in zip(base_scorers, scorer_types, strict=True)
     ]
 
     print("=" * 60)
