@@ -416,7 +416,9 @@ def main():  # noqa: PLR0912
                 rag_status=rag_status,
             )
             if args.prompt_style:
-                output_path = f"figures/{args.problem}/{args.prompt_style}/{rag_status}/"
+                output_path = (
+                    f"figures/{args.problem}/{args.prompt_style}/{rag_status}/"
+                )
             else:
                 output_path = f"figures/{args.problem}/{rag_status}/"
             print("\n" + "=" * 60)
