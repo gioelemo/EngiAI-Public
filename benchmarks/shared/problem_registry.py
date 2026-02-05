@@ -116,7 +116,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
                 "watertightness": 0.50,
             },
         },
-        prompt_file_template="photonics2d_prompts_50_samples_{split}_{style}.json",
+        prompt_file_template="photonics2d_prompts_{n_samples}_samples_{split}_{style}_seed{seed}.json",
     ),
     "thermoelastic2d": ProblemConfig(
         name="thermoelastic2d",
@@ -212,7 +212,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
                 "watertightness": 0.50,
             },
         },
-        prompt_file_template="thermoelastic2d_prompts_50_samples_{split}_{style}.json",
+        prompt_file_template="thermoelastic2d_prompts_{n_samples}_samples_{split}_{style}_seed{seed}.json",
     ),
 }
 

@@ -658,40 +658,6 @@ def load_data():
     return data
 
 
-def load_tool_usage_data():
-    """DEPRECATED: Tool usage data is now included in design_data.json.
-
-    This function is kept for backwards compatibility but will return empty.
-    Tool efficiency metrics (efficiency_ratio, sequence_score) are available
-    in the design-level data loaded by load_data().
-
-    For detailed per-tool usage tracking, the tool_use scorer would need to
-    be updated to output individual tool counts in its scorer output.
-
-    Returns:
-        dict: Empty dictionary (no separate tool usage files in JSON pipeline)
-    """
-    print("⚠️  Note: Detailed tool usage tracking is not implemented in JSON pipeline")
-    print("   Tool efficiency metrics are available in design-level data")
-    return {}
-
-
-def get_combined_tool_usage_df(data):  # noqa: ARG001
-    """DEPRECATED: Get tool usage data from design-level metrics instead.
-
-    Tool efficiency metrics (efficiency_ratio, sequence_score) are now part of
-    the design-level data. Use get_combined_design_df() to access them.
-
-    Args:
-        data: Dictionary with DataFrames (unused, kept for compatibility)
-
-    Returns:
-        None (detailed tool usage not available in JSON pipeline)
-    """
-    print("⚠️  Note: Use get_combined_design_df() for tool efficiency metrics")
-    print("   (efficiency_ratio, sequence_score are included in design data)")
-
-
 def get_combined_global_df(data):
     """Combine all global metrics into a single DataFrame."""
     # Get all keys ending with _global
