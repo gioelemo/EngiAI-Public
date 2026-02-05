@@ -485,23 +485,11 @@ def plot_performance_distribution_by_tool_count(
             y=metric,
             hue="total_tools",
             legend=False,
-            inner="quart",
+            inner="box",
             palette="Pastel1",
             linewidth=0.7,
             ax=ax,
             cut=0,
-        )
-
-        # Overlay Jittered Points
-        sns.stripplot(
-            data=df,
-            x="total_tools",
-            y=metric,
-            color="black",
-            size=2,
-            alpha=0.3,
-            jitter=True,
-            ax=ax,
         )
 
         # Add mean and std annotations
