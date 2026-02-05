@@ -473,9 +473,8 @@ def _load_global_metrics(path, model, problem, prompt_style="full", rag_status=N
         for seed_metrics in data["per_seed_metrics"]:
             row = {
                 "seed": seed_metrics["seed"],
-                "n_samples": seed_metrics.get(
-                    "n_designs", seed_metrics.get("n_failed", 0)
-                ),
+                "n_samples": seed_metrics.get("n_designs", 0)
+                + seed_metrics.get("n_failed", 0),
                 "mmd": seed_metrics.get("mmd"),
                 "dpp": seed_metrics.get("dpp_diversity"),
                 "dpp_diversity": seed_metrics.get("dpp_diversity"),
