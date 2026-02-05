@@ -625,7 +625,7 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
             conversation_id=st.session_state.active_chat_id,
             role="user",
             content=text_content,
-            attachments=attachments if attachments else None,
+            attachments=attachments or None,
         )
 
     # Filter out PDFs from images_for_agent (PDFs are handled separately via text extraction)
@@ -972,9 +972,7 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
                         role="assistant",
                         content=full_response,
                         suggested_prompts=suggested_prompts,
-                        attachments=assistant_attachments
-                        if assistant_attachments
-                        else None,
+                        attachments=assistant_attachments or None,
                     )
             else:
                 st.info("Agent is processing... (no response yet)")

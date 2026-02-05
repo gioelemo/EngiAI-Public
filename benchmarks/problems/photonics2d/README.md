@@ -44,7 +44,7 @@ This will create prompt files in `data/generated/`:
 ```bash
 python benchmarks/evaluations/evaluate_agent.py \
     --problem photonics2d \
-    --scorers generic \
+    --scorers output_quality \
     --samples 5
 ```
 
@@ -57,7 +57,7 @@ python benchmarks/evaluations/evaluate_agent.py \
 
 ## Generic Scorer Support
 
-Photonics2D is fully supported by the generic scorer (`score_output_quality_visual`) via the problem registry in `benchmarks/shared/problem_registry.py`:
+Photonics2D is fully supported by the generic scorer (`score_output_quality`) via the problem registry in `benchmarks/shared/problem_registry.py`:
 
 ```python
 "photonics2d": ProblemConfig(

@@ -118,27 +118,62 @@ class ProblemConfig:
     conditions: list[ConditionConfig] = field(default_factory=list)
     """List of conditions/constraints to check"""
 
-    design_metrics_weights: dict[str, float] = field(
+    score_categories: dict[str, dict[str, float]] = field(
         default_factory=lambda: {
-            "iou": 0.4,
-            "pixel_accuracy": 0.25,
-            "constraint_match": 0.15,
-            "objective_match": 0.2,
+            "design_quality": {
+                "weight": 0.50,
+                "iou": 0.40,
+                "pixel_accuracy": 0.25,
+                "constraint_match": 0.15,
+                "objective_match": 0.20,
+            },
+            "tool_efficiency": {
+                "weight": 0.20,
+                "efficiency_ratio": 0.60,
+                "sequence_score": 0.40,
+            },
+            "task_completion": {
+                "weight": 0.15,
+                "success_rate": 1.0,
+            },
+            "printability": {
+                "weight": 0.15,
+                "connectivity": 0.50,
+                "watertightness": 0.50,
+            },
         }
     )
-    """Weights for different components in the overall score"""
+    """Hierarchical score configuration with category weights and metric weights within categories"""
 
     prompt_file_template: str = "{problem}_prompts_{samples}_samples_{split}.json"
     """Template for prompt file naming"""
 
     def __post_init__(self):
         """Validate configuration and compute derived properties."""
-        # Validate weights sum to 1.0 (or close to it)
-        total_weight = sum(self.design_metrics_weights.values())
-        if not (WEIGHT_SUM_MIN <= total_weight <= WEIGHT_SUM_MAX):
+        # Validate hierarchical score categories
+        category_weights_sum = 0.0
+        for category_name, category_config in self.score_categories.items():
+            # Extract category weight
+            if "weight" not in category_config:
+                raise ValueError(f"Category '{category_name}' must have a 'weight' key")
+            category_weight = category_config["weight"]
+            category_weights_sum += category_weight
+
+            # Validate metric weights within category sum to 1.0
+            metric_weights = {k: v for k, v in category_config.items() if k != "weight"}
+            if metric_weights:  # Only validate if there are metrics
+                metric_sum = sum(metric_weights.values())
+                if not (WEIGHT_SUM_MIN <= metric_sum <= WEIGHT_SUM_MAX):
+                    raise ValueError(
+                        f"Metric weights in category '{category_name}' should sum to ~1.0, "
+                        f"got {metric_sum}. Weights: {metric_weights}"
+                    )
+
+        # Validate category weights sum to 1.0
+        if not (WEIGHT_SUM_MIN <= category_weights_sum <= WEIGHT_SUM_MAX):
             raise ValueError(
-                f"design_metrics_weights should sum to ~1.0, got {total_weight}. "
-                f"Weights: {self.design_metrics_weights}"
+                f"Category weights should sum to ~1.0, got {category_weights_sum}. "
+                f"Categories: {list(self.score_categories.keys())}"
             )
 
         # Validate objectives
@@ -172,3 +207,19 @@ class ProblemConfig:
     def get_constraint_conditions(self) -> list[ConditionConfig]:
         """Get only conditions that are actual constraints."""
         return [cond for cond in self.conditions if cond.constraint_type != "none"]
+
+    def get_category_weight(self, category_name: str) -> float:
+        """Get the weight for a specific score category."""
+        if category_name not in self.score_categories:
+            return 0.0
+        return self.score_categories[category_name].get("weight", 0.0)
+
+    def get_metric_weights(self, category_name: str) -> dict[str, float]:
+        """Get metric weights for a specific category (excluding the category weight)."""
+        if category_name not in self.score_categories:
+            return {}
+        return {
+            k: v
+            for k, v in self.score_categories[category_name].items()
+            if k != "weight"
+        }

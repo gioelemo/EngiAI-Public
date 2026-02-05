@@ -238,7 +238,10 @@ class Config:
                 )
             self._mmore_enabled = is_healthy
         except requests.RequestException as e:
-            logger.warning(f"MMORE service not reachable: {e}")
+            # Only warn if MMORE was actually needed (not explicitly skipped)
+            # This prevents noise when running evaluations without RAG
+            if not skip_mmore:
+                logger.warning(f"MMORE service not reachable: {e}")
             self._mmore_enabled = False
         except ImportError:
             logger.warning("requests library not installed, cannot check MMORE health")

@@ -111,10 +111,23 @@ class TestProblemConfig:
         assert 0.99 <= objective_weights <= 1.01
 
     def test_weights_sum_to_one(self):
-        """Test that design metric weights sum to approximately 1.0."""
+        """Test that category weights and metric weights sum to approximately 1.0."""
         config = get_problem_config("beams2d")
-        total = sum(config.design_metrics_weights.values())
-        assert 0.99 <= total <= 1.01
+
+        # Test category weights sum to 1.0
+        category_total = sum(
+            cat_config["weight"] for cat_config in config.score_categories.values()
+        )
+        assert 0.99 <= category_total <= 1.01
+
+        # Test metric weights within each category sum to 1.0
+        for category_name, category_config in config.score_categories.items():
+            metric_weights = {k: v for k, v in category_config.items() if k != "weight"}
+            if metric_weights:  # Only check if there are metrics
+                metric_total = sum(metric_weights.values())
+                assert 0.99 <= metric_total <= 1.01, (
+                    f"Category '{category_name}' metrics don't sum to 1.0: {metric_total}"
+                )
 
     def test_get_objective_by_name(self):
         """Test retrieving objective by name."""

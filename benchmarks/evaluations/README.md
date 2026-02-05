@@ -18,7 +18,21 @@ Evaluate the agent on beams2d with default settings:
 ```bash
 conda activate engineer-assistant
 cd benchmarks/evaluations
+
+# Step 1: Run evaluation (saves to Weave)
 python evaluate_agent.py --problem beams2d --samples 5
+
+# Step 2: Extract data from Weave to JSON
+python extract_data.py --problem beams2d
+
+# Step 3: Compute global metrics
+python compute_global_metrics.py --problem beams2d
+```
+
+Or use the complete pipeline:
+
+```bash
+python run_full_benchmark.py --problem beams2d --samples 5 --seeds 1 --agent-only
 ```
 
 ### Compare Multiple Models
@@ -44,9 +58,10 @@ python evaluate_agent.py \
 
 ### Scorer Options
 
-- `--scorers generic` - Compute per-design metrics only (default)
-- `--scorers engibench` - Compute per-design metrics + global metrics (MMD, DPP, RVC, optimality gaps)
-- `--scorers all` - Same as engibench
+- `--scorers all` - All scorers: output_quality + task_completion + tool_use (default)
+- `--scorers output_quality` - Per-design quality metrics only
+- `--scorers task_completion` - Task completion checker only
+- `--scorers tool_use` - Tool usage efficiency only
 
 ## Command Line Arguments
 
@@ -54,49 +69,35 @@ python evaluate_agent.py \
 |----------|-------------|---------|
 | `--problem` | Problem type to evaluate | `beams2d` |
 | `--model` | LLM model name | From config |
-| `--samples` | Number of samples to evaluate | `5` |
+| `--samples` | Number of samples to evaluate | `10` |
 | `--temperature` | Model temperature | From config |
 | `--split` | Dataset split (train/val/test) | `test` |
-| `--scorers` | Scorer set (generic/engibench/all/task_completion/tool_use) | `generic` |
+| `--scorers` | Scorer set (output_quality/all/task_completion/tool_use) | `all` |
 | `--seed` | Random seed for optimization | `None` |
-| `--output-csv` | Custom CSV output path | Auto-generated |
-| `--prompt-style` | Prompt style (full/approximate/natural/workflow) | `full` |
-| `--mmore` | Enable MMORE RAG system | Disabled |
-| `--no-mmore` | Disable MMORE RAG system (default) | - |
-
 ## Results Organization
 
 Results are automatically organized by model and problem type:
 
 ```
 results/
-├── models/                      # LLM agent results
+├── models/                      # LLM agent results (JSON format)
 │   └── {model-name}/
 │       └── {problem-type}/
 │           └── {prompt-style}/
 │               └── {rag-status}/
-│                   ├── output_quality_global_metrics.csv   # Global metrics (MMD, DPP, RVC, IOG, COG, FOG)
-│                   ├── output_quality_design_metrics.csv   # Per-design metrics (IoU, accuracy, etc.)
+│                   ├── design_data.json              # Per-design metrics (all seeds)
+│                   ├── global_metrics.json           # Global metrics (all seeds)
 │                   └── comparisons/          # Comparison visualizations
-│                       ├── seed_1/           # Per-seed comparisons (if using seeds)
+│                       ├── seed_1/           # Per-seed comparisons
 │                       │   ├── comparison_example_0.png
 │                       │   └── ...
-│                       ├── seed_2/
-│                       └── ...
-└── baselines/                   # Baseline method results (CGAN, etc.)
+│                       └── seed_2/
+└── baselines/                   # Baseline method results (CSV format)
+    └── cgan_cnn_2d/
+        └── {problem}/
+            └── output_quality_global_metrics.csv
 ```
 
-Example:
-```
-results/
-├── openai_gpt-4.1/
-│   └── beams2d/
-│       ├── metrics.csv
-│       └── comparisons/
-│           ├── seed_1/
-│           ├── seed_2/
-│           └── seed_3/
-```
 
 ## Seed-Based Evaluation
 
@@ -105,16 +106,18 @@ For reproducible benchmarking and statistical analysis (matching EngiOpt paper m
 ### Single Seed Evaluation
 
 ```bash
-python evaluate_agent.py \
+python run_full_benchmark.py \
   --problem beams2d \
   --samples 50 \
-  --scorers engibench \
-  --seed 1
+  --seeds 1 \
+  --agent-only
 ```
 
-Output:
-- Metrics saved to: `results/models/{model}/beams2d/{prompt_style}/{rag_status}/output_quality_global_metrics.csv`
-- Comparisons saved to: `results/models/{model}/beams2d/{prompt_style}/{rag_status}/comparisons/seed_1/`
+This runs the complete pipeline:
+1. Evaluates agent and saves to Weave
+2. Extracts per-design data to `design_data.json` (aggregates all seeds)
+3. Computes global metrics to `global_metrics.json` (aggregates all seeds)
+4. Saves comparisons to `comparisons/seed_N/` (per-seed visualizations)
 
 ### Multiple Seeds for Statistics
 
@@ -122,44 +125,43 @@ Run with multiple seeds to collect statistical data:
 
 ```bash
 # Run 10 seeds (EngiOpt paper methodology)
-for seed in {1..10}; do
-  python evaluate_agent.py \
-    --problem beams2d \
-    --samples 50 \
-    --scorers engibench \
-    --seed $seed
-done
+python run_full_benchmark.py \
+  --problem beams2d \
+  --samples 50 \
+  --seeds 1 2 3 4 5 6 7 8 9 10 \
+  --agent-only
 ```
 
-Each run appends a row to the CSV file with the seed value tracked.
+All seeds are aggregated into single files: `design_data.json` and `global_metrics.json`.
 
-### Computing Statistics
+### Analyzing Results
 
-After running multiple seeds, compute mean ± std:
+After running multiple seeds, generate visualizations:
 
 ```bash
-python compute_output_quality_global_stats.py results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_global_metrics.csv
+python plots/run_all.py --problem beams2d
 ```
 
-Output example:
-```
-============================================================
-Metrics Statistics for results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_global_metrics.csv
-============================================================
+Plots are generated for all models found in the results directory. You can filter by prompt style or RAG status:
 
-Number of runs: 10
-
-COG : 1.399069e+08 ± 1.671826e+08
-MMD : 1.252433e-01 ± 1.019108e-01
-RVC : 6.720000e-01 ± 1.589409e-01
-DPP : 3.375223e-19 ± 1.064283e-18
-
-============================================================
+```bash
+python plots/run_all.py --problem beams2d --prompt-style full --rag-status no_rag
 ```
 
-### CSV Metrics Format
+This creates:
+- Global metrics plots (MMD, DPP, RVC, optimality gaps)
+- Per-design metrics analysis
+- Tool usage statistics
 
-The CSV file contains (compatible with EngiOpt paper format):
+Or compare against baselines:
+
+```bash
+python compare_results.py --problem beams2d --model {your-model}
+```
+
+### JSON Metrics Format
+
+The global metrics file (`global_metrics.json`) contains per-seed results:
 - `iog` - Initial Optimality Gap
 - `cog` - Cumulative Optimality Gap
 - `fog` - Final Optimality Gap
@@ -167,69 +169,58 @@ The CSV file contains (compatible with EngiOpt paper format):
 - `dpp` - Determinantal Point Process diversity
 - `rvc` - Ratio of Violated Constraints
 - `seed` - Random seed used
-- `problem_id` - Problem identifier
-- `model_id` - Model name
+- `problem` - Problem identifier
+- `model` - Model name
+- `prompt_style` - Prompt style
+- `rag_status` - RAG system status
 - `n_samples` - Number of samples
-- `sigma` - Kernel bandwidth (default: 10.0)
+
+The per-design metrics file (`design_data.json`) contains an array with all design evaluations across all seeds.
 
 ## Per-Design Metrics Analysis
 
-In addition to global metrics, per-design metrics are automatically saved for granular analysis.
+Per-design metrics are automatically saved to a single JSON file for granular analysis.
 
-### Design Metrics CSV Format
+### Design Metrics JSON Format
 
-The `output_quality_design_metrics.csv` file contains per-example metrics:
+The `design_data.json` file contains an array with per-example metrics from all seeds:
 - `seed` - Random seed used
 - `example_id` - Problem instance identifier
-- `problem_id` - Problem type
-- `model_id` - Model name
+- `problem` - Problem type
+- `model` - Model name
 - `overall_score` - Weighted overall score (0-1)
 - `iou` - Intersection over Union (topology overlap)
 - `pixel_accuracy` - Element-wise accuracy
 - `mse` - Mean Squared Error (density field)
 - `constraint_score` - Constraint satisfaction score
 - `objective_score` - Objective value match score
+- `design_found` - Whether design was extracted
+- `constraint_violations` - Number of violations
+- `total_tokens` - Token usage
+- `latency_ms` - Response latency
+- `total_tools` - Tool calls made
+- `unique_tools` - Unique tools used
 - Problem-specific metrics (volume fraction, compliance, etc.)
 
-### Computing Per-Design Statistics
+### Analyzing Per-Design Data
 
-After running multiple seeds, compute per-design statistics:
+Use the plotting tools to analyze per-design metrics:
 
 ```bash
-python compute_output_quality_design_stats.py results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_design_metrics.csv
+python plots/run_all.py --problem beams2d
 ```
 
-Output example:
+Plots are generated for all models in the results directory. Filter by prompt style or RAG status if needed:
+
+```bash
+python plots/run_all.py --problem beams2d --prompt-style full --rag-status no_rag
 ```
-============================================================
-Per-Design Metrics Statistics for results/models/openai_gpt-4.1/beams2d/full/no_rag/output_quality_design_metrics.csv
-============================================================
 
-Number of seeds: 10
-Number of examples per seed: 50
-Total rows: 500
-
-GLOBAL STATISTICS (across all seeds and examples)
-------------------------------------------------------------
-overall_score       : 0.654321 ± 0.123456
-iou                 : 0.721234 ± 0.098765
-pixel_accuracy      : 0.876543 ± 0.054321
-mse                 : 0.012345 ± 0.006789
-constraint_score    : 0.891234 ± 0.076543
-objective_score     : 0.543210 ± 0.165432
-
-PER-SEED AGGREGATED STATISTICS
-------------------------------------------------------------
-overall_score       : 0.654321 ± 0.045678
-iou                 : 0.721234 ± 0.032109
-...
-
-PER-EXAMPLE VARIANCE (how consistent are results across seeds?)
-------------------------------------------------------------
-overall_score       : mean std = 0.098765
-iou                 : mean std = 0.087654
-...
-```
+This generates comprehensive analysis including:
+- Distribution of scores across examples
+- Correlation between metrics
+- Success rate analysis
+- Failure mode identification
 
 ### Use Cases for Per-Design Metrics
 
@@ -241,9 +232,9 @@ iou                 : mean std = 0.087654
 
 ## Evaluation Metrics
 
-### Generic Scorer
+### Output Quality Scorer
 
-All problems now use the generic scorer (`score_output_quality_visual`) which provides:
+All problems use the output quality scorer (`score_output_quality`) which provides:
 
 - **Design Quality Metrics**
   - IoU (Intersection over Union) - Topology overlap
@@ -255,7 +246,7 @@ All problems now use the generic scorer (`score_output_quality_visual`) which pr
   - Compliance scoring (beams2d)
   - Total overlap scoring (photonics2d)
 
-The generic scorer is configuration-driven via `benchmarks.shared.problem_registry`, which defines objectives, constraints, and weights for each problem type.
+The output quality scorer is configuration-driven via `benchmarks.shared.problem_registry`, which defines objectives, constraints, and weights for each problem type.
 
 See [../problems/beams2d/SCORING_METRICS.md](../problems/beams2d/SCORING_METRICS.md) for detailed beams2d metric definitions.
 

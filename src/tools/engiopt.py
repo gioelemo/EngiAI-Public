@@ -677,7 +677,7 @@ def _import_generator_class(
     """Import the appropriate Generator class for GAN algorithms. Returns (class, error_dict)."""
     # ruff: noqa: I001, PLC0415
     try:
-        if algorithm in ["cgan_cnn_2d"]:
+        if algorithm == "cgan_cnn_2d":
             from engiopt.cgan_cnn_2d.cgan_cnn_2d import Generator  # type: ignore[import-untyped]
 
             return Generator, None

@@ -118,7 +118,7 @@ def run_agent_evaluation(  # noqa: PLR0913
     seed: int,
     model: str | None,
     prompt_style: str = "full",
-    scorers: str = "generic",
+    scorers: str = "all",
     mmore_enabled: bool = False,
 ) -> int:
     """Run agent evaluation for a specific seed."""
@@ -140,7 +140,10 @@ def run_agent_evaluation(  # noqa: PLR0913
         cmd.extend(["--model", model])
     if mmore_enabled:
         cmd.append("--mmore")
-    return run_command(cmd, cwd=PROJECT_ROOT)
+
+    # Set SKIP_MMORE env var to prevent health check warnings when RAG is disabled
+    env = {"SKIP_MMORE": "false" if mmore_enabled else "true"}
+    return run_command(cmd, cwd=PROJECT_ROOT, env=env)
 
 
 def main() -> None:  # noqa: PLR0912, PLR0915
@@ -183,9 +186,9 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     parser.add_argument(
         "--scorers",
         type=str,
-        default="generic",
-        choices=["generic", "engibench", "all", "task_completion", "tool_use"],
-        help="Scorer set for agent evaluation (default: generic)",
+        default="all",
+        choices=["output_quality", "task_completion", "tool_use", "all"],
+        help="Scorer set for agent evaluation (default: all)",
     )
     parser.add_argument(
         "--wandb-entity",

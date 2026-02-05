@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -50,7 +51,7 @@ def load_cgan_results(problem: str) -> pd.DataFrame | None:
 def load_agent_results(
     problem: str, model: str, prompt_style: str = "full", rag_status: str = "no_rag"
 ) -> pd.DataFrame | None:
-    """Load agent evaluation results.
+    """Load agent evaluation results from JSON.
 
     Args:
         problem: Problem type (e.g., "beams2d")
@@ -59,18 +60,30 @@ def load_agent_results(
         rag_status: RAG status (default: "no_rag")
     """
     model_safe = model.replace("/", "_").replace(":", "_")
-    csv_path = (
-        MODELS_DIR
-        / model_safe
-        / problem
-        / prompt_style
-        / rag_status
-        / "output_quality_global_metrics.csv"
-    )
-    if not csv_path.exists():
+    results_dir = MODELS_DIR / model_safe / problem / prompt_style / rag_status
+    json_path = results_dir / "global_metrics.json"
+
+    if not json_path.exists():
         print(f"Warning: Agent results not found for {model}")
         return None
-    return pd.read_csv(csv_path)
+
+    # Load JSON file containing per-seed metrics
+    with json_path.open() as f:
+        data = json.load(f)
+
+    # Extract per-seed metrics into DataFrame
+    if "per_seed_metrics" not in data or not data["per_seed_metrics"]:
+        print(f"Warning: No per-seed metrics found in {json_path}")
+        return None
+
+    # Convert per_seed_metrics to DataFrame, flattening rvc_details if needed
+    rows = []
+    for seed_data in data["per_seed_metrics"]:
+        # Create a flattened row (exclude nested rvc_details)
+        row = {k: v for k, v in seed_data.items() if k != "rvc_details"}
+        rows.append(row)
+
+    return pd.DataFrame(rows)
 
 
 def compute_statistics(df: pd.DataFrame, metrics: list[str]) -> pd.DataFrame:

@@ -1,15 +1,15 @@
 """
-Extract tool usage statistics from Weave evaluation traces.
+Extract complete per-design data from Weave evaluation traces.
 
-This script fetches traces from Weave and extracts tool call information
-for analysis and visualization.
+This script fetches evaluation results from Weave and extracts ALL scorer outputs
+including metrics, design arrays, optimization histories, and metadata.
+Saves to JSON format for offline global metrics computation.
 """
 
 import argparse
 import contextlib
-import csv
+import json
 import sys
-from collections import Counter
 from pathlib import Path
 
 import weave
@@ -87,54 +87,123 @@ def _extract_metadata_from_example(
     return example_id, seed, problem_id
 
 
-def _extract_tokens_and_latency(
-    summary: dict,
-) -> tuple[int | None, int | None, int | None, float | None]:
-    """Extract token usage and latency from call summary.
+def _extract_model_id_from_score_call(score_call, score_output: dict) -> str:
+    """Extract model_id from score call output or child predict calls."""
+    model_id = score_output.get("model", "")
 
-    Returns:
-        Tuple of (total_tokens, prompt_tokens, completion_tokens, latency_ms)
-    """
-    usage_dict = summary.get("usage", {})
+    # Try to get model from child predict call if not in score output
+    if not model_id:
+        pred_calls = list(score_call.children())
+        for pred_call in pred_calls:
+            if hasattr(pred_call, "output") and isinstance(pred_call.output, dict):
+                model_id = pred_call.output.get("model", "")
+                if model_id:
+                    break
 
-    total_tokens = None
-    prompt_tokens = None
-    completion_tokens = None
-
-    # Usage is nested by model name, get first available
-    if usage_dict:
-        for usage_data in usage_dict.values():
-            if isinstance(usage_data, dict):
-                total_tokens = usage_data.get("total_tokens")
-                prompt_tokens = usage_data.get("prompt_tokens")
-                completion_tokens = usage_data.get("completion_tokens")
-                break
-
-    # Extract latency from summary['weave']['latency_ms']
-    latency_ms = None
-    weave_info = summary.get("weave", {})
-    if isinstance(weave_info, dict):
-        latency_ms = weave_info.get("latency_ms")
-
-    return total_tokens, prompt_tokens, completion_tokens, latency_ms
+    return model_id
 
 
-def _process_score_and_predict_call(
+def _extract_metrics_from_scorers(
+    output_quality: dict,
+    task_completion: dict,
+    tool_use: dict,
+) -> dict:
+    """Extract all metrics from scorer outputs."""
+    result = {}
+
+    # Extract category scores (hierarchical score components)
+    if isinstance(output_quality, dict):
+        result.update(
+            {
+                "design_found": output_quality.get("design_found", False),
+                "overall_score": output_quality.get("score"),
+                "design_quality_score": output_quality.get("design_quality_score"),
+                "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
+                "task_completion_score": output_quality.get("task_completion_score"),
+                "printability_score": output_quality.get("printability_score"),
+                # Design metrics
+                "iou": output_quality.get("iou"),
+                "pixel_accuracy": output_quality.get("pixel_accuracy"),
+                "mse": output_quality.get("mse"),
+                "constraint_score": output_quality.get("constraint_score"),
+                "objective_score": output_quality.get("objective_score"),
+                "constraint_violations": output_quality.get("constraint_violations"),
+                # Objective metrics (compliance, etc.)
+                "agent_compliance": output_quality.get("agent_compliance"),
+                "target_compliance": output_quality.get("target_compliance"),
+                "compliance_relative_error": output_quality.get(
+                    "compliance_relative_error"
+                ),
+                "compliance_score": output_quality.get("compliance_score"),
+                # Printability metrics (use actual field names from scorer)
+                "connected_design": output_quality.get("connected_design"),
+                "num_components": output_quality.get("num_components"),
+                "is_watertight": output_quality.get("is_watertight"),
+                "volume_mm3": output_quality.get("volume_mm3"),
+                "surface_area_mm2": output_quality.get("surface_area_mm2"),
+                "watertight_check_available": output_quality.get(
+                    "watertight_check_available"
+                ),
+                "mesh_validation_time": output_quality.get("mesh_validation_time"),
+                "comparison_image_generated": output_quality.get(
+                    "comparison_image_generated"
+                ),
+            }
+        )
+
+    # Extract tool efficiency metrics and detailed tool usage
+    if isinstance(tool_use, dict):
+        # Always extract these standard metrics
+        result.update(
+            {
+                "efficiency_ratio": tool_use.get("efficiency_ratio"),
+                "sequence_score": tool_use.get("sequence_score"),
+                "total_tools": tool_use.get("actual_call_count"),  # Map to total_tools
+                "unique_tools": len(
+                    tool_use.get("tool_call_breakdown", {})
+                ),  # Count unique tools
+            }
+        )
+
+        # Extract individual tool call counts from tool_call_breakdown
+        # This preserves the actual number of times each tool was called
+        tool_breakdown = tool_use.get("tool_call_breakdown", {})
+        if isinstance(tool_breakdown, dict):
+            for tool_name, count in tool_breakdown.items():
+                # Prefix with "tool_" and store the actual count
+                # Plots can convert to binary (>0) if they need usage rates
+                result[f"tool_{tool_name}"] = count
+
+        # Also extract any individual tool usage fields (tool_*)
+        result.update(
+            {
+                key: value
+                for key, value in tool_use.items()
+                if key.startswith("tool_") and isinstance(value, (int, float, bool))
+            }
+        )
+
+    # Extract task completion metrics
+    if isinstance(task_completion, dict):
+        result["success_rate"] = task_completion.get("success_rate")
+
+    return result
+
+
+def _process_score_call_for_complete_data(
     score_call,
-    pred_call,
     model_filter: str | None,
     seen_models: set,
 ) -> dict | None:
-    """Process a predict_and_score call and its child predict call.
+    """Process a predict_and_score call and extract ALL data for offline processing.
 
     Args:
-        score_call: The predict_and_score call (has example metadata)
-        pred_call: The child predict call (has tool_calls_info)
+        score_call: The predict_and_score call (has example metadata and scorer outputs)
         model_filter: Optional model filter
         seen_models: Set to track seen models
 
     Returns:
-        Tool usage dict if successful, None otherwise
+        Complete design data dict if successful, None otherwise
     """
     try:
         # Extract example data from score_call inputs
@@ -142,153 +211,94 @@ def _process_score_and_predict_call(
         example = score_inputs.get("example", {})
         example_id, seed, problem_id = _extract_metadata_from_example(example)
 
-        # Extract tool usage from predict call output
-        pred_output = pred_call.output
-        if not pred_output or not isinstance(pred_output, dict):
+        # Extract scorer outputs from score_call output
+        score_output = score_call.output
+        if not score_output or not isinstance(score_output, dict):
             return None
 
-        tool_calls_info = pred_output.get("tool_calls_info", [])
-        if not tool_calls_info:
+        # Scorer outputs are nested under "scores" key
+        scores = score_output.get("scores", {})
+
+        # Validate scores exist and have at least one scorer output
+        if not scores or not isinstance(scores, dict):
             return None
 
-        model_id = pred_output.get("model", "")
-        seen_models.add(model_id)
+        output_quality = scores.get("output_quality", {})
+        task_completion = scores.get("task_completion", {})
+        tool_use = scores.get("tool_use", {})
 
+        if not output_quality and not task_completion and not tool_use:
+            return None
+
+        # Extract model_id and apply filter
+        model_id = _extract_model_id_from_score_call(score_call, score_output)
+        if model_id:
+            seen_models.add(model_id)
         if model_filter and model_id != model_filter:
             return None
 
-        # Extract token usage and latency from predict call summary
-        summary = pred_call.summary or {}
-        total_tokens, prompt_tokens, completion_tokens, latency_ms = (
-            _extract_tokens_and_latency(summary)
-        )
-
-        tool_names = [
-            tc.get("name")
-            for tc in tool_calls_info
-            if isinstance(tc, dict) and tc.get("name")
-        ]
-        if not tool_names:
-            return None
-
-        tool_counter = Counter(tool_names)
-
+        # Build result dict with metadata
         result = {
-            "call_id": score_call.id,
             "example_id": example_id,
             "seed": seed,
             "problem_id": problem_id,
             "model_id": model_id,
-            "total_tools": len(tool_names),
-            "unique_tools": len(tool_counter),
-            "tool_counts": dict(tool_counter),
-            "total_tokens": total_tokens,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "latency_ms": latency_ms,
         }
 
-        for tool_name, count in tool_counter.items():
-            result[f"tool_{tool_name}"] = count
+        # Extract root-level metrics
+        result["response_length"] = score_output.get("response_length")
+        result["model_latency"] = score_output.get("model_latency")
 
-    except Exception:
-        return None
-    else:
-        return result
+        # Extract all metrics from scorers
+        metrics = _extract_metrics_from_scorers(
+            output_quality, task_completion, tool_use
+        )
+        result.update(metrics)
 
+        # Extract complete data from output_quality scorer for global metrics
+        if isinstance(output_quality, dict):
+            # Design array (as list for JSON serialization)
+            design = output_quality.get("design")
+            result["design"] = design if design is not None else None
 
-def _process_prediction_call(
-    pred_call,
-    model_filter: str | None,
-    seen_models: set,
-) -> dict | None:
-    """Process a single prediction call and extract tool usage.
+            # Design found flag
+            result["design_found"] = output_quality.get("design_found", False)
 
-    Returns:
-        Tool usage dict if successful, None otherwise
-    """
-    try:
-        output = pred_call.output
-        if not output or not isinstance(output, dict):
-            return None
+            # Optimization history
+            opt_history = output_quality.get("optimization_history")
+            result["optimization_history"] = opt_history or []  # type: ignore[assignment]
 
-        tool_calls_info = output.get("tool_calls_info", [])
-        if not tool_calls_info:
-            return None
+            # Conditions (constraints, loads, etc.)
+            conditions = output_quality.get("conditions")
+            result["conditions"] = conditions or {}  # type: ignore[assignment]
 
-        inputs = pred_call.inputs or {}
+            # Problem type
+            result["problem_type"] = output_quality.get("problem_type")
 
-        # Extract example_id and seed from inputs['self'] (evaluation example)
-        example_id = None
-        seed = None
-        if "self" in inputs:
-            self_obj = inputs["self"]
-            # Try different possible structures
-            if isinstance(self_obj, dict):
-                example_id = self_obj.get("example_id")
-                seed = self_obj.get("seed")
-            elif hasattr(self_obj, "example_id"):
-                example_id = getattr(self_obj, "example_id", None)
-                seed = getattr(self_obj, "seed", None)
-            # Also check if it's a Weave object with _val
-            elif hasattr(self_obj, "_val"):
-                val = self_obj._val
-                if isinstance(val, dict):
-                    example_id = val.get("example_id")
-                    seed = val.get("seed")
+            # Ground truth design (if available)
+            gt_design = output_quality.get("gt_design")
+            result["gt_design"] = gt_design if gt_design is not None else None
 
-        # Extract token usage and latency from summary
-        summary = pred_call.summary or {}
-        total_tokens, prompt_tokens, completion_tokens, latency_ms = (
-            _extract_tokens_and_latency(summary)
+        # Skip if no actual data was extracted
+        has_data = any(
+            v is not None
+            for k, v in result.items()
+            if k not in ["example_id", "seed", "problem_id", "model_id"]
         )
 
-        model_id = output.get("model", "")
-        seen_models.add(model_id)
-
-        if model_filter and model_id != model_filter:
-            return None
-
-        tool_names = [
-            tc.get("name")
-            for tc in tool_calls_info
-            if isinstance(tc, dict) and tc.get("name")
-        ]
-        if not tool_names:
-            return None
-
-        tool_counter = Counter(tool_names)
-
-        result = {
-            "call_id": pred_call.id,
-            "example_id": example_id,
-            "seed": seed,
-            "model_id": model_id,
-            "total_tools": len(tool_names),
-            "unique_tools": len(tool_counter),
-            "tool_counts": dict(tool_counter),
-            "total_tokens": total_tokens,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "latency_ms": latency_ms,
-        }
-
-        for tool_name, count in tool_counter.items():
-            result[f"tool_{tool_name}"] = count
-
     except Exception:
         return None
     else:
-        return result
+        return result if has_data else None
 
 
-def extract_tool_usage_from_evaluation(
+def extract_complete_design_data_from_evaluation(
     project: str,
     model_filter: str | None = None,
     limit: int = 100,
     eval_id: str | None = None,
 ) -> list[dict]:
-    """Extract tool usage from Weave evaluations.
+    """Extract complete per-design data from Weave evaluations.
 
     Args:
         project: Weave project name (e.g., "entity/project")
@@ -297,11 +307,11 @@ def extract_tool_usage_from_evaluation(
         eval_id: Optional evaluation ID to fetch predict_and_score calls from
 
     Returns:
-        List of dictionaries with tool usage per example
+        List of dictionaries with complete design data (metrics, arrays, histories) per example
     """
     client = weave.init(project)
 
-    # Get predict_and_score calls (individual examples) instead of predict calls
+    # Get predict_and_score calls (individual examples) with scorer outputs
     print(f"Fetching up to {limit} predict_and_score calls from Weave...")
 
     filter_dict = {
@@ -329,28 +339,20 @@ def extract_tool_usage_from_evaluation(
     results: list[dict] = []
     seen_models: set[str] = set()
 
-    # Now for each predict_and_score call, get its child predict call
+    # Process each predict_and_score call to extract metrics
     for idx, score_call in enumerate(score_calls_list, 1):
         if idx % 50 == 0:
             print(
-                f"  Checked {idx}/{len(score_calls_list)} calls, found {len(results)} matching..."
+                f"  Processed {idx}/{len(score_calls_list)} calls, extracted {len(results)} designs..."
             )
 
-        # Get the child predict call
-        predict_calls = client.get_calls(
-            filter={"parent_ids": [score_call.id]},
-            limit=10,  # Should only be 1-2 child calls
+        result = _process_score_call_for_complete_data(
+            score_call, model_filter, seen_models
         )
+        if result:
+            results.append(result)
 
-        for pred_call in predict_calls:
-            result = _process_score_and_predict_call(
-                score_call, pred_call, model_filter, seen_models
-            )
-            if result:
-                results.append(result)
-                break  # Only need one predict call per score call
-
-    print(f"✅ Extracted tool usage from {len(results)} calls")
+    print(f"✅ Extracted complete data from {len(results)} designs")
     if len(results) == 0 and seen_models:
         print(f"   Models found in data: {', '.join(sorted(seen_models))}")
         if model_filter:
@@ -358,105 +360,109 @@ def extract_tool_usage_from_evaluation(
     return results
 
 
-def save_tool_usage_csv(
-    tool_usage_data: list[dict],
+def save_complete_design_data_json(
+    design_data: list[dict],
     output_path: str,
-    model_id: str,
-    problem_id: str,
-    seed: int | None = None,
 ) -> None:
-    """Save tool usage statistics to CSV."""
-    rows = []
-    for data in tool_usage_data:
-        row = {
-            "example_id": data.get("example_id"),
-            "model_id": data.get("model_id", model_id),
-            "problem_id": problem_id,
-            "seed": data.get("seed", seed),  # Use extracted seed, fallback to arg
-            "total_tools": data["total_tools"],
-            "unique_tools": data["unique_tools"],
-            "total_tokens": data.get("total_tokens"),
-            "prompt_tokens": data.get("prompt_tokens"),
-            "completion_tokens": data.get("completion_tokens"),
-            "latency_ms": data.get("latency_ms"),
-            **{
-                key: value
-                for key, value in data.items()
-                if key.startswith("tool_") and key not in ["tool_list", "tool_counts"]
-            },
-        }
+    """Save complete per-design data to JSON file.
 
-        rows.append(row)
-
-    if not rows:
+    Args:
+        design_data: List of design data dictionaries
+        output_path: Path to output JSON file
+    """
+    if not design_data:
         print("No data to save")
         return
-
-    all_columns: set[str] = set()
-    for row in rows:
-        all_columns.update(row.keys())
-
-    fixed_cols = [
-        "seed",
-        "example_id",
-        "model_id",
-        "problem_id",
-        "total_tools",
-        "unique_tools",
-        "total_tokens",
-        "prompt_tokens",
-        "completion_tokens",
-        "latency_ms",
-    ]
-    tool_cols = sorted([col for col in all_columns if col.startswith("tool_")])
-    columns = fixed_cols + tool_cols
-
-    # Fill missing tool columns with 0
-    for row in rows:
-        for tool_col in tool_cols:
-            if tool_col not in row:
-                row[tool_col] = 0
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_file.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Save as JSON with indentation for readability
+    with output_file.open("w") as f:
+        json.dump(design_data, f, indent=2)
 
     print(f"✅ Saved to: {output_path}")
-    print(f"   Examples: {len(rows)}, Unique tools: {len(tool_cols)}")
+    print(f"   Designs: {len(design_data)}")
+
+    # Print data summary
+    total_size_mb = output_file.stat().st_size / (1024 * 1024)
+    print(f"   File size: {total_size_mb:.2f} MB")
+
+    # Count designs with optimization histories
+    with_histories = sum(
+        1
+        for d in design_data
+        if d.get("optimization_history") and len(d.get("optimization_history", [])) > 0
+    )
+    print(f"   With optimization histories: {with_histories}/{len(design_data)}")
 
 
-def print_summary(tool_usage_data: list[dict]) -> None:
+def print_summary(metrics_data: list[dict]) -> None:
     """Print summary statistics."""
-    if not tool_usage_data:
+    if not metrics_data:
         print("No data")
         return
 
-    total_calls = len(tool_usage_data)
-    total_tools = sum(d["total_tools"] for d in tool_usage_data)
-    avg_tools = total_tools / total_calls if total_calls > 0 else 0
+    total_designs = len(metrics_data)
 
-    all_tools: Counter[str] = Counter()
-    for data in tool_usage_data:
-        all_tools.update(data["tool_counts"])
+    # Calculate average scores (filter and cast to float for type safety)
+    overall_scores: list[float] = [
+        float(score)
+        for d in metrics_data
+        if (score := d.get("overall_score")) is not None
+    ]
+    design_quality_scores: list[float] = [
+        float(score)
+        for d in metrics_data
+        if (score := d.get("design_quality_score")) is not None
+    ]
+    tool_efficiency_scores: list[float] = [
+        float(score)
+        for d in metrics_data
+        if (score := d.get("tool_efficiency_score")) is not None
+    ]
+    task_completion_scores: list[float] = [
+        float(score)
+        for d in metrics_data
+        if (score := d.get("task_completion_score")) is not None
+    ]
+    printability_scores: list[float] = [
+        float(score)
+        for d in metrics_data
+        if (score := d.get("printability_score")) is not None
+    ]
 
     print("\n" + "=" * 60)
-    print(
-        f"Examples: {total_calls} | Total calls: {total_tools} | Avg: {avg_tools:.1f}"
-    )
-    print("\nTop tools:")
-    for tool_name, count in all_tools.most_common(10):
-        pct = (count / total_tools) * 100 if total_tools > 0 else 0
-        print(f"  {tool_name:30s}: {count:4d} ({pct:5.1f}%)")
+    print(f"Designs: {total_designs}")
+    print("\nAverage Scores:")
+    if overall_scores:
+        print(
+            f"  Overall Score:         {sum(overall_scores) / len(overall_scores):.3f}"
+        )
+    if design_quality_scores:
+        print(
+            f"  Design Quality:        {sum(design_quality_scores) / len(design_quality_scores):.3f}"
+        )
+    if tool_efficiency_scores:
+        print(
+            f"  Tool Efficiency:       {sum(tool_efficiency_scores) / len(tool_efficiency_scores):.3f}"
+        )
+    if task_completion_scores:
+        print(
+            f"  Task Completion:       {sum(task_completion_scores) / len(task_completion_scores):.3f}"
+        )
+    if printability_scores:
+        print(
+            f"  Printability:          {sum(printability_scores) / len(printability_scores):.3f}"
+        )
     print("=" * 60)
 
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Extract tool usage from Weave")
+    parser = argparse.ArgumentParser(
+        description="Extract complete per-design data (metrics + arrays + histories) from Weave"
+    )
     parser.add_argument(
         "--project",
         default=None,
@@ -468,7 +474,6 @@ def main():
         help="Model ID (openai:gpt-5.1). Defaults to config.llm_model",
     )
     parser.add_argument("--problem", required=True, help="Problem (beams2d)")
-    parser.add_argument("--seed", type=int, help="Seed")
     parser.add_argument(
         "--prompt-style",
         type=str,
@@ -500,20 +505,24 @@ def main():
 
     print(f"Project: {project} | Model: {model} | Problem: {args.problem}")
 
-    data = extract_tool_usage_from_evaluation(project, model, args.limit, args.eval_id)
+    data = extract_complete_design_data_from_evaluation(
+        project, model, args.limit, args.eval_id
+    )
 
     if not data:
         print("\n💡 Tip: Try increasing --limit if this is an older model.")
         print("   Example: --limit 500")
+        return
 
     print_summary(data)
 
+    # Default output path for complete design data (JSON format)
     output_path = (
         args.output
-        or f"benchmarks/evaluations/results/models/{model.replace('/', '_').replace(':', '_')}/{args.problem}/{args.prompt_style}/{args.rag_status}/data.csv"
+        or f"benchmarks/evaluations/results/models/{model.replace('/', '_').replace(':', '_')}/{args.problem}/{args.prompt_style}/{args.rag_status}/design_data.json"
     )
 
-    save_tool_usage_csv(data, output_path, model, args.problem, args.seed)
+    save_complete_design_data_json(data, output_path)
 
 
 if __name__ == "__main__":

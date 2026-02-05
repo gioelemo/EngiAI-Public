@@ -82,5 +82,5 @@ def process_canvas_export(base64_data: str, custom_message: str | None = None) -
     )
 
     # Use custom message if provided, otherwise use default
-    message_text = custom_message if custom_message else "Here's my whiteboard drawing:"
+    message_text = custom_message or "Here's my whiteboard drawing:"
     return {"text": message_text, "files": [mock_file]}

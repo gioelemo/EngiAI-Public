@@ -5,6 +5,7 @@ This module provides functions to convert 2D beam topology designs
 into 3D STL files suitable for 3D printing or CAD software.
 """
 
+import contextlib
 import time
 from pathlib import Path
 from typing import Any
@@ -273,16 +274,20 @@ def _check_mesh_watertightness(
                 # If repair fails, continue with original mesh
                 pass
 
-        # Compute volume (only meaningful for watertight meshes)
-        # Volume is in cubic units based on coordinate space
-        volume = trimesh_mesh.volume if is_watertight else None
+        # Get mesh complexity metrics (always available)
+        num_vertices = len(trimesh_mesh.vertices)
+        num_faces = len(trimesh_mesh.faces)
 
         # Compute surface area
         surface_area = trimesh_mesh.area
 
-        # Get mesh complexity metrics
-        num_vertices = len(trimesh_mesh.vertices)
-        num_faces = len(trimesh_mesh.faces)
+        # Compute volume (only meaningful for watertight meshes)
+        # Volume calculation can raise exceptions even for valid meshes, so use contextlib.suppress
+        volume = None
+        if is_watertight:
+            # Volume calculation failed, but mesh is still valid
+            with contextlib.suppress(Exception):
+                volume = trimesh_mesh.volume
 
         validation_time = time.time() - start_time
 

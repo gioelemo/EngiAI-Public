@@ -23,12 +23,10 @@ warnings.filterwarnings(
 
 import argparse  # noqa: E402
 import asyncio  # noqa: E402
-import csv  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
 import sys  # noqa: E402
-import time  # noqa: E402
 import uuid  # noqa: E402
 from pathlib import Path  # noqa: E402
 from typing import Any, TypedDict  # noqa: E402
@@ -63,9 +61,7 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
 # Import output quality scorers
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
-    compute_global_metrics,
-    score_output_quality_engibench,
-    score_output_quality_visual,
+    score_output_quality,
     score_task_completion,
     score_tool_use,
 )
@@ -84,9 +80,12 @@ class ProblemConfig(TypedDict):
 
 
 # Problem-specific configurations
-# NOTE: The --scorers flag controls which metrics are computed:
-# - "generic" or "all": Per-design metrics (IoU, pixel accuracy, constraints, objectives) + global metrics (MMD, DPP, RVC, IOG, COG, FOG)
-# - "engibench": Lightweight design extraction only (faster, minimal metrics in evaluation table)
+# NOTE: The --scorers flag controls which metrics are computed during evaluation:
+# - "output_quality": Per-design metrics (IoU, pixel accuracy, constraints, objectives)
+# - "all": output_quality + task_completion + tool_use (comprehensive per-design metrics)
+# - "task_completion": Check if render_design tool was called successfully
+# - "tool_use": Tool efficiency and sequence correctness
+# Global metrics (MMD, DPP, RVC, IOG, COG, FOG) are computed offline by compute_global_metrics.py
 # Build PROBLEM_CONFIGS from the central problem registry to avoid duplication
 PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
     name: {
@@ -94,7 +93,7 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
         "prompt_file": problem.prompt_file_template.replace(
             "{problem}", name
         ),  # Replace placeholder
-        "scorers": [score_output_quality_visual],  # All problems use generic scorer
+        "scorers": [score_output_quality],  # All problems use output quality scorer
     }
     for name, problem in PROBLEMS.items()
 }
@@ -301,14 +300,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--scorers",
         type=str,
-        default="generic",
-        choices=["generic", "engibench", "all", "task_completion", "tool_use"],
+        default="all",
+        choices=["output_quality", "task_completion", "tool_use", "all"],
         help=(
             "Metrics to compute: "
-            "'generic' or 'all' (detailed per-design metrics + global metrics: MMD, DPP, RVC, optimality gaps), "
-            "'engibench' (lightweight design extraction only, use for faster evaluations), "
+            "'output_quality' (per-design metrics only), "
             "'task_completion' (check if render_design tool was called successfully), "
             "'tool_use' (compute tool use efficiency and sequence correctness)"
+            "'all' (output_quality + task_completion + tool_use for comprehensive metrics), "
         ),
     )
     parser.add_argument(
@@ -323,12 +322,6 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         default=None,
         help="Random seed for optimization (e.g., 1, 2, 3). Run multiple times with different seeds to collect statistics.",
-    )
-    parser.add_argument(
-        "--output-csv",
-        type=str,
-        default=None,
-        help="Output CSV file to save metrics (will append if file exists). Default: benchmarks/evaluations/results/models/{model}/{problem}/output_quality_global_metrics.csv",
     )
     parser.add_argument(
         "--prompt-style",
@@ -415,181 +408,8 @@ def get_or_create_dataset(
     return dataset
 
 
-def save_per_design_metrics(  # noqa: PLR0912, PLR0915
-    evaluation: Any,
-    csv_path: str,
-    seed: int | None,
-    problem_id: str,
-    model_id: str,
-) -> None:
-    """Save per-design metrics to CSV file.
-
-    Args:
-        evaluation: Weave Evaluation object (after evaluate() has been called)
-        csv_path: Path to save CSV file
-        seed: Random seed used (if any)
-        problem_id: Problem type
-        model_id: Model name
-    """
-    try:
-        # Use Weave's get_scores() API to access scorer outputs
-        # Retry with delay because Weave backend may not have finished processing results
-        scores = None
-        max_retries = 5
-        retry_delay = 3  # seconds
-        for attempt in range(max_retries):
-            try:
-                scores = evaluation.get_scores()
-                if scores is not None:
-                    break
-            except TypeError as retry_err:
-                if attempt < max_retries - 1:
-                    logger.warning(
-                        "Weave scores not ready yet (attempt %d/%d): %s. Retrying in %ds...",
-                        attempt + 1,
-                        max_retries,
-                        retry_err,
-                        retry_delay,
-                    )
-                    time.sleep(retry_delay)
-                else:
-                    raise
-
-        if not scores:
-            print("⚠️  No scorer results available for per-design metrics")
-            return
-
-        # Get the latest trace (most recent evaluation)
-        latest_trace_id = list(scores.keys())[-1]
-        latest_trace_scores = scores[latest_trace_id]
-
-        # Try to get results from score_output_quality_visual first (has detailed metrics)
-        # Fall back to score_output_quality_engibench if needed
-        # Match both old naming (with prefixes) and new naming (without prefixes)
-        scorer_outputs = []
-        for key in latest_trace_scores:
-            if key.endswith("_output_quality_visual") or key == "output_quality_visual":
-                scorer_outputs = latest_trace_scores[key]
-                break
-
-        if not scorer_outputs:
-            for key in latest_trace_scores:
-                if key.endswith("_engibench") or key == "engibench":
-                    scorer_outputs = latest_trace_scores[key]
-                    break
-
-        if not scorer_outputs:
-            print("⚠️  No scorer outputs found for per-design metrics")
-            return
-
-        # Get dataset rows for metadata (example IDs)
-        # Check that dataset and rows are not None before converting to list
-        dataset_rows = []
-        if (
-            hasattr(evaluation, "dataset")
-            and evaluation.dataset is not None
-            and hasattr(evaluation.dataset, "rows")
-            and evaluation.dataset.rows is not None
-        ):
-            dataset_rows = list(evaluation.dataset.rows)
-
-    except Exception as e:
-        print(f"⚠️  Error accessing evaluation results: {e}")
-        return
-
-    # Extract per-design metrics from scorer outputs
-    design_metrics_list = []
-    for i, scorer_result in enumerate(scorer_outputs):
-        if not isinstance(scorer_result, dict):
-            continue
-
-        # Get example_id from scorer result or dataset row
-        example_id = scorer_result.get("example_id", i)
-        if example_id == i and i < len(dataset_rows):
-            # Try to get from dataset metadata
-            metadata = dataset_rows[i].get("metadata", {})
-            example_id = metadata.get("example_id", i)
-
-        # Build metrics row
-        metrics_row = {
-            "seed": seed if seed is not None else 0,
-            "example_id": example_id,
-            "problem_id": problem_id,
-            "model_id": model_id,
-            # Main metrics
-            "overall_score": scorer_result.get("score", 0.0),
-            "iou": scorer_result.get("iou", 0.0),
-            "pixel_accuracy": scorer_result.get("pixel_accuracy", 0.0),
-            "mse": scorer_result.get("mse", 0.0),
-            "constraint_score": scorer_result.get("constraint_score", 0.0),
-            "objective_score": scorer_result.get("objective_score", 0.0),
-        }
-
-        # Add any additional constraint/objective specific metrics
-        for key, value in scorer_result.items():
-            if key not in metrics_row and isinstance(value, (int, float)):
-                metrics_row[key] = value
-
-        design_metrics_list.append(metrics_row)
-
-    if not design_metrics_list:
-        print("⚠️  No design metrics extracted")
-        return
-
-    # Check if file exists to determine if we need header
-    csv_file = Path(csv_path)
-    csv_file.parent.mkdir(parents=True, exist_ok=True)
-    file_exists = csv_file.exists()
-
-    # Get all possible fieldnames from all rows (in case some have extra fields)
-    all_keys: set[str] = set()
-    for row in design_metrics_list:
-        all_keys.update(row.keys())
-
-    # Ensure standard fields come first
-    standard_fields = [
-        "seed",
-        "example_id",
-        "problem_id",
-        "model_id",
-        "overall_score",
-        "iou",
-        "pixel_accuracy",
-        "mse",
-        "constraint_score",
-        "objective_score",
-    ]
-
-    # If file exists, read existing header and merge with new keys
-    if file_exists:
-        with csv_file.open("r", newline="") as f:
-            reader = csv.reader(f)
-            existing_fieldnames = next(reader, [])
-        # Use existing order and add any new fields at the end
-        new_keys = [k for k in all_keys if k not in existing_fieldnames]
-        fieldnames = existing_fieldnames + sorted(new_keys)
-    else:
-        # New file: sort and put standard fields first
-        fieldnames = sorted(all_keys)
-        fieldnames = [f for f in standard_fields if f in fieldnames] + [
-            f for f in fieldnames if f not in standard_fields
-        ]
-
-    # Append to CSV
-    with csv_file.open("a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if not file_exists:
-            writer.writeheader()
-        writer.writerows(design_metrics_list)
-
-    print(f"📊 Per-design metrics saved to: {csv_path}")
-    print(f"   ({len(design_metrics_list)} designs)")
-
-
 def create_contextual_scorer(
     scorer_func: Any,
-    model_name: str,  # noqa: ARG001 - Kept for signature compatibility
-    problem_type: str,  # noqa: ARG001 - Kept for signature compatibility
     scorer_type: str,
 ) -> Any:
     """Create a scorer wrapper with evaluation context in its trace name.
@@ -601,7 +421,7 @@ def create_contextual_scorer(
         scorer_func: Original scorer function to wrap
         model_name: Model name (e.g., "gpt-4o", "gemini-3-flash-preview") [unused, kept for signature compatibility]
         problem_type: Problem type (e.g., "beams2d", "thermoelastic2d") [unused, kept for signature compatibility]
-        scorer_type: Scorer identifier (e.g., "output_quality_visual", "engibench")
+        scorer_type: Scorer identifier (e.g., "output_quality", "task_completion")
 
     Returns:
         Wrapped scorer function with contextual trace name
@@ -676,22 +496,10 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     base_scorers = []
     scorer_types = []
 
-    if args.scorers == "generic":
-        # Only per-design metrics from generic scorer
-        base_scorers = [score_output_quality_visual]
-        scorer_types = ["output_quality_visual"]
-    elif args.scorers == "engibench":
-        # Lightweight scorer for design extraction + global metrics computed after
-        base_scorers = [score_output_quality_engibench]
-        scorer_types = ["engibench"]
-    elif args.scorers == "all":
-        # Use output_quality_visual + task_completion + tool_use for comprehensive metrics
-        base_scorers = [
-            score_output_quality_visual,
-            score_task_completion,
-            score_tool_use,
-        ]
-        scorer_types = ["output_quality_visual", "task_completion", "tool_use"]
+    if args.scorers == "output_quality":
+        # Only per-design metrics from output quality scorer
+        base_scorers = [score_output_quality]
+        scorer_types = ["output_quality"]
     elif args.scorers == "task_completion":
         # Task completion scorer: checks if render_design was called successfully
         base_scorers = [score_task_completion]
@@ -700,14 +508,27 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         # Tool use scorer: compute efficiency ratio and sequence correctness
         base_scorers = [score_tool_use]
         scorer_types = ["tool_use"]
+    elif args.scorers == "all":
+        # Use output_quality + task_completion + tool_use for comprehensive metrics
+        base_scorers = [
+            score_output_quality,
+            score_task_completion,
+            score_tool_use,
+        ]
+        scorer_types = ["output_quality", "task_completion", "tool_use"]
     else:
-        base_scorers = [score_output_quality_visual]
-        scorer_types = ["output_quality_visual"]
+        # Default: run all scorers for comprehensive evaluation
+        base_scorers = [
+            score_output_quality,
+            score_task_completion,
+            score_tool_use,
+        ]
+        scorer_types = ["output_quality", "task_completion", "tool_use"]
 
     # Wrap scorers with evaluation context for better trace naming in Weave UI
     scorers = [
-        create_contextual_scorer(scorer_func, model_name, args.problem, scorer_type)
-        for scorer_func, scorer_type in zip(base_scorers, scorer_types, strict=False)
+        create_contextual_scorer(scorer_func, scorer_type)
+        for scorer_func, scorer_type in zip(base_scorers, scorer_types, strict=True)
     ]
 
     print("=" * 60)
@@ -737,17 +558,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     if args.seed is not None:
         expected_eval_run_name += f"_seed_{args.seed}"
 
-    # Global metrics trace name includes model and problem for organization
-    expected_global_metrics_name = (
-        f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_global_metrics"
-    )
-    if args.seed is not None:
-        expected_global_metrics_name += f"_seed_{args.seed}"
-
     print("Expected Weave trace names:")
     print(f"  Evaluation: {expected_eval_run_name}")
     print(f"  Scorers: {expected_scorer_names}")
-    print(f"  Global Metrics: {expected_global_metrics_name}")
     print()
 
     # Initialize Weave
@@ -834,8 +647,6 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Print summary
     print_evaluation_summary(results, scorers)
 
-    print()
-
     await asyncio.sleep(30)  # Wait for Weave to sync evaluation results
 
     # Save per-design metrics to CSV
@@ -845,14 +656,6 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
     )
     results_dir.mkdir(parents=True, exist_ok=True)
-    design_metrics_csv = str(results_dir / "output_quality_design_metrics.csv")
-    save_per_design_metrics(
-        evaluation,  # Pass evaluation object instead of results
-        design_metrics_csv,
-        args.seed,
-        args.problem,
-        model_name,
-    )
 
     # Compute global metrics for all scorer types (all scorers now support design extraction)
     # Skip for task_completion and tool_use scorers which don't extract designs
@@ -886,148 +689,21 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     print()
     print("=" * 60)
-    print("COMPUTING GLOBAL METRICS")
+    print("EVALUATION COMPLETE")
     print("=" * 60)
     print()
-    print("Computing metrics across all generated designs...")
-
-    # Setup output directory for comparison images
-    model_safe = model_name.replace("/", "_").replace(":", "_")
-    rag_dir = _get_rag_dir(args.mmore_enabled)
-    if args.seed is not None:
-        comparison_dir = str(
-            RESULTS_BASE_DIR
-            / model_safe
-            / args.problem
-            / args.prompt_style
-            / rag_dir
-            / "comparisons"
-            / f"seed_{args.seed}"
-        )
-    else:
-        comparison_dir = str(
-            RESULTS_BASE_DIR
-            / model_safe
-            / args.problem
-            / args.prompt_style
-            / rag_dir
-            / "comparisons"
-        )
-
-    # Pass evaluation object to compute global metrics (not results!)
-    global_metrics = compute_global_metrics(
-        evaluation,
-        dataset_name=problem_config["dataset_name"],
-        sigma=10.0,
-        save_comparisons=True,
-        comparison_output_dir=comparison_dir,
-        model_name=model_name,
-        problem_type=args.problem,
-        seed=args.seed,
-    )
-
+    print("✅ Agent evaluation finished successfully!")
+    print("📊 View detailed per-example results in Weave dashboard")
     print()
-    print("Global Metrics:")
+    print("Next steps:")
+    print("  1. Run extract_data.py to export per-design metrics to JSON")
+    print("  2. Run compute_global_metrics.py to calculate global metrics per seed")
     print(
-        f"  • MMD (similarity to dataset): {global_metrics.get('mmd', 'N/A'):.6e}"
-        if global_metrics.get("mmd") is not None
-        else "  • MMD: Failed to compute"
+        f'  3. Run "python benchmarks/evaluations/plots/run_all.py --problem {args.problem}" '
+        "to create visualizations"
     )
-    print(
-        f"  • DPP Diversity: {global_metrics.get('dpp_diversity', 'N/A'):.6e}"
-        if global_metrics.get("dpp_diversity") is not None
-        else "  • DPP Diversity: Failed to compute"
-    )
-    print(
-        f"  • RVC (Ratio of Violated Constraints): {global_metrics.get('rvc', 'N/A'):.4f}"
-        if global_metrics.get("rvc") is not None
-        else "  • RVC: No constraints to check"
-    )
-
-    # Print detailed RVC information if available
-    rvc_details = global_metrics.get("rvc_details")
-    if rvc_details and rvc_details.get("n_violations", 0) > 0:
-        print(
-            f"    - Designs with violations: {rvc_details['n_violations']}/{rvc_details['n_total']}"
-        )
-        violation_summary = rvc_details.get("violation_summary", {})
-        if violation_summary:
-            print("    - Most common constraint violations:")
-            for constraint_name, count in sorted(
-                violation_summary.items(), key=lambda x: x[1], reverse=True
-            )[:3]:  # Show top 3
-                print(f"      • {constraint_name}: {count} design(s)")
-    print(
-        f"  • IOG (Initial Optimality Gap): {global_metrics.get('iog', 'N/A'):.6e}"
-        if global_metrics.get("iog") is not None
-        else "  • IOG: No optimization history found"
-    )
-    print(
-        f"  • COG (Cumulative Optimality Gap): {global_metrics.get('cog', 'N/A'):.6e}"
-        if global_metrics.get("cog") is not None
-        else "  • COG: No optimization history found"
-    )
-    print(
-        f"  • FOG (Final Optimality Gap): {global_metrics.get('fog', 'N/A'):.6e}"
-        if global_metrics.get("fog") is not None
-        else "  • FOG: No optimization history found"
-    )
-    print(f"  • Designs evaluated: {global_metrics.get('n_designs', 0)}")
-    print(f"  • Failed extractions: {global_metrics.get('n_failed', 0)}")
-
-    # Save metrics to CSV if requested
-    if args.output_csv or args.seed is not None:
-        # Determine output CSV path
-        if args.output_csv:
-            csv_path = args.output_csv
-        else:
-            model_safe = model_name.replace("/", "_").replace(":", "_")
-            rag_dir = _get_rag_dir(args.mmore_enabled)
-            results_dir = (
-                RESULTS_BASE_DIR
-                / model_safe
-                / args.problem
-                / args.prompt_style
-                / rag_dir
-            )
-            results_dir.mkdir(parents=True, exist_ok=True)
-            csv_path = str(results_dir / "output_quality_global_metrics.csv")
-
-        # Prepare metrics row
-        metrics_row = {
-            "iog": global_metrics.get("iog"),
-            "cog": global_metrics.get("cog"),
-            "fog": global_metrics.get("fog"),
-            "mmd": global_metrics.get("mmd"),
-            "dpp": global_metrics.get("dpp_diversity"),
-            "rvc": global_metrics.get("rvc"),
-            "seed": args.seed if args.seed is not None else 0,
-            "problem_id": args.problem,
-            "model_id": model_name,
-            "prompt_style": args.prompt_style,
-            "mmore_enabled": args.mmore_enabled,
-            "n_samples": args.samples,
-            "sigma": 10.0,  # Default sigma used in compute_global_metrics
-        }
-
-        # Check if file exists to determine if we need header
-        csv_file = Path(csv_path)
-        file_exists = csv_file.exists()
-
-        # Append to CSV
-        with csv_file.open("a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=metrics_row.keys())
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow(metrics_row)
-
-        print()
-        print(f"📊 Metrics saved to: {csv_path}")
-
     print()
     print("🎉 Evaluation complete!")
-    print("📊 View detailed results in Weave dashboard")
-    print(f"📁 Comparison images saved to: {comparison_dir}/")
 
 
 if __name__ == "__main__":

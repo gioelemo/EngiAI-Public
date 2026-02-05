@@ -331,7 +331,7 @@ def simulate_design(  # noqa: PLR0913
             set_unified_last_design(problem_type, design)
 
         # Run simulation
-        objectives = problem.simulate(design=design, config=config if config else None)
+        objectives = problem.simulate(design=design, config=config or None)
 
         # Format results based on problem type - use problem.objectives to dynamically extract
         problem_key = problem_type.lower()
@@ -552,7 +552,7 @@ def optimize_design(  # noqa: PLR0913
 
         # Run optimization with the starting design
         optimized_design, optimization_info = problem.optimize(
-            starting_point=design, config=config if config else None
+            starting_point=design, config=config or None
         )
 
         # Store optimized design as the new last_design
