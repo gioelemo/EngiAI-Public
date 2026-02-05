@@ -34,6 +34,7 @@ from plot_success_curves import plot_convergence_profile  # noqa: E402
 from plot_tool_usage import (  # noqa: E402
     plot_performance_distribution_by_tool_count,
     plot_tool_heatmap_by_model,
+    plot_tool_heatmap_with_std,
     plot_tool_usage_by_model,
     plot_tool_usage_delta_heatmap,
     plot_tool_usage_frequency,
@@ -154,6 +155,10 @@ def _generate_tool_usage_plots(
     # Tool usage heatmap
     print("\n[3/6] Tool usage heatmap...")
     plot_tool_heatmap_by_model(combined_tools, output_dir)
+
+    # Tool usage heatmap with std
+    print("\n[3.5/6] Tool usage heatmap with std...")
+    plot_tool_heatmap_with_std(combined_tools, output_dir)
 
     # Tool usage delta heatmap
     print("\n[4/6] Tool usage delta heatmap...")

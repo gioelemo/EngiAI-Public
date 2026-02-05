@@ -356,10 +356,12 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
         if col.startswith("tool_") and col not in exclude_metrics
     ]
 
-    # 1. Calculate usage rate (% of examples where tool was called at least once)
-    # Convert counts to binary (>0 means used) then take mean per model
+    # 1. Calculate average tool calls per sample
+    # Mean of actual counts (expressed as %, where 100% = 1 call per sample)
+    # fillna(0) ensures NaN/missing values are treated as 0 calls
     model_tool_usage = (
-        tool_data.groupby("model")[tool_columns].apply(lambda x: (x > 0).mean()).T * 100
+        tool_data.groupby("model")[tool_columns].apply(lambda x: x.fillna(0).mean()).T
+        * 100
     )
     # 2. ABBREVIATE NAMES HERE
     model_tool_usage.columns = [
@@ -387,8 +389,8 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
         annot=True,
         fmt=".1f",
         cmap="YlOrRd",
-        # Updated label to clarify this is the usage rate
-        cbar_kws={"label": r"Usage Rate (\%)", "shrink": 0.8},
+        # Label: average calls per sample, expressed as % (100% = 1 call)
+        cbar_kws={"label": r"Avg. Calls per Sample (\%)", "shrink": 0.8},
         linewidths=0.3,
         ax=ax,
         annot_kws={"size": font_sizes["annotation"]},
@@ -401,6 +403,89 @@ def plot_tool_heatmap_by_model(tool_data, output_dir=None):
     return save_figure(fig, "tool_usage_heatmap_pct.png", output_dir)
 
 
+def plot_tool_heatmap_with_std(tool_data, output_dir=None):
+    """Create heatmap showing tool usage mean and std by model."""
+    if tool_data is None or len(tool_data) == 0:
+        print("No tool usage data available")
+        return
+
+    setup_style()
+    font_sizes = PLOT_STYLE["font_sizes"]
+
+    # 1. Get tool columns (exclude metric fields like tool_efficiency_score)
+    # Only include fields from actual tool calls, not computed scores
+    exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
+    tool_columns = [
+        col
+        for col in tool_data.columns
+        if col.startswith("tool_") and col not in exclude_metrics
+    ]
+
+    # Calculate mean and std for each model-tool combination
+    # Use actual counts (expressed as %, where 100% = 1 call per sample)
+    # fillna(0) ensures NaN/missing values are treated as 0 calls
+    model_tool_mean = (
+        tool_data.groupby("model")[tool_columns].apply(lambda x: x.fillna(0).mean()).T
+        * 100
+    )
+    model_tool_std = (
+        tool_data.groupby("model")[tool_columns].apply(lambda x: x.fillna(0).std()).T
+        * 100
+    )
+
+    # ABBREVIATE NAMES
+    model_tool_mean.columns = [
+        c.replace("-instruct-2507-q8-0", "-Inst") for c in model_tool_mean.columns
+    ]
+    model_tool_std.columns = [
+        c.replace("-instruct-2507-q8-0", "-Inst") for c in model_tool_std.columns
+    ]
+
+    # Clean up tool names
+    model_tool_mean.index = [idx.replace("tool_", "") for idx in model_tool_mean.index]
+    model_tool_std.index = [idx.replace("tool_", "") for idx in model_tool_std.index]
+
+    # Filter out tools with zero usage and sort
+    model_tool_mean = model_tool_mean[(model_tool_mean.sum(axis=1) > 0)].sort_values(
+        by=model_tool_mean.columns.tolist(), ascending=False
+    )
+    model_tool_std = model_tool_std.loc[model_tool_mean.index]
+
+    # Create custom annotations with mean±std format
+    annot_labels = np.empty_like(model_tool_mean, dtype=object)
+    for i in range(model_tool_mean.shape[0]):
+        for j in range(model_tool_mean.shape[1]):
+            mean_val = model_tool_mean.iloc[i, j]
+            std_val = model_tool_std.iloc[i, j]
+            annot_labels[i, j] = f"{mean_val:.1f}\n±{std_val:.1f}"
+
+    n_tools = len(model_tool_mean)
+    fig_height = min(max(2.4, n_tools * 0.2), 5.0)
+    fig, ax = plt.subplots(
+        figsize=(PLOT_STYLE["figsize_single_col"][0], fig_height),
+        constrained_layout=True,
+    )
+
+    sns.heatmap(
+        model_tool_mean,
+        annot=annot_labels,
+        fmt="",  # Empty format since we're using custom strings
+        cmap="YlOrRd",
+        cbar_kws={"label": r"Avg. Calls per Sample (\%)", "shrink": 0.8},
+        linewidths=0.3,
+        ax=ax,
+        annot_kws={
+            "size": font_sizes["annotation"] - 1
+        },  # Slightly smaller for two lines
+    )
+
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+
+    return save_figure(fig, "tool_usage_heatmap_with_std.png", output_dir)
+
+
 def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
     """Plot how much each model deviates from the average tool usage."""
     # 1. Calculate usage rate per model (exclude metric fields)
@@ -410,19 +495,48 @@ def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
         for col in tool_data.columns
         if col.startswith("tool_") and col not in exclude_metrics
     ]
-    model_usage = tool_data.groupby("model")[tool_columns].mean() * 100
+
+    # Calculate mean and std for each model-tool combination
+    # First fill NaN with 0 to treat missing values as 0 calls
+    model_tool_stats = (
+        tool_data.groupby("model")[tool_columns]
+        .apply(lambda x: x.fillna(0))
+        .groupby("model")
+        .agg(["mean", "std"])
+        * 100
+    )
+
+    # Get just the means for the main heatmap
+    model_usage = model_tool_stats.xs("mean", level=1, axis=1)
 
     # 2. Calculate the average usage across ALL models
     avg_usage = model_usage.mean()
 
     # 3. Calculate Delta (Difference from Mean)
     delta_usage = (model_usage - avg_usage).T
+
+    # Get standard deviations (transposed to match delta_usage shape)
+    std_usage = model_tool_stats.xs("std", level=1, axis=1).T
+
+    # Clean up names
     delta_usage.index = [idx.replace("tool_", "") for idx in delta_usage.index]
+    std_usage.index = [idx.replace("tool_", "") for idx in std_usage.index]
 
     # Abbreviate model names as discussed
     delta_usage.columns = [
         c.replace("-instruct-2507-q8-0", "-Inst") for c in delta_usage.columns
     ]
+    std_usage.columns = [
+        c.replace("-instruct-2507-q8-0", "-Inst") for c in std_usage.columns
+    ]
+
+    # Create custom annotations with mean±std format
+    annot_labels = np.empty_like(delta_usage, dtype=object)
+    for i in range(delta_usage.shape[0]):
+        for j in range(delta_usage.shape[1]):
+            mean_val = delta_usage.iloc[i, j]
+            std_val = std_usage.iloc[i, j]
+            annot_labels[i, j] = f"{mean_val:.1f}\n±{std_val:.1f}"
 
     fig, ax = plt.subplots(
         figsize=PLOT_STYLE["figsize_single_col_tall"],  # Use standard tall format
@@ -432,14 +546,19 @@ def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
     # Use a diverging colormap (RdBu_r: Red is more, Blue is less)
     sns.heatmap(
         delta_usage,
-        annot=True,
-        fmt=".1f",
+        annot=annot_labels,
+        fmt="",  # Empty format since we're using custom strings
         cmap="RdBu_r",
         center=0,
         linewidths=0.5,
         ax=ax,
-        cbar_kws={"label": r"$\Delta$ Usage Rate (\%)", "shrink": 0.8},  # LaTeX math
-        annot_kws={"size": PLOT_STYLE["font_sizes"]["annotation"]},
+        cbar_kws={
+            "label": r"$\Delta$ Avg. Calls per Sample (\%)",
+            "shrink": 0.8,
+        },  # LaTeX math
+        annot_kws={
+            "size": PLOT_STYLE["font_sizes"]["annotation"] - 1
+        },  # Slightly smaller for two lines
     )
 
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
@@ -575,6 +694,7 @@ def main():
     plot_tool_usage_frequency(combined_design)
     plot_tool_usage_by_model(combined_design)
     plot_tool_heatmap_by_model(combined_design)
+    plot_tool_heatmap_with_std(combined_design)
 
     # Correlation plots (design data already has performance metrics)
     print("\nGenerating correlation plots...")
