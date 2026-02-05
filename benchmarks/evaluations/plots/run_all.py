@@ -145,38 +145,38 @@ def _generate_tool_usage_plots(
     print(f"  Tool usage: {len(combined_tools)} records")
 
     # Tool usage frequency
-    print("\n[1/6] Tool usage frequency...")
+    print("\n[1/7] Tool usage frequency...")
     plot_tool_usage_frequency(combined_tools, output_dir)
 
     # Tool usage by model
-    print("\n[2/6] Tool usage by model...")
+    print("\n[2/7] Tool usage by model...")
     plot_tool_usage_by_model(combined_tools, output_dir)
 
     # Tool usage heatmap
-    print("\n[3/6] Tool usage heatmap...")
+    print("\n[3/7] Tool usage heatmap...")
     plot_tool_heatmap_by_model(combined_tools, output_dir)
 
     # Tool usage heatmap with std
-    print("\n[3.5/6] Tool usage heatmap with std...")
+    print("\n[4/7] Tool usage heatmap with std...")
     plot_tool_heatmap_with_std(combined_tools, output_dir)
 
     # Tool usage delta heatmap
-    print("\n[4/6] Tool usage delta heatmap...")
+    print("\n[5/7] Tool usage delta heatmap...")
     plot_tool_usage_delta_heatmap(combined_tools, output_dir)
 
     # Performance distribution by tool count
     if combined_design is not None:
-        print("\n[5/6] Performance distribution by tool count...")
+        print("\n[6/7] Performance distribution by tool count...")
         plot_performance_distribution_by_tool_count(
             combined_tools, combined_design, output_dir
         )
 
     # Tool usage vs performance
     if combined_design is not None:
-        print("\n[6/6] Tool usage vs performance...")
+        print("\n[7/7] Tool usage vs performance...")
         plot_tool_usage_vs_performance(combined_tools, combined_design, output_dir)
     else:
-        print("\n[5/6] Skipping performance plots (no design data)")
+        print("\n[6/7] Skipping performance plots (no design data)")
 
 
 def _generate_plots_for_problem(  # noqa: PLR0913
@@ -415,13 +415,13 @@ def main():  # noqa: PLR0912
                 prompt_style=args.prompt_style,
                 rag_status=rag_status,
             )
-        if args.prompt_style:
-            base_output = f"figures/{args.problem}/{args.prompt_style}/"
-        else:
-            base_output = f"figures/{args.problem}/"
-        print("\n" + "=" * 60)
-        print(f"DONE! Figures saved to: {base_output}{{rag_status}}/")
-        print("=" * 60)
+            if args.prompt_style:
+                output_path = f"figures/{args.problem}/{args.prompt_style}/{rag_status}/"
+            else:
+                output_path = f"figures/{args.problem}/{rag_status}/"
+            print("\n" + "=" * 60)
+            print(f"DONE! Figures saved to: {output_path}")
+            print("=" * 60)
     else:
         # No RAG data, generate plots without RAG subfolder
         _generate_plots_for_problem(
