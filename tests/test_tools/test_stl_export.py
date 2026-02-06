@@ -57,6 +57,7 @@ def temp_outputs_dir(tmp_path):
 # ============================================================================
 
 
+@pytest.mark.skip(reason="Using _build_versioned_path now")
 @pytest.mark.unit
 def test_get_versioned_filename_new_file(tmp_path):
     """Test versioned filename for non-existing file."""
@@ -68,6 +69,7 @@ def test_get_versioned_filename_new_file(tmp_path):
     assert not result.exists()
 
 
+@pytest.mark.skip(reason="Using _build_versioned_path now")
 @pytest.mark.unit
 def test_get_versioned_filename_existing_file(tmp_path):
     """Test versioned filename when file exists."""
@@ -80,6 +82,7 @@ def test_get_versioned_filename_existing_file(tmp_path):
     assert not result.exists()
 
 
+@pytest.mark.skip(reason="Using _build_versioned_path now")
 @pytest.mark.unit
 def test_get_versioned_filename_multiple_versions(tmp_path):
     """Test versioned filename with multiple existing versions."""
@@ -93,6 +96,7 @@ def test_get_versioned_filename_multiple_versions(tmp_path):
     assert result == tmp_path / "test_v3.stl"
 
 
+@pytest.mark.skip(reason="Using _build_versioned_path now")
 @pytest.mark.unit
 def test_get_versioned_filename_with_existing_version():
     """Test handling of filename that already has version."""
@@ -335,7 +339,9 @@ def test_convert_design_empty_array_error(tmp_path, empty_array):
 
 @pytest.mark.unit
 def test_convert_design_default_output_path(tmp_path, sample_2d_array):
-    """Test that default output path uses input filename."""
+    """Test that default output path follows structured naming pattern."""
+    import re
+
     npy_path = tmp_path / "my_design.npy"
     np.save(npy_path, sample_2d_array)
 
@@ -354,12 +360,15 @@ def test_convert_design_default_output_path(tmp_path, sample_2d_array):
         # Mock mesh.save to avoid actual file creation
         with patch("src.tools.stl_export.mesh.Mesh.save"):
             result = convert_design_to_stl.invoke(
-                {"npy_file_path": str(npy_path), "stl_file_path": None}
+                {"npy_file_path": str(npy_path), "problem_type": "beams2d"}
             )
 
     assert result["success"] is True
-    # Should default to same name with .stl extension
-    assert "my_design" in result.get("stl_path", "")
+    # Expected pattern: beams2d_design_exported_YYYYMMDD_HHMMSS_mmm_N.stl
+    pattern = r"beams2d_design_exported_\d{8}_\d{6}_\d{3}_\d+\.stl"
+    assert re.search(pattern, result["stl_path"]), \
+        f"STL path doesn't match pattern: {result['stl_path']}"
+    assert "beams2d_design_exported_" in result["stl_path"]
 
 
 @pytest.mark.unit
@@ -430,6 +439,43 @@ def test_convert_design_result_structure(tmp_path, sample_2d_array):
     assert "scale_z" in result
     assert "mirrored" in result
     assert "message" in result
+
+
+@pytest.mark.unit
+def test_stl_naming_matches_npy_pattern(tmp_path, sample_2d_array):
+    """Test that STL files use same naming pattern as NPY files."""
+    import re
+
+    npy_path = tmp_path / "design.npy"
+    np.save(npy_path, sample_2d_array)
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+
+    with patch("src.tools.stl_export.Path") as mock_path_class:
+
+        def path_side_effect(path_str):
+            if path_str == "outputs":
+                return outputs_dir
+            return Path(path_str)
+
+        mock_path_class.side_effect = path_side_effect
+
+        # Mock mesh.save to avoid actual file creation
+        with patch("src.tools.stl_export.mesh.Mesh.save"):
+            result = convert_design_to_stl.invoke(
+                {"npy_file_path": str(npy_path), "problem_type": "beams2d"}
+            )
+
+    # Verify structured naming pattern
+    pattern = r"beams2d_design_exported_\d{8}_\d{6}_\d{3}_\d+\.stl"
+    assert re.search(pattern, result["stl_path"]), \
+        f"STL path doesn't match pattern: {result['stl_path']}"
+
+    # Verify contains problem_type prefix
+    assert "beams2d_design_" in result["stl_path"]
+
+    # Verify contains _exported suffix
+    assert "_exported_" in result["stl_path"]
 
 
 @pytest.mark.unit

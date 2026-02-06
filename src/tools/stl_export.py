@@ -15,6 +15,8 @@ from langchain_core.tools import tool
 from scipy.ndimage import label
 from stl import mesh
 
+from src.tools.engibench import _build_versioned_path
+
 try:
     import trimesh
 
@@ -339,15 +341,15 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
     For continuous designs (thermoelastic2d): Uses threshold to determine solid regions,
     preserving the continuous density distribution in the Z-height.
 
-    All STL files are automatically saved to the 'outputs/' directory.
-    If the output file already exists, a version number is automatically added
-    (e.g., design_v1.stl, design_v2.stl) to preserve the history.
+    All STL files are automatically saved to the 'outputs/' directory with
+    timestamp-based naming (e.g., beams2d_design_exported_20260206_143052_123_0.stl).
+    This ensures unique filenames even in parallel execution scenarios.
 
     Args:
         npy_file_path: Path to the input .npy file containing the design array
-        stl_file_path: Output filename for the STL file (will be saved in outputs/ directory)
-            Default: same name as npy with .stl extension
-            Note: If file exists, version number will be auto-added to preserve history
+        stl_file_path: Optional custom base name for the STL file (will be saved in outputs/)
+            Default: {problem_type}_design.stl with _exported suffix and timestamp
+            Note: Timestamp-based versioning ensures unique filenames automatically
         scale_xy: Scaling factor for X and Y dimensions (default: 1.0)
         scale_z: Extrusion height for cells (default: 10.0)
         mirror_y: If True, mirror the design along Y-axis to create full symmetric structure
@@ -418,20 +420,20 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
         output_dir = Path("outputs")
         output_dir.mkdir(exist_ok=True)
 
-        # Determine output path (always in outputs/)
+        # Build output path with consistent naming pattern
         if stl_file_path is None:
-            # Default: same name as input but with .stl extension, in outputs/
-            stl_file_path = str(output_dir / input_path.with_suffix(".stl").name)
+            # Default: use problem_type with _exported suffix
+            base_path = output_dir / f"{problem_type}_design.stl"
         else:
-            # Ensure output is in outputs/ directory
+            # User specified path: ensure it's in outputs/
             stl_path_obj = Path(stl_file_path)
             if stl_path_obj.parent.name != "outputs":
-                stl_file_path = str(output_dir / stl_path_obj.name)
+                base_path = output_dir / stl_path_obj.name
+            else:
+                base_path = Path(stl_file_path)
 
-        output_path = Path(stl_file_path)
-
-        # Create versioned filename to preserve history (avoid overwriting)
-        output_path = _get_versioned_filename(output_path)
+        # Apply consistent versioned naming pattern
+        output_path = _build_versioned_path(base_path, problem_type, "_exported")
 
         # Validate data dimensions
         if data.ndim != 2:  # noqa: PLR2004
