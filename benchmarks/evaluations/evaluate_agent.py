@@ -327,7 +327,7 @@ def parse_arguments() -> argparse.Namespace:
         "--prompt-style",
         type=str,
         default="full",
-        choices=["full", "approximate", "natural", "workflow"],
+        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
     )
     parser.add_argument(
