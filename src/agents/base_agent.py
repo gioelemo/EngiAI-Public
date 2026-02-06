@@ -32,6 +32,7 @@ class BaseAgent(ABC):
         tools: list | None = None,
         require_confirmation: bool = False,
         temperature: float | None = None,
+        seed: int | None = None,
     ):
         """Initialize the base agent.
 
@@ -40,17 +41,23 @@ class BaseAgent(ABC):
             tools: List of LangChain tools for this agent
             require_confirmation: Whether to require user confirmation before tool execution
             temperature: Model temperature (defaults to config.llm_temperature)
+            seed: Random seed for model (defaults to config.llm_seed, None for non-deterministic)
         """
         self.model_name = model_name or config.llm_model
         self.temperature = (
             temperature if temperature is not None else config.llm_temperature
         )
+        self.seed = seed if seed is not None else config.llm_seed
         logger.debug(
-            f"Initializing {self.__class__.__name__} with temperature={self.temperature}"
+            f"Initializing {self.__class__.__name__} with temperature={self.temperature}, seed={self.seed}"
         )
 
         # Build kwargs for model initialization
         model_kwargs: dict = {"temperature": self.temperature}
+
+        # Add seed if provided
+        if self.seed is not None:
+            model_kwargs["seed"] = self.seed
 
         # Add Ollama-specific configuration if using an Ollama model
         if self.model_name.startswith("ollama:"):

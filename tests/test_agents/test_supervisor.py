@@ -115,6 +115,34 @@ def test_supervisor_agent_custom_model(_mock_agents):
     assert agent.temperature == 0.5
 
 
+@pytest.mark.unit
+def test_supervisor_seed_propagation():
+    """Test that supervisor passes seed to all sub-agents."""
+    # Create supervisor without mocks so we can test real seed propagation
+    with patch("src.agents.base_agent.init_chat_model") as mock_base_init:
+        with patch("src.agents.supervisor_agent.init_chat_model") as mock_sup_init:
+            # Mock the LLMs
+            mock_llm = MagicMock()
+            mock_llm.bind_tools = MagicMock(return_value=mock_llm)
+            mock_llm.with_structured_output = MagicMock(return_value=mock_llm)
+            mock_base_init.return_value = mock_llm
+            mock_sup_init.return_value = mock_llm
+
+            supervisor = SupervisorAgent(seed=456)
+
+            # Check supervisor has seed
+            assert supervisor.seed == 456
+
+            # Check all sub-agents have seed
+            assert supervisor.engineering_agent.seed == 456
+            assert supervisor.hpc_agent.seed == 456
+            assert supervisor.search_agent.seed == 456
+            assert supervisor.rag_agent.seed == 456
+            assert supervisor.arxiv_agent.seed == 456
+            assert supervisor.cli_agent.seed == 456
+            assert supervisor.prusa_agent.seed == 456
+
+
 # ============================================================================
 # ROUTING PROMPT TESTS
 # ============================================================================

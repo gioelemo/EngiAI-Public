@@ -131,7 +131,11 @@ class TestArXivAgentInitialization:
 
         assert agent is not None
         assert agent.model_name == "openai:gpt-4o"
-        mock_init_llm.assert_called_once_with("openai:gpt-4o", temperature=0.7)
+        # Check that init_chat_model was called with correct model and temperature
+        # (seed may also be passed depending on config)
+        call_args = mock_init_llm.call_args
+        assert call_args[0] == ("openai:gpt-4o",)
+        assert call_args[1]["temperature"] == 0.7
         mock_mmore_cls.assert_called_once_with(base_url=None)
         mock_mmore_client.health_check.assert_called_once()
 

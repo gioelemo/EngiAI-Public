@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from config import config
 from src.agents.cli_agent import CLIAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.hpc_agent import HPCAgent
@@ -47,6 +48,37 @@ def test_cli_agent_has_tools():
         # Verify tools were bound
         mock_llm.bind_tools.assert_called_once()
         assert len(agent.tools) > 0
+
+
+@pytest.mark.unit
+def test_cli_agent_seed_override():
+    """Test that CLI agent accepts seed override."""
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
+        mock_llm = Mock()
+        mock_llm.bind_tools = Mock(return_value=mock_llm)
+        mock_init.return_value = mock_llm
+
+        agent = CLIAgent(seed=123)
+
+        assert agent.seed == 123
+        # Verify seed was passed to init_chat_model
+        call_kwargs = mock_init.call_args[1]
+        assert "seed" in call_kwargs
+        assert call_kwargs["seed"] == 123
+
+
+@pytest.mark.unit
+def test_engineering_agent_seed_default():
+    """Test that Engineering agent uses config default seed."""
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
+        mock_llm = Mock()
+        mock_llm.bind_tools = Mock(return_value=mock_llm)
+        mock_init.return_value = mock_llm
+
+        agent = EngineeringAgent()
+
+        # Should use config default (which is None in tests)
+        assert agent.seed == config.llm_seed
 
 
 # ============================================================================

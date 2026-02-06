@@ -275,6 +275,77 @@ def test_config_temperature_parsing():
 
 
 @pytest.mark.unit
+def test_config_seed_parsing():
+    """Test that seed is correctly parsed as integer or None."""
+    with patch.dict(
+        "os.environ",
+        {
+            "OPENAI_API_KEY": "test-key",
+            "TAVILY_API_KEY": "test-key",
+            "GOOGLE_API_KEY": "test-key",
+            "LLM_SEED": "42",
+        },
+        clear=True,
+    ):
+        config = Config()
+        assert config.llm_seed == 42
+        assert isinstance(config.llm_seed, int)
+
+
+@pytest.mark.unit
+def test_config_seed_none_when_unset():
+    """Test that seed defaults to None when not set."""
+    with patch("config.load_dotenv"):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENAI_API_KEY": "test-key",
+                "TAVILY_API_KEY": "test-key",
+                "GOOGLE_API_KEY": "test-key",
+            },
+            clear=True,
+        ):
+            config = Config()
+            assert config.llm_seed is None
+
+
+@pytest.mark.unit
+def test_config_seed_validation_negative():
+    """Test that config raises ValueError for negative seed."""
+    with patch("config.load_dotenv"):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENAI_API_KEY": "test-key",
+                "TAVILY_API_KEY": "test-key",
+                "GOOGLE_API_KEY": "test-key",
+                "LLM_SEED": "-1",
+            },
+            clear=True,
+        ):
+            with pytest.raises(ValueError, match="must be a non-negative integer"):
+                Config()
+
+
+@pytest.mark.unit
+def test_config_seed_validation_invalid_string():
+    """Test that config raises ValueError for invalid seed string."""
+    with patch("config.load_dotenv"):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENAI_API_KEY": "test-key",
+                "TAVILY_API_KEY": "test-key",
+                "GOOGLE_API_KEY": "test-key",
+                "LLM_SEED": "not-a-number",
+            },
+            clear=True,
+        ):
+            with pytest.raises(ValueError, match="must be an integer"):
+                Config()
+
+
+@pytest.mark.unit
 def test_get_setting_from_db_fallback():
     """Test get_setting_from_db returns default when database fails."""
     # DatabaseManager is imported inside get_setting_from_db to avoid circular imports

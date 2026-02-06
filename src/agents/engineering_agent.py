@@ -41,6 +41,7 @@ class EngineeringAgent(BaseAgent):
         model_name: str | None = None,
         temperature: float | None = None,
         mmore_url: str | None = None,
+        seed: int | None = None,
     ):
         """Initialize the engineering agent.
 
@@ -48,6 +49,7 @@ class EngineeringAgent(BaseAgent):
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
             mmore_url: URL of MMORE service (defaults to MMORE_RAG_URL env var)
+            seed: Random seed for model (defaults to config.llm_seed)
         """
         # Initialize MMORE client before super().__init__() so _create_tools() can use it
         skip_mmore = os.getenv("SKIP_MMORE", "false").lower() == "true"
@@ -60,7 +62,7 @@ class EngineeringAgent(BaseAgent):
         else:
             self.mmore_client = MMOREClient(base_url=mmore_url)
 
-        super().__init__(model_name=model_name, temperature=temperature)
+        super().__init__(model_name=model_name, temperature=temperature, seed=seed)
 
         # Log MMORE status
         if self.mmore_client is not None:
