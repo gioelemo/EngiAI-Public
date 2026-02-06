@@ -198,6 +198,8 @@ class EngineeringAgent(weave.Model):
             return {
                 "response": response_content,
                 "model": self.model_name,
+                "temperature": self.temperature,
+                "llm_seed": self.llm_seed,
                 "response_length": len(response_content),
                 "agent_type": getattr(final_message, "name", "unknown"),
                 "messages": result[
@@ -224,9 +226,12 @@ def prepare_evaluation_dataset(
         eval_metadata: Evaluation metadata dict containing:
             - problem_type: Type of problem being evaluated
             - dataset_name: Name of the HuggingFace dataset for ground truth
-            - seed: Optional seed to use for all prompts in this evaluation
+            - seed: Optional seed to use for all prompts in this evaluation (optimization seed)
             - prompt_style: Style of prompt (full, approximate, natural, workflow)
             - mmore_enabled: Whether MMORE RAG system is enabled
+            - model_name: LLM model used for evaluation
+            - temperature: Model temperature setting
+            - llm_seed: LLM random seed for reproducibility
 
     Returns:
         List of evaluation examples in Weave format
@@ -607,6 +612,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         "seed": args.seed,
         "prompt_style": args.prompt_style,
         "mmore_enabled": args.mmore_enabled,
+        "model_name": model_name,
+        "temperature": temperature,
+        "llm_seed": llm_seed,
     }
     eval_dataset = prepare_evaluation_dataset(prompts, args.samples, eval_metadata)
 
