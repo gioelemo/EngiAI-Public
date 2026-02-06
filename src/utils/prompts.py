@@ -178,7 +178,6 @@ Suggestion 3 text here
 """
 
 
-
 # Shared agent capabilities description - used for both routing and capability responses
 AGENT_CAPABILITIES = """## Available Agents
 
@@ -449,7 +448,6 @@ Suggestion 3 text here
 - After job completion → "Download job outputs", "View job logs", "Submit another job"
 - After status check → "Download results", "Cancel this job", "Check queue status"
 """
-
 
 
 # CLI agent system prompt
