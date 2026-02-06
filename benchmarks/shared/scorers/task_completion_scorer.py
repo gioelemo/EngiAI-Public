@@ -303,7 +303,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                     "mesh_faces": result.get("mesh_faces"),
                     "scale_xy": result.get("scale_xy"),
                     "scale_z": result.get("scale_z"),
-                    "mirror_y": result.get("mirror_y"),
+                    "mirrored": result.get("mirrored"),
                     "message": result.get("message"),
                 }
                 logger.debug(
