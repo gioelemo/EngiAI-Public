@@ -366,8 +366,9 @@ def test_convert_design_default_output_path(tmp_path, sample_2d_array):
     assert result["success"] is True
     # Expected pattern: beams2d_design_exported_YYYYMMDD_HHMMSS_mmm_N.stl
     pattern = r"beams2d_design_exported_\d{8}_\d{6}_\d{3}_\d+\.stl"
-    assert re.search(pattern, result["stl_path"]), \
+    assert re.search(pattern, result["stl_path"]), (
         f"STL path doesn't match pattern: {result['stl_path']}"
+    )
     assert "beams2d_design_exported_" in result["stl_path"]
 
 
@@ -468,8 +469,9 @@ def test_stl_naming_matches_npy_pattern(tmp_path, sample_2d_array):
 
     # Verify structured naming pattern
     pattern = r"beams2d_design_exported_\d{8}_\d{6}_\d{3}_\d+\.stl"
-    assert re.search(pattern, result["stl_path"]), \
+    assert re.search(pattern, result["stl_path"]), (
         f"STL path doesn't match pattern: {result['stl_path']}"
+    )
 
     # Verify contains problem_type prefix
     assert "beams2d_design_" in result["stl_path"]
