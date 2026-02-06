@@ -299,8 +299,8 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 stl_success = True
                 stl_save_path = result.get("stl_path")
                 stl_details = {
-                    "mesh_vertices": result.get("mesh_vertices"),
-                    "mesh_faces": result.get("mesh_faces"),
+                    "num_vertices": result.get("num_vertices"),
+                    "num_faces": result.get("num_faces"),
                     "scale_xy": result.get("scale_xy"),
                     "scale_z": result.get("scale_z"),
                     "mirrored": result.get("mirrored"),
