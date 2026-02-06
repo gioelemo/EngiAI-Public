@@ -178,8 +178,6 @@ Suggestion 3 text here
 """
 
 
-# Engineering agent system prompt - dynamically generated from problem registry
-ENGINEERING_AGENT_SYSTEM_PROMPT = _build_engineering_agent_prompt()
 
 # Shared agent capabilities description - used for both routing and capability responses
 AGENT_CAPABILITIES = """## Available Agents
@@ -453,8 +451,6 @@ Suggestion 3 text here
 """
 
 
-# For backwards compatibility
-HPC_AGENT_SYSTEM_PROMPT = get_hpc_agent_system_prompt()
 
 # CLI agent system prompt
 CLI_AGENT_SYSTEM_PROMPT = """You are a CLI assistant. You MUST call tools for every action request.
