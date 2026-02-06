@@ -304,6 +304,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                     "scale_xy": result.get("scale_xy"),
                     "scale_z": result.get("scale_z"),
                     "mirrored": result.get("mirrored"),
+                    "threshold": result.get("threshold"),
                     "message": result.get("message"),
                 }
                 logger.debug(
