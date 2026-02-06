@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 # Add project root to path to import src modules
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -79,6 +81,17 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
         ],
         "optimal_call_count": 3,
         "success_criteria": "stl_export",  # Success = STL file generated correctly
+    },
+    "workflow-random": {
+        "description": "Full workflow with random STL parameters",
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "convert_design_to_stl", "count": 1},
+        ],
+        "optimal_call_count": 3,
+        "success_criteria": "stl_export_with_params",
+        "validate_stl_params": True,
     },
 }
 
@@ -183,10 +196,84 @@ def _create_workflow_prompt(volfrac: float, forcedist: float, rmin: float) -> st
     )
 
 
+def _generate_random_stl_params(seed: int | None = None) -> dict[str, Any]:
+    """Generate random STL parameters for workflow-random prompts.
+
+    Uses deterministic seed for reproducibility across evaluations.
+    Ranges chosen based on tool defaults and 3D printing constraints.
+
+    Args:
+        seed: Random seed for reproducibility
+
+    Returns:
+        Dict with: mirror_y (bool), scale_xy (float), scale_z (float), threshold (float)
+    """
+    rng = np.random.default_rng(seed)
+
+    return {
+        "mirror_y": bool(rng.choice([True, False])),
+        "scale_xy": float(rng.uniform(0.5, 5.0)),
+        "scale_z": float(rng.uniform(5.0, 20.0)),
+        "threshold": float(rng.uniform(0.3, 0.7)),
+    }
+
+
+def _create_workflow_random_prompt(
+    volfrac: float,
+    forcedist: float,
+    rmin: float,
+    example_id: int,
+    seed: int | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Create workflow prompt with random STL parameters.
+
+    Args:
+        volfrac: Volume fraction for optimization
+        forcedist: Force distribution parameter
+        rmin: Minimum filter radius
+        example_id: Unique example identifier
+        seed: Base seed for random generation
+
+    Returns:
+        Tuple of (prompt_text, stl_expected_params_dict)
+    """
+    # Generate random params (use seed + example_id for uniqueness per prompt)
+    unique_seed = (seed if seed is not None else 0) + example_id
+    stl_params = _generate_random_stl_params(unique_seed)
+
+    # Format clear instructions
+    mirror_instruction = (
+        "Mirror the design across the y-axis"
+        if stl_params["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+
+    prompt = (
+        f"Execute a 2D topology optimization and export the resulting geometry "
+        f"as a 3D-printable STL file.\n\n"
+        f"1. Optimization Configuration\n"
+        f"   - Volume Fraction: {volfrac}\n"
+        f"   - Force Distribution: {forcedist}\n"
+        f"   - Filter Radius (rmin): {rmin}\n"
+        f"   - Objective: Minimize compliance\n\n"
+        f"2. Post-processing & Export\n"
+        f"   - Thresholding: Apply a {stl_params['threshold']:.2f} density threshold "
+        f"to convert the continuous density map into binary geometry\n"
+        f"   - Mirror: {mirror_instruction} for the final geometry\n"
+        f"   - XY Scaling: Scale the X and Y dimensions by {stl_params['scale_xy']:.2f}\n"
+        f"   - Extrusion: Extrude the 2D result by {stl_params['scale_z']:.1f} units "
+        f"in the Z-axis to create a 3D volume\n"
+        f"   - Export: Save the final geometry as an STL file with these exact parameters"
+    )
+
+    return prompt, stl_params
+
+
 def create_prompt_from_conditions(
     example: dict[str, Any],
     include_target: bool = True,
     prompt_style: str = "full",
+    seed: int | None = None,
 ) -> dict[str, Any]:
     """
     Create a benchmark prompt from beam design conditions.
@@ -194,7 +281,8 @@ def create_prompt_from_conditions(
     Args:
         example: Single example from the HuggingFace dataset
         include_target: Whether to include target compliance for validation
-        prompt_style: Style of prompt to generate ('full', 'approximate', 'natural', 'workflow')
+        prompt_style: Style of prompt to generate ('full', 'approximate', 'natural', 'workflow', 'workflow-random')
+        seed: Random seed for reproducible random parameter generation (workflow-random only)
 
     Returns:
         Dictionary with prompt, conditions, and optional target values
@@ -219,12 +307,18 @@ def create_prompt_from_conditions(
     compliance_desc = describe_expected_stiffness(compliance)
 
     # Create style-specific prompt
+    stl_expected_params = None  # Initialize for workflow-random
+
     if prompt_style == "full":
         prompt = _create_full_prompt(volfrac, forcedist, rmin)
     elif prompt_style == "approximate":
         prompt = _create_approximate_prompt(volfrac, forcedist, rmin)
     elif prompt_style == "natural":
         prompt = _create_natural_prompt(volfrac, forcedist, compliance)
+    elif prompt_style == "workflow-random":
+        prompt, stl_expected_params = _create_workflow_random_prompt(
+            volfrac, forcedist, rmin, example.get("example_id", 0), seed
+        )
     elif prompt_style == "workflow":
         prompt = _create_workflow_prompt(volfrac, forcedist, rmin)
     else:
@@ -260,6 +354,10 @@ def create_prompt_from_conditions(
             "compliance": float(compliance),
             "optimal_design": example["optimal_design"],
         }
+
+    # Add STL expected params for workflow-random
+    if stl_expected_params is not None:
+        prompt_data["stl_expected_params"] = stl_expected_params
 
     return prompt_data
 

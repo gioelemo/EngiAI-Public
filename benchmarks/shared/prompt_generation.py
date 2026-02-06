@@ -79,7 +79,7 @@ def generate_prompts_from_huggingface(
 
     prompts = []
     for i, example in enumerate(dataset):
-        prompt_data = prompt_creator_func(example, include_targets, prompt_style)
+        prompt_data = prompt_creator_func(example, include_targets, prompt_style, seed)
         prompt_data["example_id"] = i
         prompt_data["dataset_split"] = dataset_split
         prompts.append(prompt_data)

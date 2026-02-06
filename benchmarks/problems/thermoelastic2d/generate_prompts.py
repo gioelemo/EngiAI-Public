@@ -21,7 +21,10 @@ from benchmarks.shared.prompt_generation import (  # noqa: E402
 
 
 def create_prompt_from_conditions(
-    example: dict[str, Any], include_target: bool = True
+    example: dict[str, Any],
+    include_target: bool = True,
+    prompt_style: str = "full",  # noqa: ARG001 - Unused, for compatibility
+    seed: int | None = None,  # noqa: ARG001 - Unused, for compatibility
 ) -> dict[str, Any]:
     """
     Create a benchmark prompt from thermoelastic design conditions.
@@ -29,6 +32,8 @@ def create_prompt_from_conditions(
     Args:
         example: Single example from the HuggingFace dataset
         include_target: Whether to include target values for validation
+        prompt_style: Style of prompt to generate (unused, for compatibility)
+        seed: Random seed (unused, for compatibility)
 
     Returns:
         Dictionary with prompt, conditions, and optional target values

@@ -111,3 +111,58 @@ Evaluation scripts in `benchmarks/evaluations/`:
 make mmore-eval-up                                    # Start eval service
 make mmore-eval-run ARGS="--problem beams2d --samples 1"
 ```
+
+### Prompt Styles
+
+The beams2d benchmark supports multiple prompt styles for evaluating different aspects of agent behavior:
+
+- **full**: Exact numerical parameters
+- **approximate**: Rounded/approximate values
+- **natural**: Natural language descriptions only
+- **workflow**: Full workflow with STL export (hardcoded parameters)
+- **workflow-random**: Full workflow with randomized STL parameters and validation
+
+#### workflow-random Prompt Style
+
+The `workflow-random` style extends the `workflow` style by randomizing STL export parameters and validating that the agent uses the correct values. This tests the agent's ability to follow precise numerical instructions for 3D printing parameters.
+
+**Randomized Parameters:**
+- `mirror_y`: Boolean (True/False) - whether to mirror along Y-axis
+- `scale_xy`: Float (0.5-5.0) - X/Y dimension scaling factor
+- `scale_z`: Float (5.0-20.0) - Z extrusion height
+- `threshold`: Float (0.3-0.7) - Density threshold for solid/void conversion
+
+**Validation:**
+The scorer validates that the STL export tool was called with parameters matching the prompt (within tolerance of ±0.01 for floats, exact match for booleans). Task completion requires both successful STL export AND parameter validation.
+
+**Usage:**
+```bash
+# Generate workflow-random prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-random --seed 42
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-random --seed 42
+
+# Full benchmark with multiple seeds
+python benchmarks/evaluations/run_full_benchmark.py \
+    --problem beams2d --samples 10 --seeds 1 2 3 \
+    --prompt-style workflow-random --agent-only
+```
+
+**Validation Metrics:**
+Results include per-parameter validation metrics:
+- `stl_param_validation_score`: 1.0 if all params valid, 0.0 otherwise
+- `stl_param_violations`: Count of parameter mismatches
+- `stl_{param}_actual/expected/error/valid`: Per-parameter details
+
+Example prompt excerpt:
+```
+2. Post-processing & Export
+   - Thresholding: Apply a 0.58 density threshold to convert...
+   - Mirror: Mirror the design across the y-axis for the final geometry
+   - XY Scaling: Scale the X and Y dimensions by 2.47
+   - Extrusion: Extrude the 2D result by 17.9 units in the Z-axis...
+   - Export: Save the final geometry as an STL file with these exact parameters
+```

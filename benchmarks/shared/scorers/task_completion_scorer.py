@@ -54,6 +54,98 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     return None
 
 
+def _validate_stl_parameters(
+    stl_details: dict[str, Any],
+    expected_params: dict[str, Any],
+    example_id: int,
+) -> tuple[float, dict[str, Any]]:
+    """Validate STL export parameters against expected values.
+
+    Follows constraint validation pattern from output_quality_scorer.py.
+
+    Args:
+        stl_details: Actual parameters from convert_design_to_stl tool result
+        expected_params: Expected parameters from prompt metadata (stl_expected_params)
+        example_id: Example ID for logging
+
+    Returns:
+        Tuple of (validation_score, metrics_dict)
+        - validation_score: 1.0 if all params match within tolerance, 0.0 otherwise
+        - metrics_dict: Per-parameter metrics with _actual, _expected, _error, _valid
+    """
+    if not expected_params:
+        logger.debug("Example %s: No expected STL params to validate", example_id)
+        return 1.0, {}
+
+    float_tolerance = 0.01  # Match constraint validation tolerance
+
+    violations = 0
+    metrics: dict[str, Any] = {}
+
+    # Parameter configs: (expected_key, actual_key_in_result, tolerance, type)
+    param_configs = [
+        ("scale_xy", "scale_xy", float_tolerance, float),
+        ("scale_z", "scale_z", float_tolerance, float),
+        ("threshold", "threshold", float_tolerance, float),
+        ("mirror_y", "mirrored", 0, bool),  # Tool returns "mirrored"
+    ]
+
+    for param_name, result_key, tolerance, param_type in param_configs:
+        expected_value = expected_params.get(param_name)
+        actual_value = stl_details.get(result_key)
+
+        if expected_value is None or actual_value is None:
+            logger.warning(
+                "Example %s: Missing STL param %s (expected=%s, actual=%s)",
+                example_id,
+                param_name,
+                expected_value,
+                actual_value,
+            )
+            violations += 1
+            metrics[f"stl_{param_name}_valid"] = False
+            continue
+
+        # Validate based on type
+        if param_type is float:
+            actual_value = float(actual_value)
+            expected_value = float(expected_value)
+            error = abs(actual_value - expected_value)
+            is_valid = error < tolerance
+        elif param_type is bool:
+            actual_value = bool(actual_value)
+            expected_value = bool(expected_value)
+            error = 0.0 if actual_value == expected_value else 1.0
+            is_valid = actual_value == expected_value
+        else:
+            error = 0.0
+            is_valid = True
+
+        # Store metrics (following constraint validation pattern)
+        metrics[f"stl_{param_name}_actual"] = actual_value
+        metrics[f"stl_{param_name}_expected"] = expected_value
+        metrics[f"stl_{param_name}_error"] = error
+        metrics[f"stl_{param_name}_valid"] = is_valid
+
+        if not is_valid:
+            violations += 1
+            logger.info(
+                "Example %s: STL param %s validation failed - "
+                "expected=%s, actual=%s, error=%s",
+                example_id,
+                param_name,
+                expected_value,
+                actual_value,
+                error,
+            )
+
+    validation_score = 1.0 if violations == 0 else 0.0
+    metrics["stl_param_violations"] = violations
+    metrics["stl_param_validation_score"] = validation_score
+
+    return validation_score, metrics
+
+
 def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001 - Required by scorer interface
@@ -102,8 +194,11 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     messages = output.get("messages", [])
 
     # Determine success criteria based on prompt style
-    is_workflow = prompt_style == "workflow"
+    is_workflow = prompt_style in ["workflow", "workflow-random"]
+    is_workflow_random = prompt_style == "workflow-random"
     success_criteria = "stl_export" if is_workflow else "render_design"
+    if is_workflow_random:
+        success_criteria = "stl_export_with_params"
 
     # Track render_design calls
     render_called = False
@@ -270,6 +365,37 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 render_save_path,
             )
 
+    # STL Parameter Validation for workflow-random
+    stl_param_validation_score = 1.0
+    stl_param_metrics: dict[str, Any] = {}
+
+    if is_workflow_random and stl_success:
+        expected_stl_params = metadata.get("stl_expected_params", {})
+
+        if expected_stl_params:
+            stl_param_validation_score, stl_param_metrics = _validate_stl_parameters(
+                stl_details=stl_details,
+                expected_params=expected_stl_params,
+                example_id=example_id,
+            )
+
+            # For workflow-random: task ONLY complete if params valid
+            if stl_param_validation_score == 0.0:
+                success_rate = 0.0
+                task_completed = False
+                logger.info(
+                    "Example %s (workflow-random): Task incomplete due to "
+                    "STL parameter validation failure "
+                    "(%s violations)",
+                    example_id,
+                    stl_param_metrics.get("stl_param_violations", 0),
+                )
+        else:
+            logger.warning(
+                "Example %s (workflow-random): No stl_expected_params in metadata",
+                example_id,
+            )
+
     return {
         "success_rate": success_rate,
         "workflow_complete": task_completed,
@@ -288,6 +414,9 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
         "stl_save_path": stl_save_path,
         "stl_error": stl_error,
         "stl_details": stl_details,
+        # STL parameter validation metrics (workflow-random)
+        "stl_param_validation_score": stl_param_validation_score,
+        **stl_param_metrics,  # Unpacks all per-parameter metrics
         # Common
         "example_id": example_id,
     }

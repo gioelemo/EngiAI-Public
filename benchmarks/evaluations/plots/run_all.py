@@ -241,7 +241,7 @@ def _parse_args():
     parser.add_argument(
         "--prompt-style",
         type=str,
-        choices=["full", "approximate", "natural", "workflow"],
+        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
         help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",
     )
     parser.add_argument(

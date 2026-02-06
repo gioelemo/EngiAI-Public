@@ -508,6 +508,7 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
             "scale_xy": scale_xy,
             "scale_z": scale_z,
             "mirrored": mirror_y,
+            "threshold": threshold,
             "message": message,
             **watertightness_info,  # Unpack all watertightness metrics
         }

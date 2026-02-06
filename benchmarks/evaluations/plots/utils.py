@@ -29,7 +29,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d"]
 
 # Known prompt styles
-KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow"]
+KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow", "workflow-random"]
 
 # Directory structure:
 # results/baselines/{baseline_type}/{problem}/                              - for baselines (CGAN, CNN, etc.)
