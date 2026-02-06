@@ -339,10 +339,10 @@ The system supports two options for tracking LLM calls and performance:
 
 1. **LangSmith Tracing** (LangChain's official tracing tool):
    ```env
-   LANGSMITH_TRACING=true
+   LANGCHAIN_TRACING=true
    LANGSMITH_API_KEY=your-langsmith-api-key
-   LANGSMITH_PROJECT=engineer-assistant
-   LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+   LANGCHAIN_PROJECT=engineer-assistant
+   LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
    ```
 
 2. **Weave Tracing** (Weights & Biases Weave for LLM benchmarking):

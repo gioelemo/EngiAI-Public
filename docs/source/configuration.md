@@ -56,13 +56,13 @@ These enhance functionality but aren't required:
 
 ```bash
 # LLM Configuration
-LLM_MODEL=openai:gpt-4o  # Default model
-LLM_TEMPERATURE=0.0      # Temperature for responses (0.0-2.0)
+LLM_MODEL=openai:gpt-4.1  # Default model
+LLM_TEMPERATURE=0.7       # Temperature for responses (0.0-2.0)
 
 # HPC Cluster Configuration
-HPC_HOST_ALIAS=euler     # SSH alias for your HPC cluster
-HPC_USERNAME=username    # Your cluster username
-HPC_WORKSPACE=/cluster/scratch/username  # Workspace directory
+HPC_HOST_ALIAS=euler              # SSH alias for your HPC cluster
+HPC_HOSTNAME=euler.ethz.ch        # Cluster hostname
+HPC_USERNAME=username              # Your cluster username
 
 # Weights & Biases (for ML tracking)
 WANDB_API_KEY=your-wandb-key
@@ -150,10 +150,10 @@ For monitoring and debugging:
 
 ```bash
 # LangSmith Tracing (optional)
-LANGSMITH_TRACING=false  # Set to true to enable
-LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGCHAIN_TRACING=false  # Set to true to enable
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=your-langsmith-key
-LANGSMITH_PROJECT=engineer-assistant
+LANGCHAIN_PROJECT=engineer-assistant
 
 # Host Service (Docker GUI integration)
 HOST_SERVICE_PORT=9999  # Port for opening GUI apps from Docker
@@ -254,7 +254,8 @@ For cluster computing features:
 3. Set in `.env`:
    ```bash
    HPC_HOST_ALIAS=euler
-   HPC_WORKSPACE=/cluster/scratch/your-username
+   HPC_HOSTNAME=euler.ethz.ch
+   HPC_USERNAME=your-username
    ```
 
 ### Fabric Configuration

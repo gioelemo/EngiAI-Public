@@ -13,17 +13,17 @@ Engineer Assistant integrates with high-performance computing (HPC) clusters for
 Set up your HPC credentials in the configuration:
 
 ```bash
-export HPC_HOST="cluster.university.edu"
+export HPC_HOST_ALIAS="euler"
+export HPC_HOSTNAME="cluster.university.edu"
 export HPC_USERNAME="your_username"
-export HPC_KEYFILE="~/.ssh/id_rsa"
 ```
 
 Or in your `.env` file:
 
 ```bash
-HPC_HOST=cluster.university.edu
+HPC_HOST_ALIAS=euler
+HPC_HOSTNAME=cluster.university.edu
 HPC_USERNAME=your_username
-HPC_KEYFILE=~/.ssh/id_rsa
 ```
 
 ## Submitting Jobs

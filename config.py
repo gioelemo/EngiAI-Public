@@ -67,7 +67,7 @@ class Config:
         self.google_api_key: str = os.getenv("GOOGLE_API_KEY") or ""
 
         # Model configuration
-        self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4o")
+        self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4.1")
         self.llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
         self.llm_seed: int | None = self._parse_seed(os.getenv("LLM_SEED"))
 
@@ -96,8 +96,8 @@ class Config:
 
         # HPC/SLURM configuration
         self.hpc_host_alias: str = os.getenv("HPC_HOST_ALIAS", "euler")
-        self.euler_hostname: str = os.getenv("EULER_HOSTNAME", "euler.ethz.ch")
-        self.euler_username: str = os.getenv("EULER_USERNAME", "")
+        self.hpc_hostname: str = os.getenv("HPC_HOSTNAME", "euler.ethz.ch")
+        self.hpc_username: str = os.getenv("HPC_USERNAME", "")
 
         # Initialize with env vars - database lookups are deferred to avoid circular imports
         self._slurm_email_user: str | None = None
