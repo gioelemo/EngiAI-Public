@@ -213,8 +213,8 @@ You can configure which language model to use:
 ```bash
 # OpenAI Models
 LLM_MODEL=openai:gpt-4o          # GPT-4 Optimized (recommended)
-LLM_MODEL=openai:gpt-4-turbo     # GPT-4 Turbo
-LLM_MODEL=openai:gpt-3.5-turbo   # GPT-3.5 (faster, cheaper)
+LLM_MODEL=openai:gpt-4.1         # GPT-4.1 (fast and cost-effective)
+LLM_MODEL=openai:gpt-4o-mini     # GPT-4o Mini (faster, cheaper)
 
 ```
 

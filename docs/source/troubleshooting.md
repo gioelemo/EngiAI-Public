@@ -457,7 +457,7 @@ chmod 644 ~/.ssh/known_hosts
 
 2. **Slow API responses**:
    - Check OpenAI API status
-   - Try different model (e.g., gpt-3.5-turbo)
+   - Try different model (e.g., gpt-4o-mini)
 
 3. **Insufficient resources**:
    - Increase Docker memory allocation

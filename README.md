@@ -331,7 +331,7 @@ PRUSA_MCP_URL=http://localhost:8765
 **Available LLM Models:**
 - `openai:gpt-4.1` (default, fast and cost-effective)
 - `openai:gpt-4o` (most capable OpenAI model)
-- `openai:gpt-3.5-turbo` (legacy, cheaper option)
+- `openai:gpt-4o-mini` (faster, cheaper option)
 
 **LLM Tracing and Monitoring:**
 
