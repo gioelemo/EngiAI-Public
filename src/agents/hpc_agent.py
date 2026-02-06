@@ -24,14 +24,20 @@ from src.utils.prompts import get_hpc_agent_system_prompt
 class HPCAgent(BaseAgent):
     """Agent specialized in HPC cluster job management."""
 
-    def __init__(self, model_name: str | None = None, temperature: float | None = None):
+    def __init__(
+        self,
+        model_name: str | None = None,
+        temperature: float | None = None,
+        seed: int | None = None,
+    ):
         """Initialize the HPC agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
+            seed: Random seed for model (defaults to config.llm_seed)
         """
-        super().__init__(model_name=model_name, temperature=temperature)
+        super().__init__(model_name=model_name, temperature=temperature, seed=seed)
 
     def _create_tools(self) -> list:
         """Create the list of HPC tools.

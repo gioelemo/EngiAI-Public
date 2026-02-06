@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Constants for LLM configuration validation
 MIN_TEMPERATURE = 0.0
 MAX_TEMPERATURE = 2.0
+MIN_SEED = 0
 
 # HTTP status codes
 HTTP_OK = 200
@@ -68,6 +69,7 @@ class Config:
         # Model configuration
         self.llm_model: str = os.getenv("LLM_MODEL", "openai:gpt-4o")
         self.llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+        self.llm_seed: int | None = self._parse_seed(os.getenv("LLM_SEED"))
 
         # Ollama-specific configuration
         # num_ctx controls the context window size for Ollama models (default: 32768)
@@ -81,8 +83,15 @@ class Config:
                 f"got {self.llm_temperature}"
             )
 
+        # Validate seed if provided
+        if self.llm_seed is not None and self.llm_seed < MIN_SEED:
+            raise ValueError(
+                f"LLM_SEED must be a non-negative integer, got {self.llm_seed}"
+            )
+
         logger.info(
-            f"Loaded LLM configuration: model={self.llm_model}, temperature={self.llm_temperature}"
+            f"Loaded LLM configuration: model={self.llm_model}, "
+            f"temperature={self.llm_temperature}, seed={self.llm_seed}"
         )
 
         # HPC/SLURM configuration
@@ -135,6 +144,28 @@ class Config:
 
         # Set environment variables for compatibility
         self._set_env_vars()
+
+    def _parse_seed(self, seed_str: str | None) -> int | None:
+        """Parse seed from environment variable.
+
+        Args:
+            seed_str: Seed value from environment
+
+        Returns:
+            Integer seed or None if not set
+
+        Raises:
+            ValueError: If seed_str is not a valid integer
+        """
+        if seed_str is None or seed_str.strip() == "":
+            return None
+
+        try:
+            return int(seed_str)
+        except ValueError as e:
+            raise ValueError(
+                f"LLM_SEED must be an integer or empty, got '{seed_str}'"
+            ) from e
 
     def _validate_config(self) -> None:
         """Validate that all required configuration is present."""

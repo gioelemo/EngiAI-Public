@@ -10,7 +10,7 @@ import concurrent.futures
 import contextlib
 import logging
 import os
-from typing import Literal
+from typing import Any, Literal
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMessage
@@ -41,6 +41,7 @@ class PrusaAgent:
         model_name: str | None = None,
         skip_mcp: bool = False,
         temperature: float | None = None,
+        seed: int | None = None,
     ):
         """Initialize the Prusa agent.
 
@@ -48,12 +49,20 @@ class PrusaAgent:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             skip_mcp: Skip MCP server initialization (useful for testing)
             temperature: Model temperature (defaults to config.llm_temperature)
+            seed: Random seed for model (defaults to config.llm_seed)
         """
         self.model_name = model_name or config.llm_model
         self.temperature = (
             temperature if temperature is not None else config.llm_temperature
         )
-        self.llm = init_chat_model(self.model_name, temperature=self.temperature)
+        self.seed = seed if seed is not None else config.llm_seed
+
+        # Build model kwargs
+        model_kwargs: dict[str, Any] = {"temperature": self.temperature}
+        if self.seed is not None:
+            model_kwargs["seed"] = self.seed
+
+        self.llm = init_chat_model(self.model_name, **model_kwargs)
 
         # Check if MCP should be skipped (for testing or when not available)
         skip_mcp = skip_mcp or os.getenv("SKIP_MCP", "false").lower() == "true"

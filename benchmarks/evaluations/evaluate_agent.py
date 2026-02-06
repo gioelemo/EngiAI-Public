@@ -107,6 +107,7 @@ class EngineeringAgent(weave.Model):
 
     model_name: str
     temperature: float = 0.7
+    llm_seed: int | None = None
     problem_type: str = "beams2d"
 
     @weave.op()
@@ -131,6 +132,7 @@ class EngineeringAgent(weave.Model):
             supervisor = SupervisorAgent(
                 model_name=self.model_name,
                 temperature=self.temperature,
+                seed=self.llm_seed,
             )
 
             # Convert prompt to message format
@@ -196,6 +198,8 @@ class EngineeringAgent(weave.Model):
             return {
                 "response": response_content,
                 "model": self.model_name,
+                "temperature": self.temperature,
+                "llm_seed": self.llm_seed,
                 "response_length": len(response_content),
                 "agent_type": getattr(final_message, "name", "unknown"),
                 "messages": result[
@@ -222,9 +226,12 @@ def prepare_evaluation_dataset(
         eval_metadata: Evaluation metadata dict containing:
             - problem_type: Type of problem being evaluated
             - dataset_name: Name of the HuggingFace dataset for ground truth
-            - seed: Optional seed to use for all prompts in this evaluation
+            - seed: Optional seed to use for all prompts in this evaluation (optimization seed)
             - prompt_style: Style of prompt (full, approximate, natural, workflow)
             - mmore_enabled: Whether MMORE RAG system is enabled
+            - model_name: LLM model used for evaluation
+            - temperature: Model temperature setting
+            - llm_seed: LLM random seed for reproducibility
 
     Returns:
         List of evaluation examples in Weave format
@@ -296,6 +303,12 @@ def parse_arguments() -> argparse.Namespace:
         type=float,
         default=None,
         help="Model temperature (defaults to config.llm_temperature)",
+    )
+    parser.add_argument(
+        "--llm-seed",
+        type=int,
+        default=None,
+        help="LLM random seed for model reproducibility (defaults to config.llm_seed)",
     )
     parser.add_argument(
         "--scorers",
@@ -491,6 +504,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     temperature = (
         args.temperature if args.temperature is not None else config.llm_temperature
     )
+    llm_seed = args.llm_seed if args.llm_seed is not None else config.llm_seed
 
     # Select base scorers based on command line argument
     base_scorers = []
@@ -538,6 +552,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print(f"Problem Type: {args.problem}")
     print(f"Model: {model_name}")
     print(f"Temperature: {temperature}")
+    print(f"LLM Seed: {llm_seed}")
     print(f"Dataset Split: {args.split}")
     print(f"Prompt Style: {args.prompt_style}")
     print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
@@ -597,6 +612,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         "seed": args.seed,
         "prompt_style": args.prompt_style,
         "mmore_enabled": args.mmore_enabled,
+        "model_name": model_name,
+        "temperature": temperature,
+        "llm_seed": llm_seed,
     }
     eval_dataset = prepare_evaluation_dataset(prompts, args.samples, eval_metadata)
 
@@ -612,6 +630,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     agent = EngineeringAgent(
         model_name=model_name,
         temperature=temperature,
+        llm_seed=llm_seed,
         problem_type=args.problem,
     )
     print()

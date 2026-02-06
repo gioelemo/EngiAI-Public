@@ -10,14 +10,20 @@ from src.utils.prompts import SEARCH_AGENT_SYSTEM_PROMPT
 class SearchAgent(BaseAgent):
     """Agent specialized in web search and information retrieval."""
 
-    def __init__(self, model_name: str | None = None, temperature: float | None = None):
+    def __init__(
+        self,
+        model_name: str | None = None,
+        temperature: float | None = None,
+        seed: int | None = None,
+    ):
         """Initialize the search agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
+            seed: Random seed for model (defaults to config.llm_seed)
         """
-        super().__init__(model_name=model_name, temperature=temperature)
+        super().__init__(model_name=model_name, temperature=temperature, seed=seed)
 
     def _create_tools(self) -> list:
         """Create the list of search tools.
