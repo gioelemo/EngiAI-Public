@@ -7,7 +7,7 @@ sub-agents (Engineering, Search, etc.) rather than having all tools directly.
 
 import logging
 import uuid
-from typing import Annotated, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage
@@ -71,18 +71,27 @@ class SupervisorAgent:
         self,
         model_name: str | None = None,
         temperature: float | None = None,
+        seed: int | None = None,
     ):
         """Initialize the supervisor agent.
 
         Args:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
+            seed: Random seed for model (defaults to config.llm_seed)
         """
         self.model_name = model_name or config.llm_model
         self.temperature = (
             temperature if temperature is not None else config.llm_temperature
         )
-        self.llm = init_chat_model(self.model_name, temperature=self.temperature)
+        self.seed = seed if seed is not None else config.llm_seed
+
+        # Build model kwargs
+        model_kwargs: dict[str, Any] = {"temperature": self.temperature}
+        if self.seed is not None:
+            model_kwargs["seed"] = self.seed
+
+        self.llm = init_chat_model(self.model_name, **model_kwargs)
         # Create structured LLM for routing decisions
         self.routing_llm = self.llm.with_structured_output(RouteDecision)
 
@@ -90,31 +99,34 @@ class SupervisorAgent:
         self.engineering_agent = EngineeringAgent(
             model_name=self.model_name,
             temperature=self.temperature,
+            seed=self.seed,
         )
         self.hpc_agent = HPCAgent(
-            model_name=self.model_name, temperature=self.temperature
+            model_name=self.model_name, temperature=self.temperature, seed=self.seed
         )
         self.search_agent = SearchAgent(
-            model_name=self.model_name, temperature=self.temperature
+            model_name=self.model_name, temperature=self.temperature, seed=self.seed
         )
         # Initialize RAG agent with MMORE
         self.rag_agent = RAGAgent(
-            model_name=self.model_name, temperature=self.temperature
+            model_name=self.model_name, temperature=self.temperature, seed=self.seed
         )
         # Initialize ArXiv agent with MMORE
         self.arxiv_agent = ArXivAgent(
             model_name=self.model_name,
             temperature=self.temperature,
+            seed=self.seed,
         )
         # PrusaAgent will check SKIP_MCP env var automatically
         self.prusa_agent = PrusaAgent(
-            model_name=self.model_name, temperature=self.temperature
+            model_name=self.model_name, temperature=self.temperature, seed=self.seed
         )
         # CLI confirmation is handled by supervisor-level interrupt, not internally
         self.cli_agent = CLIAgent(
             model_name=self.model_name,
             require_confirmation=False,
             temperature=self.temperature,
+            seed=self.seed,
         )
 
         # Build the supervisor graph

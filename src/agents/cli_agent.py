@@ -23,6 +23,7 @@ class CLIAgent(BaseAgent):
         model_name: str | None = None,
         require_confirmation: bool = False,
         temperature: float | None = None,
+        seed: int | None = None,
     ):
         """Initialize the CLI agent.
 
@@ -30,11 +31,13 @@ class CLIAgent(BaseAgent):
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             require_confirmation: Whether to require user confirmation before executing commands (default: False)
             temperature: Model temperature (defaults to config.llm_temperature)
+            seed: Random seed for model (defaults to config.llm_seed)
         """
         super().__init__(
             model_name=model_name,
             require_confirmation=require_confirmation,
             temperature=temperature,
+            seed=seed,
         )
 
     def _create_tools(self) -> list:
