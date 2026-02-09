@@ -291,6 +291,20 @@ def _calculate_constraint_score(
 ) -> tuple[float, dict[str, Any]]:
     """Calculate constraint matching score based on problem config.
 
+    Uses a smooth partial credit scoring system where each constraint
+    contributes a score based on how far the actual value deviates from
+    the target (normalized by tolerance).
+
+    Score per constraint: exp(-normalized_error)
+    where normalized_error = abs(actual - target) / tolerance
+
+    Overall score is the average of all constraint scores.
+
+    Examples:
+        - error = 0 → score = 1.0 (perfect)
+        - error = tolerance → score ≈ 0.37 (partial credit)
+        - error = 2*tolerance → score ≈ 0.14 (low credit)
+
     Args:
         design_array: Agent's design
         conditions: Target conditions from dataset
@@ -308,6 +322,7 @@ def _calculate_constraint_score(
 
     violations = 0
     metrics = {}
+    constraint_scores = []  # Per-constraint partial scores
 
     for cond_config in constraint_conditions:
         # Get target value from conditions
@@ -339,13 +354,32 @@ def _calculate_constraint_score(
                 metrics[f"{cond_config.name}_target"] = float(target_value)
                 metrics[f"{cond_config.name}_error"] = float(error)
 
-                # Check if within tolerance
+                # Compute partial score with smooth exponential decay
+                normalized_error = (
+                    error / cond_config.tolerance if cond_config.tolerance > 0 else 0.0
+                )
+                partial_score = np.exp(-normalized_error)  # Smooth exponential decay
+                constraint_scores.append(partial_score)
+
+                metrics[f"{cond_config.name}_normalized_error"] = float(
+                    normalized_error
+                )
+                metrics[f"{cond_config.name}_partial_score"] = float(partial_score)
+
+                # Check if within tolerance (for violation counting)
                 if error >= cond_config.tolerance:
                     violations += 1
                     logger.debug(
                         f"Example {example_id}: {cond_config.name} violated - "
                         f"actual={actual_value:.4f}, target={target_value:.4f}, "
-                        f"error={error:.4f} >= tolerance={cond_config.tolerance}"
+                        f"error={error:.4f} >= tolerance={cond_config.tolerance}, "
+                        f"partial_score={partial_score:.4f}"
+                    )
+                else:
+                    logger.debug(
+                        f"Example {example_id}: {cond_config.name} satisfied - "
+                        f"actual={actual_value:.4f}, target={target_value:.4f}, "
+                        f"error={error:.4f}, partial_score={partial_score:.4f}"
                     )
 
         elif cond_config.constraint_type == "inequality":
@@ -354,10 +388,13 @@ def _calculate_constraint_score(
                 f"Example {example_id}: Inequality constraints not yet implemented"
             )
 
-    # Calculate score: 1.0 if no violations, 0.0 if any violations
-    # (Can be made more nuanced with partial credit)
-    constraint_score = 1.0 if violations == 0 else 0.0
+    # Calculate final score as average of per-constraint partial scores
+    constraint_score = (
+        float(np.mean(constraint_scores)) if constraint_scores else 1.0
+    )
+
     metrics["constraint_violations"] = violations
+    metrics["constraint_score_components"] = len(constraint_scores)
 
     return constraint_score, metrics
 
