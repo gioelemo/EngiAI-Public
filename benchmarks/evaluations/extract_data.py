@@ -17,6 +17,7 @@ import weave
 # Add project root to path to import config
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+from benchmarks.shared.problem_registry import get_problem_config  # noqa: E402
 from config import config  # noqa: E402
 
 # Constants
@@ -107,13 +108,18 @@ def _compute_combined_overall_score(
     output_quality: dict,
     task_completion: dict,
     tool_use: dict,
+    problem_type: str | None = None,
 ) -> float | None:
     """Compute weighted overall score combining all three scorers.
 
-    Uses the standard beams2d weights:
-    - design_quality: 65% (IoU, pixel_accuracy, constraint, objective, connectivity, watertightness)
-    - tool_efficiency: 20% (efficiency_ratio 100%)
-    - task_completion: 15% (success_rate 100%)
+    Derives category weights from the problem registry configuration to ensure
+    consistency with the evaluation settings. If problem_type is not provided,
+    falls back to beams2d weights.
+
+    Category weights typically include:
+    - design_quality: (IoU, pixel_accuracy, constraint, objective, connectivity, watertightness)
+    - tool_efficiency: (efficiency_ratio)
+    - task_completion: (success_rate)
 
     Note: Printability metrics (connectivity, watertightness) are now part of design_quality.
     Tool ordering is NOT scored as multiple valid orderings exist.
@@ -122,16 +128,34 @@ def _compute_combined_overall_score(
         output_quality: Output quality scorer results
         task_completion: Task completion scorer results
         tool_use: Tool use scorer results
+        problem_type: Problem type identifier (e.g., 'beams2d', 'photonics2d')
 
     Returns:
         Combined weighted score [0.0, 1.0], or None if insufficient data
     """
-    # Category weights (from problem_registry.py beams2d config)
-    weights = {
-        "design_quality": 0.65,
-        "tool_efficiency": 0.20,
-        "task_completion": 0.15,
-    }
+    # Derive category weights from problem registry
+    # Fallback to beams2d if problem_type not provided or not found
+    try:
+        if problem_type:
+            problem_config = get_problem_config(problem_type)
+            weights = {
+                category: config["weight"]
+                for category, config in problem_config.score_categories.items()
+            }
+        else:
+            # Fallback weights (beams2d)
+            weights = {
+                "design_quality": 0.65,
+                "tool_efficiency": 0.20,
+                "task_completion": 0.15,
+            }
+    except (ValueError, KeyError):
+        # If problem config not found or malformed, use beams2d fallback
+        weights = {
+            "design_quality": 0.65,
+            "tool_efficiency": 0.20,
+            "task_completion": 0.15,
+        }
 
     category_scores = {}
 
@@ -179,8 +203,19 @@ def _extract_metrics_from_scorers(
     output_quality: dict,
     task_completion: dict,
     tool_use: dict,
+    problem_type: str | None = None,
 ) -> dict:
-    """Extract all metrics from scorer outputs."""
+    """Extract all metrics from scorer outputs.
+
+    Args:
+        output_quality: Output quality scorer results
+        task_completion: Task completion scorer results
+        tool_use: Tool use scorer results
+        problem_type: Problem type identifier for weight derivation
+
+    Returns:
+        Dictionary of extracted metrics including combined_overall_score
+    """
     result = {}
 
     # Extract category scores (hierarchical score components)
@@ -278,8 +313,9 @@ def _extract_metrics_from_scorers(
         result["success_rate"] = task_completion.get("success_rate")
 
     # Compute true weighted overall score combining all three scorers
+    # Use problem_type to derive weights from registry
     result["combined_overall_score"] = _compute_combined_overall_score(
-        output_quality, task_completion, tool_use
+        output_quality, task_completion, tool_use, problem_type
     )
 
     return result
@@ -344,9 +380,14 @@ def _process_score_call_for_complete_data(
         result["response_length"] = score_output.get("response_length")
         result["model_latency"] = score_output.get("model_latency")
 
-        # Extract all metrics from scorers
+        # Extract problem_type early to use for weight derivation
+        problem_type = None
+        if isinstance(output_quality, dict):
+            problem_type = output_quality.get("problem_type")
+
+        # Extract all metrics from scorers (pass problem_type for weight derivation)
         metrics = _extract_metrics_from_scorers(
-            output_quality, task_completion, tool_use
+            output_quality, task_completion, tool_use, problem_type
         )
         result.update(metrics)
 
@@ -368,7 +409,7 @@ def _process_score_call_for_complete_data(
             result["conditions"] = conditions or {}  # type: ignore[assignment]
 
             # Problem type
-            result["problem_type"] = output_quality.get("problem_type")
+            result["problem_type"] = problem_type
 
             # Ground truth design (if available)
             gt_design = output_quality.get("gt_design")
