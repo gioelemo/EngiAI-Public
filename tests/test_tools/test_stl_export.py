@@ -16,7 +16,6 @@ from src.tools.stl_export import (
     _check_design_connectivity,
     _check_mesh_watertightness,
     _create_stl_from_heatmap_extruded,
-    _get_versioned_filename,
     _mirror_beam_along_y,
     convert_design_to_stl,
 )
@@ -55,59 +54,6 @@ def temp_outputs_dir(tmp_path):
 # ============================================================================
 # HELPER FUNCTION TESTS
 # ============================================================================
-
-
-@pytest.mark.skip(reason="Using _build_versioned_path now")
-@pytest.mark.unit
-def test_get_versioned_filename_new_file(tmp_path):
-    """Test versioned filename for non-existing file."""
-    file_path = tmp_path / "test.stl"
-
-    result = _get_versioned_filename(file_path)
-
-    assert result == file_path
-    assert not result.exists()
-
-
-@pytest.mark.skip(reason="Using _build_versioned_path now")
-@pytest.mark.unit
-def test_get_versioned_filename_existing_file(tmp_path):
-    """Test versioned filename when file exists."""
-    file_path = tmp_path / "test.stl"
-    file_path.write_text("existing file")
-
-    result = _get_versioned_filename(file_path)
-
-    assert result == tmp_path / "test_v1.stl"
-    assert not result.exists()
-
-
-@pytest.mark.skip(reason="Using _build_versioned_path now")
-@pytest.mark.unit
-def test_get_versioned_filename_multiple_versions(tmp_path):
-    """Test versioned filename with multiple existing versions."""
-    base = tmp_path / "test.stl"
-    base.write_text("v0")
-    (tmp_path / "test_v1.stl").write_text("v1")
-    (tmp_path / "test_v2.stl").write_text("v2")
-
-    result = _get_versioned_filename(base)
-
-    assert result == tmp_path / "test_v3.stl"
-
-
-@pytest.mark.skip(reason="Using _build_versioned_path now")
-@pytest.mark.unit
-def test_get_versioned_filename_with_existing_version():
-    """Test handling of filename that already has version."""
-    file_path = Path("test_v5.stl")
-
-    # Test the logic without actually creating files
-    stem = file_path.stem
-    if "_v" in stem:
-        parts = stem.rsplit("_v", 1)
-        assert parts[0] == "test"
-        assert parts[1] == "5"
 
 
 @pytest.mark.unit
