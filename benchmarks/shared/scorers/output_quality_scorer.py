@@ -389,9 +389,7 @@ def _calculate_constraint_score(
             )
 
     # Calculate final score as average of per-constraint partial scores
-    constraint_score = (
-        float(np.mean(constraint_scores)) if constraint_scores else 1.0
-    )
+    constraint_score = float(np.mean(constraint_scores)) if constraint_scores else 1.0
 
     metrics["constraint_violations"] = violations
     metrics["constraint_score_components"] = len(constraint_scores)
@@ -578,7 +576,9 @@ def _compute_hierarchical_score(
         # Note: Tool ordering is not scored (efficiency_ratio gets 100% weight)
         efficiency_ratio = metadata["efficiency_ratio"]
 
-        tool_efficiency_score = te_weights.get("efficiency_ratio", 1.0) * efficiency_ratio
+        tool_efficiency_score = (
+            te_weights.get("efficiency_ratio", 1.0) * efficiency_ratio
+        )
         category_scores["tool_efficiency"] = float(tool_efficiency_score)
         # If metrics not available, exclude this category from scoring
 
