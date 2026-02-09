@@ -34,7 +34,14 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     if not isinstance(content, str):
         return None
 
-    # Approach 1: Try converting Python repr to JSON
+    # Approach 1: Try direct JSON parsing first (handles valid JSON with apostrophes)
+    try:
+        return json.loads(content)
+    except (json.JSONDecodeError, Exception):
+        pass  # Continue to fallback approaches
+
+    # Approach 2: Try converting Python repr to JSON
+    # (only if direct JSON parsing failed)
     try:
         json_content = content.replace("'", '"')
         json_content = json_content.replace("True", "true")
@@ -46,7 +53,7 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     except (json.JSONDecodeError, Exception) as e:
         logger.debug("Example %s: JSON conversion failed: %s", example_id, e)
 
-    # Approach 2: Try ast.literal_eval
+    # Approach 3: Try ast.literal_eval (for Python repr)
     try:
         return ast.literal_eval(content)
     except (ValueError, SyntaxError) as e:
