@@ -111,12 +111,12 @@ def _compute_combined_overall_score(
     """Compute weighted overall score combining all three scorers.
 
     Uses the standard beams2d weights:
-    - design_quality: 50% (IoU 40%, pixel_accuracy 25%, constraint 15%, objective 20%)
+    - design_quality: 65% (IoU, pixel_accuracy, constraint, objective, connectivity, watertightness)
     - tool_efficiency: 20% (efficiency_ratio 100%)
     - task_completion: 15% (success_rate 100%)
-    - printability: 15% (connectivity 50%, watertightness 50%)
 
-    Note: Tool ordering is NOT scored as multiple valid orderings exist.
+    Note: Printability metrics (connectivity, watertightness) are now part of design_quality.
+    Tool ordering is NOT scored as multiple valid orderings exist.
 
     Args:
         output_quality: Output quality scorer results
@@ -128,10 +128,9 @@ def _compute_combined_overall_score(
     """
     # Category weights (from problem_registry.py beams2d config)
     weights = {
-        "design_quality": 0.50,
+        "design_quality": 0.65,
         "tool_efficiency": 0.20,
         "task_completion": 0.15,
-        "printability": 0.15,
     }
 
     category_scores = {}
@@ -156,11 +155,7 @@ def _compute_combined_overall_score(
         if success_rate is not None:
             category_scores["task_completion"] = float(success_rate)
 
-    # 4. Printability (from output_quality scorer)
-    if isinstance(output_quality, dict):
-        pr_score = output_quality.get("printability_score")
-        if pr_score is not None:
-            category_scores["printability"] = float(pr_score)
+    # Note: Printability is now part of design_quality category
 
     # If no categories available, return None
     if not category_scores:
