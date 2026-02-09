@@ -185,18 +185,16 @@ def _compute_combined_overall_score(
     if not category_scores:
         return None
 
-    # Compute weighted sum (only for available categories)
+    # Compute weighted sum using fixed category weights.
+    # Missing categories contribute zero and do not cause renormalization.
     total_score = 0.0
-    total_weight = 0.0
-    for category_name, category_score in category_scores.items():
-        weight = weights[category_name]
+    for category_name, weight in weights.items():
+        category_score = category_scores.get(category_name)
+        if category_score is None:
+            continue
         total_score += weight * category_score
-        total_weight += weight
 
-    # Normalize by actual weight used (in case some categories are missing)
-    if total_weight > 0:
-        return total_score / total_weight
-    return None
+    return total_score
 
 
 def _extract_metrics_from_scorers(
