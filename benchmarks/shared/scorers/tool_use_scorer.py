@@ -1,16 +1,13 @@
 """Tool use scorer for engineering agent evaluations.
 
-This scorer evaluates how well the agent uses tools compared to the optimal sequence,
-measuring both efficiency (number of calls) and correctness (order of calls).
+This scorer evaluates how well the agent uses tools compared to the optimal count,
+measuring efficiency (number of calls). Tool ordering is NOT scored as multiple
+valid orderings exist.
 
 Metrics:
 - Efficiency Ratio = optimal_calls / actual_calls
   - 1.0 = perfectly efficient (agent used exactly the optimal number of calls)
   - <1.0 = less efficient (agent used more calls than optimal)
-
-- Sequence Score = LCS length / optimal sequence length
-  - 1.0 = tools called in perfect order
-  - <1.0 = some tools out of order or missing
 """
 
 import logging
@@ -96,125 +93,6 @@ def _deep_resolve_weave(obj: Any) -> Any:
         return tuple(_deep_resolve_weave(item) for item in obj)
 
     return obj
-
-
-def _longest_common_subsequence(seq1: list[str], seq2: list[str]) -> list[str]:
-    """Compute the longest common subsequence between two sequences.
-
-    Uses dynamic programming to find the longest subsequence that appears
-    in both sequences in the same order (but not necessarily contiguous).
-
-    Args:
-        seq1: First sequence of tool names
-        seq2: Second sequence of tool names
-
-    Returns:
-        The longest common subsequence as a list
-    """
-    m, n = len(seq1), len(seq2)
-
-    # Build DP table
-    dp = [[0] * (n + 1) for _ in range(m + 1)]
-    for i in range(1, m + 1):
-        for j in range(1, n + 1):
-            if seq1[i - 1] == seq2[j - 1]:
-                dp[i][j] = dp[i - 1][j - 1] + 1
-            else:
-                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
-
-    # Backtrack to find the LCS
-    lcs = []
-    i, j = m, n
-    while i > 0 and j > 0:
-        if seq1[i - 1] == seq2[j - 1]:
-            lcs.append(seq1[i - 1])
-            i -= 1
-            j -= 1
-        elif dp[i - 1][j] > dp[i][j - 1]:
-            i -= 1
-        else:
-            j -= 1
-
-    return list(reversed(lcs))
-
-
-def _compute_sequence_metrics(
-    optimal_sequence: list[str],
-    actual_sequence: list[str],
-) -> dict[str, Any]:
-    """Compute sequence order metrics.
-
-    Args:
-        optimal_sequence: Expected sequence of tool names in order
-        actual_sequence: Actual sequence of tool calls made
-
-    Returns:
-        Dictionary with sequence metrics
-    """
-    if not optimal_sequence:
-        return {
-            "sequence_score": 1.0 if not actual_sequence else 0.0,
-            "correct_order": not actual_sequence,
-            "lcs": [],
-            "lcs_length": 0,
-            "missing_tools": [],
-            "extra_tools": [],
-            "out_of_order_tools": [],
-        }
-
-    # Compute LCS
-    lcs = _longest_common_subsequence(optimal_sequence, actual_sequence)
-    lcs_length = len(lcs)
-
-    # Sequence score: proportion of optimal sequence matched in order
-    sequence_score = lcs_length / len(optimal_sequence)
-
-    # Check if all optimal tools are present in correct order
-    correct_order = lcs == optimal_sequence
-
-    # Find missing tools (in optimal but not matched in LCS)
-    optimal_counts = Counter(optimal_sequence)
-    lcs_counts = Counter(lcs)
-    missing_tools = []
-    for tool, count in optimal_counts.items():
-        missing_count = count - lcs_counts.get(tool, 0)
-        missing_tools.extend([tool] * missing_count)
-
-    # Find extra tools (in actual but not in optimal)
-    actual_counts = Counter(actual_sequence)
-    extra_tools = []
-    for tool, count in actual_counts.items():
-        extra_count = count - optimal_counts.get(tool, 0)
-        if extra_count > 0:
-            extra_tools.extend([tool] * extra_count)
-
-    # Find out-of-order tools
-    # These are tools that are in actual_sequence and optimal_sequence
-    # but appear in a different relative order
-    out_of_order_tools = []
-    if not correct_order and lcs_length > 0:
-        # Tools that were called but in wrong position relative to others
-        optimal_set = set(optimal_sequence)
-        actual_filtered = [t for t in actual_sequence if t in optimal_set]
-        if actual_filtered != optimal_sequence:
-            # Find which tools broke the order
-            for i, tool in enumerate(actual_filtered):
-                if (
-                    i < len(optimal_sequence)
-                    and tool != optimal_sequence[i]
-                    and tool not in out_of_order_tools
-                ):
-                    out_of_order_tools.append(tool)
-
-    return {
-        "sequence_score": sequence_score,
-        "correct_order": correct_order,
-        "lcs": lcs,
-        "lcs_length": lcs_length,
-        "missing_tools": missing_tools,
-        "extra_tools": extra_tools,
-        "out_of_order_tools": out_of_order_tools,
-    }
 
 
 def _extract_optimal_sequence(
@@ -303,51 +181,6 @@ def _rebuild_optimal_tool_calls(optimal_sequence: list[str]) -> list[dict[str, A
 
     result.append({"name": current_tool, "count": current_count})
     return result
-
-
-def _log_tool_use_summary(
-    example_id: Any,
-    metrics: dict[str, Any],
-    seq_metrics: dict[str, Any],
-) -> None:
-    """Log a summary of tool use metrics.
-
-    Args:
-        example_id: Example identifier
-        metrics: Dict with efficiency_ratio, sequence_score, combined_score,
-                 optimal_call_count, actual_call_count
-        seq_metrics: Sequence metrics from _compute_sequence_metrics
-    """
-    if metrics["actual_call_count"] == 0:
-        logger.info("Example %s: No tool calls made (efficiency: 0.0)", example_id)
-        return
-
-    order_status = "correct" if seq_metrics["correct_order"] else "incorrect"
-    logger.info(
-        "Example %s: efficiency=%.2f, sequence=%.2f, combined=%.2f, order=%s "
-        "(optimal: %d, actual: %d)",
-        example_id,
-        metrics["efficiency_ratio"],
-        metrics["sequence_score"],
-        metrics["combined_score"],
-        order_status,
-        metrics["optimal_call_count"],
-        metrics["actual_call_count"],
-    )
-    if seq_metrics["missing_tools"]:
-        logger.debug(
-            "Example %s: Missing tools: %s", example_id, seq_metrics["missing_tools"]
-        )
-    if seq_metrics["extra_tools"]:
-        logger.debug(
-            "Example %s: Extra tools: %s", example_id, seq_metrics["extra_tools"]
-        )
-    if seq_metrics["out_of_order_tools"]:
-        logger.debug(
-            "Example %s: Out of order: %s",
-            example_id,
-            seq_metrics["out_of_order_tools"],
-        )
 
 
 def score_tool_use(
