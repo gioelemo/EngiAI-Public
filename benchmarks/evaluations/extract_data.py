@@ -103,6 +103,82 @@ def _extract_model_id_from_score_call(score_call, score_output: dict) -> str:
     return model_id
 
 
+def _compute_combined_overall_score(
+    output_quality: dict,
+    task_completion: dict,
+    tool_use: dict,
+) -> float | None:
+    """Compute weighted overall score combining all three scorers.
+
+    Uses the standard beams2d weights:
+    - design_quality: 50% (IoU 40%, pixel_accuracy 25%, constraint 15%, objective 20%)
+    - tool_efficiency: 20% (efficiency_ratio 60%, sequence_score 40%)
+    - task_completion: 15% (success_rate 100%)
+    - printability: 15% (connectivity 50%, watertightness 50%)
+
+    Args:
+        output_quality: Output quality scorer results
+        task_completion: Task completion scorer results
+        tool_use: Tool use scorer results
+
+    Returns:
+        Combined weighted score [0.0, 1.0], or None if insufficient data
+    """
+    # Category weights (from problem_registry.py beams2d config)
+    weights = {
+        "design_quality": 0.50,
+        "tool_efficiency": 0.20,
+        "task_completion": 0.15,
+        "printability": 0.15,
+    }
+
+    category_scores = {}
+
+    # 1. Design Quality (from output_quality scorer)
+    if isinstance(output_quality, dict):
+        dq_score = output_quality.get("design_quality_score")
+        if dq_score is not None:
+            category_scores["design_quality"] = float(dq_score)
+
+    # 2. Tool Efficiency (from tool_use scorer)
+    if isinstance(tool_use, dict):
+        efficiency_ratio = tool_use.get("efficiency_ratio")
+        sequence_score = tool_use.get("sequence_score")
+        if efficiency_ratio is not None and sequence_score is not None:
+            # Apply metric weights within category
+            te_score = 0.6 * efficiency_ratio + 0.4 * sequence_score
+            category_scores["tool_efficiency"] = float(te_score)
+
+    # 3. Task Completion (from task_completion scorer)
+    if isinstance(task_completion, dict):
+        success_rate = task_completion.get("success_rate")
+        if success_rate is not None:
+            category_scores["task_completion"] = float(success_rate)
+
+    # 4. Printability (from output_quality scorer)
+    if isinstance(output_quality, dict):
+        pr_score = output_quality.get("printability_score")
+        if pr_score is not None:
+            category_scores["printability"] = float(pr_score)
+
+    # If no categories available, return None
+    if not category_scores:
+        return None
+
+    # Compute weighted sum (only for available categories)
+    total_score = 0.0
+    total_weight = 0.0
+    for category_name, category_score in category_scores.items():
+        weight = weights[category_name]
+        total_score += weight * category_score
+        total_weight += weight
+
+    # Normalize by actual weight used (in case some categories are missing)
+    if total_weight > 0:
+        return total_score / total_weight
+    return None
+
+
 def _extract_metrics_from_scorers(
     output_quality: dict,
     task_completion: dict,
@@ -116,7 +192,8 @@ def _extract_metrics_from_scorers(
         result.update(
             {
                 "design_found": output_quality.get("design_found", False),
-                "overall_score": output_quality.get("score"),
+                "output_quality_score": output_quality.get("score"),  # Partial score (design_quality + printability only)
+                "overall_score": output_quality.get("score"),  # Deprecated: use combined_overall_score instead
                 "design_quality_score": output_quality.get("design_quality_score"),
                 "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
                 "task_completion_score": output_quality.get("task_completion_score"),
@@ -186,6 +263,11 @@ def _extract_metrics_from_scorers(
     # Extract task completion metrics
     if isinstance(task_completion, dict):
         result["success_rate"] = task_completion.get("success_rate")
+
+    # Compute true weighted overall score combining all three scorers
+    result["combined_overall_score"] = _compute_combined_overall_score(
+        output_quality, task_completion, tool_use
+    )
 
     return result
 

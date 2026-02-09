@@ -602,9 +602,43 @@ def score_output_quality(
 
     problem_name, example_id, problem_config = validation_result
 
+    # Check if this is a clarification-only task (natural prompts)
+    success_criteria = metadata.get("success_criteria", "render_design")
+    is_clarification_task = success_criteria == "clarification_requested"
+
     # Extract design array
     design_array = _get_design_array(output, metadata, problem_config, example_id)
     if design_array is None:
+        # For clarification-only tasks, no design is expected
+        # Check if clarification was requested in the messages
+        if is_clarification_task:
+            messages = output.get("messages", [])
+            clarification_found = any(
+                hasattr(msg, "tool_call_id")
+                and getattr(msg, "name", None) == "ask_human_for_clarification"
+                for msg in messages
+            )
+            if clarification_found:
+                # Task completed successfully: agent asked for clarification
+                return {
+                    "score": 1.0,  # Perfect score for correct behavior
+                    "design_found": False,
+                    "clarification_requested": True,
+                    "reason": "Clarification requested (expected for natural prompts)",
+                    "num_messages": len(messages),
+                }
+            else:
+                # Task failed: should have asked but didn't
+                return _create_error_result(
+                    {
+                        "design_found": False,
+                        "clarification_requested": False,
+                        "reason": "No clarification requested (expected for natural prompts)",
+                        "num_messages": len(messages),
+                    }
+                )
+
+        # For other tasks, no design is an error
         return _create_error_result(
             {
                 "design_found": False,

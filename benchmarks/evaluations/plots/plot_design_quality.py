@@ -2,8 +2,10 @@
 """
 Design Quality Distribution Plot
 
-Violin/box plot showing per-design overall_score distribution.
-Shows quality consistency across designs.
+Violin/box plot showing per-design output_quality_score distribution.
+Note: Uses 'overall_score' field which is the output_quality scorer result
+(partial score with design_quality + printability only).
+For the full weighted score, use combined_overall_score instead.
 """
 
 import matplotlib.pyplot as plt
