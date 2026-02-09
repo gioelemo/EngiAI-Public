@@ -105,7 +105,9 @@ def main():
     combined_design_df = get_combined_design_df(data)
 
     if combined_design_df is not None:
-        plot_combined_overall_score(combined_design_df, "combined_overall_score_distribution.png")
+        plot_combined_overall_score(
+            combined_design_df, "combined_overall_score_distribution.png"
+        )
     else:
         print("No design-level data available")
 
