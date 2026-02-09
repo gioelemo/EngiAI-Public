@@ -528,17 +528,14 @@ def _compute_hierarchical_score(
 
     # 2. Tool Efficiency Category (extract from metadata if available)
     te_weights = problem_config.get_metric_weights("tool_efficiency")
-    if te_weights and "efficiency_ratio" in metadata and "sequence_score" in metadata:
+    if te_weights and "efficiency_ratio" in metadata:
         # Only compute if tool usage metrics are actually available in metadata
         # (they would be if tool_use_scorer ran and passed results)
         # Don't assume perfect scores for missing data
+        # Note: Tool ordering is not scored (efficiency_ratio gets 100% weight)
         efficiency_ratio = metadata["efficiency_ratio"]
-        sequence_score = metadata["sequence_score"]
 
-        tool_efficiency_score = (
-            te_weights.get("efficiency_ratio", 0.0) * efficiency_ratio
-            + te_weights.get("sequence_score", 0.0) * sequence_score
-        )
+        tool_efficiency_score = te_weights.get("efficiency_ratio", 1.0) * efficiency_ratio
         category_scores["tool_efficiency"] = float(tool_efficiency_score)
         # If metrics not available, exclude this category from scoring
 

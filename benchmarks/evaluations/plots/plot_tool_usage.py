@@ -252,7 +252,7 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # 
         return
 
     # Check for required columns
-    required_cols = ["total_tools", "unique_tools", "overall_score", "iou"]
+    required_cols = ["total_tools", "unique_tools", "combined_overall_score", "iou"]
     missing_cols = [col for col in required_cols if col not in merged.columns]
     if missing_cols:
         print(f"Missing required columns: {missing_cols}")
@@ -276,8 +276,8 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # 
     )
 
     metrics = [
-        ("total_tools", "overall_score", "Total Tools", "Score"),
-        ("unique_tools", "overall_score", "Unique Tools", "Score"),
+        ("total_tools", "combined_overall_score", "Total Tools", "Score"),
+        ("unique_tools", "combined_overall_score", "Unique Tools", "Score"),
         ("total_tools", "iou", "Total Tools", "IoU"),
         ("unique_tools", "iou", "Unique Tools", "IoU"),
     ]
@@ -584,14 +584,14 @@ def plot_performance_distribution_by_tool_count(
     df = combined_tools
 
     # Check for required columns
-    if "total_tools" not in df.columns or "overall_score" not in df.columns:
-        print("Missing required columns (total_tools or overall_score)")
+    if "total_tools" not in df.columns or "combined_overall_score" not in df.columns:
+        print("Missing required columns (total_tools or combined_overall_score)")
         return
 
     fig, axes = plt.subplots(
         1, 2, figsize=PLOT_STYLE["figsize_full_width"], constrained_layout=True
     )
-    metrics = ["overall_score", "iou"]
+    metrics = ["combined_overall_score", "iou"]
     labels = ["Overall Score", "IoU"]
 
     for i, metric in enumerate(metrics):

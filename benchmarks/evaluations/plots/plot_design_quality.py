@@ -3,9 +3,9 @@
 Design Quality Distribution Plot
 
 Violin/box plot showing per-design output_quality_score distribution.
-Note: Uses 'overall_score' field which is the output_quality scorer result
+Note: Uses 'output_quality_score' field which is the output_quality scorer result
 (partial score with design_quality + printability only).
-For the full weighted score, use combined_overall_score instead.
+For the full weighted score, use combined_output_quality_score instead.
 """
 
 import matplotlib.pyplot as plt
@@ -51,7 +51,7 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     sns.violinplot(
         data=valid_designs,
         x="_label",
-        y="overall_score",
+        y="output_quality_score",
         hue="_label",
         palette=[PLOT_STYLE["colors"]["beams2d"], PLOT_STYLE["colors"]["photonics2d"]],
         inner="box",
@@ -72,7 +72,7 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
 
     # Statistics annotations (smaller, cleaner)
     for i, source in enumerate(valid_designs["_label"].unique()):
-        subset = valid_designs[valid_designs["_label"] == source]["overall_score"]
+        subset = valid_designs[valid_designs["_label"] == source]["output_quality_score"]
         stats_text = f"$\\mu$={subset.mean():.2f}, $\\sigma$={subset.std():.2f}"
         ax.annotate(
             stats_text,

@@ -704,7 +704,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         print()
         print("Tool use scorer does not compute global metrics.")
         print(
-            "Check Weave dashboard for per-example efficiency_ratio and sequence_score."
+            "Check Weave dashboard for per-example efficiency_ratio (tool call efficiency)."
         )
         print()
         print("🎉 Evaluation complete!")
