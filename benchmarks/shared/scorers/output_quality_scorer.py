@@ -283,6 +283,34 @@ def _extract_bool_field(content: str, field: str) -> bool:
     return False
 
 
+def _get_target_value(conditions: dict[str, Any], cond_config: Any) -> float | None:
+    """Extract target value from conditions, trying aliases if needed."""
+    target_value = conditions.get(cond_config.field_name)
+    if target_value is None:
+        for alias in cond_config.aliases:
+            target_value = conditions.get(alias)
+            if target_value is not None:
+                break
+    return target_value
+
+
+def _compute_constraint_partial_score(
+    error: float, tolerance: float
+) -> tuple[float, float]:
+    """Compute normalized error and partial score for a constraint.
+
+    Returns (normalized_error, partial_score).
+    """
+    if tolerance > 0:
+        normalized_error = error / tolerance
+        partial_score = np.exp(-normalized_error)
+    else:
+        # tolerance == 0: binary score
+        normalized_error = float("inf") if error > 0 else 0.0
+        partial_score = 1.0 if error == 0 else 0.0
+    return normalized_error, partial_score
+
+
 def _calculate_constraint_score(
     design_array: np.ndarray,
     conditions: dict[str, Any],
@@ -322,17 +350,10 @@ def _calculate_constraint_score(
 
     violations = 0
     metrics = {}
-    constraint_scores = []  # Per-constraint partial scores
+    constraint_scores = []
 
     for cond_config in constraint_conditions:
-        # Get target value from conditions
-        target_value = conditions.get(cond_config.field_name)
-        if target_value is None:
-            # Try aliases
-            for alias in cond_config.aliases:
-                target_value = conditions.get(alias)
-                if target_value is not None:
-                    break
+        target_value = _get_target_value(conditions, cond_config)
 
         if target_value is None:
             logger.debug(
@@ -340,64 +361,52 @@ def _calculate_constraint_score(
             )
             continue
 
-        # Check constraint based on type
-        if cond_config.constraint_type == "equality":
-            # For equality constraints on design array (e.g., volume fraction)
-            if (
-                cond_config.name == "volume_fraction"
-                or "volume" in cond_config.name.lower()
-            ):
-                actual_value = np.mean(design_array)
-                error = abs(actual_value - target_value)
+        # Only handle equality constraints for volume-type fields
+        is_volume_constraint = cond_config.constraint_type == "equality" and (
+            cond_config.name == "volume_fraction"
+            or "volume" in cond_config.name.lower()
+        )
 
-                metrics[f"{cond_config.name}_actual"] = float(actual_value)
-                metrics[f"{cond_config.name}_target"] = float(target_value)
-                metrics[f"{cond_config.name}_error"] = float(error)
-
-                # Compute partial score with smooth exponential decay
-                # Handle tolerance == 0 as binary pass/fail to stay consistent with violation check
-                if cond_config.tolerance > 0:
-                    normalized_error = error / cond_config.tolerance
-                    partial_score = np.exp(
-                        -normalized_error
-                    )  # Smooth exponential decay
-                else:
-                    # tolerance == 0: binary score (1.0 if exact match, 0.0 otherwise)
-                    normalized_error = float("inf") if error > 0 else 0.0
-                    partial_score = 1.0 if error == 0 else 0.0
-
-                constraint_scores.append(partial_score)
-
-                metrics[f"{cond_config.name}_normalized_error"] = float(
-                    normalized_error
+        if not is_volume_constraint:
+            if cond_config.constraint_type == "inequality":
+                logger.debug(
+                    f"Example {example_id}: Inequality constraints not yet implemented"
                 )
-                metrics[f"{cond_config.name}_partial_score"] = float(partial_score)
+            continue
 
-                # Check if within tolerance (for violation counting)
-                if error >= cond_config.tolerance:
-                    violations += 1
-                    logger.debug(
-                        f"Example {example_id}: {cond_config.name} violated - "
-                        f"actual={actual_value:.4f}, target={target_value:.4f}, "
-                        f"error={error:.4f} >= tolerance={cond_config.tolerance}, "
-                        f"partial_score={partial_score:.4f}"
-                    )
-                else:
-                    logger.debug(
-                        f"Example {example_id}: {cond_config.name} satisfied - "
-                        f"actual={actual_value:.4f}, target={target_value:.4f}, "
-                        f"error={error:.4f}, partial_score={partial_score:.4f}"
-                    )
+        # Calculate actual value and error
+        actual_value = np.mean(design_array)
+        error = abs(actual_value - target_value)
 
-        elif cond_config.constraint_type == "inequality":
-            # Placeholder for inequality constraints (can be extended)
-            logger.debug(
-                f"Example {example_id}: Inequality constraints not yet implemented"
-            )
+        metrics[f"{cond_config.name}_actual"] = float(actual_value)
+        metrics[f"{cond_config.name}_target"] = float(target_value)
+        metrics[f"{cond_config.name}_error"] = float(error)
 
-    # Calculate final score as average of per-constraint partial scores
+        # Compute partial score
+        normalized_error, partial_score = _compute_constraint_partial_score(
+            error, cond_config.tolerance
+        )
+        constraint_scores.append(partial_score)
+
+        metrics[f"{cond_config.name}_normalized_error"] = float(normalized_error)
+        metrics[f"{cond_config.name}_partial_score"] = float(partial_score)
+
+        # Log and count violations
+        is_violation = error >= cond_config.tolerance
+        violations += int(is_violation)
+
+        log_msg = (
+            f"Example {example_id}: {cond_config.name} "
+            f"{'violated' if is_violation else 'satisfied'} - "
+            f"actual={actual_value:.4f}, target={target_value:.4f}, "
+            f"error={error:.4f}"
+        )
+        if is_violation:
+            log_msg += f" >= tolerance={cond_config.tolerance}"
+        log_msg += f", partial_score={partial_score:.4f}"
+        logger.debug(log_msg)
+
     constraint_score = float(np.mean(constraint_scores)) if constraint_scores else 1.0
-
     metrics["constraint_violations"] = violations
     metrics["constraint_score_components"] = len(constraint_scores)
 
