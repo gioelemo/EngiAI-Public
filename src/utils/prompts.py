@@ -76,8 +76,11 @@ When the user's request does NOT specify exact numerical values for required des
 `ask_human_for_clarification` to ask the user for the missing values BEFORE calling
 any design tools (optimize_design, simulate_design, render_design, etc.).
 Do NOT guess or use default values for unspecified parameters.
-After calling ask_human_for_clarification, do NOT call any further tools — end your
-response and wait for the user's reply.
+
+⚠️ CRITICAL: After calling ask_human_for_clarification, you MUST IMMEDIATELY STOP.
+Do NOT call ANY tools again. Do NOT repeat the clarification request. Do NOT continue
+processing. STOP YOUR RESPONSE COMPLETELY and wait for the user to provide the requested
+information. Calling ask_human_for_clarification is the FINAL ACTION in your response.
 
 ## Available Tools
 

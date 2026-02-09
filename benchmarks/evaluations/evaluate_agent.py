@@ -139,7 +139,12 @@ class EngineeringAgent(weave.Model):
             messages = [HumanMessage(content=prompt)]
             state = {"messages": messages}
 
-            config_dict = {"configurable": {"thread_id": thread_id}}
+            # Set recursion_limit to prevent infinite loops (e.g., models repeatedly
+            # calling ask_human_for_clarification without stopping)
+            config_dict = {
+                "configurable": {"thread_id": thread_id},
+                "recursion_limit": 50,
+            }
 
             # Invoke the supervisor agent
             result = supervisor.invoke(state, config_dict)
