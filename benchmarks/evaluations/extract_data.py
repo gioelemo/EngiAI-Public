@@ -190,11 +190,10 @@ def _extract_metrics_from_scorers(
                 "design_found": output_quality.get("design_found", False),
                 "output_quality_score": output_quality.get(
                     "score"
-                ),  # Partial score (design_quality + printability only)
+                ),  # Partial score (design_quality including printability)
                 "design_quality_score": output_quality.get("design_quality_score"),
                 "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
                 "task_completion_score": output_quality.get("task_completion_score"),
-                "printability_score": output_quality.get("printability_score"),
                 # Design metrics
                 "iou": output_quality.get("iou"),
                 "pixel_accuracy": output_quality.get("pixel_accuracy"),
@@ -202,6 +201,9 @@ def _extract_metrics_from_scorers(
                 "constraint_score": output_quality.get("constraint_score"),
                 "objective_score": output_quality.get("objective_score"),
                 "constraint_violations": output_quality.get("constraint_violations"),
+                "constraint_score_components": output_quality.get(
+                    "constraint_score_components"
+                ),  # Number of constraints evaluated
                 # Objective metrics (compliance, etc.)
                 "agent_compliance": output_quality.get("agent_compliance"),
                 "target_compliance": output_quality.get("target_compliance"),
@@ -222,6 +224,24 @@ def _extract_metrics_from_scorers(
                 "comparison_image_generated": output_quality.get(
                     "comparison_image_generated"
                 ),
+            }
+        )
+
+        # Also extract per-constraint partial credit metrics (dynamic fields)
+        # These have suffixes: _actual, _target, _error, _normalized_error, _partial_score
+        constraint_suffixes = (
+            "_actual",
+            "_target",
+            "_error",
+            "_normalized_error",
+            "_partial_score",
+        )
+        result.update(
+            {
+                key: value
+                for key, value in output_quality.items()
+                if key.endswith(constraint_suffixes)
+                and isinstance(value, (int, float, bool))
             }
         )
 
