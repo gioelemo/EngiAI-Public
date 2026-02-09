@@ -357,9 +357,8 @@ def score_tool_use(
 ) -> dict[str, Any]:
     """Score the efficiency of tool usage compared to optimal.
 
-    This scorer computes:
-    1. Efficiency ratio: optimal_calls / actual_calls
-    2. Sequence score: how well the order matches (using LCS)
+    This scorer computes efficiency ratio (optimal_calls / actual_calls).
+    Tool call ordering is NOT scored as multiple valid orderings exist.
 
     Args:
         output: Agent output containing 'tool_calls_info' list
@@ -369,18 +368,13 @@ def score_tool_use(
     Returns:
         Dictionary with:
         - efficiency_ratio: optimal_calls / actual_calls (1.0 = perfect)
-        - sequence_score: LCS_length / optimal_length (1.0 = perfect order)
-        - combined_score: efficiency_ratio * sequence_score (1.0 = perfect overall)
-        - correct_order: bool, whether all optimal tools called in correct order
         - optimal_call_count: Expected number of tool calls
         - actual_call_count: Actual number of tool calls made
         - tool_call_breakdown: Counter of tool calls by name
-        - optimal_tool_calls: Expected tool call sequence
+        - optimal_tool_calls: Expected tool calls
         - actual_tool_sequence: Actual sequence of tool names
-        - lcs: Longest common subsequence (matched tools in order)
         - missing_tools: Tools in optimal but not called
         - extra_tools: Tools called but not in optimal
-        - out_of_order_tools: Tools called in wrong relative order
         - excess_calls: Number of calls beyond optimal
         - example_id: Example identifier
     """
@@ -412,50 +406,44 @@ def score_tool_use(
     # Cap efficiency at 1.0
     efficiency_ratio = min(efficiency_ratio, 1.0)
 
-    # Compute sequence metrics
-    seq_metrics = _compute_sequence_metrics(optimal_sequence, actual_sequence)
-    sequence_score = seq_metrics["sequence_score"]
+    # Compute tool coverage (which tools were called vs expected)
+    optimal_tools_set = set(optimal_sequence)
+    actual_tools_set = set(actual_sequence)
 
-    # Combined score: product of efficiency and sequence order
-    combined_score = efficiency_ratio * sequence_score
+    # Missing tools: in optimal but not called
+    missing_tools = list(optimal_tools_set - actual_tools_set)
+
+    # Extra tools: called but not in optimal
+    extra_tools = list(actual_tools_set - optimal_tools_set)
 
     # Compute excess calls
     excess_calls = max(0, actual_call_count - optimal_call_count)
 
     # Log summary
-    _log_tool_use_summary(
+    logger.info(
+        "Example %s: efficiency_ratio=%.2f (optimal: %d, actual: %d, missing: %s, extra: %s)",
         example_id,
-        {
-            "efficiency_ratio": efficiency_ratio,
-            "sequence_score": sequence_score,
-            "combined_score": combined_score,
-            "optimal_call_count": optimal_call_count,
-            "actual_call_count": actual_call_count,
-        },
-        seq_metrics,
+        efficiency_ratio,
+        optimal_call_count,
+        actual_call_count,
+        missing_tools if missing_tools else "none",
+        extra_tools if extra_tools else "none",
     )
 
     return {
-        # Main scores
+        # Main score
         "efficiency_ratio": float(efficiency_ratio),
-        "sequence_score": float(sequence_score),
-        "combined_score": float(combined_score),
-        "correct_order": bool(seq_metrics["correct_order"]),
         # Counts
         "optimal_call_count": int(optimal_call_count),
         "actual_call_count": int(actual_call_count),
         "excess_calls": int(excess_calls),
-        # Sequences (ensure plain Python lists of strings)
-        "optimal_sequence": list(optimal_sequence),
-        "actual_sequence": list(actual_sequence),
-        "lcs": list(seq_metrics["lcs"]),
-        "lcs_length": int(seq_metrics["lcs_length"]),
+        # Sequences
+        "actual_tool_sequence": list(actual_sequence),
         # Breakdown
         "tool_call_breakdown": dict(tool_call_breakdown),
         "optimal_tool_calls": resolved_optimal_tool_calls,
-        "missing_tools": list(seq_metrics["missing_tools"]),
-        "extra_tools": list(seq_metrics["extra_tools"]),
-        "out_of_order_tools": list(seq_metrics["out_of_order_tools"]),
+        "missing_tools": missing_tools,
+        "extra_tools": extra_tools,
         # Metadata
         "example_id": int(example_id)
         if isinstance(example_id, (int, float))

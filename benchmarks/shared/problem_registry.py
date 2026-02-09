@@ -46,8 +46,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
             },
             "tool_efficiency": {
                 "weight": 0.20,
-                "efficiency_ratio": 0.60,
-                "sequence_score": 0.40,
+                "efficiency_ratio": 1.0,  # Tool ordering not scored
             },
             "task_completion": {
                 "weight": 0.15,
@@ -103,8 +102,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
             },
             "tool_efficiency": {
                 "weight": 0.20,
-                "efficiency_ratio": 0.60,
-                "sequence_score": 0.40,
+                "efficiency_ratio": 1.0,  # Tool ordering not scored
             },
             "task_completion": {
                 "weight": 0.15,
@@ -199,8 +197,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
             },
             "tool_efficiency": {
                 "weight": 0.20,
-                "efficiency_ratio": 0.60,
-                "sequence_score": 0.40,
+                "efficiency_ratio": 1.0,  # Tool ordering not scored
             },
             "task_completion": {
                 "weight": 0.15,

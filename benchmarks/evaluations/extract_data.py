@@ -112,9 +112,11 @@ def _compute_combined_overall_score(
 
     Uses the standard beams2d weights:
     - design_quality: 50% (IoU 40%, pixel_accuracy 25%, constraint 15%, objective 20%)
-    - tool_efficiency: 20% (efficiency_ratio 60%, sequence_score 40%)
+    - tool_efficiency: 20% (efficiency_ratio 100%)
     - task_completion: 15% (success_rate 100%)
     - printability: 15% (connectivity 50%, watertightness 50%)
+
+    Note: Tool ordering is NOT scored as multiple valid orderings exist.
 
     Args:
         output_quality: Output quality scorer results
@@ -143,11 +145,10 @@ def _compute_combined_overall_score(
     # 2. Tool Efficiency (from tool_use scorer)
     if isinstance(tool_use, dict):
         efficiency_ratio = tool_use.get("efficiency_ratio")
-        sequence_score = tool_use.get("sequence_score")
-        if efficiency_ratio is not None and sequence_score is not None:
-            # Apply metric weights within category
-            te_score = 0.6 * efficiency_ratio + 0.4 * sequence_score
-            category_scores["tool_efficiency"] = float(te_score)
+        if efficiency_ratio is not None:
+            # Use efficiency_ratio directly (100% weight)
+            # Tool ordering is not scored as multiple valid orderings exist
+            category_scores["tool_efficiency"] = float(efficiency_ratio)
 
     # 3. Task Completion (from task_completion scorer)
     if isinstance(task_completion, dict):
@@ -193,7 +194,6 @@ def _extract_metrics_from_scorers(
             {
                 "design_found": output_quality.get("design_found", False),
                 "output_quality_score": output_quality.get("score"),  # Partial score (design_quality + printability only)
-                "overall_score": output_quality.get("score"),  # Deprecated: use combined_overall_score instead
                 "design_quality_score": output_quality.get("design_quality_score"),
                 "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
                 "task_completion_score": output_quality.get("task_completion_score"),
@@ -234,7 +234,6 @@ def _extract_metrics_from_scorers(
         result.update(
             {
                 "efficiency_ratio": tool_use.get("efficiency_ratio"),
-                "sequence_score": tool_use.get("sequence_score"),
                 "total_tools": tool_use.get("actual_call_count"),  # Map to total_tools
                 "unique_tools": len(
                     tool_use.get("tool_call_breakdown", {})
@@ -488,10 +487,10 @@ def print_summary(metrics_data: list[dict]) -> None:
     total_designs = len(metrics_data)
 
     # Calculate average scores (filter and cast to float for type safety)
-    overall_scores: list[float] = [
+    combined_overall_scores: list[float] = [
         float(score)
         for d in metrics_data
-        if (score := d.get("overall_score")) is not None
+        if (score := d.get("combined_overall_score")) is not None
     ]
     design_quality_scores: list[float] = [
         float(score)
@@ -517,9 +516,9 @@ def print_summary(metrics_data: list[dict]) -> None:
     print("\n" + "=" * 60)
     print(f"Designs: {total_designs}")
     print("\nAverage Scores:")
-    if overall_scores:
+    if combined_overall_scores:
         print(
-            f"  Overall Score:         {sum(overall_scores) / len(overall_scores):.3f}"
+            f"  Combined Overall:      {sum(combined_overall_scores) / len(combined_overall_scores):.3f}"
         )
     if design_quality_scores:
         print(

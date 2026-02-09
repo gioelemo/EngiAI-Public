@@ -190,10 +190,8 @@ The `design_data.json` file contains an array with per-example metrics from all 
 - `model` - Model name
 - **`combined_overall_score`** - True weighted overall score combining all scorers (0-1) [**RECOMMENDED**]
 - `output_quality_score` - Partial score from output_quality scorer (design_quality + printability only)
-- `overall_score` - Deprecated alias for `output_quality_score` (kept for backward compatibility)
 - `success_rate` - Task completion score (0 or 1)
-- `efficiency_ratio` - Tool efficiency score (optimal/actual calls)
-- `sequence_score` - Tool sequence correctness score
+- `efficiency_ratio` - Tool efficiency score (optimal/actual calls, tool ordering not scored)
 - `iou` - Intersection over Union (topology overlap)
 - `pixel_accuracy` - Element-wise accuracy
 - `mse` - Mean Squared Error (density field)
