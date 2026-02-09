@@ -228,6 +228,7 @@ def score_tool_use(
 
     # Build breakdown of tool calls by name
     tool_call_breakdown = Counter(actual_sequence)
+    optimal_tool_breakdown = Counter(optimal_sequence)
 
     # Compute efficiency ratio
     # optimal / actual so that 1.0 = perfect efficiency
@@ -239,15 +240,28 @@ def score_tool_use(
     # Cap efficiency at 1.0
     efficiency_ratio = min(efficiency_ratio, 1.0)
 
-    # Compute tool coverage (which tools were called vs expected)
-    optimal_tools_set = set(optimal_sequence)
-    actual_tools_set = set(actual_sequence)
+    # Compute tool coverage with multiplicity (how many times each tool was called vs expected)
+    # Missing tools: tools called fewer times than expected (with deficit counts)
+    missing_tools_counter = optimal_tool_breakdown - tool_call_breakdown
+    missing_tools = [
+        {
+            "name": tool,
+            "expected": optimal_tool_breakdown[tool],
+            "actual": tool_call_breakdown.get(tool, 0),
+        }
+        for tool in missing_tools_counter.elements()
+    ]
 
-    # Missing tools: in optimal but not called
-    missing_tools = list(optimal_tools_set - actual_tools_set)
-
-    # Extra tools: called but not in optimal
-    extra_tools = list(actual_tools_set - optimal_tools_set)
+    # Extra tools: tools called more times than expected (with excess counts)
+    extra_tools_counter = tool_call_breakdown - optimal_tool_breakdown
+    extra_tools = [
+        {
+            "name": tool,
+            "expected": optimal_tool_breakdown.get(tool, 0),
+            "actual": tool_call_breakdown[tool],
+        }
+        for tool in extra_tools_counter.elements()
+    ]
 
     # Compute excess calls
     excess_calls = max(0, actual_call_count - optimal_call_count)
