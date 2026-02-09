@@ -355,10 +355,17 @@ def _calculate_constraint_score(
                 metrics[f"{cond_config.name}_error"] = float(error)
 
                 # Compute partial score with smooth exponential decay
-                normalized_error = (
-                    error / cond_config.tolerance if cond_config.tolerance > 0 else 0.0
-                )
-                partial_score = np.exp(-normalized_error)  # Smooth exponential decay
+                # Handle tolerance == 0 as binary pass/fail to stay consistent with violation check
+                if cond_config.tolerance > 0:
+                    normalized_error = error / cond_config.tolerance
+                    partial_score = np.exp(
+                        -normalized_error
+                    )  # Smooth exponential decay
+                else:
+                    # tolerance == 0: binary score (1.0 if exact match, 0.0 otherwise)
+                    normalized_error = float("inf") if error > 0 else 0.0
+                    partial_score = 1.0 if error == 0 else 0.0
+
                 constraint_scores.append(partial_score)
 
                 metrics[f"{cond_config.name}_normalized_error"] = float(
