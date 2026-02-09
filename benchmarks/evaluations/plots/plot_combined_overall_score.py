@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-Design Quality Distribution Plot
+Combined Overall Score Distribution Plot
 
-Violin/box plot showing per-design design_quality_score distribution.
-This shows the unweighted design quality category score (includes design metrics
-and printability). For the full weighted overall score across all categories,
-see plot_combined_overall_score.py.
+Violin/box plot showing per-design combined_overall_score distribution.
+This shows the full weighted overall score across all three categories:
+- Design Quality (65%): IoU, pixel accuracy, constraints, objectives, printability
+- Tool Efficiency (20%): Efficiency ratio (optimal/actual calls)
+- Task Completion (15%): Success rate
+
+For individual category scores, see plot_design_quality.py.
 """
 
 import matplotlib.pyplot as plt
@@ -20,12 +23,12 @@ from utils import (
 )
 
 
-def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
-    """Create violin plot of design quality distribution (NeurIPS format).
+def plot_combined_overall_score(combined_design_df, output_path=None, output_dir=None):
+    """Create violin plot of combined overall score distribution (NeurIPS format).
 
     Args:
         combined_design_df: DataFrame with design-level metrics
-        output_path: Output filename (e.g., "design_quality_distribution.png")
+        output_path: Output filename (e.g., "combined_overall_score_distribution.png")
         output_dir: Optional output directory (default: figures/)
     """
     setup_style()
@@ -51,7 +54,7 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     sns.violinplot(
         data=valid_designs,
         x="_label",
-        y="design_quality_score",
+        y="combined_overall_score",
         hue="_label",
         palette=[PLOT_STYLE["colors"]["beams2d"], PLOT_STYLE["colors"]["photonics2d"]],
         inner="box",
@@ -61,7 +64,7 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     )
 
     ax.set_xlabel("")
-    ax.set_ylabel("Design Quality Score")
+    ax.set_ylabel("Combined Overall Score")
     ax.set_ylim(0, 1)
     ax.grid(True, axis="y", alpha=0.3)
 
@@ -73,7 +76,7 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     # Statistics annotations (smaller, cleaner)
     for i, source in enumerate(valid_designs["_label"].unique()):
         subset = valid_designs[valid_designs["_label"] == source][
-            "design_quality_score"
+            "combined_overall_score"
         ]
         stats_text = f"$\\mu$={subset.mean():.2f}, $\\sigma$={subset.std():.2f}"
         ax.annotate(
@@ -96,13 +99,13 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
 
 
 def main():
-    """Generate design quality distribution plot."""
+    """Generate combined overall score distribution plot."""
     print("Loading data...")
     data = load_data()
     combined_design_df = get_combined_design_df(data)
 
     if combined_design_df is not None:
-        plot_design_quality(combined_design_df, "design_quality_distribution.png")
+        plot_combined_overall_score(combined_design_df, "combined_overall_score_distribution.png")
     else:
         print("No design-level data available")
 

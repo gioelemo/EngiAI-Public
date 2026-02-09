@@ -188,9 +188,6 @@ def _extract_metrics_from_scorers(
         result.update(
             {
                 "design_found": output_quality.get("design_found", False),
-                "output_quality_score": output_quality.get(
-                    "score"
-                ),  # Partial score (design_quality including printability)
                 "design_quality_score": output_quality.get("design_quality_score"),
                 "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
                 "task_completion_score": output_quality.get("task_completion_score"),
@@ -524,11 +521,7 @@ def print_summary(metrics_data: list[dict]) -> None:
         for d in metrics_data
         if (score := d.get("task_completion_score")) is not None
     ]
-    printability_scores: list[float] = [
-        float(score)
-        for d in metrics_data
-        if (score := d.get("printability_score")) is not None
-    ]
+    # Note: printability_scores removed - printability is now part of design_quality
 
     print("\n" + "=" * 60)
     print(f"Designs: {total_designs}")
@@ -549,10 +542,7 @@ def print_summary(metrics_data: list[dict]) -> None:
         print(
             f"  Task Completion:       {sum(task_completion_scores) / len(task_completion_scores):.3f}"
         )
-    if printability_scores:
-        print(
-            f"  Printability:          {sum(printability_scores) / len(printability_scores):.3f}"
-        )
+    # Note: Printability metrics are now included in Design Quality score
     print("=" * 60)
 
 
