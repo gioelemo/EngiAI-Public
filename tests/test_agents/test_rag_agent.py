@@ -102,7 +102,7 @@ class TestRAGAgentInitialization:
         # (seed may also be passed depending on config)
         call_args = mock_init_llm.call_args
         assert call_args[0] == ("openai:gpt-4o",)
-        assert call_args[1]["temperature"] == 0.0
+        assert call_args[1]["temperature"] == 0.7  # Default from config
         mock_mmore_cls.assert_called_once_with(base_url=None)
 
     @patch("src.agents.rag_agent.MMOREClient")
