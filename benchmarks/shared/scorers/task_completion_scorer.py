@@ -197,9 +197,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     # Determine success criteria based on prompt style
     is_workflow = prompt_style in ["workflow", "workflow-random"]
     is_workflow_random = prompt_style == "workflow-random"
-    is_clarification = (
-        metadata.get("success_criteria") == "clarification_requested"
-    )
+    is_clarification = metadata.get("success_criteria") == "clarification_requested"
     success_criteria = "stl_export" if is_workflow else "render_design"
     if is_workflow_random:
         success_criteria = "stl_export_with_params"
@@ -292,9 +290,9 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
             if isinstance(content, str) and content.startswith(
                 "Clarification requested: "
             ):
-                clarification_question = content.split(
-                    "Clarification requested: ", 1
-                )[1].split("\n")[0]
+                clarification_question = content.split("Clarification requested: ", 1)[
+                    1
+                ].split("\n")[0]
             else:
                 clarification_question = content if isinstance(content, str) else None
             logger.debug(

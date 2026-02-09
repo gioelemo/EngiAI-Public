@@ -426,8 +426,8 @@ def score_tool_use(
         efficiency_ratio,
         optimal_call_count,
         actual_call_count,
-        missing_tools if missing_tools else "none",
-        extra_tools if extra_tools else "none",
+        missing_tools or "none",
+        extra_tools or "none",
     )
 
     return {

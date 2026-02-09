@@ -193,7 +193,9 @@ def _extract_metrics_from_scorers(
         result.update(
             {
                 "design_found": output_quality.get("design_found", False),
-                "output_quality_score": output_quality.get("score"),  # Partial score (design_quality + printability only)
+                "output_quality_score": output_quality.get(
+                    "score"
+                ),  # Partial score (design_quality + printability only)
                 "design_quality_score": output_quality.get("design_quality_score"),
                 "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
                 "task_completion_score": output_quality.get("task_completion_score"),
