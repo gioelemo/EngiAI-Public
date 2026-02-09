@@ -116,7 +116,9 @@ def _generate_design_plots(combined_design, output_dir, problem: str | None = No
 
     # Combined overall score distribution
     print("\n[1/3] Combined overall score distribution...")
-    plot_combined_overall_score(combined_design, "combined_overall_score_distribution.png", output_dir)
+    plot_combined_overall_score(
+        combined_design, "combined_overall_score_distribution.png", output_dir
+    )
 
     # Design quality distribution
     print("\n[2/3] Design quality distribution...")
