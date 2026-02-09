@@ -523,10 +523,10 @@ def _compute_hierarchical_score(
     """Compute hierarchical composite score from multiple categories.
 
     Categories:
-    1. Design Quality: IoU, pixel accuracy, constraint match, objective match
+    1. Design Quality: IoU, pixel accuracy, constraint match, objective match,
+                       connectivity, watertightness
     2. Tool Efficiency: efficiency ratio (from metadata, tool ordering not scored)
     3. Task Completion: whether the task was completed successfully
-    4. Printability: connectivity and watertightness
 
     Args:
         problem_config: Problem configuration with score_categories
@@ -551,15 +551,21 @@ def _compute_hierarchical_score(
 
     category_scores = {}
 
-    # 1. Design Quality Category
+    # 1. Design Quality Category (includes printability metrics)
     dq_weights = problem_config.get_metric_weights("design_quality")
     if dq_weights:
+        # Convert boolean printability metrics to 0/1
+        connected = 1.0 if connectivity_metrics.get("connected_design", False) else 0.0
+        watertight = 1.0 if watertightness_metrics.get("is_watertight", False) else 0.0
+
         design_quality_score = (
             dq_weights.get("iou", 0.0) * design_metrics.get("iou", 0.0)
             + dq_weights.get("pixel_accuracy", 0.0)
             * design_metrics.get("pixel_accuracy", 0.0)
             + dq_weights.get("constraint_match", 0.0) * constraint_score
             + dq_weights.get("objective_match", 0.0) * objective_score
+            + dq_weights.get("connectivity", 0.0) * connected
+            + dq_weights.get("watertightness", 0.0) * watertight
         )
         category_scores["design_quality"] = float(design_quality_score)
 
@@ -584,19 +590,6 @@ def _compute_hierarchical_score(
         task_completion_score = metadata["task_completion_score"]
         category_scores["task_completion"] = float(task_completion_score)
         # If metric not available, exclude this category from scoring
-
-    # 4. Printability Category
-    pr_weights = problem_config.get_metric_weights("printability")
-    if pr_weights:
-        # Convert boolean metrics to 0/1
-        connected = 1.0 if connectivity_metrics.get("connected_design", False) else 0.0
-        watertight = 1.0 if watertightness_metrics.get("is_watertight", False) else 0.0
-
-        printability_score = (
-            pr_weights.get("connectivity", 0.0) * connected
-            + pr_weights.get("watertightness", 0.0) * watertight
-        )
-        category_scores["printability"] = float(printability_score)
 
     # Compute overall score as weighted sum of category scores
     overall_score = 0.0

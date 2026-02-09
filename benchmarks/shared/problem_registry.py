@@ -38,11 +38,13 @@ PROBLEMS: dict[str, ProblemConfig] = {
         ],
         score_categories={
             "design_quality": {
-                "weight": 0.50,
-                "iou": 0.40,
-                "pixel_accuracy": 0.25,
-                "constraint_match": 0.15,
-                "objective_match": 0.20,
+                "weight": 0.65,  # Merged with printability (0.50 + 0.15)
+                "iou": 0.31,
+                "pixel_accuracy": 0.19,
+                "constraint_match": 0.12,
+                "objective_match": 0.15,
+                "connectivity": 0.12,
+                "watertightness": 0.11,
             },
             "tool_efficiency": {
                 "weight": 0.20,
@@ -51,11 +53,6 @@ PROBLEMS: dict[str, ProblemConfig] = {
             "task_completion": {
                 "weight": 0.15,
                 "success_rate": 1.0,
-            },
-            "printability": {
-                "weight": 0.15,
-                "connectivity": 0.50,
-                "watertightness": 0.50,
             },
         },
         prompt_file_template="beams2d_prompts_{n_samples}_samples_{split}_{style}_seed{seed}.json",
@@ -94,11 +91,13 @@ PROBLEMS: dict[str, ProblemConfig] = {
         ],
         score_categories={
             "design_quality": {
-                "weight": 0.50,
-                "iou": 0.40,
-                "pixel_accuracy": 0.25,
-                "constraint_match": 0.15,  # No constraints, but keep structure
-                "objective_match": 0.20,
+                "weight": 0.65,  # Merged with printability (0.50 + 0.15)
+                "iou": 0.31,
+                "pixel_accuracy": 0.19,
+                "constraint_match": 0.12,  # No constraints, but keep structure
+                "objective_match": 0.15,
+                "connectivity": 0.12,
+                "watertightness": 0.11,
             },
             "tool_efficiency": {
                 "weight": 0.20,
@@ -107,11 +106,6 @@ PROBLEMS: dict[str, ProblemConfig] = {
             "task_completion": {
                 "weight": 0.15,
                 "success_rate": 1.0,
-            },
-            "printability": {
-                "weight": 0.15,
-                "connectivity": 0.50,
-                "watertightness": 0.50,
             },
         },
         prompt_file_template="photonics2d_prompts_{n_samples}_samples_{split}_{style}_seed{seed}.json",
@@ -189,11 +183,13 @@ PROBLEMS: dict[str, ProblemConfig] = {
         ],
         score_categories={
             "design_quality": {
-                "weight": 0.50,
-                "iou": 0.40,
-                "pixel_accuracy": 0.25,
+                "weight": 0.65,  # Merged with printability (0.50 + 0.15)
+                "iou": 0.31,
+                "pixel_accuracy": 0.19,
                 "constraint_match": 0.0,  # No constraints to check
-                "objective_match": 0.35,  # Higher weight for multi-objective matching
+                "objective_match": 0.27,  # Higher weight for multi-objective matching
+                "connectivity": 0.12,
+                "watertightness": 0.11,
             },
             "tool_efficiency": {
                 "weight": 0.20,
@@ -202,11 +198,6 @@ PROBLEMS: dict[str, ProblemConfig] = {
             "task_completion": {
                 "weight": 0.15,
                 "success_rate": 1.0,
-            },
-            "printability": {
-                "weight": 0.15,
-                "connectivity": 0.50,
-                "watertightness": 0.50,
             },
         },
         prompt_file_template="thermoelastic2d_prompts_{n_samples}_samples_{split}_{style}_seed{seed}.json",
