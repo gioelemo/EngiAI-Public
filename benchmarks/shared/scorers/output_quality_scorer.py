@@ -487,7 +487,7 @@ def _compute_hierarchical_score(
 
     Categories:
     1. Design Quality: IoU, pixel accuracy, constraint match, objective match
-    2. Tool Efficiency: efficiency ratio, sequence score (from metadata)
+    2. Tool Efficiency: efficiency ratio (from metadata, tool ordering not scored)
     3. Task Completion: whether the task was completed successfully
     4. Printability: connectivity and watertightness
 
