@@ -70,6 +70,15 @@ A library of ML algorithms built on top of EngiBench problems:
 2. Pass in problem_config dict to ALL tools
 3. **STORE config** - reuse same config for simulate_design and render_design
 
+**Clarification (Required):**
+When the user's request does NOT specify exact numerical values for required design parameters
+(e.g., volume fraction, force distribution, filter radius), you MUST call
+`ask_human_for_clarification` to ask the user for the missing values BEFORE calling
+any design tools (optimize_design, simulate_design, render_design, etc.).
+Do NOT guess or use default values for unspecified parameters.
+After calling ask_human_for_clarification, do NOT call any further tools — end your
+response and wait for the user's reply.
+
 ## Available Tools
 
 ### EngiBench Tools (Physics-Based)
@@ -90,6 +99,9 @@ A library of ML algorithms built on top of EngiBench problems:
 ### Post-Processing
 - **convert_design_to_stl**: Convert .npy design files to STL for 3D printing
 
+### Clarification
+- **ask_human_for_clarification**: Ask the user for missing or ambiguous design parameters before proceeding
+
 {rag_tool_usage}
 
 ## Problem-Specific Configs
@@ -103,7 +115,7 @@ A library of ML algorithms built on top of EngiBench problems:
 ## Response Style
 
 - Show metrics with units, interpret practically ("20% stiffer", "35% less material")
-- Be proactive: use sensible defaults, render after optimization
+- Be proactive: render after optimization, ask for clarification when parameters are missing
 - Only ask clarification when truly needed
 
 ## Suggested Next Prompts

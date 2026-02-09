@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Tool names to check for task completion
 RENDER_TOOL_NAME = "render_design"
 STL_EXPORT_TOOL_NAME = "convert_design_to_stl"
+CLARIFICATION_TOOL_NAME = "ask_human_for_clarification"
 
 
 def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
@@ -196,9 +197,18 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     # Determine success criteria based on prompt style
     is_workflow = prompt_style in ["workflow", "workflow-random"]
     is_workflow_random = prompt_style == "workflow-random"
+    is_clarification = (
+        metadata.get("success_criteria") == "clarification_requested"
+    )
     success_criteria = "stl_export" if is_workflow else "render_design"
     if is_workflow_random:
         success_criteria = "stl_export_with_params"
+    if is_clarification:
+        success_criteria = "clarification_requested"
+
+    # Track ask_human_for_clarification calls
+    clarification_called = False
+    clarification_question = None
 
     # Track render_design calls
     render_called = False
@@ -275,6 +285,23 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                     render_error,
                 )
 
+        # Process ask_human_for_clarification calls
+        elif tool_name == CLARIFICATION_TOOL_NAME:
+            clarification_called = True
+            content = msg.content
+            if isinstance(content, str) and content.startswith(
+                "Clarification requested: "
+            ):
+                clarification_question = content.split(
+                    "Clarification requested: ", 1
+                )[1].split("\n")[0]
+            else:
+                clarification_question = content if isinstance(content, str) else None
+            logger.debug(
+                "Example %s: Found ask_human_for_clarification tool call",
+                example_id,
+            )
+
         # Process convert_design_to_stl calls
         elif tool_name == STL_EXPORT_TOOL_NAME:
             stl_called = True
@@ -322,7 +349,23 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 )
 
     # Compute final score based on prompt style
-    if is_workflow:
+    if is_clarification:
+        # For natural prompts: success = clarification was requested
+        task_completed = clarification_called
+        success_rate = 1.0 if task_completed else 0.0
+
+        if not clarification_called:
+            logger.info(
+                "Example %s (natural): ask_human_for_clarification was never called",
+                example_id,
+            )
+        else:
+            logger.info(
+                "Example %s (natural): Task completed successfully "
+                "(clarification requested)",
+                example_id,
+            )
+    elif is_workflow:
         # For workflow prompts: success = STL export succeeded
         task_completed = stl_called and stl_success
         success_rate = 1.0 if task_completed else 0.0
@@ -415,6 +458,9 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
         "stl_save_path": stl_save_path,
         "stl_error": stl_error,
         "stl_details": stl_details,
+        # Clarification metrics (natural prompts)
+        "clarification_called": clarification_called,
+        "clarification_question": clarification_question,
         # STL parameter validation metrics (workflow-random)
         "stl_param_validation_score": stl_param_validation_score,
         **stl_param_metrics,  # Unpacks all per-parameter metrics

@@ -66,11 +66,10 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
     "natural": {
         "description": "Natural language descriptions only",
         "optimal_tool_calls": [
-            {"name": "optimize_design", "count": 1},
-            {"name": "simulate_design", "count": 1},
-            {"name": "render_design", "count": 1},
+            {"name": "ask_human_for_clarification", "count": 1},
         ],
-        "optimal_call_count": 3,
+        "optimal_call_count": 1,
+        "success_criteria": "clarification_requested",
     },
     "workflow": {
         "description": "Full workflow with export steps",
