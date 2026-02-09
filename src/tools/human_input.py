@@ -4,6 +4,8 @@ Provides a tool that allows the LLM to request clarification from the user
 when design parameters are ambiguous or missing from the prompt.
 """
 
+import json
+
 from langchain_core.tools import tool
 
 
@@ -24,10 +26,14 @@ def ask_human_for_clarification(question: str) -> str:
             if known.
 
     Returns:
-        A confirmation message indicating the clarification was requested.
+        A JSON string with structured clarification data.
     """
-    return (
-        f"Clarification requested: {question}\n\n"
-        "Awaiting user response. Do not proceed with design tools "
-        "until the user provides the required parameters."
-    )
+    result = {
+        "success": True,
+        "question": question,
+        "message": (
+            "Clarification requested. Awaiting user response. "
+            "Do not proceed with design tools until the user provides the required parameters."
+        ),
+    }
+    return json.dumps(result)

@@ -286,19 +286,37 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
         # Process ask_human_for_clarification calls
         elif tool_name == CLARIFICATION_TOOL_NAME:
             clarification_called = True
-            content = msg.content
-            if isinstance(content, str) and content.startswith(
-                "Clarification requested: "
-            ):
-                clarification_question = content.split("Clarification requested: ", 1)[
-                    1
-                ].split("\n")[0]
-            else:
-                clarification_question = content if isinstance(content, str) else None
             logger.debug(
                 "Example %s: Found ask_human_for_clarification tool call",
                 example_id,
             )
+
+            # Parse the tool result (structured JSON)
+            content = msg.content
+            result = _parse_tool_result(content, example_id)
+
+            if result is not None and result.get("success", False):
+                clarification_question = result.get("question")
+                logger.debug(
+                    "Example %s: Parsed clarification question: %s",
+                    example_id,
+                    clarification_question,
+                )
+            else:
+                # Fallback: try to extract from raw content for backward compatibility
+                if isinstance(content, str):
+                    if content.startswith("Clarification requested: "):
+                        clarification_question = content.split(
+                            "Clarification requested: ", 1
+                        )[1].split("\n")[0]
+                    else:
+                        clarification_question = content
+                else:
+                    clarification_question = None
+                logger.debug(
+                    "Example %s: Using fallback parsing for clarification question",
+                    example_id,
+                )
 
         # Process convert_design_to_stl calls
         elif tool_name == STL_EXPORT_TOOL_NAME:
