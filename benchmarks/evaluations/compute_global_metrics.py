@@ -191,20 +191,7 @@ def compute_optimality_gaps(  # noqa: PLR0912, PLR0915
     # Get problem config to know objective field names
     try:
         problem_config = get_problem_config(problem_name)
-        # Use the first objective's target field name
-        objective_field = problem_config.objectives[0].target_field
-        # Map common field names to dataset field names
-        # (datasets use short field names like 'c' instead of 'compliance')
-        field_mapping = {
-            "compliance": "c",
-            "total_overlap": "total_overlap",  # photonics uses full name
-            "structural_compliance": "structural_compliance",
-            "thermal_compliance": "thermal_compliance",
-        }
-        dataset_field = field_mapping.get(objective_field, objective_field)
-        print(
-            f"Using objective field: '{dataset_field}' (from config: '{objective_field}')"
-        )
+        obj_config = problem_config.objectives[0]
     except Exception as e:
         print(f"❌ Failed to get problem config: {e}")
         return None, None, None
@@ -215,6 +202,22 @@ def compute_optimality_gaps(  # noqa: PLR0912, PLR0915
     except Exception as e:
         print(f"❌ Failed to load dataset for reference objectives: {e}")
         return None, None, None
+
+    # Resolve the actual dataset field name by probing a sample row.
+    # target_field may differ from the raw dataset key (e.g., target_field="compliance"
+    # but dataset uses "c"), so try target_field first, then each alias.
+    sample_row = hf_dataset[0]
+    dataset_field = obj_config.target_field  # default fallback
+    if obj_config.target_field in sample_row:
+        dataset_field = obj_config.target_field
+    else:
+        for alias in obj_config.aliases:
+            if alias in sample_row:
+                dataset_field = alias
+                break
+    print(
+        f"Using objective field: '{dataset_field}' (from config: '{obj_config.target_field}')"
+    )
 
     iog_list = []
     cog_list = []
