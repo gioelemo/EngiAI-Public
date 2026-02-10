@@ -8,6 +8,7 @@ Provides common functionality for all agents including:
 - Common node implementations (_llm_call, _tool_node, _should_continue)
 """
 
+import json
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, Literal
@@ -196,7 +197,14 @@ class BaseAgent(ABC):
             if not isinstance(message, ToolMessage):
                 break
             if message.name == "ask_human_for_clarification":
-                return "__end__"
+                # Only stop if the tool actually succeeded; on error let the
+                # LLM recover (e.g. retry with corrected arguments).
+                try:
+                    payload = json.loads(message.content)
+                    if payload.get("success") is True:
+                        return "__end__"
+                except (json.JSONDecodeError, AttributeError):
+                    pass
         return "llm_call"
 
     def _build_agent(self) -> Any:

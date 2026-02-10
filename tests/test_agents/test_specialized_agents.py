@@ -384,6 +384,30 @@ def test_after_tools_routes_to_llm_call_when_no_tool_messages():
 
 
 @pytest.mark.unit
+def test_after_tools_routes_to_llm_call_when_clarification_tool_errored():
+    """If ask_human_for_clarification raised an error, let the LLM recover."""
+    agent = _make_agent()
+    state = {
+        "messages": [
+            HumanMessage(content="optimize a beam"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "t1", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            # _tool_node error format
+            ToolMessage(
+                content="❌ Error executing tool 'ask_human_for_clarification': something broke",
+                tool_call_id="t1",
+                name="ask_human_for_clarification",
+            ),
+        ]
+    }
+    assert agent._after_tools(state) == "llm_call"
+
+
+@pytest.mark.unit
 def test_after_tools_only_inspects_trailing_tool_messages():
     """Clarification from a previous turn (not trailing) must not affect current routing."""
     agent = _make_agent()
