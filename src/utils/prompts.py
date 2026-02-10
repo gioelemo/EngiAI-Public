@@ -74,9 +74,13 @@ A library of ML algorithms built on top of EngiBench problems:
 When the user's request does NOT specify exact numerical values for required design parameters
 (e.g., volume fraction, force distribution, filter radius), you MUST call
 `ask_human_for_clarification` to ask the user for the missing values BEFORE calling
-any design tools (optimize_design, simulate_design, render_design, etc.).
-Do NOT guess or use default values for unspecified parameters.
+any design tools (optimize_design, simulate_design, render_design, etc.). Do NOT
+guess or use default values for unspecified parameters.
 
+Clarification turns are an exception to any requirement to include extra blocks
+(such as `suggested_prompts`) in EVERY response: when you call
+`ask_human_for_clarification`, your response for that turn MUST consist solely of
+the tool call (no `suggested_prompts` block and no additional user-facing text).
 ## Available Tools
 
 ### EngiBench Tools (Physics-Based)
