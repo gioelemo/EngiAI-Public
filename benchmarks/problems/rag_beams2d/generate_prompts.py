@@ -102,6 +102,58 @@ RAG_PROMPTS: list[dict] = [
         },
         "target": {},
     },
+    {
+        # -------------------------------------------------------------------
+        # Prompt 1 — Both parameters from the paper's API example (harder)
+        #
+        # The EngiBench paper's API walkthrough (Section 3.1) shows a custom
+        # design configuration with volfrac=0.7 and forcedist=0.3.
+        #
+        # BOTH values differ from the problem defaults (volfrac=0.35,
+        # forcedist=0.0), so the agent cannot cheat via get_problem_details.
+        # The agent must find the specific code block in the paper and extract
+        # both values correctly.
+        #
+        # Scoring uses two-parameter mode (dynamic weights):
+        #   effective_volfrac_accuracy   0.35 (gated on rag_called)
+        #   effective_forcedist_accuracy 0.35 (gated on rag_called)
+        #   rag_tool_called              0.20
+        #   source_cited                 0.10
+        #
+        # RAG-on:  searches paper → finds both 0.7 and 0.3 → score ~1.0
+        # RAG-off: calls get_problem_details → gets (0.35, 0.0) (both wrong)
+        #          → parameter scores = 0 → score ~0.0-0.10
+        # -------------------------------------------------------------------
+        "prompt": (
+            "The EngiBench paper's API walkthrough includes a code example that "
+            "demonstrates how to configure custom design conditions for the Beams2D "
+            "problem. The example specifies both a volume fraction and a force "
+            "distribution value.\n\n"
+            "Search the paper to find that example and identify both values. "
+            "Then generate a 2D beam design using exactly the volume fraction and "
+            "force distribution from the paper's example."
+        ),
+        "conditions": {
+            "expected_volfrac": 0.7,
+            "expected_volfrac_tolerance": 0.05,
+            "expected_forcedist": 0.3,
+            "expected_forcedist_tolerance": 0.05,
+        },
+        "metadata": {
+            "knowledge_source": "EngiBench paper Section 3.1",
+            "rag_query_hint": "EngiBench API example desired_conds volfrac forcedist beams2d",
+            "parameter_tested": "volfrac+forcedist",
+            "expected_reasoning": (
+                "Agent should search the EngiBench paper, find the API example showing "
+                "desired_conds = {\"volfrac\": 0.7, \"forcedist\": 0.3}, and call "
+                "optimize_design with volfrac=0.7 and forcedist=0.3. "
+                "Both values differ from get_problem_details defaults (0.35, 0.0) so "
+                "the agent cannot cheat. Scorer gates both parameter scores on "
+                "rag_tool_called=True."
+            ),
+        },
+        "target": {},
+    },
 ]
 
 
