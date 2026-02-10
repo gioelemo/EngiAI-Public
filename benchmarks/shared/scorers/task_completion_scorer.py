@@ -85,7 +85,7 @@ def _validate_stl_parameters(
         logger.debug("Example %s: No expected STL params to validate", example_id)
         return 1.0, {}
 
-    float_tolerance = 0.01  # Match constraint validation tolerance
+    float_tolerance = 0.05  # Allow LLM rounding to 1 decimal place (e.g. 16.635 → 16.6)
 
     violations = 0
     metrics: dict[str, Any] = {}
