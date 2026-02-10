@@ -50,37 +50,54 @@ PROMPT_STYLES: dict[str, dict] = {
 #   metadata          - Context for scorers
 #   target            - Ground truth (empty here — no HF design to compare)
 #
-# expected_volfrac is the midpoint of the range stated in the EngiBench paper.
-# expected_volfrac_tolerance is the ±window within which the agent's choice is
-# considered correct (accounts for reasonable rounding by the LLM).
+# expected_volfrac is taken from the EngiBench paper's API example, which shows:
+#   problem.conditions  # (("volfrac", 0.35), ("forcedist", 0.0), ...)
+# expected_volfrac_tolerance is the ±window considered correct (accounts for
+# reasonable rounding by the LLM).
+# NOTE: The scorer gates volfrac_accuracy credit on rag_tool_called=True.
+# Even if the agent reaches the correct volfrac via get_problem_details instead
+# of the paper, it earns no parameter accuracy credit.
 # ---------------------------------------------------------------------------
 
 RAG_PROMPTS: list[dict] = [
     {
         # -------------------------------------------------------------------
-        # Prompt 0 — Volume fraction range from the EngiBench paper
-        # The beams_2d_50_100_v0 dataset spans volfrac in [0.2, 0.5].
-        # Midpoint = 0.35.
+        # Prompt 0 — Default volume fraction from the EngiBench paper
+        #
+        # The EngiBench paper's API walkthrough (Section 3.1) shows the
+        # Beams2D default conditions:
+        #   problem.conditions  # (("volfrac", 0.35), ("forcedist", 0.0), ...)
+        #
+        # The expected answer (0.35) IS in the paper and IS also returned by
+        # get_problem_details. The scorer distinguishes the two cases:
+        # volfrac_accuracy only contributes to rag_benefit_score when the
+        # agent actually called search_documents (rag_tool_called=True).
+        #
+        # RAG-on:  searches paper → finds 0.35 → score ~1.0
+        # RAG-off: skips search → may or may not get 0.35 → volfrac ignored
+        #          → score at most 0.20 (source_cited) → score ~0.0
         # -------------------------------------------------------------------
         "prompt": (
-            "According to the EngiBench paper, what are the typical volume fraction "
-            "ranges used in their beams2d experiments?\n\n"
-            "Based on what you find in the paper, generate a 2D beam design using the "
-            "middle of that range. Use default values for all other parameters."
+            "The EngiBench paper documents the default design conditions for the "
+            "Beams2D problem in its API walkthrough.\n\n"
+            "Search the paper to find the default volume fraction (volfrac) listed "
+            "for the Beams2D problem. Then generate a 2D beam design using exactly "
+            "that volume fraction. Use default values for all other parameters."
         ),
         "conditions": {
             "expected_volfrac": 0.35,
-            "volfrac_range_low": 0.2,
-            "volfrac_range_high": 0.5,
             "expected_volfrac_tolerance": 0.05,
         },
         "metadata": {
-            "knowledge_source": "EngiBench paper",
-            "rag_query_hint": "beams2d volume fraction range",
+            "knowledge_source": "EngiBench paper Section 3.1",
+            "rag_query_hint": "EngiBench Beams2D default conditions volfrac",
             "parameter_tested": "volfrac",
             "expected_reasoning": (
-                "Agent should search for EngiBench paper, find volfrac range 0.2-0.5, "
-                "compute midpoint 0.35, and call optimize_design with volfrac=0.35."
+                "Agent should search the EngiBench paper, find the API example showing "
+                "problem.conditions = ((\"volfrac\", 0.35), ...), and call "
+                "optimize_design with volfrac=0.35. "
+                "The scorer gates volfrac_accuracy on rag_tool_called=True, so agents "
+                "that skip search and use get_problem_details do not earn parameter credit."
             ),
         },
         "target": {},

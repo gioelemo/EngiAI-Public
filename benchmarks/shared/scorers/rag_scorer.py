@@ -3,8 +3,11 @@
 Measures whether the agent uses RAG-retrieved information to make better
 engineering decisions. Three dimensions are scored:
 
-1. Parameter accuracy (weight 0.50)
-   Did the agent call optimize_design with the expected volfrac (within tolerance)?
+1. Parameter accuracy (weight 0.50) — conditional on RAG being called
+   Did the agent call optimize_design with the expected volfrac AND use RAG?
+   volfrac_accuracy is only credited when search_documents was also called.
+   This prevents agents from earning credit by reaching the correct value via
+   engineering tools (e.g. get_problem_details) instead of the paper.
 
 2. RAG tool usage (weight 0.30)
    Was search_documents called at all?
@@ -13,7 +16,8 @@ engineering decisions. Three dimensions are scored:
    Does the final response reference the retrieved source?
 
 Composite:
-    rag_benefit_score = 0.50 * volfrac_accuracy
+    effective_volfrac_accuracy = volfrac_accuracy if rag_tool_called else 0.0
+    rag_benefit_score = 0.50 * effective_volfrac_accuracy
                       + 0.30 * rag_tool_called
                       + 0.20 * source_cited
 """
@@ -130,11 +134,12 @@ def score_rag_evaluation(
         Dict with:
         - rag_benefit_score: Composite score (0.0-1.0), main metric
         - rag_tool_called: Whether search_documents was invoked (bool)
-        - volfrac_accuracy: Closeness score for volfrac parameter (0.0-1.0)
+        - volfrac_accuracy: Raw closeness score for volfrac parameter (0.0-1.0)
+        - effective_volfrac_accuracy: volfrac_accuracy gated on rag_tool_called (0.0-1.0)
         - volfrac_actual: Volume fraction the agent used (float | None)
         - volfrac_expected: Expected volume fraction from conditions (float)
         - volfrac_error: Absolute error |actual - expected| (float | None)
-        - volfrac_within_tolerance: Whether error ≤ tolerance (bool)
+        - volfrac_within_tolerance: Whether error <= tolerance (bool)
         - source_cited: Whether the response references the source (bool)
         - example_id: int
     """
@@ -186,17 +191,21 @@ def score_rag_evaluation(
     logger.debug("Example %s: source_cited = %s", example_id, source_cited)
 
     # --- Composite score ---
+    # volfrac_accuracy only contributes when the agent used RAG.
+    # This ensures an agent that reaches the correct value via get_problem_details
+    # (rather than the paper) does not receive parameter accuracy credit.
+    effective_volfrac_accuracy = volfrac_accuracy if rag_tool_called else 0.0
     rag_benefit_score = (
-        WEIGHT_VOLFRAC_ACCURACY * volfrac_accuracy
+        WEIGHT_VOLFRAC_ACCURACY * effective_volfrac_accuracy
         + WEIGHT_RAG_TOOL_CALLED * float(rag_tool_called)
         + WEIGHT_SOURCE_CITED * float(source_cited)
     )
 
     logger.info(
-        "Example %s: rag_benefit_score=%.3f (volfrac=%.2f, rag_called=%s, cited=%s)",
+        "Example %s: rag_benefit_score=%.3f (eff_volfrac=%.2f, rag_called=%s, cited=%s)",
         example_id,
         rag_benefit_score,
-        volfrac_accuracy,
+        effective_volfrac_accuracy,
         rag_tool_called,
         source_cited,
     )
@@ -207,6 +216,7 @@ def score_rag_evaluation(
         # Dimension breakdown
         "rag_tool_called": bool(rag_tool_called),
         "volfrac_accuracy": float(volfrac_accuracy),
+        "effective_volfrac_accuracy": float(effective_volfrac_accuracy),
         "source_cited": bool(source_cited),
         # Parameter detail
         "volfrac_actual": volfrac_actual,
