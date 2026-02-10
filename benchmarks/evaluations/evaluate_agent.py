@@ -271,6 +271,8 @@ def prepare_evaluation_dataset(
                             {"name": "render_design", "count": 1},
                         ],
                     ),
+                    # STL parameter validation for workflow-random prompts
+                    "stl_expected_params": prompt_data.get("stl_expected_params"),
                 },
                 "target": prompt_data.get("target", {}),
             }
