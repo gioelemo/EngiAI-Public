@@ -26,6 +26,7 @@ from src.tools.engiopt import (
     load_wandb_model,
     sample_designs_from_model,
 )
+from src.tools.human_input import ask_human_for_clarification
 from src.tools.rag_tools import create_rag_tools
 from src.tools.stl_export import convert_design_to_stl
 from src.utils.prompts import _build_engineering_agent_prompt
@@ -87,6 +88,8 @@ class EngineeringAgent(BaseAgent):
             get_dataset_info,
             # Export tools
             convert_design_to_stl,
+            # Clarification tool
+            ask_human_for_clarification,
             # WandB model download tools
             download_wandb_model,
             list_available_algorithms,

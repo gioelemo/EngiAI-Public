@@ -206,7 +206,7 @@ def calculate_objective_score(
         example_id: Example ID for logging
 
     Returns:
-        Tuple of (overall_score, detailed_metrics_dict)
+        Tuple of (objective_score, detailed_metrics_dict)
     """
     if not agent_objectives or all(v is None for v in agent_objectives.values()):
         logger.warning(
@@ -260,6 +260,6 @@ def calculate_objective_score(
 
     # Normalize by total weight
     total_weight = sum(obj.weight for obj in problem_config.objectives)
-    overall_score = sum(scores) / total_weight if total_weight > 0 else 0.0
+    objective_score = sum(scores) / total_weight if total_weight > 0 else 0.0
 
-    return overall_score, metrics
+    return objective_score, metrics

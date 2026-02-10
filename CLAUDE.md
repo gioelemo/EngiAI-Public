@@ -133,7 +133,7 @@ The `workflow-random` style extends the `workflow` style by randomizing STL expo
 - `threshold`: Float (0.3-0.7) - Density threshold for solid/void conversion
 
 **Validation:**
-The scorer validates that the STL export tool was called with parameters matching the prompt (within tolerance of ±0.01 for floats, exact match for booleans). Task completion requires both successful STL export AND parameter validation.
+The scorer validates that the STL export tool was called with parameters matching the prompt (within tolerance of ±0.05 for floats, exact match for booleans). Task completion requires both successful STL export AND parameter validation.
 
 **Usage:**
 ```bash

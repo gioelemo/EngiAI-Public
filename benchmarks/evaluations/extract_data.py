@@ -17,6 +17,7 @@ import weave
 # Add project root to path to import config
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+from benchmarks.shared.problem_registry import get_problem_config  # noqa: E402
 from config import config  # noqa: E402
 
 # Constants
@@ -103,12 +104,125 @@ def _extract_model_id_from_score_call(score_call, score_output: dict) -> str:
     return model_id
 
 
+def _compute_combined_overall_score(  # noqa: PLR0912
+    output_quality: dict,
+    task_completion: dict,
+    tool_use: dict,
+    problem_type: str | None = None,
+) -> float | None:
+    """Compute weighted overall score combining all three scorers.
+
+    Derives category weights from the problem registry configuration to ensure
+    consistency with the evaluation settings. If problem_type is not provided,
+    falls back to beams2d weights.
+
+    Category weights typically include:
+    - design_quality: (IoU, pixel_accuracy, constraint, objective, connectivity, watertightness)
+    - tool_efficiency: (efficiency_ratio)
+    - task_completion: (success_rate)
+
+    Note: Printability metrics (connectivity, watertightness) are now part of design_quality.
+    Tool ordering is NOT scored as multiple valid orderings exist.
+
+    Args:
+        output_quality: Output quality scorer results
+        task_completion: Task completion scorer results
+        tool_use: Tool use scorer results
+        problem_type: Problem type identifier (e.g., 'beams2d', 'photonics2d')
+
+    Returns:
+        Combined weighted score [0.0, 1.0], or None if insufficient data
+    """
+    # Derive category weights from problem registry
+    # Fallback to beams2d if problem_type not provided or not found
+    try:
+        if problem_type:
+            problem_config = get_problem_config(problem_type)
+            weights = {
+                category: category_cfg["weight"]
+                for category, category_cfg in problem_config.score_categories.items()
+            }
+        else:
+            # Fallback weights (beams2d)
+            weights = {
+                "design_quality": 0.65,
+                "tool_efficiency": 0.20,
+                "task_completion": 0.15,
+            }
+    except (ValueError, KeyError):
+        # If problem config not found or malformed, use beams2d fallback
+        weights = {
+            "design_quality": 0.65,
+            "tool_efficiency": 0.20,
+            "task_completion": 0.15,
+        }
+
+    category_scores = {}
+
+    # 1. Design Quality (from output_quality scorer)
+    if isinstance(output_quality, dict):
+        dq_score = output_quality.get("design_quality_score")
+        if dq_score is not None:
+            category_scores["design_quality"] = float(dq_score)
+        elif (
+            not output_quality.get("design_found", True)
+            and isinstance(task_completion, dict)
+            and task_completion.get("success_rate", 0) == 1.0
+        ):
+            # Model correctly abstained from producing a design (e.g., asked for
+            # clarification on a natural prompt).  Treat design quality as perfect
+            # so the combined score stays comparable across models.
+            category_scores["design_quality"] = 1.0
+
+    # 2. Tool Efficiency (from tool_use scorer)
+    if isinstance(tool_use, dict):
+        efficiency_ratio = tool_use.get("efficiency_ratio")
+        if efficiency_ratio is not None:
+            # Use efficiency_ratio directly (100% weight)
+            # Tool ordering is not scored as multiple valid orderings exist
+            category_scores["tool_efficiency"] = float(efficiency_ratio)
+
+    # 3. Task Completion (from task_completion scorer)
+    if isinstance(task_completion, dict):
+        success_rate = task_completion.get("success_rate")
+        if success_rate is not None:
+            category_scores["task_completion"] = float(success_rate)
+
+    # Note: Printability is now part of design_quality category
+
+    # If no categories available, return None
+    if not category_scores:
+        return None
+
+    # Compute weighted sum using fixed category weights.
+    # Missing categories contribute zero and do not cause renormalization.
+    total_score = 0.0
+    for category_name, weight in weights.items():
+        category_score = category_scores.get(category_name)
+        if category_score is None:
+            continue
+        total_score += weight * category_score
+
+    return total_score
+
+
 def _extract_metrics_from_scorers(
     output_quality: dict,
     task_completion: dict,
     tool_use: dict,
+    problem_type: str | None = None,
 ) -> dict:
-    """Extract all metrics from scorer outputs."""
+    """Extract all metrics from scorer outputs.
+
+    Args:
+        output_quality: Output quality scorer results
+        task_completion: Task completion scorer results
+        tool_use: Tool use scorer results
+        problem_type: Problem type identifier for weight derivation
+
+    Returns:
+        Dictionary of extracted metrics including combined_overall_score
+    """
     result = {}
 
     # Extract category scores (hierarchical score components)
@@ -116,11 +230,9 @@ def _extract_metrics_from_scorers(
         result.update(
             {
                 "design_found": output_quality.get("design_found", False),
-                "overall_score": output_quality.get("score"),
                 "design_quality_score": output_quality.get("design_quality_score"),
                 "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
                 "task_completion_score": output_quality.get("task_completion_score"),
-                "printability_score": output_quality.get("printability_score"),
                 # Design metrics
                 "iou": output_quality.get("iou"),
                 "pixel_accuracy": output_quality.get("pixel_accuracy"),
@@ -128,13 +240,9 @@ def _extract_metrics_from_scorers(
                 "constraint_score": output_quality.get("constraint_score"),
                 "objective_score": output_quality.get("objective_score"),
                 "constraint_violations": output_quality.get("constraint_violations"),
-                # Objective metrics (compliance, etc.)
-                "agent_compliance": output_quality.get("agent_compliance"),
-                "target_compliance": output_quality.get("target_compliance"),
-                "compliance_relative_error": output_quality.get(
-                    "compliance_relative_error"
-                ),
-                "compliance_score": output_quality.get("compliance_score"),
+                "constraint_score_components": output_quality.get(
+                    "constraint_score_components"
+                ),  # Number of constraints evaluated
                 # Printability metrics (use actual field names from scorer)
                 "connected_design": output_quality.get("connected_design"),
                 "num_components": output_quality.get("num_components"),
@@ -151,13 +259,47 @@ def _extract_metrics_from_scorers(
             }
         )
 
+        # Also extract per-constraint partial credit metrics (dynamic fields)
+        # These have suffixes: _actual, _target, _error, _normalized_error, _partial_score
+        constraint_suffixes = (
+            "_actual",
+            "_target",
+            "_error",
+            "_normalized_error",
+            "_partial_score",
+        )
+        result.update(
+            {
+                key: value
+                for key, value in output_quality.items()
+                if key.endswith(constraint_suffixes)
+                and isinstance(value, (int, float, bool))
+            }
+        )
+
+        # Extract per-objective metrics (dynamic fields generated by objective scorer)
+        # e.g., agent_compliance, target_total_overlap, structural_compliance_score, etc.
+        objective_prefixes = ("agent_", "target_")
+        objective_suffixes = ("_relative_error", "_score")
+        result.update(
+            {
+                key: value
+                for key, value in output_quality.items()
+                if (
+                    key.startswith(objective_prefixes)
+                    or key.endswith(objective_suffixes)
+                )
+                and key not in result  # Don't overwrite already-extracted fields
+                and isinstance(value, (int, float, bool, type(None)))
+            }
+        )
+
     # Extract tool efficiency metrics and detailed tool usage
     if isinstance(tool_use, dict):
         # Always extract these standard metrics
         result.update(
             {
                 "efficiency_ratio": tool_use.get("efficiency_ratio"),
-                "sequence_score": tool_use.get("sequence_score"),
                 "total_tools": tool_use.get("actual_call_count"),  # Map to total_tools
                 "unique_tools": len(
                     tool_use.get("tool_call_breakdown", {})
@@ -186,6 +328,12 @@ def _extract_metrics_from_scorers(
     # Extract task completion metrics
     if isinstance(task_completion, dict):
         result["success_rate"] = task_completion.get("success_rate")
+
+    # Compute true weighted overall score combining all three scorers
+    # Use problem_type to derive weights from registry
+    result["combined_overall_score"] = _compute_combined_overall_score(
+        output_quality, task_completion, tool_use, problem_type
+    )
 
     return result
 
@@ -249,9 +397,14 @@ def _process_score_call_for_complete_data(
         result["response_length"] = score_output.get("response_length")
         result["model_latency"] = score_output.get("model_latency")
 
-        # Extract all metrics from scorers
+        # Extract problem_type early to use for weight derivation
+        problem_type = None
+        if isinstance(output_quality, dict):
+            problem_type = output_quality.get("problem_type")
+
+        # Extract all metrics from scorers (pass problem_type for weight derivation)
         metrics = _extract_metrics_from_scorers(
-            output_quality, task_completion, tool_use
+            output_quality, task_completion, tool_use, problem_type
         )
         result.update(metrics)
 
@@ -273,7 +426,7 @@ def _process_score_call_for_complete_data(
             result["conditions"] = conditions or {}  # type: ignore[assignment]
 
             # Problem type
-            result["problem_type"] = output_quality.get("problem_type")
+            result["problem_type"] = problem_type
 
             # Ground truth design (if available)
             gt_design = output_quality.get("gt_design")
@@ -406,10 +559,10 @@ def print_summary(metrics_data: list[dict]) -> None:
     total_designs = len(metrics_data)
 
     # Calculate average scores (filter and cast to float for type safety)
-    overall_scores: list[float] = [
+    combined_overall_scores: list[float] = [
         float(score)
         for d in metrics_data
-        if (score := d.get("overall_score")) is not None
+        if (score := d.get("combined_overall_score")) is not None
     ]
     design_quality_scores: list[float] = [
         float(score)
@@ -426,18 +579,14 @@ def print_summary(metrics_data: list[dict]) -> None:
         for d in metrics_data
         if (score := d.get("task_completion_score")) is not None
     ]
-    printability_scores: list[float] = [
-        float(score)
-        for d in metrics_data
-        if (score := d.get("printability_score")) is not None
-    ]
+    # Note: printability_scores removed - printability is now part of design_quality
 
     print("\n" + "=" * 60)
     print(f"Designs: {total_designs}")
     print("\nAverage Scores:")
-    if overall_scores:
+    if combined_overall_scores:
         print(
-            f"  Overall Score:         {sum(overall_scores) / len(overall_scores):.3f}"
+            f"  Combined Overall:      {sum(combined_overall_scores) / len(combined_overall_scores):.3f}"
         )
     if design_quality_scores:
         print(
@@ -451,10 +600,7 @@ def print_summary(metrics_data: list[dict]) -> None:
         print(
             f"  Task Completion:       {sum(task_completion_scores) / len(task_completion_scores):.3f}"
         )
-    if printability_scores:
-        print(
-            f"  Printability:          {sum(printability_scores) / len(printability_scores):.3f}"
-        )
+    # Note: Printability metrics are now included in Design Quality score
     print("=" * 60)
 
 

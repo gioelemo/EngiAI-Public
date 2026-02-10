@@ -188,7 +188,10 @@ The `design_data.json` file contains an array with per-example metrics from all 
 - `example_id` - Problem instance identifier
 - `problem` - Problem type
 - `model` - Model name
-- `overall_score` - Weighted overall score (0-1)
+- **`combined_overall_score`** - True weighted overall score combining all scorers (0-1) [**RECOMMENDED**]
+- `design_quality_score` - Design quality category score (unweighted, includes design metrics and printability)
+- `success_rate` - Task completion score (0 or 1)
+- `efficiency_ratio` - Tool efficiency score (optimal/actual calls, tool ordering not scored)
 - `iou` - Intersection over Union (topology overlap)
 - `pixel_accuracy` - Element-wise accuracy
 - `mse` - Mean Squared Error (density field)

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Tool names to check for task completion
 RENDER_TOOL_NAME = "render_design"
 STL_EXPORT_TOOL_NAME = "convert_design_to_stl"
+CLARIFICATION_TOOL_NAME = "ask_human_for_clarification"
 
 
 def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
@@ -33,7 +34,14 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     if not isinstance(content, str):
         return None
 
-    # Approach 1: Try converting Python repr to JSON
+    # Approach 1: Try direct JSON parsing first (handles valid JSON with apostrophes)
+    try:
+        return json.loads(content)
+    except (json.JSONDecodeError, Exception):
+        pass  # Continue to fallback approaches
+
+    # Approach 2: Try converting Python repr to JSON
+    # (only if direct JSON parsing failed)
     try:
         json_content = content.replace("'", '"')
         json_content = json_content.replace("True", "true")
@@ -45,7 +53,7 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     except (json.JSONDecodeError, Exception) as e:
         logger.debug("Example %s: JSON conversion failed: %s", example_id, e)
 
-    # Approach 2: Try ast.literal_eval
+    # Approach 3: Try ast.literal_eval (for Python repr)
     try:
         return ast.literal_eval(content)
     except (ValueError, SyntaxError) as e:
@@ -77,7 +85,7 @@ def _validate_stl_parameters(
         logger.debug("Example %s: No expected STL params to validate", example_id)
         return 1.0, {}
 
-    float_tolerance = 0.01  # Match constraint validation tolerance
+    float_tolerance = 0.05  # Allow LLM rounding to 1 decimal place (e.g. 16.635 → 16.6)
 
     violations = 0
     metrics: dict[str, Any] = {}
@@ -153,12 +161,15 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
 ) -> dict[str, Any]:
     """Score task completion based on prompt style.
 
-    For standard prompts (full, approximate, natural):
+    For standard prompts (full, approximate):
     - Success = render_design called and returned success=True
 
     For workflow prompts:
     - Success = convert_design_to_stl called and returned success=True
     - render_design is optional and not counted toward success
+
+    For natural prompts with clarification criteria:
+    - Success = ask_human_for_clarification was called (regardless of question content)
 
     Args:
         output: Agent output with messages and model info
@@ -196,9 +207,16 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     # Determine success criteria based on prompt style
     is_workflow = prompt_style in ["workflow", "workflow-random"]
     is_workflow_random = prompt_style == "workflow-random"
+    is_clarification = metadata.get("success_criteria") == "clarification_requested"
     success_criteria = "stl_export" if is_workflow else "render_design"
     if is_workflow_random:
         success_criteria = "stl_export_with_params"
+    if is_clarification:
+        success_criteria = "clarification_requested"
+
+    # Track ask_human_for_clarification calls
+    clarification_called = False
+    clarification_question = None
 
     # Track render_design calls
     render_called = False
@@ -275,6 +293,41 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                     render_error,
                 )
 
+        # Process ask_human_for_clarification calls
+        elif tool_name == CLARIFICATION_TOOL_NAME:
+            clarification_called = True
+            logger.debug(
+                "Example %s: Found ask_human_for_clarification tool call",
+                example_id,
+            )
+
+            # Parse the tool result (structured JSON)
+            content = msg.content
+            result = _parse_tool_result(content, example_id)
+
+            if result is not None and result.get("success", False):
+                clarification_question = result.get("question")
+                logger.debug(
+                    "Example %s: Parsed clarification question: %s",
+                    example_id,
+                    clarification_question,
+                )
+            else:
+                # Fallback: try to extract from raw content for backward compatibility
+                if isinstance(content, str):
+                    if content.startswith("Clarification requested: "):
+                        clarification_question = content.split(
+                            "Clarification requested: ", 1
+                        )[1].split("\n")[0]
+                    else:
+                        clarification_question = content
+                else:
+                    clarification_question = None
+                logger.debug(
+                    "Example %s: Using fallback parsing for clarification question",
+                    example_id,
+                )
+
         # Process convert_design_to_stl calls
         elif tool_name == STL_EXPORT_TOOL_NAME:
             stl_called = True
@@ -322,7 +375,23 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 )
 
     # Compute final score based on prompt style
-    if is_workflow:
+    if is_clarification:
+        # For natural prompts: success = clarification was requested
+        task_completed = clarification_called
+        success_rate = 1.0 if task_completed else 0.0
+
+        if not clarification_called:
+            logger.info(
+                "Example %s (natural): ask_human_for_clarification was never called",
+                example_id,
+            )
+        else:
+            logger.info(
+                "Example %s (natural): Task completed successfully "
+                "(clarification requested)",
+                example_id,
+            )
+    elif is_workflow:
         # For workflow prompts: success = STL export succeeded
         task_completed = stl_called and stl_success
         success_rate = 1.0 if task_completed else 0.0
@@ -415,6 +484,9 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
         "stl_save_path": stl_save_path,
         "stl_error": stl_error,
         "stl_details": stl_details,
+        # Clarification metrics (natural prompts)
+        "clarification_called": clarification_called,
+        "clarification_question": clarification_question,
         # STL parameter validation metrics (workflow-random)
         "stl_param_validation_score": stl_param_validation_score,
         **stl_param_metrics,  # Unpacks all per-parameter metrics

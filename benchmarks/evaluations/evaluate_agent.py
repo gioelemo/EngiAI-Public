@@ -139,7 +139,12 @@ class EngineeringAgent(weave.Model):
             messages = [HumanMessage(content=prompt)]
             state = {"messages": messages}
 
-            config_dict = {"configurable": {"thread_id": thread_id}}
+            # Set recursion_limit to prevent infinite loops (e.g., models repeatedly
+            # calling ask_human_for_clarification without stopping)
+            config_dict = {
+                "configurable": {"thread_id": thread_id},
+                "recursion_limit": 50,
+            }
 
             # Invoke the supervisor agent
             result = supervisor.invoke(state, config_dict)
@@ -266,6 +271,8 @@ def prepare_evaluation_dataset(
                             {"name": "render_design", "count": 1},
                         ],
                     ),
+                    # STL parameter validation for workflow-random prompts
+                    "stl_expected_params": prompt_data.get("stl_expected_params"),
                 },
                 "target": prompt_data.get("target", {}),
             }
@@ -619,7 +626,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     eval_dataset = prepare_evaluation_dataset(prompts, args.samples, eval_metadata)
 
     # Get or create Weave dataset (include sample count to avoid conflicts)
-    dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset_n{args.samples}"
+    dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset_{safe_model}_n{args.samples}"
     if args.seed is not None:
         dataset_name += f"_seed_{args.seed}"
     dataset = get_or_create_dataset(eval_dataset, dataset_name, len(eval_dataset))
@@ -699,7 +706,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         print()
         print("Tool use scorer does not compute global metrics.")
         print(
-            "Check Weave dashboard for per-example efficiency_ratio and sequence_score."
+            "Check Weave dashboard for per-example efficiency_ratio (tool call efficiency)."
         )
         print()
         print("🎉 Evaluation complete!")

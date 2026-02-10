@@ -25,6 +25,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from generate_summary_table import create_summary_table  # noqa: E402
+from plot_combined_overall_score import plot_combined_overall_score  # noqa: E402
 from plot_design_quality import plot_design_quality  # noqa: E402
 from plot_dpp_vs_fog import plot_dpp_vs_fog  # noqa: E402
 from plot_dpp_vs_mmd import plot_dpp_vs_mmd  # noqa: E402
@@ -113,12 +114,18 @@ def _generate_design_plots(combined_design, output_dir, problem: str | None = No
 
     print(f"  Design metrics: {len(combined_design)} rows")
 
+    # Combined overall score distribution
+    print("\n[1/3] Combined overall score distribution...")
+    plot_combined_overall_score(
+        combined_design, "combined_overall_score_distribution.png", output_dir
+    )
+
     # Design quality distribution
-    print("\n[1/2] Design quality distribution...")
+    print("\n[2/3] Design quality distribution...")
     plot_design_quality(combined_design, "design_quality_distribution.png", output_dir)
 
     # IoU vs Objective
-    print("\n[2/2] IoU vs Objective score...")
+    print("\n[3/3] IoU vs Objective score...")
     plot_iou_vs_objective(combined_design, "iou_vs_objective.png", output_dir)
 
 

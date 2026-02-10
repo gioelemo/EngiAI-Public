@@ -283,6 +283,34 @@ def _extract_bool_field(content: str, field: str) -> bool:
     return False
 
 
+def _get_target_value(conditions: dict[str, Any], cond_config: Any) -> float | None:
+    """Extract target value from conditions, trying aliases if needed."""
+    target_value = conditions.get(cond_config.field_name)
+    if target_value is None:
+        for alias in cond_config.aliases:
+            target_value = conditions.get(alias)
+            if target_value is not None:
+                break
+    return target_value
+
+
+def _compute_constraint_partial_score(
+    error: float, tolerance: float
+) -> tuple[float, float]:
+    """Compute normalized error and partial score for a constraint.
+
+    Returns (normalized_error, partial_score).
+    """
+    if tolerance > 0:
+        normalized_error = error / tolerance
+        partial_score = np.exp(-normalized_error)
+    else:
+        # tolerance == 0: binary score
+        normalized_error = float("inf") if error > 0 else 0.0
+        partial_score = 1.0 if error == 0 else 0.0
+    return normalized_error, partial_score
+
+
 def _calculate_constraint_score(
     design_array: np.ndarray,
     conditions: dict[str, Any],
@@ -290,6 +318,20 @@ def _calculate_constraint_score(
     example_id: int,
 ) -> tuple[float, dict[str, Any]]:
     """Calculate constraint matching score based on problem config.
+
+    Uses a smooth partial credit scoring system where each constraint
+    contributes a score based on how far the actual value deviates from
+    the target (normalized by tolerance).
+
+    Score per constraint: exp(-normalized_error)
+    where normalized_error = abs(actual - target) / tolerance
+
+    Overall score is the average of all constraint scores.
+
+    Examples:
+        - error = 0 → score = 1.0 (perfect)
+        - error = tolerance → score ≈ 0.37 (partial credit)
+        - error = 2*tolerance → score ≈ 0.14 (low credit)
 
     Args:
         design_array: Agent's design
@@ -308,16 +350,10 @@ def _calculate_constraint_score(
 
     violations = 0
     metrics = {}
+    constraint_scores = []
 
     for cond_config in constraint_conditions:
-        # Get target value from conditions
-        target_value = conditions.get(cond_config.field_name)
-        if target_value is None:
-            # Try aliases
-            for alias in cond_config.aliases:
-                target_value = conditions.get(alias)
-                if target_value is not None:
-                    break
+        target_value = _get_target_value(conditions, cond_config)
 
         if target_value is None:
             logger.debug(
@@ -325,39 +361,54 @@ def _calculate_constraint_score(
             )
             continue
 
-        # Check constraint based on type
-        if cond_config.constraint_type == "equality":
-            # For equality constraints on design array (e.g., volume fraction)
-            if (
-                cond_config.name == "volume_fraction"
-                or "volume" in cond_config.name.lower()
-            ):
-                actual_value = np.mean(design_array)
-                error = abs(actual_value - target_value)
+        # Only handle equality constraints for volume-type fields
+        is_volume_constraint = cond_config.constraint_type == "equality" and (
+            cond_config.name == "volume_fraction"
+            or "volume" in cond_config.name.lower()
+        )
 
-                metrics[f"{cond_config.name}_actual"] = float(actual_value)
-                metrics[f"{cond_config.name}_target"] = float(target_value)
-                metrics[f"{cond_config.name}_error"] = float(error)
+        if not is_volume_constraint:
+            if cond_config.constraint_type == "inequality":
+                logger.debug(
+                    f"Example {example_id}: Inequality constraints not yet implemented"
+                )
+            continue
 
-                # Check if within tolerance
-                if error >= cond_config.tolerance:
-                    violations += 1
-                    logger.debug(
-                        f"Example {example_id}: {cond_config.name} violated - "
-                        f"actual={actual_value:.4f}, target={target_value:.4f}, "
-                        f"error={error:.4f} >= tolerance={cond_config.tolerance}"
-                    )
+        # Calculate actual value and error
+        actual_value = np.mean(design_array)
+        error = abs(actual_value - target_value)
 
-        elif cond_config.constraint_type == "inequality":
-            # Placeholder for inequality constraints (can be extended)
-            logger.debug(
-                f"Example {example_id}: Inequality constraints not yet implemented"
-            )
+        metrics[f"{cond_config.name}_actual"] = float(actual_value)
+        metrics[f"{cond_config.name}_target"] = float(target_value)
+        metrics[f"{cond_config.name}_error"] = float(error)
 
-    # Calculate score: 1.0 if no violations, 0.0 if any violations
-    # (Can be made more nuanced with partial credit)
-    constraint_score = 1.0 if violations == 0 else 0.0
+        # Compute partial score
+        normalized_error, partial_score = _compute_constraint_partial_score(
+            error, cond_config.tolerance
+        )
+        constraint_scores.append(partial_score)
+
+        metrics[f"{cond_config.name}_normalized_error"] = float(normalized_error)
+        metrics[f"{cond_config.name}_partial_score"] = float(partial_score)
+
+        # Log and count violations
+        is_violation = error >= cond_config.tolerance
+        violations += int(is_violation)
+
+        log_msg = (
+            f"Example {example_id}: {cond_config.name} "
+            f"{'violated' if is_violation else 'satisfied'} - "
+            f"actual={actual_value:.4f}, target={target_value:.4f}, "
+            f"error={error:.4f}"
+        )
+        if is_violation:
+            log_msg += f" >= tolerance={cond_config.tolerance}"
+        log_msg += f", partial_score={partial_score:.4f}"
+        logger.debug(log_msg)
+
+    constraint_score = float(np.mean(constraint_scores)) if constraint_scores else 1.0
     metrics["constraint_violations"] = violations
+    metrics["constraint_score_components"] = len(constraint_scores)
 
     return constraint_score, metrics
 
@@ -486,10 +537,10 @@ def _compute_hierarchical_score(
     """Compute hierarchical composite score from multiple categories.
 
     Categories:
-    1. Design Quality: IoU, pixel accuracy, constraint match, objective match
-    2. Tool Efficiency: efficiency ratio, sequence score (from metadata)
+    1. Design Quality: IoU, pixel accuracy, constraint match, objective match,
+                       connectivity, watertightness
+    2. Tool Efficiency: efficiency ratio (from metadata, tool ordering not scored)
     3. Task Completion: whether the task was completed successfully
-    4. Printability: connectivity and watertightness
 
     Args:
         problem_config: Problem configuration with score_categories
@@ -514,30 +565,35 @@ def _compute_hierarchical_score(
 
     category_scores = {}
 
-    # 1. Design Quality Category
+    # 1. Design Quality Category (includes printability metrics)
     dq_weights = problem_config.get_metric_weights("design_quality")
     if dq_weights:
+        # Convert boolean printability metrics to 0/1
+        connected = 1.0 if connectivity_metrics.get("connected_design", False) else 0.0
+        watertight = 1.0 if watertightness_metrics.get("is_watertight", False) else 0.0
+
         design_quality_score = (
             dq_weights.get("iou", 0.0) * design_metrics.get("iou", 0.0)
             + dq_weights.get("pixel_accuracy", 0.0)
             * design_metrics.get("pixel_accuracy", 0.0)
             + dq_weights.get("constraint_match", 0.0) * constraint_score
             + dq_weights.get("objective_match", 0.0) * objective_score
+            + dq_weights.get("connectivity", 0.0) * connected
+            + dq_weights.get("watertightness", 0.0) * watertight
         )
         category_scores["design_quality"] = float(design_quality_score)
 
     # 2. Tool Efficiency Category (extract from metadata if available)
     te_weights = problem_config.get_metric_weights("tool_efficiency")
-    if te_weights and "efficiency_ratio" in metadata and "sequence_score" in metadata:
+    if te_weights and "efficiency_ratio" in metadata:
         # Only compute if tool usage metrics are actually available in metadata
         # (they would be if tool_use_scorer ran and passed results)
         # Don't assume perfect scores for missing data
+        # Note: Tool ordering is not scored (efficiency_ratio gets 100% weight)
         efficiency_ratio = metadata["efficiency_ratio"]
-        sequence_score = metadata["sequence_score"]
 
         tool_efficiency_score = (
-            te_weights.get("efficiency_ratio", 0.0) * efficiency_ratio
-            + te_weights.get("sequence_score", 0.0) * sequence_score
+            te_weights.get("efficiency_ratio", 1.0) * efficiency_ratio
         )
         category_scores["tool_efficiency"] = float(tool_efficiency_score)
         # If metrics not available, exclude this category from scoring
@@ -550,19 +606,6 @@ def _compute_hierarchical_score(
         task_completion_score = metadata["task_completion_score"]
         category_scores["task_completion"] = float(task_completion_score)
         # If metric not available, exclude this category from scoring
-
-    # 4. Printability Category
-    pr_weights = problem_config.get_metric_weights("printability")
-    if pr_weights:
-        # Convert boolean metrics to 0/1
-        connected = 1.0 if connectivity_metrics.get("connected_design", False) else 0.0
-        watertight = 1.0 if watertightness_metrics.get("is_watertight", False) else 0.0
-
-        printability_score = (
-            pr_weights.get("connectivity", 0.0) * connected
-            + pr_weights.get("watertightness", 0.0) * watertight
-        )
-        category_scores["printability"] = float(printability_score)
 
     # Compute overall score as weighted sum of category scores
     overall_score = 0.0
@@ -602,9 +645,47 @@ def score_output_quality(
 
     problem_name, example_id, problem_config = validation_result
 
+    # Check if this is a clarification-only task (natural prompts)
+    success_criteria = metadata.get("success_criteria", "render_design")
+    is_clarification_task = success_criteria == "clarification_requested"
+
     # Extract design array
     design_array = _get_design_array(output, metadata, problem_config, example_id)
     if design_array is None:
+        # For clarification-only tasks, no design is expected
+        # Check if clarification was requested in the messages
+        if is_clarification_task:
+            messages = output.get("messages", [])
+            clarification_found = any(
+                hasattr(msg, "tool_call_id")
+                and getattr(msg, "name", None) == "ask_human_for_clarification"
+                for msg in messages
+            )
+            if clarification_found:
+                # Task completed successfully: agent asked for clarification
+                return {
+                    "score": 1.0,  # Perfect score for correct behavior
+                    "design_found": False,
+                    "clarification_requested": True,
+                    "reason": "Clarification requested (expected for natural prompts)",
+                    "num_messages": len(messages),
+                    "problem_type": metadata.get("problem_type"),
+                    "example_id": example_id,
+                }
+            else:
+                # Task failed: should have asked but didn't
+                return _create_error_result(
+                    {
+                        "design_found": False,
+                        "clarification_requested": False,
+                        "reason": "No clarification requested (expected for natural prompts)",
+                        "num_messages": len(messages),
+                        "problem_type": metadata.get("problem_type"),
+                        "example_id": example_id,
+                    }
+                )
+
+        # For other tasks, no design is an error
         return _create_error_result(
             {
                 "design_found": False,

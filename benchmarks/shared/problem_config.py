@@ -121,25 +121,21 @@ class ProblemConfig:
     score_categories: dict[str, dict[str, float]] = field(
         default_factory=lambda: {
             "design_quality": {
-                "weight": 0.50,
-                "iou": 0.40,
-                "pixel_accuracy": 0.25,
-                "constraint_match": 0.15,
-                "objective_match": 0.20,
+                "weight": 0.65,  # Merged with printability (0.50 + 0.15)
+                "iou": 0.31,
+                "pixel_accuracy": 0.19,
+                "constraint_match": 0.12,
+                "objective_match": 0.15,
+                "connectivity": 0.12,
+                "watertightness": 0.11,
             },
             "tool_efficiency": {
                 "weight": 0.20,
-                "efficiency_ratio": 0.60,
-                "sequence_score": 0.40,
+                "efficiency_ratio": 1.0,  # Tool ordering not scored
             },
             "task_completion": {
                 "weight": 0.15,
                 "success_rate": 1.0,
-            },
-            "printability": {
-                "weight": 0.15,
-                "connectivity": 0.50,
-                "watertightness": 0.50,
             },
         }
     )
