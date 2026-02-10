@@ -139,8 +139,8 @@ def _compute_combined_overall_score(  # noqa: PLR0912
         if problem_type:
             problem_config = get_problem_config(problem_type)
             weights = {
-                category: config["weight"]
-                for category, config in problem_config.score_categories.items()
+                category: category_cfg["weight"]
+                for category, category_cfg in problem_config.score_categories.items()
             }
         else:
             # Fallback weights (beams2d)
