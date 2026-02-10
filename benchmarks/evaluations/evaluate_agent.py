@@ -626,7 +626,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     eval_dataset = prepare_evaluation_dataset(prompts, args.samples, eval_metadata)
 
     # Get or create Weave dataset (include sample count to avoid conflicts)
-    dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset_n{args.samples}"
+    dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset_{safe_model}_n{args.samples}"
     if args.seed is not None:
         dataset_name += f"_seed_{args.seed}"
     dataset = get_or_create_dataset(eval_dataset, dataset_name, len(eval_dataset))
