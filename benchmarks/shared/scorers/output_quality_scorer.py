@@ -669,6 +669,8 @@ def score_output_quality(
                     "clarification_requested": True,
                     "reason": "Clarification requested (expected for natural prompts)",
                     "num_messages": len(messages),
+                    "problem_type": metadata.get("problem_type"),
+                    "example_id": example_id,
                 }
             else:
                 # Task failed: should have asked but didn't
@@ -678,6 +680,8 @@ def score_output_quality(
                         "clarification_requested": False,
                         "reason": "No clarification requested (expected for natural prompts)",
                         "num_messages": len(messages),
+                        "problem_type": metadata.get("problem_type"),
+                        "example_id": example_id,
                     }
                 )
 
