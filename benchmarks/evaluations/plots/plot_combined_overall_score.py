@@ -36,8 +36,11 @@ def plot_combined_overall_score(combined_design_df, output_path=None, output_dir
         figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
     )
 
-    # Filter to valid designs
-    valid_designs = combined_design_df[combined_design_df["design_found"]].copy()
+    # Filter to rows with a valid combined_overall_score (includes designs not found
+    # but scored, e.g. natural prompts where asking for clarification is correct)
+    valid_designs = combined_design_df[
+        combined_design_df["combined_overall_score"].notna()
+    ].copy()
     font_sizes = PLOT_STYLE["font_sizes"]
 
     # When all entries share the same problem, use just model names (no redundant problem suffix)
@@ -51,12 +54,16 @@ def plot_combined_overall_score(combined_design_df, output_path=None, output_dir
     else:
         valid_designs["_label"] = valid_designs["source"]
 
+    # Assign colors dynamically based on number of unique labels
+    n_labels = valid_designs["_label"].nunique()
+    palette = PLOT_STYLE["color_palette"][:n_labels]
+
     sns.violinplot(
         data=valid_designs,
         x="_label",
         y="combined_overall_score",
         hue="_label",
-        palette=[PLOT_STYLE["colors"]["beams2d"], PLOT_STYLE["colors"]["photonics2d"]],
+        palette=palette,
         inner="box",
         legend=False,
         ax=ax,
