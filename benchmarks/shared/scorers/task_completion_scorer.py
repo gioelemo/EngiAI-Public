@@ -161,12 +161,15 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
 ) -> dict[str, Any]:
     """Score task completion based on prompt style.
 
-    For standard prompts (full, approximate, natural):
+    For standard prompts (full, approximate):
     - Success = render_design called and returned success=True
 
     For workflow prompts:
     - Success = convert_design_to_stl called and returned success=True
     - render_design is optional and not counted toward success
+
+    For natural prompts with clarification criteria:
+    - Success = ask_human_for_clarification was called (regardless of question content)
 
     Args:
         output: Agent output with messages and model info
