@@ -202,7 +202,7 @@ def score_tool_use(
 
     Returns:
         Dictionary with:
-        - efficiency_ratio: optimal_calls / actual_calls (1.0 = perfect)
+        - efficiency_ratio: correctly_matched_calls / max(optimal_calls, actual_calls)
         - optimal_call_count: Expected number of tool calls
         - actual_call_count: Actual number of tool calls made
         - tool_call_breakdown: Counter of tool calls by name
