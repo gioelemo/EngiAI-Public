@@ -306,8 +306,13 @@ def test_after_tools_routes_to_llm_call_for_regular_tool():
     state = {
         "messages": [
             HumanMessage(content="run ls"),
-            AIMessage(content="", tool_calls=[{"id": "t1", "name": "execute_cli_command", "args": {}}]),
-            ToolMessage(content="file1.txt", tool_call_id="t1", name="execute_cli_command"),
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "t1", "name": "execute_cli_command", "args": {}}],
+            ),
+            ToolMessage(
+                content="file1.txt", tool_call_id="t1", name="execute_cli_command"
+            ),
         ]
     }
     assert agent._after_tools(state) == "llm_call"
@@ -320,8 +325,17 @@ def test_after_tools_routes_to_end_for_clarification_tool():
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
-            AIMessage(content="", tool_calls=[{"id": "t1", "name": "ask_human_for_clarification", "args": {}}]),
-            ToolMessage(content='{"success": true, "question": "What volume fraction?"}', tool_call_id="t1", name="ask_human_for_clarification"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "t1", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            ToolMessage(
+                content='{"success": true, "question": "What volume fraction?"}',
+                tool_call_id="t1",
+                name="ask_human_for_clarification",
+            ),
         ]
     }
     assert agent._after_tools(state) == "__end__"
@@ -334,12 +348,23 @@ def test_after_tools_routes_to_end_when_clarification_mixed_with_other_tools():
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
-            AIMessage(content="", tool_calls=[
-                {"id": "t1", "name": "get_problem_details", "args": {}},
-                {"id": "t2", "name": "ask_human_for_clarification", "args": {}},
-            ]),
-            ToolMessage(content="problem details...", tool_call_id="t1", name="get_problem_details"),
-            ToolMessage(content='{"success": true, "question": "What volume fraction?"}', tool_call_id="t2", name="ask_human_for_clarification"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "t1", "name": "get_problem_details", "args": {}},
+                    {"id": "t2", "name": "ask_human_for_clarification", "args": {}},
+                ],
+            ),
+            ToolMessage(
+                content="problem details...",
+                tool_call_id="t1",
+                name="get_problem_details",
+            ),
+            ToolMessage(
+                content='{"success": true, "question": "What volume fraction?"}',
+                tool_call_id="t2",
+                name="ask_human_for_clarification",
+            ),
         ]
     }
     assert agent._after_tools(state) == "__end__"
@@ -367,11 +392,25 @@ def test_after_tools_only_inspects_trailing_tool_messages():
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
-            AIMessage(content="", tool_calls=[{"id": "t1", "name": "ask_human_for_clarification", "args": {}}]),
-            ToolMessage(content='{"success": true}', tool_call_id="t1", name="ask_human_for_clarification"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "t1", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            ToolMessage(
+                content='{"success": true}',
+                tool_call_id="t1",
+                name="ask_human_for_clarification",
+            ),
             HumanMessage(content="volfrac=0.3, rmin=3.0, forcedist=1.0"),
-            AIMessage(content="", tool_calls=[{"id": "t2", "name": "optimize_design", "args": {}}]),
-            ToolMessage(content="design optimized", tool_call_id="t2", name="optimize_design"),
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "t2", "name": "optimize_design", "args": {}}],
+            ),
+            ToolMessage(
+                content="design optimized", tool_call_id="t2", name="optimize_design"
+            ),
         ]
     }
     assert agent._after_tools(state) == "llm_call"
