@@ -88,7 +88,7 @@ def test_validate_stl_parameters_within_tolerance():
 def test_validate_stl_parameters_outside_tolerance():
     """Test validation with parameters outside tolerance."""
     stl_details = {
-        "scale_xy": 2.52,  # Outside tolerance of 2.5 (error = 0.02)
+        "scale_xy": 2.56,  # Outside tolerance of 2.5 (error = 0.06 > 0.05)
         "scale_z": 10.0,
         "threshold": 0.5,
         "mirrored": True,
@@ -107,7 +107,7 @@ def test_validate_stl_parameters_outside_tolerance():
     assert score == 0.0
     assert metrics["stl_param_violations"] == 1
     assert metrics["stl_scale_xy_valid"] is False
-    assert metrics["stl_scale_xy_error"] >= 0.01  # Outside tolerance
+    assert metrics["stl_scale_xy_error"] >= 0.05  # Outside tolerance
 
 
 @pytest.mark.unit
