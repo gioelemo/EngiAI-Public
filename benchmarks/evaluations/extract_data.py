@@ -104,7 +104,7 @@ def _extract_model_id_from_score_call(score_call, score_output: dict) -> str:
     return model_id
 
 
-def _compute_combined_overall_score(
+def _compute_combined_overall_score(  # noqa: PLR0912
     output_quality: dict,
     task_completion: dict,
     tool_use: dict,
@@ -164,6 +164,15 @@ def _compute_combined_overall_score(
         dq_score = output_quality.get("design_quality_score")
         if dq_score is not None:
             category_scores["design_quality"] = float(dq_score)
+        elif (
+            not output_quality.get("design_found", True)
+            and isinstance(task_completion, dict)
+            and task_completion.get("success_rate", 0) == 1.0
+        ):
+            # Model correctly abstained from producing a design (e.g., asked for
+            # clarification on a natural prompt).  Treat design quality as perfect
+            # so the combined score stays comparable across models.
+            category_scores["design_quality"] = 1.0
 
     # 2. Tool Efficiency (from tool_use scorer)
     if isinstance(tool_use, dict):
