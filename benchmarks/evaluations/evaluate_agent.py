@@ -62,6 +62,7 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
     score_output_quality,
+    score_rag_evaluation,
     score_task_completion,
     score_tool_use,
 )
@@ -347,7 +348,14 @@ def parse_arguments() -> argparse.Namespace:
         "--prompt-style",
         type=str,
         default="full",
-        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
+        choices=[
+            "full",
+            "approximate",
+            "natural",
+            "workflow",
+            "workflow-random",
+            "rag",
+        ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
     )
     parser.add_argument(
@@ -546,6 +554,18 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         ]
         scorer_types = ["output_quality", "task_completion", "tool_use"]
 
+    # For RAG problems, substitute score_output_quality with score_rag_evaluation.
+    # The RAG scorer replaces design-quality metrics (IoU, pixel accuracy, etc.)
+    # with RAG-specific metrics (parameter accuracy, tool usage, source citation).
+    if args.problem == "rag_beams2d":
+        base_scorers = [
+            score_rag_evaluation if s is score_output_quality else s
+            for s in base_scorers
+        ]
+        scorer_types = [
+            "rag_evaluation" if t == "output_quality" else t for t in scorer_types
+        ]
+
     # Wrap scorers with evaluation context for better trace naming in Weave UI
     scorers = [
         create_contextual_scorer(scorer_func, scorer_type)
@@ -682,6 +702,31 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
     )
     results_dir.mkdir(parents=True, exist_ok=True)
+
+    # RAG evaluation problems don't have HuggingFace ground-truth designs —
+    # skip global design metrics and show RAG-specific summary instead.
+    if args.problem == "rag_beams2d":
+        print()
+        print("=" * 60)
+        print("RAG EVALUATION RESULTS")
+        print("=" * 60)
+        print()
+        print("RAG evaluation scorer does not compute global design metrics.")
+        print(
+            "Check Weave dashboard for per-example rag_benefit_score "
+            "(parameter accuracy, RAG tool usage, source citation)."
+        )
+        print()
+        mmore_status = (
+            "enabled (RAG on)" if args.mmore_enabled else "disabled (RAG off)"
+        )
+        print(f"MMORE RAG: {mmore_status}")
+        print("To compare RAG-on vs RAG-off, run the evaluation twice with")
+        print("  --mmore and --no-mmore and compare rag_benefit_score values.")
+        print()
+        print("🎉 Evaluation complete!")
+        print("📊 View detailed results in Weave dashboard")
+        return
 
     # Compute global metrics for all scorer types (all scorers now support design extraction)
     # Skip for task_completion and tool_use scorers which don't extract designs

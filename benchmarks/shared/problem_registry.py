@@ -202,6 +202,29 @@ PROBLEMS: dict[str, ProblemConfig] = {
         },
         prompt_file_template="thermoelastic2d_prompts_{n_samples}_samples_{split}_{style}_seed{seed}.json",
     ),
+    "rag_beams2d": ProblemConfig(
+        name="rag_beams2d",
+        dataset_name="",  # No HuggingFace dataset — handcrafted prompts only
+        design_field="optimal_design",
+        tool_name="optimize_design",
+        objectives=[],  # No ground-truth design comparison
+        conditions=[
+            ConditionConfig(
+                name="expected_volfrac",
+                field_name="expected_volfrac",
+                constraint_type="none",  # Used for accuracy scoring, not a hard constraint
+                tolerance=0.05,
+                aliases=["volfrac"],
+            )
+        ],
+        score_categories={
+            "rag_accuracy": {
+                "weight": 1.0,
+                "rag_benefit_score": 1.0,
+            },
+        },
+        prompt_file_template="rag_beams2d_prompts_{n_samples}_samples_{split}_{style}_seed{seed}.json",
+    ),
 }
 
 

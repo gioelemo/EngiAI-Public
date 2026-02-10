@@ -174,7 +174,14 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         "--prompt-style",
         type=str,
         default="full",
-        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
+        choices=[
+            "full",
+            "approximate",
+            "natural",
+            "workflow",
+            "workflow-random",
+            "rag",
+        ],
         help="Prompt style for agent evaluation (default: full)",
     )
     parser.add_argument(
@@ -278,8 +285,12 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             if ret != 0:
                 print(f"Warning: Prompt generation failed for seed {seed}")
 
-        # Step 2: Run CGAN evaluation
-        if run_cgan:
+        # Step 2: Run CGAN evaluation (not applicable for RAG evaluation problems)
+        if run_cgan and args.problem == "rag_beams2d":
+            print(
+                f"\n[Seed {seed}] Skipping CGAN evaluation (not applicable for rag_beams2d)"
+            )
+        elif run_cgan:
             print(f"\n[Seed {seed}] Running CGAN evaluation...")
             ret = run_cgan_evaluation(
                 args.problem,

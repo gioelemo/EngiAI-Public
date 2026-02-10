@@ -200,7 +200,10 @@ class BaseAgent(ABC):
                 # Only stop if the tool actually succeeded; on error let the
                 # LLM recover (e.g. retry with corrected arguments).
                 try:
-                    payload = json.loads(message.content)
+                    content = message.content
+                    if not isinstance(content, str):
+                        continue
+                    payload = json.loads(content)
                     if payload.get("success") is True:
                         return "__end__"
                 except (json.JSONDecodeError, AttributeError):

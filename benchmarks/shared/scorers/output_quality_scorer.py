@@ -480,6 +480,11 @@ def _validate_inputs(
     except ValueError as e:
         return _create_error_result({"error": str(e)})
 
+    # Guard: problems without a HuggingFace dataset (e.g. rag_beams2d) cannot
+    # be scored here — they use a dedicated scorer instead.
+    if not problem_config.dataset_name:
+        return {"skipped": True, "reason": "No dataset configured for this problem"}
+
     return problem_name, example_id, problem_config
 
 
