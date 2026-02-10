@@ -17,9 +17,6 @@ def ask_human_for_clarification(clarification_request: str) -> str:
     for required design parameters (e.g., volume fraction, force distribution,
     filter radius). Do NOT guess or use default values — ask the user instead.
 
-    After calling this tool, do NOT call any further tools. End your response
-    and wait for the user's reply.
-
     Args:
         clarification_request: A clear question asking the user for the specific
             missing design parameters. Include what parameters are needed and their
