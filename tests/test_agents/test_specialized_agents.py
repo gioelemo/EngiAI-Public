@@ -8,6 +8,7 @@ without requiring full LangGraph execution.
 from unittest.mock import Mock, patch
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from config import config
 from src.agents.cli_agent import CLIAgent
@@ -282,3 +283,95 @@ def test_agent_creation_with_invalid_model():
 
         with pytest.raises(RuntimeError):
             HPCAgent()
+
+
+# ============================================================================
+# _after_tools ROUTING TESTS
+# ============================================================================
+
+
+def _make_agent():
+    """Return a CLIAgent with a mocked LLM for routing tests."""
+    with patch("src.agents.base_agent.init_chat_model") as mock_init:
+        mock_llm = Mock()
+        mock_llm.bind_tools = Mock(return_value=mock_llm)
+        mock_init.return_value = mock_llm
+        return CLIAgent()
+
+
+@pytest.mark.unit
+def test_after_tools_routes_to_llm_call_for_regular_tool():
+    """Regular tool result should route back to llm_call."""
+    agent = _make_agent()
+    state = {
+        "messages": [
+            HumanMessage(content="run ls"),
+            AIMessage(content="", tool_calls=[{"id": "t1", "name": "execute_cli_command", "args": {}}]),
+            ToolMessage(content="file1.txt", tool_call_id="t1", name="execute_cli_command"),
+        ]
+    }
+    assert agent._after_tools(state) == "llm_call"
+
+
+@pytest.mark.unit
+def test_after_tools_routes_to_end_for_clarification_tool():
+    """ask_human_for_clarification result must route to __end__, not llm_call."""
+    agent = _make_agent()
+    state = {
+        "messages": [
+            HumanMessage(content="optimize a beam"),
+            AIMessage(content="", tool_calls=[{"id": "t1", "name": "ask_human_for_clarification", "args": {}}]),
+            ToolMessage(content='{"success": true, "question": "What volume fraction?"}', tool_call_id="t1", name="ask_human_for_clarification"),
+        ]
+    }
+    assert agent._after_tools(state) == "__end__"
+
+
+@pytest.mark.unit
+def test_after_tools_routes_to_end_when_clarification_mixed_with_other_tools():
+    """If clarification tool is among the last batch of tool calls, still route to __end__."""
+    agent = _make_agent()
+    state = {
+        "messages": [
+            HumanMessage(content="optimize a beam"),
+            AIMessage(content="", tool_calls=[
+                {"id": "t1", "name": "get_problem_details", "args": {}},
+                {"id": "t2", "name": "ask_human_for_clarification", "args": {}},
+            ]),
+            ToolMessage(content="problem details...", tool_call_id="t1", name="get_problem_details"),
+            ToolMessage(content='{"success": true, "question": "What volume fraction?"}', tool_call_id="t2", name="ask_human_for_clarification"),
+        ]
+    }
+    assert agent._after_tools(state) == "__end__"
+
+
+@pytest.mark.unit
+def test_after_tools_routes_to_llm_call_when_no_tool_messages():
+    """State with no ToolMessages should fall through to llm_call."""
+    agent = _make_agent()
+    state = {
+        "messages": [
+            HumanMessage(content="hello"),
+            AIMessage(content="hi there"),
+        ]
+    }
+    assert agent._after_tools(state) == "llm_call"
+
+
+@pytest.mark.unit
+def test_after_tools_only_inspects_trailing_tool_messages():
+    """Clarification from a previous turn (not trailing) must not affect current routing."""
+    agent = _make_agent()
+    # First turn: clarification was requested
+    # Second turn: a regular tool is called — should route to llm_call
+    state = {
+        "messages": [
+            HumanMessage(content="optimize a beam"),
+            AIMessage(content="", tool_calls=[{"id": "t1", "name": "ask_human_for_clarification", "args": {}}]),
+            ToolMessage(content='{"success": true}', tool_call_id="t1", name="ask_human_for_clarification"),
+            HumanMessage(content="volfrac=0.3, rmin=3.0, forcedist=1.0"),
+            AIMessage(content="", tool_calls=[{"id": "t2", "name": "optimize_design", "args": {}}]),
+            ToolMessage(content="design optimized", tool_call_id="t2", name="optimize_design"),
+        ]
+    }
+    assert agent._after_tools(state) == "llm_call"

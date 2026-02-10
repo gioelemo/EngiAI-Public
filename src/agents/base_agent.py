@@ -177,6 +177,28 @@ class BaseAgent(ABC):
         # Otherwise, we stop (reply to the user)
         return "__end__"
 
+    def _after_tools(self, state: MessagesState) -> Literal["llm_call", "__end__"]:
+        """Route after tool execution.
+
+        Stops the graph immediately if clarification was requested, so the LLM
+        cannot call further tools or generate additional output after asking the
+        user for input.
+
+        Args:
+            state: Current conversation state
+
+        Returns:
+            Next node to execute ("llm_call" or "__end__")
+        """
+        messages = state["messages"]
+        # Walk backwards through the most recent ToolMessages from this turn
+        for message in reversed(messages):
+            if not isinstance(message, ToolMessage):
+                break
+            if message.name == "ask_human_for_clarification":
+                return "__end__"
+        return "llm_call"
+
     def _build_agent(self) -> Any:
         """Build the agent workflow graph.
 
@@ -195,7 +217,9 @@ class BaseAgent(ABC):
         agent_builder.add_conditional_edges(
             "llm_call", self._should_continue, ["tool_node", END]
         )
-        agent_builder.add_edge("tool_node", "llm_call")
+        agent_builder.add_conditional_edges(
+            "tool_node", self._after_tools, ["llm_call", END]
+        )
 
         # Compile with persistent checkpointer for conversation memory
         checkpointer = get_checkpointer()
