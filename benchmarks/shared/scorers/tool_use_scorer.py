@@ -1,13 +1,15 @@
 """Tool use scorer for engineering agent evaluations.
 
-This scorer evaluates how well the agent uses tools compared to the optimal count,
-measuring efficiency (number of calls). Tool ordering is NOT scored as multiple
-valid orderings exist.
+This scorer evaluates how well the agent uses tools compared to the optimal set,
+measuring both correctness (right tools) and efficiency (right number of calls).
+Tool ordering is NOT scored as multiple valid orderings exist.
 
 Metrics:
-- Efficiency Ratio = optimal_calls / actual_calls
-  - 1.0 = perfectly efficient (agent used exactly the optimal number of calls)
-  - <1.0 = less efficient (agent used more calls than optimal)
+- Efficiency Ratio = correctly_matched_calls / max(optimal_calls, actual_calls)
+  - 1.0 = agent called exactly the right tools the right number of times
+  - <1.0 = wrong tools called, missing tools, or extra tools
+  - A tool swap (one correct tool missing, one wrong tool added) gives <1.0
+    even when total call counts match, unlike the old optimal/actual formula.
 """
 
 import logging
@@ -230,37 +232,40 @@ def score_tool_use(
     tool_call_breakdown = Counter(actual_sequence)
     optimal_tool_breakdown = Counter(optimal_sequence)
 
-    # Compute efficiency ratio
-    # optimal / actual so that 1.0 = perfect efficiency
-    if actual_call_count > 0:
-        efficiency_ratio = optimal_call_count / actual_call_count
-    else:
-        efficiency_ratio = 0.0
+    # Count correctly-matched tool calls (multiset intersection: min per tool)
+    correctly_matched = sum(
+        min(optimal_tool_breakdown[t], tool_call_breakdown[t])
+        for t in optimal_tool_breakdown
+    )
 
-    # Cap efficiency at 1.0
-    efficiency_ratio = min(efficiency_ratio, 1.0)
+    # Efficiency ratio = correctly matched / max(optimal, actual)
+    # - 1.0: agent called exactly the right tools the right number of times
+    # - <1.0: wrong tools, missing tools, or extra tools (all penalised)
+    denominator = max(optimal_call_count, actual_call_count)
+    efficiency_ratio = correctly_matched / denominator if denominator > 0 else 0.0
 
-    # Compute tool coverage with multiplicity (how many times each tool was called vs expected)
-    # Missing tools: tools called fewer times than expected (with deficit counts)
+    # Missing tools: one entry per unique tool with its expected vs actual count
     missing_tools_counter = optimal_tool_breakdown - tool_call_breakdown
     missing_tools = [
         {
             "name": tool,
             "expected": optimal_tool_breakdown[tool],
             "actual": tool_call_breakdown.get(tool, 0),
+            "deficit": count,
         }
-        for tool in missing_tools_counter.elements()
+        for tool, count in missing_tools_counter.items()
     ]
 
-    # Extra tools: tools called more times than expected (with excess counts)
+    # Extra tools: one entry per unique tool with its expected vs actual count
     extra_tools_counter = tool_call_breakdown - optimal_tool_breakdown
     extra_tools = [
         {
             "name": tool,
             "expected": optimal_tool_breakdown.get(tool, 0),
             "actual": tool_call_breakdown[tool],
+            "excess": count,
         }
-        for tool in extra_tools_counter.elements()
+        for tool, count in extra_tools_counter.items()
     ]
 
     # Compute excess calls
