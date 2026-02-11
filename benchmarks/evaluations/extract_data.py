@@ -346,7 +346,9 @@ def _mmore_matches(example, mmore_filter: bool | None) -> bool:
     try:
         ex_meta = example.get("metadata", {}) if hasattr(example, "get") else {}
         mmore_enabled = (ex_meta or {}).get("mmore_enabled")
-        return mmore_enabled is None or bool(mmore_enabled) == mmore_filter
+        if mmore_enabled is None:
+            return False  # No tag — exclude from filtered runs to avoid duplicates
+        return bool(mmore_enabled) == mmore_filter
     except Exception:
         return True  # Cannot read field — do not filter out
 
