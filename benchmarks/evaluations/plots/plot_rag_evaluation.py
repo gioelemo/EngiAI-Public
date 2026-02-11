@@ -1,11 +1,12 @@
 """
 RAG Evaluation Plots
 
-Four publication-ready figures comparing RAG-on vs RAG-off performance across models:
+Five publication-ready figures comparing RAG-on vs RAG-off performance across models:
   1. plot_rag_benefit_score        -- grouped bars: rag_benefit_score per model x rag_status
   2. plot_rag_score_components     -- stacked bars: weighted gated score decomposition
   3. plot_rag_accuracy_comparison  -- stacked bars: raw (ungated) accuracy + RAG usage
-  4. plot_rag_uplift               -- horizontal bars: delta-score (rag_on - rag_off) per model
+  4. plot_rag_score_combined       -- single axes: all conditions (P0/P1 x on/off)
+  5. plot_rag_uplift               -- horizontal bars: delta-score (rag_on - rag_off) per model
 
 Usage:
     # 1. Extract results from Weave (run twice, once per RAG status):
@@ -295,10 +296,14 @@ def plot_rag_score_components(
             plabel = _PROMPT_SHORT_LABELS.get(int(eid2), f"P{int(eid2)}")
             for xi in x:
                 ax.text(
-                    xi + off2, -0.03, plabel,
-                    ha="center", va="top",
+                    xi + off2,
+                    -0.03,
+                    plabel,
+                    ha="center",
+                    va="top",
                     fontsize=fs["annotation"],
-                    transform=xaxis_tr, clip_on=False,
+                    transform=xaxis_tr,
+                    clip_on=False,
                 )
 
         style = _RAG_DISPLAY.get(rs, {"label": rs})
@@ -449,10 +454,14 @@ def plot_rag_accuracy_comparison(
             plabel = _PROMPT_SHORT_LABELS.get(int(eid2), f"P{int(eid2)}")
             for xi in x:
                 ax.text(
-                    xi + off2, -0.03, plabel,
-                    ha="center", va="top",
+                    xi + off2,
+                    -0.03,
+                    plabel,
+                    ha="center",
+                    va="top",
                     fontsize=fs["annotation"],
-                    transform=xaxis_tr, clip_on=False,
+                    transform=xaxis_tr,
+                    clip_on=False,
                 )
 
         style = _RAG_DISPLAY.get(rs, {"label": rs})
@@ -483,7 +492,190 @@ def plot_rag_accuracy_comparison(
     print(f"  ✅ {filename}")
 
 
-# ── Plot 4: RAG uplift — delta-score per model ────────────────────────────────
+# ── Shared helper for stacked bar drawing ─────────────────────────────────────
+
+
+def _draw_stacked_bars(  # noqa: PLR0913
+    ax: plt.Axes,
+    df: pd.DataFrame,
+    models: list[str],
+    x: np.ndarray,
+    example_ids: list,
+    offsets: list[float],
+    bar_width: float,
+    prompt_hatches: dict,
+    present: dict[str, str],
+    fs: dict,
+) -> None:
+    """Draw stacked component bars with P0/P1 sub-labels on *ax*."""
+    for eid, offset in zip(example_ids, offsets, strict=False):
+        sub_eid = df[df["example_id"] == eid]
+        hatch = prompt_hatches.get(eid, "")
+        bottoms = np.zeros(len(models))
+        for col, key in present.items():
+            vals = []
+            for m in models:
+                mask = sub_eid["model_short"] == m
+                v = sub_eid.loc[mask, f"_wt_{col}"].mean() if mask.any() else 0.0
+                vals.append(0.0 if np.isnan(v) else float(v))
+            vals_arr = np.array(vals)
+            ax.bar(
+                x + offset,
+                vals_arr,
+                bar_width,
+                bottom=bottoms,
+                color=_COMPONENT_COLORS.get(key, COLOR_PALETTE[0]),
+                hatch=hatch,
+                edgecolor="white",
+                linewidth=0.5,
+            )
+            bottoms += vals_arr
+
+    xaxis_tr = ax.get_xaxis_transform()
+    for eid2, off2 in zip(example_ids, offsets, strict=False):
+        plabel = _PROMPT_SHORT_LABELS.get(int(eid2), f"P{int(eid2)}")
+        for xi in x:
+            ax.text(
+                xi + off2,
+                -0.03,
+                plabel,
+                ha="center",
+                va="top",
+                fontsize=fs["annotation"],
+                transform=xaxis_tr,
+                clip_on=False,
+            )
+
+
+# ── Plot 4: Combined single-axes — all conditions on one chart ────────────────
+
+
+def plot_rag_score_combined(
+    df: pd.DataFrame,
+    filename: str = "rag_score_combined.png",
+    output_dir: Path | None = None,
+) -> None:
+    """Single-axes stacked bar: raw accuracy for every model x prompt x RAG condition.
+
+    Four bars per model — P0 off, P0 on, P1 off, P1 on — so the reader can
+    compare RAG on/off and easy/hard at a glance.  RAG-off bars are hatched.
+    Uses raw (ungated) accuracy so no-RAG bars show model prior knowledge.
+
+    Args:
+        df: Design data DataFrame.
+        filename: Output filename.
+        output_dir: Directory to save figures.
+    """
+    setup_style()
+    df = _prepare_data(df)
+
+    components = {
+        "volfrac_accuracy": "eff_volfrac",
+        "forcedist_accuracy": "eff_forcedist",
+        "rag_tool_called": "rag_called",
+    }
+    present = {k: v for k, v in components.items() if k in df.columns}
+    if not present:
+        print("  ⚠️  No accuracy columns — skipping plot_rag_score_combined")
+        return
+
+    w_single = _renormalize_weights(COMPONENT_WEIGHTS_SINGLE)
+    w_double = _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE)
+
+    df = df.copy()
+    two_param = (
+        df.get("forcedist_tested", pd.Series(False, index=df.index))
+        .fillna(False)
+        .astype(bool)
+    )
+    for col in present:
+        w = two_param.map({True: w_double.get(col, 0.0), False: w_single.get(col, 0.0)})
+        df[f"_wt_{col}"] = df[col].fillna(0.0) * w
+
+    fs = PLOT_STYLE["font_sizes"]
+    models = sorted(df["model_short"].unique())
+    example_ids = sorted(df["example_id"].dropna().unique())
+
+    # Condition order: P0 off, P0 on, P1 off, P1 on
+    conditions = [(eid, rs) for eid in example_ids for rs in ("no_rag", "rag")]
+    n_bars = len(conditions)
+    bar_width = 0.18
+    offsets = np.linspace(
+        -(n_bars - 1) * bar_width / 2,
+        (n_bars - 1) * bar_width / 2,
+        n_bars,
+    )
+    x = np.arange(len(models))
+
+    fig, ax = plt.subplots(figsize=PLOT_STYLE["figsize_full_width"])
+
+    for (eid, rs), offset in zip(conditions, offsets, strict=False):
+        sub = df[(df["example_id"] == eid) & (df["rag_status"] == rs)]
+        hatch = "//" if rs == "no_rag" else ""
+        bottoms = np.zeros(len(models))
+        for col, key in present.items():
+            vals = []
+            for m in models:
+                mask = sub["model_short"] == m
+                v = sub.loc[mask, f"_wt_{col}"].mean() if mask.any() else 0.0
+                vals.append(0.0 if np.isnan(v) else float(v))
+            vals_arr = np.array(vals)
+            ax.bar(
+                x + offset,
+                vals_arr,
+                bar_width,
+                bottom=bottoms,
+                color=_COMPONENT_COLORS.get(key, COLOR_PALETTE[0]),
+                hatch=hatch,
+                edgecolor="white",
+                linewidth=0.5,
+            )
+            bottoms += vals_arr
+
+    # Sub-labels under each bar (two-line: "P0\noff")
+    xaxis_tr = ax.get_xaxis_transform()
+    for (eid, rs), offset in zip(conditions, offsets, strict=False):
+        plabel = _PROMPT_SHORT_LABELS.get(int(eid), f"P{int(eid)}")
+        rlabel = "on" if rs == "rag" else "off"
+        for xi in x:
+            ax.text(
+                xi + offset,
+                -0.02,
+                f"{plabel}\n{rlabel}",
+                ha="center",
+                va="top",
+                fontsize=max(fs["annotation"] - 1, 5),
+                transform=xaxis_tr,
+                clip_on=False,
+            )
+
+    # Model names with extra padding to clear the sub-labels
+    ax.set_xticks(x)
+    ax.set_xticklabels(models, fontsize=fs["tick_label"])
+    ax.tick_params(axis="x", which="major", pad=22)
+    ax.tick_params(axis="y", labelsize=fs["tick_label"])
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel("Weighted accuracy contribution", fontsize=fs["axes_label"])
+    ax.grid(axis="y", linewidth=0.3, alpha=0.4)
+
+    component_patches = [
+        mpatches.Patch(color=_COMPONENT_COLORS[key], label=_COMPONENT_LABELS[key])
+        for key in present.values()
+        if key in _COMPONENT_COLORS
+    ]
+    ax.legend(
+        handles=component_patches,
+        fontsize=fs["legend"],
+        loc="upper right",
+    )
+
+    fig.tight_layout()
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+    print(f"  ✅ {filename}")
+
+
+# ── Plot 5: RAG uplift — delta-score per model ────────────────────────────────
 
 
 def plot_rag_uplift(
@@ -580,16 +772,19 @@ def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
         df: Design data DataFrame containing RAG metrics.
         output_dir: Directory to save figures.
     """
-    print("\n[1/4] RAG benefit score grouped bar...")
+    print("\n[1/5] RAG benefit score grouped bar...")
     plot_rag_benefit_score(df, output_dir=output_dir)
 
-    print("\n[2/4] Score component breakdown (weighted, gated)...")
+    print("\n[2/5] Score component breakdown (weighted, gated)...")
     plot_rag_score_components(df, output_dir=output_dir)
 
-    print("\n[3/4] Raw accuracy comparison (ungated)...")
+    print("\n[3/5] Raw accuracy comparison (ungated)...")
     plot_rag_accuracy_comparison(df, output_dir=output_dir)
 
-    print("\n[4/4] RAG uplift delta bars...")
+    print("\n[4/5] Combined score components (gated + raw)...")
+    plot_rag_score_combined(df, output_dir=output_dir)
+
+    print("\n[5/5] RAG uplift delta bars...")
     plot_rag_uplift(df, output_dir=output_dir)
 
 
