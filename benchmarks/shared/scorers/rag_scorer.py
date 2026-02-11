@@ -47,16 +47,29 @@ CITATION_KEYWORDS = [
     "source",
 ]
 
-# Weights for single-parameter mode (volfrac only)
-_W1_VOLFRAC = 0.50
-_W1_RAG_TOOL = 0.30
-_W1_CITED = 0.20
+# Scorer weights keyed by output column name.
+# Imported by the plotting layer to keep weights as a single source of truth.
+COMPONENT_WEIGHTS_SINGLE: dict[str, float] = {
+    "effective_volfrac_accuracy": 0.50,
+    "effective_forcedist_accuracy": 0.00,
+    "rag_tool_called": 0.30,
+    "source_cited": 0.20,
+}
+COMPONENT_WEIGHTS_DOUBLE: dict[str, float] = {
+    "effective_volfrac_accuracy": 0.35,
+    "effective_forcedist_accuracy": 0.35,
+    "rag_tool_called": 0.20,
+    "source_cited": 0.10,
+}
 
-# Weights for two-parameter mode (volfrac + forcedist)
-_W2_VOLFRAC = 0.35
-_W2_FORCEDIST = 0.35
-_W2_RAG_TOOL = 0.20
-_W2_CITED = 0.10
+# Private aliases kept for internal use
+_W1_VOLFRAC = COMPONENT_WEIGHTS_SINGLE["effective_volfrac_accuracy"]
+_W1_RAG_TOOL = COMPONENT_WEIGHTS_SINGLE["rag_tool_called"]
+_W1_CITED = COMPONENT_WEIGHTS_SINGLE["source_cited"]
+_W2_VOLFRAC = COMPONENT_WEIGHTS_DOUBLE["effective_volfrac_accuracy"]
+_W2_FORCEDIST = COMPONENT_WEIGHTS_DOUBLE["effective_forcedist_accuracy"]
+_W2_RAG_TOOL = COMPONENT_WEIGHTS_DOUBLE["rag_tool_called"]
+_W2_CITED = COMPONENT_WEIGHTS_DOUBLE["source_cited"]
 
 
 def _extract_param_from_args(args: dict[str, Any], aliases: list[str]) -> float | None:

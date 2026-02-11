@@ -34,6 +34,10 @@ from benchmarks.evaluations.plots.utils import (  # noqa: E402
     save_figure,
     setup_style,
 )
+from benchmarks.shared.scorers.rag_scorer import (  # noqa: E402
+    COMPONENT_WEIGHTS_DOUBLE,
+    COMPONENT_WEIGHTS_SINGLE,
+)
 
 # Minimum bar value to display an annotation label
 _MIN_LABEL_VALUE = 0.05
@@ -217,21 +221,8 @@ def plot_rag_score_components(
         print("  ⚠️  No RAG component columns — skipping plot_rag_score_components")
         return
 
-    # Weights matching rag_scorer.py — applied per-row via forcedist_tested so
-    # each row uses the right single/two-param weights before aggregation.
-    # Stacked total then equals rag_benefit_score (bounded at 1.0).
-    w_single = {
-        "effective_volfrac_accuracy": 0.50,
-        "effective_forcedist_accuracy": 0.00,
-        "rag_tool_called": 0.30,
-        "source_cited": 0.20,
-    }
-    w_double = {
-        "effective_volfrac_accuracy": 0.35,
-        "effective_forcedist_accuracy": 0.35,
-        "rag_tool_called": 0.20,
-        "source_cited": 0.10,
-    }
+    # Weights imported from rag_scorer.py — single source of truth.
+    # Applied per-row via forcedist_tested; stacked total equals rag_benefit_score.
     df = df.copy()
     two_param = (
         df.get("forcedist_tested", pd.Series(False, index=df.index))
@@ -239,7 +230,12 @@ def plot_rag_score_components(
         .astype(bool)
     )
     for col in present:
-        w = two_param.map({True: w_double.get(col, 0.0), False: w_single.get(col, 0.0)})
+        w = two_param.map(
+            {
+                True: COMPONENT_WEIGHTS_DOUBLE.get(col, 0.0),
+                False: COMPONENT_WEIGHTS_SINGLE.get(col, 0.0),
+            }
+        )
         df[f"_wt_{col}"] = df[col].fillna(0.0) * w
 
     fs = PLOT_STYLE["font_sizes"]
