@@ -180,7 +180,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             "natural",
             "workflow",
             "workflow-random",
-            "rag",
+            "rag-eval",
         ],
         help="Prompt style for agent evaluation (default: full)",
     )
