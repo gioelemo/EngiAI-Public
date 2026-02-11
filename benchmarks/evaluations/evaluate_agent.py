@@ -465,10 +465,14 @@ def create_contextual_scorer(
     def contextual_scorer(
         output: dict[str, Any],
         target: dict[str, Any],
+        conditions: dict[str, Any],
         metadata: dict[str, Any],
     ) -> dict[str, Any]:
         """Contextual wrapper that delegates to the original scorer."""
-        return scorer_func(output, target, metadata)
+        # Weave passes `conditions` from the top-level dataset row field; merge it
+        # into metadata so all scorers can access it via metadata["conditions"].
+        full_metadata = {**metadata, "conditions": conditions}
+        return scorer_func(output, target, full_metadata)
 
     # Set the __name__ attribute so it displays correctly
     contextual_scorer.__name__ = scorer_type  # type: ignore[attr-defined]
