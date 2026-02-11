@@ -264,6 +264,7 @@ def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
             break
     if problem is None:
         return None
+    assert model_part is not None  # set in the same loop branch as problem
 
     # 3. Extract rag_status (check "no_rag" before "rag" to avoid partial match)
     rag_status = None

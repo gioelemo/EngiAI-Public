@@ -210,11 +210,12 @@ def plot_rag_score_components(
     setup_style()
     df = _prepare_data(df)
 
+    # Maps scorer output column → short key used in _COMPONENT_COLORS/_COMPONENT_LABELS
     components = {
-        "effective_volfrac_accuracy": ("eff_volfrac", "Volfrac acc."),
-        "effective_forcedist_accuracy": ("eff_forcedist", "Forcedist acc."),
-        "rag_tool_called": ("rag_called", "RAG called"),
-        "source_cited": ("cited", "Cited"),
+        "effective_volfrac_accuracy": "eff_volfrac",
+        "effective_forcedist_accuracy": "eff_forcedist",
+        "rag_tool_called": "rag_called",
+        "source_cited": "cited",
     }
     present = {k: v for k, v in components.items() if k in df.columns}
     if not present:
@@ -267,7 +268,7 @@ def plot_rag_score_components(
             sub_eid = sub[sub["example_id"] == eid]
             hatch = prompt_hatches.get(eid, "")
             bottoms = np.zeros(len(models))
-            for col, (key, _label) in present.items():
+            for col, key in present.items():
                 vals = []
                 for m in models:
                     mask = sub_eid["model_short"] == m
@@ -300,7 +301,7 @@ def plot_rag_score_components(
     component_patches = [
         mpatches.Patch(color=_COMPONENT_COLORS[key], label=label)
         for key, label in _COMPONENT_LABELS.items()
-        if key in {v[0] for v in present.values()}
+        if key in set(present.values())
     ]
     prompt_patches = [
         mpatches.Patch(
