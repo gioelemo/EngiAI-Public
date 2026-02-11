@@ -72,7 +72,7 @@ def _create_search_tool(mmore_client: MMOREClient):
             for i, doc in enumerate(docs, 1):
                 file_id = doc.metadata.get("source", "unknown")
                 score = doc.metadata.get("score", 0.0)
-                content = doc.page_content[:500]
+                content = doc.page_content[:1500]
 
                 response_parts.append(
                     f"**Result {i}** (relevance: {score:.2f})\n"

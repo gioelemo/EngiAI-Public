@@ -82,7 +82,8 @@ RAG_PROMPTS: list[dict] = [
             "Beams2D problem in its API walkthrough.\n\n"
             "Search the paper to find the default volume fraction (volfrac) listed "
             "for the Beams2D problem. Then generate a 2D beam design using exactly "
-            "that volume fraction. Use default values for all other parameters."
+            "that volume fraction. Use default values for all other parameters (do NOT "
+            "ask for clarification — proceed directly with defaults)."
         ),
         "conditions": {
             "expected_volfrac": 0.35,
@@ -125,13 +126,17 @@ RAG_PROMPTS: list[dict] = [
         #          → parameter scores = 0 → score ~0.0-0.10
         # -------------------------------------------------------------------
         "prompt": (
-            "The EngiBench paper's API walkthrough includes a code example that "
-            "demonstrates how to configure custom design conditions for the Beams2D "
-            "problem. The example specifies both a volume fraction and a force "
-            "distribution value.\n\n"
-            "Search the paper to find that example and identify both values. "
-            "Then generate a 2D beam design using exactly the volume fraction and "
-            "force distribution from the paper's example."
+            "Follow these steps exactly:\n\n"
+            "1. Call search_documents with the query 'desired_conds' to retrieve "
+            "the relevant section of the EngiBench paper.\n"
+            "2. In the returned text, find the line that looks like:\n"
+            "   desired_conds = {\"volfrac\": <NUMBER>, \"forcedist\": <NUMBER>}\n"
+            "   This is a Python dictionary assignment — NOT the problem.conditions "
+            "tuple on line 7 of the same listing.\n"
+            "3. Use the two numbers from step 2 as volfrac and forcedist.\n"
+            "4. Call optimize_design with those values to generate a 2D beam design. "
+            "Use default values for ALL other parameters (do NOT ask for clarification "
+            "— proceed directly with defaults)."
         ),
         "conditions": {
             "expected_volfrac": 0.7,

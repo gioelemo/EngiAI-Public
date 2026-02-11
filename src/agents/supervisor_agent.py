@@ -6,6 +6,7 @@ sub-agents (Engineering, Search, etc.) rather than having all tools directly.
 """
 
 import logging
+import os
 import uuid
 from typing import Annotated, Any, Literal, cast
 
@@ -138,7 +139,16 @@ class SupervisorAgent:
         Returns:
             Routing prompt from centralized prompts file
         """
-        return SUPERVISOR_AGENT_SYSTEM_PROMPT
+        prompt = SUPERVISOR_AGENT_SYSTEM_PROMPT
+        if os.getenv("SKIP_ARXIV", "false").lower() == "true":
+            prompt += (
+                "\n\nIMPORTANT: ArXiv search is currently unavailable. "
+                "Do NOT route to arxiv_agent under any circumstances. "
+                "If the user asks about a paper or document AND then wants to perform a design task, "
+                "route to engineering_agent (it has both document search and optimization tools). "
+                "If the user only wants document Q&A with no follow-up action, route to rag_agent."
+            )
+        return prompt
 
     def _supervisor_node(self, state: SupervisorState):
         """Supervisor decides which agent should act next using LLM-based routing."""
@@ -237,6 +247,18 @@ class SupervisorAgent:
 
     def _arxiv_node(self, state: SupervisorState):
         """Delegate to ArXiv agent for paper search and analysis."""
+        if os.getenv("SKIP_ARXIV", "false").lower() == "true":
+            return {
+                "messages": [
+                    AIMessage(
+                        content=(
+                            "ArXiv search is not available in this context. "
+                            "Please use the document search tool (search_documents) instead."
+                        )
+                    )
+                ],
+                "next": "FINISH",
+            }
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
         # Use unique thread_id to avoid checkpoint conflicts between invocations

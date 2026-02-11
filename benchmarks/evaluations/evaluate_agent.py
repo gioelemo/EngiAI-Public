@@ -418,13 +418,16 @@ def get_or_create_dataset(
     """
     try:
         dataset = weave.ref(dataset_name).get()
-        if len(dataset.rows) == num_samples:
+        # Check count AND prompt content so stale cached datasets are refreshed
+        existing_prompts = [row.get("prompt", "") for row in dataset.rows]
+        new_prompts = [row.get("prompt", "") for row in eval_dataset]
+        if existing_prompts == new_prompts:
             print(
                 f"📦 Using existing evaluation dataset from Weave ({len(dataset.rows)} samples)"
             )
         else:
             print(
-                f"⚠️  Existing dataset has {len(dataset.rows)} samples, need {num_samples}. Recreating..."
+                f"⚠️  Dataset prompts changed (had {len(dataset.rows)}, need {num_samples}). Recreating..."
             )
             dataset = weave.Dataset(name=dataset_name, rows=eval_dataset)  # type: ignore[arg-type]
             weave.publish(dataset)
@@ -513,6 +516,12 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Reset MMORE cache to pick up the new env var value
     config.reset_mmore_cache()
 
+    # For RAG evaluation problems disable ArXiv so MMORE is the only document source.
+    # This keeps the RAG-on vs RAG-off comparison clean: the only variable is whether
+    # MMORE (search_documents) is available, not whether the agent can reach the paper
+    # via the ArXiv agent as an alternative route.
+    os.environ["SKIP_ARXIV"] = "true" if args.problem == "rag_beams2d" else "false"
+
     # Get problem configuration
     problem_config = PROBLEM_CONFIGS[args.problem]
     model_name = args.model or config.llm_model
@@ -583,6 +592,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print(f"Dataset Split: {args.split}")
     print(f"Prompt Style: {args.prompt_style}")
     print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
+    print(f"ArXiv: {'disabled (rag eval)' if args.problem == 'rag_beams2d' else 'enabled'}")
     print(f"Samples: {args.samples}")
     if args.seed is not None:
         print(f"Seed: {args.seed}")
