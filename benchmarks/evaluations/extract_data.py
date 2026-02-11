@@ -9,6 +9,7 @@ Saves to JSON format for offline global metrics computation.
 import argparse
 import contextlib
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -20,6 +21,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from benchmarks.shared.problem_registry import get_problem_config  # noqa: E402
 from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS  # noqa: E402
 from config import config  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 # Constants
 REF_EXTRA_MIN_LENGTH = 3
@@ -349,7 +352,8 @@ def _mmore_matches(example, mmore_filter: bool | None) -> bool:
         if mmore_enabled is None:
             return False  # No tag — exclude from filtered runs to avoid duplicates
         return bool(mmore_enabled) == mmore_filter
-    except Exception:
+    except (AttributeError, TypeError, KeyError) as exc:
+        logger.warning("Could not read mmore_enabled from example metadata: %s", exc)
         return True  # Cannot read field — do not filter out
 
 
