@@ -44,9 +44,10 @@ from benchmarks.shared.scorers.rag_scorer import (  # noqa: E402
 _MIN_LABEL_VALUE = 0.05
 
 # ── Prompt labels ──────────────────────────────────────────────────────────────
+_PROMPT_SHORT_LABELS = {0: "P0", 1: "P1"}
 _PROMPT_LABELS = {
-    0: "Easy (volfrac)",
-    1: "Hard (volfrac + forcedist)",
+    0: "P0 — Easy (volfrac)",
+    1: "P1 — Hard (volfrac + forcedist)",
 }
 
 # ── RAG status display labels and styles ───────────────────────────────────────
@@ -288,6 +289,18 @@ def plot_rag_score_components(
                 )
                 bottoms += vals
 
+        # P0/P1 sub-labels under each bar
+        xaxis_tr = ax.get_xaxis_transform()
+        for eid2, off2 in zip(example_ids, offsets, strict=False):
+            plabel = _PROMPT_SHORT_LABELS.get(int(eid2), f"P{int(eid2)}")
+            for xi in x:
+                ax.text(
+                    xi + off2, -0.03, plabel,
+                    ha="center", va="top",
+                    fontsize=fs["annotation"],
+                    transform=xaxis_tr, clip_on=False,
+                )
+
         style = _RAG_DISPLAY.get(rs, {"label": rs})
         ax.set_title(style["label"], fontsize=fs["axes_title"])
         ax.set_xticks(x)
@@ -298,23 +311,14 @@ def plot_rag_score_components(
 
     axes[0].set_ylabel("Weighted score contribution", fontsize=fs["axes_label"])
 
-    # Legend: colour patches for components + hatch patches for prompt levels
+    # Legend: colour patches only (prompt level shown via P0/P1 x-axis labels)
     component_patches = [
         mpatches.Patch(color=_COMPONENT_COLORS[key], label=label)
         for key, label in _COMPONENT_LABELS.items()
         if key in set(present.values())
     ]
-    prompt_patches = [
-        mpatches.Patch(
-            facecolor="grey",
-            hatch=prompt_hatches.get(eid, ""),
-            edgecolor="white",
-            label=_PROMPT_LABELS.get(int(eid), f"Prompt {int(eid)}"),
-        )
-        for eid in example_ids
-    ]
     axes[1].legend(
-        handles=component_patches + prompt_patches,
+        handles=component_patches,
         fontsize=fs["legend"],
         loc="upper right",
         bbox_to_anchor=(1.0, 1.0),
@@ -439,6 +443,18 @@ def plot_rag_accuracy_comparison(
                 )
                 bottoms += vals_arr
 
+        # P0/P1 sub-labels under each bar
+        xaxis_tr = ax.get_xaxis_transform()
+        for eid2, off2 in zip(example_ids, offsets, strict=False):
+            plabel = _PROMPT_SHORT_LABELS.get(int(eid2), f"P{int(eid2)}")
+            for xi in x:
+                ax.text(
+                    xi + off2, -0.03, plabel,
+                    ha="center", va="top",
+                    fontsize=fs["annotation"],
+                    transform=xaxis_tr, clip_on=False,
+                )
+
         style = _RAG_DISPLAY.get(rs, {"label": rs})
         ax.set_title(style["label"], fontsize=fs["axes_title"])
         ax.set_xticks(x)
@@ -449,23 +465,14 @@ def plot_rag_accuracy_comparison(
 
     axes[0].set_ylabel("Weighted accuracy contribution", fontsize=fs["axes_label"])
 
-    # Legend: colour patches for components + hatch patches for prompt levels
+    # Legend: colour patches only (prompt level shown via P0/P1 x-axis labels)
     component_patches = [
         mpatches.Patch(color=_COMPONENT_COLORS[key], label=_COMPONENT_LABELS[key])
         for key in present.values()
         if key in _COMPONENT_COLORS
     ]
-    prompt_patches = [
-        mpatches.Patch(
-            facecolor="grey",
-            hatch=prompt_hatches.get(eid, ""),
-            edgecolor="white",
-            label=_PROMPT_LABELS.get(int(eid), f"Prompt {int(eid)}"),
-        )
-        for eid in example_ids
-    ]
     axes[1].legend(
-        handles=component_patches + prompt_patches,
+        handles=component_patches,
         fontsize=fs["legend"],
         loc="upper right",
         bbox_to_anchor=(1.0, 1.0),
@@ -533,7 +540,7 @@ def plot_rag_uplift(
                         "model": m,
                         "example_id": int(eid),
                         "delta": float(np.nan_to_num(s_on) - np.nan_to_num(s_off)),
-                        "label": f"{m}\n{_PROMPT_LABELS.get(int(eid), str(eid))}",
+                        "label": f"{m} ({_PROMPT_SHORT_LABELS.get(int(eid), f'P{int(eid)}')})",
                     }
                 )
 
