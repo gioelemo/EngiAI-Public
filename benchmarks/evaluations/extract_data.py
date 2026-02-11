@@ -338,10 +338,23 @@ def _extract_metrics_from_scorers(
     return result
 
 
+def _mmore_matches(example, mmore_filter: bool | None) -> bool:
+    """Return False if example.metadata.mmore_enabled contradicts mmore_filter."""
+    if mmore_filter is None:
+        return True
+    try:
+        ex_meta = example.get("metadata", {}) if hasattr(example, "get") else {}
+        mmore_enabled = (ex_meta or {}).get("mmore_enabled")
+        return mmore_enabled is None or bool(mmore_enabled) == mmore_filter
+    except Exception:
+        return True  # Cannot read field — do not filter out
+
+
 def _process_score_call_for_complete_data(
     score_call,
     model_filter: str | None,
     seen_models: set,
+    mmore_filter: bool | None = None,
 ) -> dict | None:
     """Process a predict_and_score call and extract ALL data for offline processing.
 
@@ -349,6 +362,8 @@ def _process_score_call_for_complete_data(
         score_call: The predict_and_score call (has example metadata and scorer outputs)
         model_filter: Optional model filter
         seen_models: Set to track seen models
+        mmore_filter: If True, only include calls where example.metadata.mmore_enabled
+            is True; if False, only include calls where it is False; None = no filter.
 
     Returns:
         Complete design data dict if successful, None otherwise
@@ -357,25 +372,24 @@ def _process_score_call_for_complete_data(
         # Extract example data from score_call inputs
         score_inputs = score_call.inputs or {}
         example = score_inputs.get("example", {})
+
+        # Filter by mmore_enabled (stored in inputs.example.metadata.mmore_enabled)
+        if not _mmore_matches(example, mmore_filter):
+            return None
         example_id, seed, problem_id = _extract_metadata_from_example(example)
 
-        # Extract scorer outputs from score_call output
+        # Extract scorer outputs from score_call output (scores are nested under "scores")
         score_output = score_call.output
-        if not score_output or not isinstance(score_output, dict):
-            return None
-
-        # Scorer outputs are nested under "scores" key
-        scores = score_output.get("scores", {})
-
-        # Validate scores exist and have at least one scorer output
+        scores = score_output.get("scores") if isinstance(score_output, dict) else None
         if not scores or not isinstance(scores, dict):
             return None
 
         output_quality = scores.get("output_quality", {})
         task_completion = scores.get("task_completion", {})
         tool_use = scores.get("tool_use", {})
+        rag_evaluation = scores.get("rag_evaluation", {})
 
-        if not output_quality and not task_completion and not tool_use:
+        if not output_quality and not task_completion and not tool_use and not rag_evaluation:
             return None
 
         # Extract model_id and apply filter
@@ -407,6 +421,24 @@ def _process_score_call_for_complete_data(
             output_quality, task_completion, tool_use, problem_type
         )
         result.update(metrics)
+
+        # Extract RAG evaluation metrics (rag_beams2d problems)
+        if isinstance(rag_evaluation, dict) and rag_evaluation:
+            rag_fields = (
+                "rag_benefit_score",
+                "rag_tool_called",
+                "volfrac_accuracy",
+                "effective_volfrac_accuracy",
+                "forcedist_accuracy",
+                "effective_forcedist_accuracy",
+                "forcedist_tested",
+                "source_cited",
+                "volfrac_within_tolerance",
+                "forcedist_within_tolerance",
+            )
+            for field in rag_fields:
+                if field in rag_evaluation:
+                    result[field] = rag_evaluation[field]
 
         # Extract complete data from output_quality scorer for global metrics
         if isinstance(output_quality, dict):
@@ -445,11 +477,102 @@ def _process_score_call_for_complete_data(
         return result if has_data else None
 
 
+def _find_eval_ids_by_name_pattern(
+    client,
+    project: str,
+    name_pattern: str,
+    limit: int = 50,
+) -> list[str]:
+    """Find Evaluation.evaluate call IDs for runs whose name contains name_pattern.
+
+    evaluate_agent.py wraps evaluation.evaluate() in a @weave.op(name=eval_run_name)
+    where eval_run_name embeds the mmore_suffix (e.g. "mmore_on" or "mmore_off").
+    The call hierarchy is:
+        run_evaluation (op_name has mmore_on/off)
+          └─ Evaluation.evaluate
+               └─ predict_and_score  ← what we want to filter
+
+    Strategy:
+        1. Fetch recent Evaluation.evaluate calls.
+        2. For each, look up its parent call (the run_evaluation wrapper) and check
+           whether its op_name contains name_pattern.
+        3. Return the Evaluation.evaluate call IDs for matching parents.
+
+    Args:
+        client: Weave client
+        project: Weave project name
+        name_pattern: Substring to match (e.g. "mmore_on", "mmore_off")
+        limit: Max Evaluation.evaluate calls to scan
+
+    Returns:
+        List of Evaluation.evaluate call IDs whose parent op matches the pattern.
+    """
+    print(f"  Searching for evaluations matching '{name_pattern}'...")
+
+    eval_calls = list(
+        client.get_calls(
+            filter={"op_names": [f"weave:///{project}/op/Evaluation.evaluate:*"]},
+            sort_by=[{"field": "started_at", "direction": "desc"}],
+            limit=limit,
+        )
+    )
+
+    if not eval_calls:
+        print("  No Evaluation.evaluate calls found")
+        return []
+
+    matched: list[str] = []
+    debug_names: list[str] = []
+
+    for call in eval_calls:
+        # Check 1: display_name directly on the call (works in some Weave versions)
+        display_name = getattr(call, "display_name", "") or ""
+        if name_pattern in display_name:
+            matched.append(call.id)
+            continue
+
+        # Check 2: look up the parent call (run_evaluation wrapper) and check its op_name
+        parent_id = getattr(call, "parent_id", None)
+        if parent_id:
+            try:
+                parent_calls = list(
+                    client.get_calls(
+                        filter={"call_ids": [parent_id]},
+                        limit=1,
+                    )
+                )
+                if parent_calls:
+                    parent_op = getattr(parent_calls[0], "op_name", "") or ""
+                    debug_names.append(parent_op)
+                    if name_pattern in parent_op:
+                        matched.append(call.id)
+                        continue
+            except Exception:
+                pass
+
+        # Collect display names for debug output when nothing matches
+        if display_name:
+            debug_names.append(display_name)
+
+    if matched:
+        print(f"  Found {len(matched)} matching evaluation(s)")
+    else:
+        print(f"  No evaluations found matching '{name_pattern}'")
+        if debug_names:
+            shown = sorted(set(debug_names))[:5]
+            print("  Available evaluation names (first 5):")
+            for n in shown:
+                print(f"    {n[:100]}")
+        print("  💡 Tip: pass --eval-id <id> to target a specific evaluation run")
+    return matched
+
+
 def extract_complete_design_data_from_evaluation(
     project: str,
     model_filter: str | None = None,
     limit: int = 100,
     eval_id: str | None = None,
+    mmore_filter: bool | None = None,
 ) -> list[dict]:
     """Extract complete per-design data from Weave evaluations.
 
@@ -457,7 +580,11 @@ def extract_complete_design_data_from_evaluation(
         project: Weave project name (e.g., "entity/project")
         model_filter: Optional model ID to filter by (e.g., "openai:gpt-5.1")
         limit: Maximum number of calls to retrieve
-        eval_id: Optional evaluation ID to fetch predict_and_score calls from
+        eval_id: Optional evaluation ID (or comma-separated list) to filter by
+        mmore_filter: If True/False, only include calls where
+            example.metadata.mmore_enabled matches.  Used to separate RAG-on
+            (True) from RAG-off (False) runs — the value lives in the Weave UI
+            at inputs.example.metadata.mmore_enabled.
 
     Returns:
         List of dictionaries with complete design data (metrics, arrays, histories) per example
@@ -466,15 +593,18 @@ def extract_complete_design_data_from_evaluation(
 
     # Get predict_and_score calls (individual examples) with scorer outputs
     print(f"Fetching up to {limit} predict_and_score calls from Weave...")
+    if mmore_filter is not None:
+        print(f"  Filtering by mmore_enabled={mmore_filter} (from example metadata)")
 
     filter_dict = {
         "op_names": [f"weave:///{project}/op/Evaluation.predict_and_score:*"],
     }
 
-    # If eval_id provided, filter by parent_ids
     if eval_id:
-        filter_dict["parent_ids"] = [eval_id]
-        print(f"  Filtering by evaluation ID: {eval_id}")
+        # Support comma-separated list of IDs (e.g. from --eval-name resolution)
+        ids = [i.strip() for i in eval_id.split(",") if i.strip()]
+        filter_dict["parent_ids"] = ids
+        print(f"  Filtering by evaluation ID(s): {ids}")
 
     score_calls = client.get_calls(
         filter=filter_dict,
@@ -500,7 +630,7 @@ def extract_complete_design_data_from_evaluation(
             )
 
         result = _process_score_call_for_complete_data(
-            score_call, model_filter, seen_models
+            score_call, model_filter, seen_models, mmore_filter
         )
         if result:
             results.append(result)
@@ -624,7 +754,7 @@ def main():
         "--prompt-style",
         type=str,
         default="full",
-        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
+        choices=["full", "approximate", "natural", "workflow", "workflow-random", "rag-eval"],
         help="Prompt style used (default: full)",
     )
     parser.add_argument(
@@ -635,6 +765,14 @@ def main():
         help="RAG status (default: no_rag)",
     )
     parser.add_argument("--eval-id", help="Evaluation ID to filter by")
+    parser.add_argument(
+        "--eval-name",
+        default=None,
+        help=(
+            "Substring to match against evaluation display names in Weave. "
+            "For rag_beams2d this is auto-set from --rag-status (mmore_on / mmore_off)."
+        ),
+    )
     parser.add_argument("--output", help="Output path")
     parser.add_argument(
         "--limit",
@@ -651,8 +789,23 @@ def main():
 
     print(f"Project: {project} | Model: {model} | Problem: {args.problem}")
 
+    # Resolve --eval-name to a comma-separated list of eval IDs (fallback mechanism).
+    # Primary mechanism for rag_beams2d is mmore_filter (reads example metadata directly).
+    resolved_eval_id = args.eval_id
+    if args.eval_name and not resolved_eval_id:
+        tmp_client = weave.init(project)
+        matched = _find_eval_ids_by_name_pattern(tmp_client, project, args.eval_name)
+        if matched:
+            resolved_eval_id = ",".join(matched)
+
+    # For rag_beams2d, filter by mmore_enabled in example metadata (most reliable).
+    mmore_filter: bool | None = None
+    if args.problem == "rag_beams2d":
+        mmore_filter = args.rag_status == "rag"
+        print(f"  mmore_filter={mmore_filter} (rag_status='{args.rag_status}')")
+
     data = extract_complete_design_data_from_evaluation(
-        project, model, args.limit, args.eval_id
+        project, model, args.limit, resolved_eval_id, mmore_filter
     )
 
     if not data:

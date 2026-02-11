@@ -10,7 +10,7 @@ The --samples and --seed CLI arguments are accepted for compatibility with
 run_full_benchmark.py but are otherwise ignored (prompts are fixed).
 
 Usage:
-    python benchmarks/problems/rag_beams2d/generate_prompts.py --style rag
+    python benchmarks/problems/rag_beams2d/generate_prompts.py --style rag-eval
 """
 
 import argparse
@@ -27,7 +27,7 @@ sys.path.insert(0, str(project_root))
 # ---------------------------------------------------------------------------
 
 PROMPT_STYLES: dict[str, dict] = {
-    "rag": {
+    "rag-eval": {
         "description": "RAG-dependent: requires searching indexed documents",
         # WITH RAG the optimal sequence includes searching first
         "optimal_tool_calls": [
@@ -163,7 +163,7 @@ RAG_PROMPTS: list[dict] = [
 
 
 def create_rag_prompts(
-    style: str = "rag",
+    style: str = "rag-eval",
     seed: int | None = None,  # noqa: ARG001 — kept for CLI compat
     samples: int | None = None,  # noqa: ARG001 — kept for CLI compat
 ) -> list[dict]:
@@ -206,9 +206,9 @@ def main() -> None:
     parser.add_argument(
         "--style",
         type=str,
-        default="rag",
+        default="rag-eval",
         choices=list(PROMPT_STYLES.keys()),
-        help="Prompt style to generate (default: rag)",
+        help="Prompt style to generate (default: rag-eval)",
     )
     parser.add_argument(
         "--seed",

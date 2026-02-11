@@ -26,10 +26,10 @@ OUTPUT_DIR = Path(__file__).parent / "figures"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Known problem types
-KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d"]
+KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d", "rag_beams2d"]
 
 # Known prompt styles
-KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow", "workflow-random"]
+KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow", "workflow-random", "rag-eval"]
 
 # Directory structure:
 # results/baselines/{baseline_type}/{problem}/                              - for baselines (CGAN, CNN, etc.)
@@ -215,42 +215,55 @@ def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
     Returns:
         Dictionary with 'model', 'prompt_style', 'rag_status', 'problem', 'type' or None if invalid.
     """
-    parts = key.rsplit("_", 2)  # Split from right: [model_part, problem, type]
-    if len(parts) < MIN_KEY_PARTS:
-        return None
-
-    data_type = parts[-1]  # "global", "design", "tools"
-    problem = parts[-2]
-
-    if problem not in KNOWN_PROBLEMS:
-        return None
-
-    model_part = "_".join(parts[:-2])
-
-    # Check for CGAN baseline
+    # Check for CGAN baseline first
     if key.startswith("cgan_"):
+        parts = key.rsplit("_", 2)
+        if len(parts) < MIN_KEY_PARTS:
+            return None
         return {
-            "model": model_part,
+            "model": "_".join(parts[:-2]),
             "prompt_style": None,
             "rag_status": None,
-            "problem": problem,
-            "type": data_type,
+            "problem": parts[-2],
+            "type": parts[-1],
             "is_baseline": True,
         }
 
-    # Format: {model_name}_{prompt_style}_{rag_status}
-    # Try to extract rag_status first
+    # 1. Extract data type from the end of the key
+    data_type = None
+    key_without_type = key
+    for suffix in ("_global", "_design"):
+        if key.endswith(suffix):
+            data_type = suffix[1:]  # "global" or "design"
+            key_without_type = key[: -len(suffix)]
+            break
+    if data_type is None:
+        return None
+
+    # 2. Match known problems (longest names first to avoid partial matches).
+    #    This correctly handles compound names like "rag_beams2d" before "beams2d".
+    problem = None
+    model_part = None
+    for known_problem in sorted(KNOWN_PROBLEMS, key=len, reverse=True):
+        if key_without_type.endswith(f"_{known_problem}"):
+            problem = known_problem
+            model_part = key_without_type[: -(len(known_problem) + 1)]
+            break
+    if problem is None:
+        return None
+
+    # 3. Extract rag_status (check "no_rag" before "rag" to avoid partial match)
     rag_status = None
     for status in KNOWN_RAG_STATUSES:
         if model_part.endswith(f"_{status}"):
             rag_status = status
-            model_part = model_part[: -(len(status) + 1)]  # Remove _status suffix
+            model_part = model_part[: -(len(status) + 1)]
             break
 
-    # Now extract prompt_style
-    for style in KNOWN_PROMPT_STYLES:
+    # 4. Extract prompt_style (longest styles first to avoid partial matches)
+    for style in sorted(KNOWN_PROMPT_STYLES, key=len, reverse=True):
         if model_part.endswith(f"_{style}"):
-            model_name = model_part[: -(len(style) + 1)]  # Remove _style suffix
+            model_name = model_part[: -(len(style) + 1)]
             return {
                 "model": model_name,
                 "prompt_style": style,
@@ -547,6 +560,21 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
 
             # Also include any individual tool usage fields (tool_*)
             row.update({k: v for k, v in design.items() if k.startswith("tool_")})
+
+            # Include RAG evaluation fields (rag_beams2d problems)
+            rag_fields = (
+                "rag_benefit_score",
+                "rag_tool_called",
+                "volfrac_accuracy",
+                "effective_volfrac_accuracy",
+                "forcedist_accuracy",
+                "effective_forcedist_accuracy",
+                "forcedist_tested",
+                "source_cited",
+                "volfrac_within_tolerance",
+                "forcedist_within_tolerance",
+            )
+            row.update({f: design[f] for f in rag_fields if f in design})
 
             rows.append(row)
 

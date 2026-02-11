@@ -354,7 +354,7 @@ def parse_arguments() -> argparse.Namespace:
             "natural",
             "workflow",
             "workflow-random",
-            "rag",
+            "rag-eval",
         ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
     )
@@ -717,26 +717,29 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     )
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    # RAG evaluation problems don't have HuggingFace ground-truth designs —
-    # skip global design metrics and show RAG-specific summary instead.
+    # RAG evaluation — no HuggingFace ground-truth designs, so skip global metrics.
+    # Per-example results are in Weave; use extract_data.py to export to JSON.
     if args.problem == "rag_beams2d":
         print()
         print("=" * 60)
         print("RAG EVALUATION RESULTS")
         print("=" * 60)
         print()
-        print("RAG evaluation scorer does not compute global design metrics.")
-        print(
-            "Check Weave dashboard for per-example rag_benefit_score "
-            "(parameter accuracy, RAG tool usage, source citation)."
-        )
-        print()
-        mmore_status = (
-            "enabled (RAG on)" if args.mmore_enabled else "disabled (RAG off)"
-        )
+        mmore_status = "enabled (RAG on)" if args.mmore_enabled else "disabled (RAG off)"
         print(f"MMORE RAG: {mmore_status}")
-        print("To compare RAG-on vs RAG-off, run the evaluation twice with")
-        print("  --mmore and --no-mmore and compare rag_benefit_score values.")
+        print()
+        print("Next steps:")
+        print("  1. Run extract_data.py to export per-example RAG metrics to JSON:")
+        print(
+            f"     python benchmarks/evaluations/extract_data.py"
+            f" --problem {args.problem} --prompt-style {args.prompt_style}"
+            f" --rag-status {rag_dir}"
+            f"  # auto-filters by eval name containing '{mmore_suffix}'"
+        )
+        print(
+            '  2. Run "python benchmarks/evaluations/plots/run_all.py'
+            f' --problem {args.problem}" to generate RAG plots across models.'
+        )
         print()
         print("🎉 Evaluation complete!")
         print("📊 View detailed results in Weave dashboard")
