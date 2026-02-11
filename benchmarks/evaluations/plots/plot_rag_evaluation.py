@@ -2,9 +2,9 @@
 RAG Evaluation Plots
 
 Three publication-ready figures comparing RAG-on vs RAG-off performance across models:
-  1. plot_rag_benefit_score     — grouped bars: rag_benefit_score per model × rag_status
-  2. plot_rag_score_components  — stacked bars: score decomposition per model × rag_status
-  3. plot_rag_uplift             — horizontal bars: delta-score (rag_on - rag_off) per model
+  1. plot_rag_benefit_score     -- grouped bars: rag_benefit_score per model x rag_status
+  2. plot_rag_score_components  -- stacked bars: score decomposition per model x rag_status
+  3. plot_rag_uplift             -- horizontal bars: delta-score (rag_on - rag_off) per model
 
 Usage:
     # 1. Extract results from Weave (run twice, once per RAG status):
@@ -27,12 +27,15 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from benchmarks.evaluations.plots.utils import (  # noqa: E402
-    PLOT_STYLE,
     COLOR_PALETTE,
+    PLOT_STYLE,
     get_problem_prompt_output_dir,
     save_figure,
     setup_style,
 )
+
+# Minimum bar value to display an annotation label
+_MIN_LABEL_VALUE = 0.05
 
 # ── Prompt labels ──────────────────────────────────────────────────────────────
 _PROMPT_LABELS = {
@@ -42,28 +45,28 @@ _PROMPT_LABELS = {
 
 # ── RAG status display labels and styles ───────────────────────────────────────
 _RAG_DISPLAY = {
-    "rag":    {"label": "RAG on",  "hatch": "",   "alpha": 0.85},
+    "rag": {"label": "RAG on", "hatch": "", "alpha": 0.85},
     "no_rag": {"label": "RAG off", "hatch": "//", "alpha": 0.55},
 }
 
 # Colors for stacked bar components
 _COMPONENT_COLORS = {
-    "eff_volfrac":   COLOR_PALETTE[0],   # blue
-    "eff_forcedist": COLOR_PALETTE[1],   # orange
-    "rag_called":    COLOR_PALETTE[2],   # green
-    "cited":         COLOR_PALETTE[3],   # purple
+    "eff_volfrac": COLOR_PALETTE[0],  # blue
+    "eff_forcedist": COLOR_PALETTE[1],  # orange
+    "rag_called": COLOR_PALETTE[2],  # green
+    "cited": COLOR_PALETTE[3],  # purple
 }
 _COMPONENT_LABELS = {
-    "eff_volfrac":   "Volfrac accuracy",
+    "eff_volfrac": "Volfrac accuracy",
     "eff_forcedist": "Forcedist accuracy",
-    "rag_called":    "RAG tool called",
-    "cited":         "Source cited",
+    "rag_called": "RAG tool called",
+    "cited": "Source cited",
 }
 
 
 def _short_model(model_id: str) -> str:
     """Return a short display name for a model."""
-    return model_id.split(":")[-1] if ":" in model_id else model_id
+    return model_id.rsplit(":", maxsplit=1)[-1] if ":" in model_id else model_id
 
 
 def _prepare_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -82,12 +85,13 @@ def _prepare_data(df: pd.DataFrame) -> pd.DataFrame:
 
 # ── Plot 1: Grouped bar — rag_benefit_score ───────────────────────────────────
 
+
 def plot_rag_benefit_score(
     df: pd.DataFrame,
     filename: str = "rag_benefit_score.png",
     output_dir: Path | None = None,
 ) -> None:
-    """Grouped bar chart: mean rag_benefit_score per model × RAG status.
+    """Grouped bar chart: mean rag_benefit_score per model x RAG status.
 
     Two subplots side-by-side: easy prompt (example_id=0) and hard prompt
     (example_id=1).  Each model has two bars: RAG-on (solid) and RAG-off
@@ -111,8 +115,10 @@ def plot_rag_benefit_score(
     n_prompts = len(example_ids)
 
     fig, axes = plt.subplots(
-        1, n_prompts,
-        figsize=PLOT_STYLE["figsize_full_width"] if n_prompts > 1
+        1,
+        n_prompts,
+        figsize=PLOT_STYLE["figsize_full_width"]
+        if n_prompts > 1
         else PLOT_STYLE["figsize_single_col"],
         sharey=True,
     )
@@ -124,25 +130,22 @@ def plot_rag_benefit_score(
     x = np.arange(len(models))
     width = 0.35
 
-    for ax, eid in zip(axes, example_ids):
+    for ax, eid in zip(axes, example_ids, strict=False):
         sub = df[df["example_id"] == eid]
         for i, rs in enumerate(rag_statuses):
             style = _RAG_DISPLAY.get(rs, {"label": rs, "hatch": "", "alpha": 0.8})
-            means = [
-                sub[sub["rag_status"] == rs]["rag_benefit_score"].mean()
-                if rs in sub["rag_status"].values else 0.0
-                for m in models
-                for _ in [sub[sub["model_short"] == m]]
-            ]
-            # recompute cleanly
             means = []
             for m in models:
                 mask = (sub["model_short"] == m) & (sub["rag_status"] == rs)
-                means.append(sub.loc[mask, "rag_benefit_score"].mean() if mask.any() else 0.0)
+                means.append(
+                    sub.loc[mask, "rag_benefit_score"].mean() if mask.any() else 0.0
+                )
 
             offset = (i - 0.5) * width
             bars = ax.bar(
-                x + offset, means, width,
+                x + offset,
+                means,
+                width,
                 color=COLOR_PALETTE[i],
                 alpha=style["alpha"],
                 hatch=style["hatch"],
@@ -151,13 +154,14 @@ def plot_rag_benefit_score(
                 linewidth=0.5,
             )
             # Value labels
-            for bar, val in zip(bars, means):
-                if not np.isnan(val) and val > 0.05:
+            for bar, val in zip(bars, means, strict=False):
+                if not np.isnan(val) and val > _MIN_LABEL_VALUE:
                     ax.text(
                         bar.get_x() + bar.get_width() / 2,
                         bar.get_height() + 0.02,
                         f"{val:.2f}",
-                        ha="center", va="bottom",
+                        ha="center",
+                        va="bottom",
                         fontsize=fs["annotation"],
                     )
 
@@ -165,11 +169,12 @@ def plot_rag_benefit_score(
         ax.set_xticklabels(models, rotation=30, ha="right", fontsize=fs["tick_label"])
         ax.set_ylabel("RAG benefit score", fontsize=fs["axes_label"])
         ax.set_ylim(0, 1.15)
-        ax.set_title(_PROMPT_LABELS.get(int(eid), f"Prompt {int(eid)}"),
-                     fontsize=fs["axes_title"])
+        ax.set_title(
+            _PROMPT_LABELS.get(int(eid), f"Prompt {int(eid)}"),
+            fontsize=fs["axes_title"],
+        )
         ax.tick_params(axis="y", labelsize=fs["tick_label"])
-        ax.grid(axis="y", linewidth=PLOT_STYLE.get("grid.linewidth", 0.3),
-                alpha=0.4)
+        ax.grid(axis="y", linewidth=PLOT_STYLE.get("grid.linewidth", 0.3), alpha=0.4)
 
     axes[0].legend(fontsize=fs["legend"], loc="upper right")
     fig.tight_layout()
@@ -180,12 +185,13 @@ def plot_rag_benefit_score(
 
 # ── Plot 2: Stacked bar — score decomposition ─────────────────────────────────
 
+
 def plot_rag_score_components(
     df: pd.DataFrame,
     filename: str = "rag_score_components.png",
     output_dir: Path | None = None,
 ) -> None:
-    """Stacked bar chart: score component breakdown per model × RAG status.
+    """Stacked bar chart: score component breakdown per model x RAG status.
 
     Rows: RAG-on (top) and RAG-off (bottom).  Stacked bars show contributions
     of volfrac accuracy, forcedist accuracy, rag_called, and source_cited.
@@ -200,10 +206,10 @@ def plot_rag_score_components(
 
     # Component columns and max weight contribution (for display, not rescaled)
     components = {
-        "effective_volfrac_accuracy":   ("eff_volfrac",   "Volfrac acc."),
+        "effective_volfrac_accuracy": ("eff_volfrac", "Volfrac acc."),
         "effective_forcedist_accuracy": ("eff_forcedist", "Forcedist acc."),
-        "rag_tool_called":              ("rag_called",    "RAG called"),
-        "source_cited":                 ("cited",         "Cited"),
+        "rag_tool_called": ("rag_called", "RAG called"),
+        "source_cited": ("cited", "Cited"),
     }
     present = {k: v for k, v in components.items() if k in df.columns}
     if not present:
@@ -217,12 +223,13 @@ def plot_rag_score_components(
     width = 0.6
 
     fig, axes = plt.subplots(
-        1, 2,
+        1,
+        2,
         figsize=PLOT_STYLE["figsize_full_width"],
         sharey=True,
     )
 
-    for ax, rs in zip(axes, rag_statuses):
+    for ax, rs in zip(axes, rag_statuses, strict=False):
         sub = df[df["rag_status"] == rs]
         bottoms = np.zeros(len(models))
         for col, (key, label) in present.items():
@@ -233,7 +240,9 @@ def plot_rag_score_components(
                 vals.append(0.0 if np.isnan(v) else float(v))
             vals = np.array(vals)
             ax.bar(
-                x, vals, width,
+                x,
+                vals,
+                width,
                 bottom=bottoms,
                 color=_COMPONENT_COLORS.get(key, COLOR_PALETTE[0]),
                 label=label,
@@ -262,16 +271,17 @@ def plot_rag_score_components(
     print(f"  ✅ {filename}")
 
 
-# ── Plot 3: RAG uplift — Δscore per model ─────────────────────────────────────
+# ── Plot 3: RAG uplift — delta-score per model ────────────────────────────────
+
 
 def plot_rag_uplift(
     df: pd.DataFrame,
     filename: str = "rag_uplift.png",
     output_dir: Path | None = None,
 ) -> None:
-    """Horizontal bar chart: Δscore = mmore_on − mmore_off per model × prompt.
+    """Horizontal bar chart: delta-score = rag_on - rag_off per model x prompt.
 
-    Positive Δ (RAG helps) shown in green, negative in orange.
+    Positive delta (RAG helps) shown in green, negative in orange.
     Sorted by overall uplift descending.
 
     Args:
@@ -290,37 +300,56 @@ def plot_rag_uplift(
     example_ids = sorted(df["example_id"].dropna().unique())
     models = sorted(df["model_short"].unique())
 
-    # Compute Δscore per model × example
+    # Compute delta-score per model x example
     rows = []
     for m in models:
         for eid in example_ids:
-            on_mask  = (df["model_short"] == m) & (df["rag_status"] == "rag")    & (df["example_id"] == eid)
-            off_mask = (df["model_short"] == m) & (df["rag_status"] == "no_rag") & (df["example_id"] == eid)
-            s_on  = df.loc[on_mask,  "rag_benefit_score"].mean() if on_mask.any()  else np.nan
-            s_off = df.loc[off_mask, "rag_benefit_score"].mean() if off_mask.any() else np.nan
+            on_mask = (
+                (df["model_short"] == m)
+                & (df["rag_status"] == "rag")
+                & (df["example_id"] == eid)
+            )
+            off_mask = (
+                (df["model_short"] == m)
+                & (df["rag_status"] == "no_rag")
+                & (df["example_id"] == eid)
+            )
+            s_on = (
+                df.loc[on_mask, "rag_benefit_score"].mean() if on_mask.any() else np.nan
+            )
+            s_off = (
+                df.loc[off_mask, "rag_benefit_score"].mean()
+                if off_mask.any()
+                else np.nan
+            )
             if not (np.isnan(s_on) and np.isnan(s_off)):
-                rows.append({
-                    "model": m,
-                    "example_id": int(eid),
-                    "delta": float(np.nan_to_num(s_on) - np.nan_to_num(s_off)),
-                    "label": f"{m}\n{_PROMPT_LABELS.get(int(eid), str(eid))}",
-                })
+                rows.append(
+                    {
+                        "model": m,
+                        "example_id": int(eid),
+                        "delta": float(np.nan_to_num(s_on) - np.nan_to_num(s_off)),
+                        "label": f"{m}\n{_PROMPT_LABELS.get(int(eid), str(eid))}",
+                    }
+                )
 
     if not rows:
-        print("  ⚠️  Insufficient data for RAG uplift plot (need both mmore_on and mmore_off)")
+        print("  ⚠️  Insufficient data for RAG uplift plot (need both rag and no_rag)")
         return
 
     delta_df = pd.DataFrame(rows).sort_values("delta", ascending=True)
 
     fig, ax = plt.subplots(figsize=PLOT_STYLE["figsize_single_col_tall"])
-    colors = [COLOR_PALETTE[2] if d >= 0 else COLOR_PALETTE[5]
-              for d in delta_df["delta"]]
+    colors = [
+        COLOR_PALETTE[2] if d >= 0 else COLOR_PALETTE[5] for d in delta_df["delta"]
+    ]
     y = np.arange(len(delta_df))
     ax.barh(y, delta_df["delta"], color=colors, edgecolor="white", linewidth=0.5)
     ax.axvline(0, color="black", linewidth=0.6, linestyle="--")
     ax.set_yticks(y)
     ax.set_yticklabels(delta_df["label"], fontsize=fs["tick_label"])
-    ax.set_xlabel(r"RAG uplift  ($\Delta$score = on $-$ off)", fontsize=fs["axes_label"])
+    ax.set_xlabel(
+        r"RAG uplift  ($\Delta$score = on $-$ off)", fontsize=fs["axes_label"]
+    )
     ax.tick_params(axis="x", labelsize=fs["tick_label"])
     ax.grid(axis="x", linewidth=0.3, alpha=0.4)
     fig.tight_layout()
@@ -330,6 +359,7 @@ def plot_rag_uplift(
 
 
 # ── CLI entry point ────────────────────────────────────────────────────────────
+
 
 def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
     """Generate all RAG evaluation plots.
@@ -352,11 +382,11 @@ if __name__ == "__main__":
     import argparse
     from pathlib import Path
 
-    from utils import load_data, get_combined_design_df, filter_by_problem
+    from utils import filter_by_problem, get_combined_design_df, load_data
 
     parser = argparse.ArgumentParser(description="Generate RAG evaluation plots")
     parser.add_argument("--problem", default="rag_beams2d")
-    parser.add_argument("--prompt-style", default="rag")
+    parser.add_argument("--prompt-style", default="rag-eval")
     parser.add_argument("--rag-status", default=None)
     args = parser.parse_args()
 
@@ -368,5 +398,7 @@ if __name__ == "__main__":
         print("No data found — run extract_data.py first.")
         sys.exit(1)
 
-    out = get_problem_prompt_output_dir(args.problem, args.prompt_style, args.rag_status)
+    out = get_problem_prompt_output_dir(
+        args.problem, args.prompt_style, args.rag_status
+    )
     main(df, out)

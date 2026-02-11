@@ -25,13 +25,13 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from generate_summary_table import create_summary_table  # noqa: E402
-from plot_rag_evaluation import main as plot_rag_evaluation_main  # noqa: E402
 from plot_combined_overall_score import plot_combined_overall_score  # noqa: E402
 from plot_design_quality import plot_design_quality  # noqa: E402
 from plot_dpp_vs_fog import plot_dpp_vs_fog  # noqa: E402
 from plot_dpp_vs_mmd import plot_dpp_vs_mmd  # noqa: E402
 from plot_iou_vs_objective import plot_iou_vs_objective  # noqa: E402
 from plot_metrics_comparison import plot_metrics_comparison  # noqa: E402
+from plot_rag_evaluation import main as plot_rag_evaluation_main  # noqa: E402
 from plot_success_curves import plot_convergence_profile  # noqa: E402
 from plot_tool_usage import (  # noqa: E402
     plot_performance_distribution_by_tool_count,
@@ -260,7 +260,14 @@ def _parse_args():
     parser.add_argument(
         "--prompt-style",
         type=str,
-        choices=["full", "approximate", "natural", "workflow", "workflow-random", "rag-eval"],
+        choices=[
+            "full",
+            "approximate",
+            "natural",
+            "workflow",
+            "workflow-random",
+            "rag-eval",
+        ],
         help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",
     )
     parser.add_argument(
@@ -358,7 +365,7 @@ def _detect_rag_statuses_with_data(combined_global, combined_design, combined_to
     return rag_statuses
 
 
-def main():  # noqa: PLR0912
+def main():  # noqa: PLR0912, PLR0915
     """Generate all visualizations."""
     args = _parse_args()
 

@@ -389,7 +389,12 @@ def _process_score_call_for_complete_data(
         tool_use = scores.get("tool_use", {})
         rag_evaluation = scores.get("rag_evaluation", {})
 
-        if not output_quality and not task_completion and not tool_use and not rag_evaluation:
+        if (
+            not output_quality
+            and not task_completion
+            and not tool_use
+            and not rag_evaluation
+        ):
             return None
 
         # Extract model_id and apply filter
@@ -754,7 +759,14 @@ def main():
         "--prompt-style",
         type=str,
         default="full",
-        choices=["full", "approximate", "natural", "workflow", "workflow-random", "rag-eval"],
+        choices=[
+            "full",
+            "approximate",
+            "natural",
+            "workflow",
+            "workflow-random",
+            "rag-eval",
+        ],
         help="Prompt style used (default: full)",
     )
     parser.add_argument(

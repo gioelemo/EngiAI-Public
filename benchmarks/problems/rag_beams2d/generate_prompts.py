@@ -50,8 +50,8 @@ PROMPT_STYLES: dict[str, dict] = {
 #   metadata          - Context for scorers
 #   target            - Ground truth (empty here — no HF design to compare)
 #
-# expected_volfrac is taken from the EngiBench paper's API example, which shows:
-#   problem.conditions  # (("volfrac", 0.35), ("forcedist", 0.0), ...)
+# expected_volfrac is taken from the EngiBench paper's API example, which shows
+# problem.conditions as (("volfrac", 0.35), ("forcedist", 0.0), ...).
 # expected_volfrac_tolerance is the ±window considered correct (accounts for
 # reasonable rounding by the LLM).
 # NOTE: The scorer gates volfrac_accuracy credit on rag_tool_called=True.
@@ -65,8 +65,7 @@ RAG_PROMPTS: list[dict] = [
         # Prompt 0 — Default volume fraction from the EngiBench paper
         #
         # The EngiBench paper's API walkthrough (Section 3.1) shows the
-        # Beams2D default conditions:
-        #   problem.conditions  # (("volfrac", 0.35), ("forcedist", 0.0), ...)
+        # Beams2D default conditions as (("volfrac", 0.35), ("forcedist", 0.0), ...).
         #
         # The expected answer (0.35) IS in the paper and IS also returned by
         # get_problem_details. The scorer distinguishes the two cases:
@@ -95,7 +94,7 @@ RAG_PROMPTS: list[dict] = [
             "parameter_tested": "volfrac",
             "expected_reasoning": (
                 "Agent should search the EngiBench paper, find the API example showing "
-                "problem.conditions = ((\"volfrac\", 0.35), ...), and call "
+                'problem.conditions = (("volfrac", 0.35), ...), and call '
                 "optimize_design with volfrac=0.35. "
                 "The scorer gates volfrac_accuracy on rag_tool_called=True, so agents "
                 "that skip search and use get_problem_details do not earn parameter credit."
@@ -145,7 +144,7 @@ RAG_PROMPTS: list[dict] = [
             "parameter_tested": "volfrac+forcedist",
             "expected_reasoning": (
                 "Agent should search the EngiBench paper, find the API example showing "
-                "desired_conds = {\"volfrac\": 0.7, \"forcedist\": 0.3}, and call "
+                'desired_conds = {"volfrac": 0.7, "forcedist": 0.3}, and call '
                 "optimize_design with volfrac=0.7 and forcedist=0.3. "
                 "Both values differ from get_problem_details defaults (0.35, 0.0) so "
                 "the agent cannot cheat. Scorer gates both parameter scores on "

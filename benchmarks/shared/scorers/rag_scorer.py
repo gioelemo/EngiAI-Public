@@ -59,9 +59,7 @@ _W2_RAG_TOOL = 0.20
 _W2_CITED = 0.10
 
 
-def _extract_param_from_args(
-    args: dict[str, Any], aliases: list[str]
-) -> float | None:
+def _extract_param_from_args(args: dict[str, Any], aliases: list[str]) -> float | None:
     """Extract a float parameter from optimize_design tool args.
 
     Checks flat keys first, then nested in problem_config dict.
@@ -198,7 +196,9 @@ def score_rag_evaluation(
 
     # --- Dimension: RAG tool usage ---
     rag_tool_called = any(tc.get("name") == SEARCH_TOOL_NAME for tc in tool_calls_info)
-    logger.debug("Example %s: search_documents called = %s", example_id, rag_tool_called)
+    logger.debug(
+        "Example %s: search_documents called = %s", example_id, rag_tool_called
+    )
 
     # --- Dimension: volfrac accuracy ---
     volfrac_actual: float | None = None

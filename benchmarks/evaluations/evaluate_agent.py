@@ -596,7 +596,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print(f"Dataset Split: {args.split}")
     print(f"Prompt Style: {args.prompt_style}")
     print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
-    print(f"ArXiv: {'disabled (rag eval)' if args.problem == 'rag_beams2d' else 'enabled'}")
+    print(
+        f"ArXiv: {'disabled (rag eval)' if args.problem == 'rag_beams2d' else 'enabled'}"
+    )
     print(f"Samples: {args.samples}")
     if args.seed is not None:
         print(f"Seed: {args.seed}")
@@ -725,7 +727,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         print("RAG EVALUATION RESULTS")
         print("=" * 60)
         print()
-        mmore_status = "enabled (RAG on)" if args.mmore_enabled else "disabled (RAG off)"
+        mmore_status = (
+            "enabled (RAG on)" if args.mmore_enabled else "disabled (RAG off)"
+        )
         print(f"MMORE RAG: {mmore_status}")
         print()
         print("Next steps:")
