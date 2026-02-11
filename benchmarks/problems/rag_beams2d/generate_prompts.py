@@ -126,17 +126,12 @@ RAG_PROMPTS: list[dict] = [
         #          → parameter scores = 0 → score ~0.0-0.10
         # -------------------------------------------------------------------
         "prompt": (
-            "Follow these steps exactly:\n\n"
-            "1. Call search_documents with the query 'desired_conds' to retrieve "
-            "the relevant section of the EngiBench paper.\n"
-            "2. In the returned text, find the line that looks like:\n"
-            "   desired_conds = {\"volfrac\": <NUMBER>, \"forcedist\": <NUMBER>}\n"
-            "   This is a Python dictionary assignment — NOT the problem.conditions "
-            "tuple on line 7 of the same listing.\n"
-            "3. Use the two numbers from step 2 as volfrac and forcedist.\n"
-            "4. Call optimize_design with those values to generate a 2D beam design. "
-            "Use default values for ALL other parameters (do NOT ask for clarification "
-            "— proceed directly with defaults)."
+            "In the EngiBench paper's Section 3.1 API walkthrough, a code example "
+            "runs a Beams2D optimization using non-default design conditions. "
+            "Search the paper to find both the volume fraction and force distribution "
+            "from that example, then generate a 2D beam design with those exact "
+            "values. Use default values for all other parameters and do not ask for "
+            "clarification."
         ),
         "conditions": {
             "expected_volfrac": 0.7,
