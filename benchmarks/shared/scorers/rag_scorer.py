@@ -71,6 +71,20 @@ _W2_FORCEDIST = COMPONENT_WEIGHTS_DOUBLE["effective_forcedist_accuracy"]
 _W2_RAG_TOOL = COMPONENT_WEIGHTS_DOUBLE["rag_tool_called"]
 _W2_CITED = COMPONENT_WEIGHTS_DOUBLE["source_cited"]
 
+# All fields emitted by score_rag_evaluation — shared with extract/plot layers.
+RAG_OUTPUT_FIELDS: tuple[str, ...] = (
+    "rag_benefit_score",
+    "rag_tool_called",
+    "volfrac_accuracy",
+    "effective_volfrac_accuracy",
+    "forcedist_accuracy",
+    "effective_forcedist_accuracy",
+    "forcedist_tested",
+    "source_cited",
+    "volfrac_within_tolerance",
+    "forcedist_within_tolerance",
+)
+
 
 def _extract_param_from_args(args: dict[str, Any], aliases: list[str]) -> float | None:
     """Extract a float parameter from optimize_design tool args.

@@ -18,6 +18,7 @@ import weave
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 from benchmarks.shared.problem_registry import get_problem_config  # noqa: E402
+from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS  # noqa: E402
 from config import config  # noqa: E402
 
 # Constants
@@ -429,19 +430,7 @@ def _process_score_call_for_complete_data(
 
         # Extract RAG evaluation metrics (rag_beams2d problems)
         if isinstance(rag_evaluation, dict) and rag_evaluation:
-            rag_fields = (
-                "rag_benefit_score",
-                "rag_tool_called",
-                "volfrac_accuracy",
-                "effective_volfrac_accuracy",
-                "forcedist_accuracy",
-                "effective_forcedist_accuracy",
-                "forcedist_tested",
-                "source_cited",
-                "volfrac_within_tolerance",
-                "forcedist_within_tolerance",
-            )
-            for field in rag_fields:
+            for field in RAG_OUTPUT_FIELDS:
                 if field in rag_evaluation:
                     result[field] = rag_evaluation[field]
 

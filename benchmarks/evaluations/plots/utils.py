@@ -9,12 +9,18 @@ Shared utilities for plots.
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS  # noqa: E402
 
 # Constants
 DEFAULT_N_SAMPLES = 10
@@ -569,19 +575,7 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
             row.update({k: v for k, v in design.items() if k.startswith("tool_")})
 
             # Include RAG evaluation fields (rag_beams2d problems)
-            rag_fields = (
-                "rag_benefit_score",
-                "rag_tool_called",
-                "volfrac_accuracy",
-                "effective_volfrac_accuracy",
-                "forcedist_accuracy",
-                "effective_forcedist_accuracy",
-                "forcedist_tested",
-                "source_cited",
-                "volfrac_within_tolerance",
-                "forcedist_within_tolerance",
-            )
-            row.update({f: design[f] for f in rag_fields if f in design})
+            row.update({f: design[f] for f in RAG_OUTPUT_FIELDS if f in design})
 
             rows.append(row)
 
