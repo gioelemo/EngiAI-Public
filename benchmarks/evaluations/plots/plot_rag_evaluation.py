@@ -19,6 +19,7 @@ Usage:
 import sys
 from pathlib import Path
 
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -191,10 +192,11 @@ def plot_rag_score_components(
     filename: str = "rag_score_components.png",
     output_dir: Path | None = None,
 ) -> None:
-    """Stacked bar chart: score component breakdown per model x RAG status.
+    """Stacked bar chart: score component breakdown per model x RAG status x prompt.
 
-    Rows: RAG-on (top) and RAG-off (bottom).  Stacked bars show contributions
-    of volfrac accuracy, forcedist accuracy, rag_called, and source_cited.
+    Two subplots side-by-side (RAG on / RAG off).  Each model has two grouped
+    stacked bars — one per prompt level (easy / hard) — distinguished by hatch.
+    Bar heights are weighted contributions so the total equals rag_benefit_score.
 
     Args:
         df: Design data DataFrame.
@@ -204,7 +206,6 @@ def plot_rag_score_components(
     setup_style()
     df = _prepare_data(df)
 
-    # Component columns and max weight contribution (for display, not rescaled)
     components = {
         "effective_volfrac_accuracy": ("eff_volfrac", "Volfrac acc."),
         "effective_forcedist_accuracy": ("eff_forcedist", "Forcedist acc."),
@@ -216,11 +217,46 @@ def plot_rag_score_components(
         print("  ⚠️  No RAG component columns — skipping plot_rag_score_components")
         return
 
+    # Weights matching rag_scorer.py — applied per-row via forcedist_tested so
+    # each row uses the right single/two-param weights before aggregation.
+    # Stacked total then equals rag_benefit_score (bounded at 1.0).
+    w_single = {
+        "effective_volfrac_accuracy": 0.50,
+        "effective_forcedist_accuracy": 0.00,
+        "rag_tool_called": 0.30,
+        "source_cited": 0.20,
+    }
+    w_double = {
+        "effective_volfrac_accuracy": 0.35,
+        "effective_forcedist_accuracy": 0.35,
+        "rag_tool_called": 0.20,
+        "source_cited": 0.10,
+    }
+    df = df.copy()
+    two_param = (
+        df.get("forcedist_tested", pd.Series(False, index=df.index))
+        .fillna(False)
+        .astype(bool)
+    )
+    for col in present:
+        w = two_param.map({True: w_double.get(col, 0.0), False: w_single.get(col, 0.0)})
+        df[f"_wt_{col}"] = df[col].fillna(0.0) * w
+
     fs = PLOT_STYLE["font_sizes"]
     rag_statuses = ["rag", "no_rag"]
     models = sorted(df["model_short"].unique())
+    example_ids = sorted(df["example_id"].dropna().unique())
+
+    # Two bars per model group, one per prompt level
+    bar_width = 0.35
+    offsets = (
+        np.linspace(-bar_width / 2, bar_width / 2, len(example_ids))
+        if len(example_ids) > 1
+        else [0.0]
+    )
+    prompt_hatches = dict(zip(example_ids, ["", "//"], strict=False))
+
     x = np.arange(len(models))
-    width = 0.6
 
     fig, axes = plt.subplots(
         1,
@@ -231,36 +267,56 @@ def plot_rag_score_components(
 
     for ax, rs in zip(axes, rag_statuses, strict=False):
         sub = df[df["rag_status"] == rs]
-        bottoms = np.zeros(len(models))
-        for col, (key, label) in present.items():
-            vals = []
-            for m in models:
-                mask = sub["model_short"] == m
-                v = sub.loc[mask, col].mean() if mask.any() else 0.0
-                vals.append(0.0 if np.isnan(v) else float(v))
-            vals = np.array(vals)
-            ax.bar(
-                x,
-                vals,
-                width,
-                bottom=bottoms,
-                color=_COMPONENT_COLORS.get(key, COLOR_PALETTE[0]),
-                label=label,
-                edgecolor="white",
-                linewidth=0.5,
-            )
-            bottoms += vals
+        for eid, offset in zip(example_ids, offsets, strict=False):
+            sub_eid = sub[sub["example_id"] == eid]
+            hatch = prompt_hatches.get(eid, "")
+            bottoms = np.zeros(len(models))
+            for col, (key, _label) in present.items():
+                vals = []
+                for m in models:
+                    mask = sub_eid["model_short"] == m
+                    v = sub_eid.loc[mask, f"_wt_{col}"].mean() if mask.any() else 0.0
+                    vals.append(0.0 if np.isnan(v) else float(v))
+                vals = np.array(vals)
+                ax.bar(
+                    x + offset,
+                    vals,
+                    bar_width,
+                    bottom=bottoms,
+                    color=_COMPONENT_COLORS.get(key, COLOR_PALETTE[0]),
+                    hatch=hatch,
+                    edgecolor="white",
+                    linewidth=0.5,
+                )
+                bottoms += vals
 
         style = _RAG_DISPLAY.get(rs, {"label": rs})
         ax.set_title(style["label"], fontsize=fs["axes_title"])
         ax.set_xticks(x)
         ax.set_xticklabels(models, rotation=30, ha="right", fontsize=fs["tick_label"])
         ax.tick_params(axis="y", labelsize=fs["tick_label"])
-        ax.set_ylim(0, 1.15)
+        ax.set_ylim(0, 1.05)
         ax.grid(axis="y", linewidth=0.3, alpha=0.4)
 
-    axes[0].set_ylabel("Score contribution", fontsize=fs["axes_label"])
+    axes[0].set_ylabel("Weighted score contribution", fontsize=fs["axes_label"])
+
+    # Legend: colour patches for components + hatch patches for prompt levels
+    component_patches = [
+        mpatches.Patch(color=_COMPONENT_COLORS[key], label=label)
+        for key, label in _COMPONENT_LABELS.items()
+        if key in {v[0] for v in present.values()}
+    ]
+    prompt_patches = [
+        mpatches.Patch(
+            facecolor="grey",
+            hatch=prompt_hatches.get(eid, ""),
+            edgecolor="white",
+            label=_PROMPT_LABELS.get(int(eid), f"Prompt {int(eid)}"),
+        )
+        for eid in example_ids
+    ]
     axes[1].legend(
+        handles=component_patches + prompt_patches,
         fontsize=fs["legend"],
         loc="upper right",
         bbox_to_anchor=(1.0, 1.0),
