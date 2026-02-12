@@ -3,7 +3,7 @@
 Measures whether the agent uses RAG-retrieved information to make better
 engineering decisions.
 
-Supports two scoring modes depending on which conditions are present:
+Supports three scoring modes depending on which conditions are present:
 
 Single-parameter mode (expected_volfrac only):
     Dimensions and weights:
@@ -18,7 +18,14 @@ Two-parameter mode (expected_volfrac + expected_forcedist):
     3. rag_tool_called             0.20
     4. source_cited                0.10
 
-In both modes, parameter accuracy dimensions only contribute when
+Rmin two-parameter mode (expected_volfrac + expected_rmin):
+    Dimensions and weights:
+    1. effective_volfrac_accuracy  0.35  (gated on rag_tool_called)
+    2. effective_rmin_accuracy     0.35  (gated on rag_tool_called)
+    3. rag_tool_called             0.20
+    4. source_cited                0.10
+
+In all modes, parameter accuracy dimensions only contribute when
 search_documents was called (rag_tool_called=True). This prevents agents
 from earning credit by retrieving the correct value through engineering tools
 (e.g. get_problem_details) instead of the indexed paper.
@@ -61,6 +68,12 @@ COMPONENT_WEIGHTS_DOUBLE: dict[str, float] = {
     "rag_tool_called": 0.20,
     "source_cited": 0.10,
 }
+COMPONENT_WEIGHTS_RMIN: dict[str, float] = {
+    "effective_volfrac_accuracy": 0.35,
+    "effective_rmin_accuracy": 0.35,
+    "rag_tool_called": 0.20,
+    "source_cited": 0.10,
+}
 
 # Private aliases kept for internal use
 _W1_VOLFRAC = COMPONENT_WEIGHTS_SINGLE["effective_volfrac_accuracy"]
@@ -70,6 +83,10 @@ _W2_VOLFRAC = COMPONENT_WEIGHTS_DOUBLE["effective_volfrac_accuracy"]
 _W2_FORCEDIST = COMPONENT_WEIGHTS_DOUBLE["effective_forcedist_accuracy"]
 _W2_RAG_TOOL = COMPONENT_WEIGHTS_DOUBLE["rag_tool_called"]
 _W2_CITED = COMPONENT_WEIGHTS_DOUBLE["source_cited"]
+_WR_VOLFRAC = COMPONENT_WEIGHTS_RMIN["effective_volfrac_accuracy"]
+_WR_RMIN = COMPONENT_WEIGHTS_RMIN["effective_rmin_accuracy"]
+_WR_RAG_TOOL = COMPONENT_WEIGHTS_RMIN["rag_tool_called"]
+_WR_CITED = COMPONENT_WEIGHTS_RMIN["source_cited"]
 
 # All fields emitted by score_rag_evaluation — shared with extract/plot layers.
 RAG_OUTPUT_FIELDS: tuple[str, ...] = (
@@ -80,9 +97,13 @@ RAG_OUTPUT_FIELDS: tuple[str, ...] = (
     "forcedist_accuracy",
     "effective_forcedist_accuracy",
     "forcedist_tested",
+    "rmin_accuracy",
+    "effective_rmin_accuracy",
+    "rmin_tested",
     "source_cited",
     "volfrac_within_tolerance",
     "forcedist_within_tolerance",
+    "rmin_within_tolerance",
 )
 
 
@@ -127,6 +148,11 @@ def _extract_forcedist_from_args(args: dict[str, Any]) -> float | None:
     )
 
 
+def _extract_rmin_from_args(args: dict[str, Any]) -> float | None:
+    """Extract rmin (filter radius) from optimize_design tool args."""
+    return _extract_param_from_args(args, ["rmin", "filter_radius", "r_min"])
+
+
 def _score_param_accuracy(
     actual: float | None,
     expected: float,
@@ -165,9 +191,9 @@ def score_rag_evaluation(
     Evaluates whether the agent used RAG to retrieve information from the
     EngiBench paper and applied that information accurately to the design task.
 
-    Supports single-parameter prompts (volfrac only) and two-parameter prompts
-    (volfrac + forcedist). Weights are adjusted automatically based on which
-    conditions are present.
+    Supports single-parameter prompts (volfrac only), two-parameter prompts
+    (volfrac + forcedist), and rmin two-parameter prompts (volfrac + rmin).
+    Weights are adjusted automatically based on which conditions are present.
 
     Args:
         output: Agent output dict containing:
@@ -180,6 +206,8 @@ def score_rag_evaluation(
             - conditions.expected_volfrac_tolerance: tolerance window (float)
             - conditions.expected_forcedist: expected force distribution (float, optional)
             - conditions.expected_forcedist_tolerance: tolerance window (float, optional)
+            - conditions.expected_rmin: expected filter radius (float, optional)
+            - conditions.expected_rmin_tolerance: tolerance window (float, optional)
             - example_id: int
 
     Returns:
@@ -199,6 +227,13 @@ def score_rag_evaluation(
         - forcedist_error: Absolute error |actual - expected| (float | None)
         - forcedist_within_tolerance: Whether error <= tolerance (bool)
         - forcedist_tested: Whether forcedist scoring was active for this prompt (bool)
+        - rmin_accuracy: Raw closeness score for rmin (0.0-1.0), 0.0 if not tested
+        - effective_rmin_accuracy: rmin_accuracy gated on rag_tool_called (0.0-1.0)
+        - rmin_actual: Filter radius the agent used (float | None)
+        - rmin_expected: Expected rmin from conditions (float | None)
+        - rmin_error: Absolute error |actual - expected| (float | None)
+        - rmin_within_tolerance: Whether error <= tolerance (bool)
+        - rmin_tested: Whether rmin scoring was active for this prompt (bool)
         - source_cited: Whether the response references the source (bool)
         - example_id: int
     """
@@ -208,7 +243,7 @@ def score_rag_evaluation(
     volfrac_expected: float = float(conditions.get("expected_volfrac", 0.35))
     volfrac_tolerance: float = float(conditions.get("expected_volfrac_tolerance", 0.05))
 
-    # forcedist is optional — present only in two-parameter prompts
+    # forcedist is optional — present only in forcedist two-parameter prompts
     forcedist_expected_raw = conditions.get("expected_forcedist")
     forcedist_tested = forcedist_expected_raw is not None
     forcedist_expected: float | None = (
@@ -217,6 +252,12 @@ def score_rag_evaluation(
     forcedist_tolerance: float = float(
         conditions.get("expected_forcedist_tolerance", 0.05)
     )
+
+    # rmin is optional — present only in rmin two-parameter prompts
+    rmin_expected_raw = conditions.get("expected_rmin")
+    rmin_tested = rmin_expected_raw is not None
+    rmin_expected: float | None = float(rmin_expected_raw) if rmin_tested else None
+    rmin_tolerance: float = float(conditions.get("expected_rmin_tolerance", 0.05))
 
     tool_calls_info: list[dict[str, Any]] = output.get("tool_calls_info", [])
     response: str = str(output.get("response", ""))
@@ -227,9 +268,10 @@ def score_rag_evaluation(
         "Example %s: search_documents called = %s", example_id, rag_tool_called
     )
 
-    # --- Dimension: volfrac accuracy ---
+    # --- Dimension: volfrac, forcedist, rmin accuracy ---
     volfrac_actual: float | None = None
     forcedist_actual: float | None = None
+    rmin_actual: float | None = None
 
     for tc in tool_calls_info:
         if tc.get("name") == OPTIMIZE_TOOL_NAME:
@@ -238,8 +280,12 @@ def score_rag_evaluation(
                 volfrac_actual = _extract_volfrac_from_args(args)
             if forcedist_actual is None:
                 forcedist_actual = _extract_forcedist_from_args(args)
-            if volfrac_actual is not None and (
-                not forcedist_tested or forcedist_actual is not None
+            if rmin_actual is None:
+                rmin_actual = _extract_rmin_from_args(args)
+            if (
+                volfrac_actual is not None
+                and (not forcedist_tested or forcedist_actual is not None)
+                and (not rmin_tested or rmin_actual is not None)
             ):
                 break  # All needed values extracted
 
@@ -262,7 +308,7 @@ def score_rag_evaluation(
         volfrac_within_tolerance,
     )
 
-    # --- Dimension: forcedist accuracy (two-parameter prompts only) ---
+    # --- Dimension: forcedist accuracy (forcedist two-parameter prompts only) ---
     forcedist_error: float | None = None
     forcedist_within_tolerance = False
     forcedist_accuracy = 0.0
@@ -289,6 +335,29 @@ def score_rag_evaluation(
             forcedist_within_tolerance,
         )
 
+    # --- Dimension: rmin accuracy (rmin two-parameter prompts only) ---
+    rmin_error: float | None = None
+    rmin_within_tolerance = False
+    rmin_accuracy = 0.0
+
+    if rmin_tested and rmin_expected is not None:
+        rmin_error = (
+            abs(rmin_actual - rmin_expected) if rmin_actual is not None else None
+        )
+        rmin_within_tolerance = rmin_error is not None and rmin_error <= rmin_tolerance
+        rmin_accuracy = _score_param_accuracy(
+            rmin_actual, rmin_expected, rmin_tolerance
+        )
+
+        logger.info(
+            "Example %s: rmin actual=%s expected=%.3f error=%s within_tol=%s",
+            example_id,
+            f"{rmin_actual:.3f}" if rmin_actual is not None else "N/A",
+            rmin_expected,
+            f"{rmin_error:.3f}" if rmin_error is not None else "N/A",
+            rmin_within_tolerance,
+        )
+
     # --- Dimension: source citation ---
     source_cited = _check_source_cited(response)
     logger.debug("Example %s: source_cited = %s", example_id, source_cited)
@@ -299,14 +368,23 @@ def score_rag_evaluation(
     # (rather than the paper) receive no parameter accuracy credit.
     effective_volfrac_accuracy = volfrac_accuracy if rag_tool_called else 0.0
     effective_forcedist_accuracy = forcedist_accuracy if rag_tool_called else 0.0
+    effective_rmin_accuracy = rmin_accuracy if rag_tool_called else 0.0
 
     if forcedist_tested:
-        # Two-parameter mode
+        # Two-parameter mode (volfrac + forcedist)
         rag_benefit_score = (
             _W2_VOLFRAC * effective_volfrac_accuracy
             + _W2_FORCEDIST * effective_forcedist_accuracy
             + _W2_RAG_TOOL * float(rag_tool_called)
             + _W2_CITED * float(source_cited)
+        )
+    elif rmin_tested:
+        # Two-parameter mode (volfrac + rmin)
+        rag_benefit_score = (
+            _WR_VOLFRAC * effective_volfrac_accuracy
+            + _WR_RMIN * effective_rmin_accuracy
+            + _WR_RAG_TOOL * float(rag_tool_called)
+            + _WR_CITED * float(source_cited)
         )
     else:
         # Single-parameter mode (backward compatible)
@@ -318,14 +396,17 @@ def score_rag_evaluation(
 
     logger.info(
         "Example %s: rag_benefit_score=%.3f "
-        "(eff_volfrac=%.2f, eff_forcedist=%.2f, rag_called=%s, cited=%s, two_param=%s)",
+        "(eff_volfrac=%.2f, eff_forcedist=%.2f, eff_rmin=%.2f, "
+        "rag_called=%s, cited=%s, forcedist_mode=%s, rmin_mode=%s)",
         example_id,
         rag_benefit_score,
         effective_volfrac_accuracy,
         effective_forcedist_accuracy,
+        effective_rmin_accuracy,
         rag_tool_called,
         source_cited,
         forcedist_tested,
+        rmin_tested,
     )
 
     return {
@@ -338,6 +419,9 @@ def score_rag_evaluation(
         "forcedist_accuracy": float(forcedist_accuracy),
         "effective_forcedist_accuracy": float(effective_forcedist_accuracy),
         "forcedist_tested": bool(forcedist_tested),
+        "rmin_accuracy": float(rmin_accuracy),
+        "effective_rmin_accuracy": float(effective_rmin_accuracy),
+        "rmin_tested": bool(rmin_tested),
         "source_cited": bool(source_cited),
         # volfrac detail
         "volfrac_actual": volfrac_actual,
@@ -349,6 +433,11 @@ def score_rag_evaluation(
         "forcedist_expected": forcedist_expected,
         "forcedist_error": forcedist_error,
         "forcedist_within_tolerance": bool(forcedist_within_tolerance),
+        # rmin detail
+        "rmin_actual": rmin_actual,
+        "rmin_expected": rmin_expected,
+        "rmin_error": rmin_error,
+        "rmin_within_tolerance": bool(rmin_within_tolerance),
         # Metadata
         "example_id": int(example_id)
         if isinstance(example_id, (int, float))

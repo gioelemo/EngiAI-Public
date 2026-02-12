@@ -153,6 +153,59 @@ RAG_PROMPTS: list[dict] = [
         },
         "target": {},
     },
+    {
+        # -------------------------------------------------------------------
+        # Prompt 2 — Volume fraction + filter radius from the Andreassen
+        #            88-line paper's standard demo call (different source)
+        #
+        # The Andreassen et al. 88-line topology optimization paper ends with
+        # the standard demo call: top88(60, 20, 0.5, 3, 1.5)
+        # Signature: top88(nelx, nely, volfrac, penal, rmin)
+        # → volfrac = 0.5 (arg 3), rmin = 1.5 (arg 5)
+        #
+        # BOTH values differ from the EngiBench Beams2D defaults, so the
+        # agent cannot cheat via get_problem_details. The agent must retrieve
+        # the indexed Andreassen paper and extract both values from the call.
+        #
+        # Scoring uses rmin two-parameter mode (dynamic weights):
+        #   effective_volfrac_accuracy 0.35 (gated on rag_called)
+        #   effective_rmin_accuracy    0.35 (gated on rag_called)
+        #   rag_tool_called            0.20
+        #   source_cited               0.10
+        #
+        # RAG-on:  searches paper → finds top88(60,20,0.5,3,1.5) → score ~1.0
+        # RAG-off: skips search → uses wrong defaults → score ~0.0-0.10
+        # -------------------------------------------------------------------
+        "prompt": (
+            "In the Andreassen et al. 88-line topology optimization paper, "
+            "a standard demo call runs top88 with specific values for volume fraction "
+            "and filter radius.\n\n"
+            "Search the paper to find both the volume fraction (volfrac) and the filter "
+            "radius (rmin) from that standard call. Then generate a 2D beam design using "
+            "exactly those values. Use default values for all other parameters and do not "
+            "ask for clarification."
+        ),
+        "conditions": {
+            "expected_volfrac": 0.5,
+            "expected_volfrac_tolerance": 0.05,
+            "expected_rmin": 1.5,
+            "expected_rmin_tolerance": 0.05,
+        },
+        "metadata": {
+            "knowledge_source": "Andreassen et al. 88-line paper (s00158-010-0594-7)",
+            "rag_query_hint": "top88 volume fraction filter radius standard example call",
+            "parameter_tested": "volfrac+rmin",
+            "expected_reasoning": (
+                "Agent should search the 88-line paper, find the standard demo call "
+                "top88(60, 20, 0.5, 3, 1.5) where arg 3 = volfrac=0.5 and arg 5 = "
+                "rmin=1.5, and call optimize_design with volfrac=0.5, rmin=1.5. "
+                "Both values differ from EngiBench defaults so the agent cannot cheat "
+                "via get_problem_details. Scorer gates both parameter scores on "
+                "rag_tool_called=True."
+            ),
+        },
+        "target": {},
+    },
 ]
 
 

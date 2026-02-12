@@ -111,8 +111,8 @@ the tool call (no `suggested_prompts` block and no additional user-facing text).
 
 | Problem         | Required Parameters                       | Example                                                   |
 |-----------------|-------------------------------------------|-----------------------------------------------------------|
-| beams2d         | volfrac, forcedist (rmin optional)        | {{"volfrac": 0.238, "forcedist": 1.0}}                    |
-| thermoelastic2d | volfrac, weight (rmin optional)           | {{"volfrac": 0.3, "weight": 0.5}}                         |
+| beams2d         | volfrac, rmin, forcedist                  | {{"volfrac": 0.238, "rmin": 3.5, "forcedist": 1.0}}      |
+| thermoelastic2d | volfrac, weight, rmin                     | {{"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}}           |
 | photonics2d     | lambda1, lambda2, blur_radius             | {{"lambda1": 0.8, "lambda2": 1.2, "blur_radius": 1}}     |
 
 ## Response Style

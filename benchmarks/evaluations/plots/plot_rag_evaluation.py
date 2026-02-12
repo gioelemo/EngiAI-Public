@@ -38,6 +38,7 @@ from benchmarks.evaluations.plots.utils import (  # noqa: E402
 )
 from benchmarks.shared.scorers.rag_scorer import (  # noqa: E402
     COMPONENT_WEIGHTS_DOUBLE,
+    COMPONENT_WEIGHTS_RMIN,
     COMPONENT_WEIGHTS_SINGLE,
 )
 
@@ -45,10 +46,11 @@ from benchmarks.shared.scorers.rag_scorer import (  # noqa: E402
 _MIN_LABEL_VALUE = 0.05
 
 # ── Prompt labels ──────────────────────────────────────────────────────────────
-_PROMPT_SHORT_LABELS = {0: "P0", 1: "P1"}
+_PROMPT_SHORT_LABELS = {0: "P0", 1: "P1", 2: "P2"}
 _PROMPT_LABELS = {
     0: "P0 — Easy (volfrac)",
     1: "P1 — Hard (volfrac + forcedist)",
+    2: "P2 — Standard (volfrac + rmin)",
 }
 
 # ── RAG status display labels and styles ───────────────────────────────────────
@@ -61,12 +63,14 @@ _RAG_DISPLAY = {
 _COMPONENT_COLORS = {
     "eff_volfrac": COLOR_PALETTE[0],  # blue
     "eff_forcedist": COLOR_PALETTE[1],  # orange
+    "eff_rmin": COLOR_PALETTE[4],  # red/pink
     "rag_called": COLOR_PALETTE[2],  # green
     "cited": COLOR_PALETTE[3],  # purple
 }
 _COMPONENT_LABELS = {
     "eff_volfrac": "Volfrac accuracy",
     "eff_forcedist": "Forcedist accuracy",
+    "eff_rmin": "Rmin accuracy",
     "rag_called": "RAG tool called",
     "cited": "Source cited",
 }
@@ -217,6 +221,7 @@ def plot_rag_score_components(
     components = {
         "effective_volfrac_accuracy": "eff_volfrac",
         "effective_forcedist_accuracy": "eff_forcedist",
+        "effective_rmin_accuracy": "eff_rmin",
         "rag_tool_called": "rag_called",
         "source_cited": "cited",
     }
@@ -226,20 +231,22 @@ def plot_rag_score_components(
         return
 
     # Weights imported from rag_scorer.py — single source of truth.
-    # Applied per-row via forcedist_tested; stacked total equals rag_benefit_score.
+    # Applied per-row via mode flags; stacked total equals rag_benefit_score.
     df = df.copy()
-    two_param = (
+    forcedist_mode = (
         df.get("forcedist_tested", pd.Series(False, index=df.index))
         .fillna(False)
         .astype(bool)
     )
+    rmin_mode = (
+        df.get("rmin_tested", pd.Series(False, index=df.index))
+        .fillna(False)
+        .astype(bool)
+    )
     for col in present:
-        w = two_param.map(
-            {
-                True: COMPONENT_WEIGHTS_DOUBLE.get(col, 0.0),
-                False: COMPONENT_WEIGHTS_SINGLE.get(col, 0.0),
-            }
-        )
+        w = pd.Series(COMPONENT_WEIGHTS_SINGLE.get(col, 0.0), index=df.index)
+        w = w.where(~rmin_mode, COMPONENT_WEIGHTS_RMIN.get(col, 0.0))
+        w = w.where(~forcedist_mode, COMPONENT_WEIGHTS_DOUBLE.get(col, 0.0))
         df[f"_wt_{col}"] = df[col].fillna(0.0) * w
 
     fs = PLOT_STYLE["font_sizes"]
@@ -340,6 +347,7 @@ def plot_rag_score_components(
 _EFFECTIVE_TO_RAW = {
     "effective_volfrac_accuracy": "volfrac_accuracy",
     "effective_forcedist_accuracy": "forcedist_accuracy",
+    "effective_rmin_accuracy": "rmin_accuracy",
     "rag_tool_called": "rag_tool_called",
 }
 
@@ -382,6 +390,7 @@ def plot_rag_accuracy_comparison(
     components = {
         "volfrac_accuracy": "eff_volfrac",
         "forcedist_accuracy": "eff_forcedist",
+        "rmin_accuracy": "eff_rmin",
         "rag_tool_called": "rag_called",
     }
     present = {k: v for k, v in components.items() if k in df.columns}
@@ -392,16 +401,24 @@ def plot_rag_accuracy_comparison(
     # Derive weights: map effective_* → raw column, drop source_cited, renormalise.
     w_single = _renormalize_weights(COMPONENT_WEIGHTS_SINGLE)
     w_double = _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE)
+    w_rmin = _renormalize_weights(COMPONENT_WEIGHTS_RMIN)
 
-    # Apply per-row weights
+    # Apply per-row weights (3-way mode selection)
     df = df.copy()
-    two_param = (
+    forcedist_mode = (
         df.get("forcedist_tested", pd.Series(False, index=df.index))
         .fillna(False)
         .astype(bool)
     )
+    rmin_mode = (
+        df.get("rmin_tested", pd.Series(False, index=df.index))
+        .fillna(False)
+        .astype(bool)
+    )
     for col in present:
-        w = two_param.map({True: w_double.get(col, 0.0), False: w_single.get(col, 0.0)})
+        w = pd.Series(w_single.get(col, 0.0), index=df.index)
+        w = w.where(~rmin_mode, w_rmin.get(col, 0.0))
+        w = w.where(~forcedist_mode, w_double.get(col, 0.0))
         df[f"_wt_{col}"] = df[col].fillna(0.0) * w
 
     fs = PLOT_STYLE["font_sizes"]
@@ -572,6 +589,7 @@ def plot_rag_score_combined(
     components = {
         "volfrac_accuracy": "eff_volfrac",
         "forcedist_accuracy": "eff_forcedist",
+        "rmin_accuracy": "eff_rmin",
         "rag_tool_called": "rag_called",
     }
     present = {k: v for k, v in components.items() if k in df.columns}
@@ -581,15 +599,23 @@ def plot_rag_score_combined(
 
     w_single = _renormalize_weights(COMPONENT_WEIGHTS_SINGLE)
     w_double = _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE)
+    w_rmin = _renormalize_weights(COMPONENT_WEIGHTS_RMIN)
 
     df = df.copy()
-    two_param = (
+    forcedist_mode = (
         df.get("forcedist_tested", pd.Series(False, index=df.index))
         .fillna(False)
         .astype(bool)
     )
+    rmin_mode = (
+        df.get("rmin_tested", pd.Series(False, index=df.index))
+        .fillna(False)
+        .astype(bool)
+    )
     for col in present:
-        w = two_param.map({True: w_double.get(col, 0.0), False: w_single.get(col, 0.0)})
+        w = pd.Series(w_single.get(col, 0.0), index=df.index)
+        w = w.where(~rmin_mode, w_rmin.get(col, 0.0))
+        w = w.where(~forcedist_mode, w_double.get(col, 0.0))
         df[f"_wt_{col}"] = df[col].fillna(0.0) * w
 
     fs = PLOT_STYLE["font_sizes"]

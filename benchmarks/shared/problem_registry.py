@@ -223,7 +223,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
                 "rag_benefit_score": 1.0,
             },
         },
-        prompt_file_template="rag_beams2d_prompts_2_samples_{split}_{style}_seed{seed}.json",
+        prompt_file_template="rag_beams2d_prompts_3_samples_{split}_{style}_seed{seed}.json",
     ),
 }
 
