@@ -345,6 +345,12 @@ def parse_arguments() -> argparse.Namespace:
         help="Random seed for optimization (e.g., 1, 2, 3). Run multiple times with different seeds to collect statistics.",
     )
     parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Run number for repeated evaluations (e.g., 1, 2, 3). Uses a fixed optimization seed across all runs. Combine with --seed to override the default optimization seed.",
+    )
+    parser.add_argument(
         "--prompt-style",
         type=str,
         default="full",
@@ -371,7 +377,16 @@ def parse_arguments() -> argparse.Namespace:
         action="store_false",
         help="Disable MMORE RAG system (default)",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # --run = tracking identifier (1, 2, 3, …) with a fixed optimization seed.
+    # --seed = optimization seed that also serves as tracking identifier.
+    # When --run is used without --seed, default optimization seed to 1.
+    if args.run is not None and args.seed is None:
+        args.seed = 1
+    args.run_id = args.run if args.run is not None else args.seed
+
+    return args
 
 
 def load_prompts(problem: str, prompt_file_name: str) -> list[dict[str, Any]] | None:
@@ -599,9 +614,10 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print(
         f"ArXiv: {'disabled (rag eval)' if args.problem == 'rag_beams2d' else 'enabled'}"
     )
-    print(f"Samples: {args.samples}")
-    if args.seed is not None:
-        print(f"Seed: {args.seed}")
+    print(f"Max Samples: {args.samples}")
+    if args.run_id is not None:
+        run_label = "Run" if args.run is not None else "Seed"
+        print(f"{run_label}: {args.run_id}")
     print(f"Scorer Set: {args.scorers}")
     print(f"Active Scorers: {[s.__name__ for s in scorers]}")  # type: ignore[attr-defined]
 
@@ -613,8 +629,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     expected_eval_run_name = (
         f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_evaluation"
     )
-    if args.seed is not None:
-        expected_eval_run_name += f"_seed_{args.seed}"
+    if args.run_id is not None:
+        run_suffix = "run" if args.run is not None else "seed"
+        expected_eval_run_name += f"_{run_suffix}_{args.run_id}"
 
     print("Expected Weave trace names:")
     print(f"  Evaluation: {expected_eval_run_name}")
@@ -644,15 +661,18 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     if prompts is None:
         return
 
+    # Cap samples to actual number of prompts available
+    n_eval = min(args.samples, len(prompts))
     print(f"✅ Loaded {len(prompts)} prompts")
-    print(f"📊 Evaluating on {args.samples} samples")
+    print(f"📊 Evaluating on {n_eval} samples")
     print()
 
     # Prepare evaluation dataset
     eval_metadata = {
         "problem_type": args.problem,
         "dataset_name": problem_config["dataset_name"],
-        "seed": args.seed,
+        "seed": args.seed,  # Only --seed adds "Use seed=N" prompt instruction
+        "run_id": args.run_id,  # Tracking identifier (from --run or --seed)
         "prompt_style": args.prompt_style,
         "mmore_enabled": args.mmore_enabled,
         "model_name": model_name,
@@ -663,8 +683,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Get or create Weave dataset (include sample count to avoid conflicts)
     dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset_{safe_model}_n{args.samples}"
-    if args.seed is not None:
-        dataset_name += f"_seed_{args.seed}"
+    if args.run_id is not None:
+        run_suffix = "run" if args.run is not None else "seed"
+        dataset_name += f"_{run_suffix}_{args.run_id}"
     dataset = get_or_create_dataset(eval_dataset, dataset_name, len(eval_dataset))
     print()
 
@@ -681,8 +702,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Define evaluation
     print("🔍 Running evaluation...")
     eval_type_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}"
-    if args.seed is not None:
-        eval_type_name += f"_seed_{args.seed}"
+    if args.run_id is not None:
+        run_suffix = "run" if args.run is not None else "seed"
+        eval_type_name += f"_{run_suffix}_{args.run_id}"
     evaluation = weave.Evaluation(
         name=eval_type_name,
         dataset=dataset,
@@ -694,8 +716,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     eval_run_name = (
         f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_evaluation"
     )
-    if args.seed is not None:
-        eval_run_name += f"_seed_{args.seed}"
+    if args.run_id is not None:
+        run_suffix = "run" if args.run is not None else "seed"
+        eval_run_name += f"_{run_suffix}_{args.run_id}"
 
     # Wrap evaluation.evaluate() in a named weave op for custom trace naming
     @weave.op(name=eval_run_name)

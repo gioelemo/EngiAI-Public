@@ -46,7 +46,10 @@ def _extract_metadata_from_example(
             metadata = example.get("metadata", {})
             if metadata:
                 example_id = metadata.get("example_id")
-                seed = metadata.get("seed")
+                # run_id is the unique tracking identifier (from --run or --seed).
+                # Prefer run_id so that multiple --run values don't collapse
+                # during dedup (all runs share seed=1 by default).
+                seed = metadata.get("run_id") or metadata.get("seed")
 
     # Fallback: Extract from ObjectRef if direct access failed
     if (
