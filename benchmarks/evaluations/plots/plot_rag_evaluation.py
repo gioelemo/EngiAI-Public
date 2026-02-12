@@ -65,14 +65,12 @@ _COMPONENT_COLORS = {
     "eff_forcedist": COLOR_PALETTE[1],  # orange
     "eff_rmin": COLOR_PALETTE[4],  # red/pink
     "rag_called": COLOR_PALETTE[2],  # green
-    "cited": COLOR_PALETTE[3],  # purple
 }
 _COMPONENT_LABELS = {
     "eff_volfrac": "Volfrac accuracy",
     "eff_forcedist": "Forcedist accuracy",
     "eff_rmin": "Rmin accuracy",
     "rag_called": "RAG tool called",
-    "cited": "Source cited",
 }
 
 
@@ -223,7 +221,6 @@ def plot_rag_score_components(
         "effective_forcedist_accuracy": "eff_forcedist",
         "effective_rmin_accuracy": "eff_rmin",
         "rag_tool_called": "rag_called",
-        "source_cited": "cited",
     }
     present = {k: v for k, v in components.items() if k in df.columns}
     if not present:
@@ -353,7 +350,7 @@ _EFFECTIVE_TO_RAW = {
 
 
 def _renormalize_weights(src: dict[str, float]) -> dict[str, float]:
-    """Remap effective_* keys to raw column names, drop source_cited, renormalise."""
+    """Remap effective_* keys to raw column names and renormalise to sum to 1.0."""
     remapped = {}
     for orig_key, raw_key in _EFFECTIVE_TO_RAW.items():
         if orig_key in src:
@@ -375,8 +372,7 @@ def plot_rag_accuracy_comparison(
     prior knowledge.  The green "RAG tool called" segment is the visual
     discriminator between RAG-on and RAG-off conditions.
 
-    Weights are derived from the canonical scorer weights (source_cited
-    excluded, renormalised to sum to 1.0).
+    Weights are derived from the canonical scorer weights (renormalised to sum to 1.0).
 
     Args:
         df: Design data DataFrame.

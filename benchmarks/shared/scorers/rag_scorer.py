@@ -7,23 +7,20 @@ Supports three scoring modes depending on which conditions are present:
 
 Single-parameter mode (expected_volfrac only):
     Dimensions and weights:
-    1. effective_volfrac_accuracy  0.50  (gated on rag_tool_called)
-    2. rag_tool_called             0.30
-    3. source_cited                0.20
+    1. effective_volfrac_accuracy  0.60  (gated on rag_tool_called)
+    2. rag_tool_called             0.40
 
 Two-parameter mode (expected_volfrac + expected_forcedist):
     Dimensions and weights:
-    1. effective_volfrac_accuracy  0.35  (gated on rag_tool_called)
-    2. effective_forcedist_accuracy 0.35 (gated on rag_tool_called)
+    1. effective_volfrac_accuracy  0.40  (gated on rag_tool_called)
+    2. effective_forcedist_accuracy 0.40 (gated on rag_tool_called)
     3. rag_tool_called             0.20
-    4. source_cited                0.10
 
 Rmin two-parameter mode (expected_volfrac + expected_rmin):
     Dimensions and weights:
-    1. effective_volfrac_accuracy  0.35  (gated on rag_tool_called)
-    2. effective_rmin_accuracy     0.35  (gated on rag_tool_called)
+    1. effective_volfrac_accuracy  0.40  (gated on rag_tool_called)
+    2. effective_rmin_accuracy     0.40  (gated on rag_tool_called)
     3. rag_tool_called             0.20
-    4. source_cited                0.10
 
 In all modes, parameter accuracy dimensions only contribute when
 search_documents was called (rag_tool_called=True). This prevents agents
@@ -40,53 +37,33 @@ logger = logging.getLogger(__name__)
 SEARCH_TOOL_NAME = "search_documents"
 OPTIMIZE_TOOL_NAME = "optimize_design"
 
-# Keywords that suggest the agent cited a source in its final response
-CITATION_KEYWORDS = [
-    "engibench",
-    "according to",
-    "the paper",
-    "the document",
-    "retrieved",
-    "found in",
-    "states that",
-    "mentions",
-    "references",
-    "source",
-]
-
 # Scorer weights keyed by output column name.
 # Imported by the plotting layer to keep weights as a single source of truth.
 COMPONENT_WEIGHTS_SINGLE: dict[str, float] = {
-    "effective_volfrac_accuracy": 0.50,
+    "effective_volfrac_accuracy": 0.60,
     "effective_forcedist_accuracy": 0.00,
-    "rag_tool_called": 0.30,
-    "source_cited": 0.20,
+    "rag_tool_called": 0.40,
 }
 COMPONENT_WEIGHTS_DOUBLE: dict[str, float] = {
-    "effective_volfrac_accuracy": 0.35,
-    "effective_forcedist_accuracy": 0.35,
+    "effective_volfrac_accuracy": 0.40,
+    "effective_forcedist_accuracy": 0.40,
     "rag_tool_called": 0.20,
-    "source_cited": 0.10,
 }
 COMPONENT_WEIGHTS_RMIN: dict[str, float] = {
-    "effective_volfrac_accuracy": 0.35,
-    "effective_rmin_accuracy": 0.35,
+    "effective_volfrac_accuracy": 0.40,
+    "effective_rmin_accuracy": 0.40,
     "rag_tool_called": 0.20,
-    "source_cited": 0.10,
 }
 
 # Private aliases kept for internal use
 _W1_VOLFRAC = COMPONENT_WEIGHTS_SINGLE["effective_volfrac_accuracy"]
 _W1_RAG_TOOL = COMPONENT_WEIGHTS_SINGLE["rag_tool_called"]
-_W1_CITED = COMPONENT_WEIGHTS_SINGLE["source_cited"]
 _W2_VOLFRAC = COMPONENT_WEIGHTS_DOUBLE["effective_volfrac_accuracy"]
 _W2_FORCEDIST = COMPONENT_WEIGHTS_DOUBLE["effective_forcedist_accuracy"]
 _W2_RAG_TOOL = COMPONENT_WEIGHTS_DOUBLE["rag_tool_called"]
-_W2_CITED = COMPONENT_WEIGHTS_DOUBLE["source_cited"]
 _WR_VOLFRAC = COMPONENT_WEIGHTS_RMIN["effective_volfrac_accuracy"]
 _WR_RMIN = COMPONENT_WEIGHTS_RMIN["effective_rmin_accuracy"]
 _WR_RAG_TOOL = COMPONENT_WEIGHTS_RMIN["rag_tool_called"]
-_WR_CITED = COMPONENT_WEIGHTS_RMIN["source_cited"]
 
 # All fields emitted by score_rag_evaluation — shared with extract/plot layers.
 RAG_OUTPUT_FIELDS: tuple[str, ...] = (
@@ -100,7 +77,6 @@ RAG_OUTPUT_FIELDS: tuple[str, ...] = (
     "rmin_accuracy",
     "effective_rmin_accuracy",
     "rmin_tested",
-    "source_cited",
     "volfrac_within_tolerance",
     "forcedist_within_tolerance",
     "rmin_within_tolerance",
@@ -175,12 +151,6 @@ def _score_param_accuracy(
     return float(max(0.0, 1.0 - (error - tolerance) / decay_range))
 
 
-def _check_source_cited(response: str) -> bool:
-    """Return True if the final response contains citation keywords."""
-    lowered = response.lower()
-    return any(kw in lowered for kw in CITATION_KEYWORDS)
-
-
 def score_rag_evaluation(
     output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001 — required by scorer interface
@@ -198,7 +168,6 @@ def score_rag_evaluation(
     Args:
         output: Agent output dict containing:
             - tool_calls_info: list of {name, args} dicts
-            - response: final response text from the agent
             - messages: full message history
         target: Ground-truth data (unused for RAG eval)
         metadata: Evaluation metadata containing:
@@ -234,7 +203,6 @@ def score_rag_evaluation(
         - rmin_error: Absolute error |actual - expected| (float | None)
         - rmin_within_tolerance: Whether error <= tolerance (bool)
         - rmin_tested: Whether rmin scoring was active for this prompt (bool)
-        - source_cited: Whether the response references the source (bool)
         - example_id: int
     """
     example_id = metadata.get("example_id", 0)
@@ -260,7 +228,6 @@ def score_rag_evaluation(
     rmin_tolerance: float = float(conditions.get("expected_rmin_tolerance", 0.05))
 
     tool_calls_info: list[dict[str, Any]] = output.get("tool_calls_info", [])
-    response: str = str(output.get("response", ""))
 
     # --- Dimension: RAG tool usage ---
     rag_tool_called = any(tc.get("name") == SEARCH_TOOL_NAME for tc in tool_calls_info)
@@ -358,10 +325,6 @@ def score_rag_evaluation(
             rmin_within_tolerance,
         )
 
-    # --- Dimension: source citation ---
-    source_cited = _check_source_cited(response)
-    logger.debug("Example %s: source_cited = %s", example_id, source_cited)
-
     # --- Composite score ---
     # Parameter accuracy dimensions only contribute when RAG was called.
     # This ensures agents that reach correct values via get_problem_details
@@ -376,7 +339,6 @@ def score_rag_evaluation(
             _W2_VOLFRAC * effective_volfrac_accuracy
             + _W2_FORCEDIST * effective_forcedist_accuracy
             + _W2_RAG_TOOL * float(rag_tool_called)
-            + _W2_CITED * float(source_cited)
         )
     elif rmin_tested:
         # Two-parameter mode (volfrac + rmin)
@@ -384,27 +346,24 @@ def score_rag_evaluation(
             _WR_VOLFRAC * effective_volfrac_accuracy
             + _WR_RMIN * effective_rmin_accuracy
             + _WR_RAG_TOOL * float(rag_tool_called)
-            + _WR_CITED * float(source_cited)
         )
     else:
-        # Single-parameter mode (backward compatible)
+        # Single-parameter mode
         rag_benefit_score = (
             _W1_VOLFRAC * effective_volfrac_accuracy
             + _W1_RAG_TOOL * float(rag_tool_called)
-            + _W1_CITED * float(source_cited)
         )
 
     logger.info(
         "Example %s: rag_benefit_score=%.3f "
         "(eff_volfrac=%.2f, eff_forcedist=%.2f, eff_rmin=%.2f, "
-        "rag_called=%s, cited=%s, forcedist_mode=%s, rmin_mode=%s)",
+        "rag_called=%s, forcedist_mode=%s, rmin_mode=%s)",
         example_id,
         rag_benefit_score,
         effective_volfrac_accuracy,
         effective_forcedist_accuracy,
         effective_rmin_accuracy,
         rag_tool_called,
-        source_cited,
         forcedist_tested,
         rmin_tested,
     )
@@ -422,7 +381,6 @@ def score_rag_evaluation(
         "rmin_accuracy": float(rmin_accuracy),
         "effective_rmin_accuracy": float(effective_rmin_accuracy),
         "rmin_tested": bool(rmin_tested),
-        "source_cited": bool(source_cited),
         # volfrac detail
         "volfrac_actual": volfrac_actual,
         "volfrac_expected": volfrac_expected,
