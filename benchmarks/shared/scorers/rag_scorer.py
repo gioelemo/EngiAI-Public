@@ -151,6 +151,23 @@ def _score_param_accuracy(
     return float(max(0.0, 1.0 - (error - tolerance) / decay_range))
 
 
+def _score_optional_param(
+    actual: float | None,
+    expected: float | None,
+    tolerance: float,
+    tested: bool,
+) -> tuple[float | None, bool, float]:
+    """Compute (error, within_tolerance, accuracy) for an optional parameter.
+
+    Returns (None, False, 0.0) when the parameter is not tested.
+    """
+    if not tested or expected is None:
+        return None, False, 0.0
+    error = abs(actual - expected) if actual is not None else None
+    within_tol = error is not None and error <= tolerance
+    return error, within_tol, _score_param_accuracy(actual, expected, tolerance)
+
+
 def score_rag_evaluation(
     output: dict[str, Any],
     target: dict[str, Any],  # noqa: ARG001 — required by scorer interface
@@ -256,16 +273,9 @@ def score_rag_evaluation(
             ):
                 break  # All needed values extracted
 
-    volfrac_error: float | None = (
-        abs(volfrac_actual - volfrac_expected) if volfrac_actual is not None else None
+    volfrac_error, volfrac_within_tolerance, volfrac_accuracy = _score_optional_param(
+        volfrac_actual, volfrac_expected, volfrac_tolerance, tested=True
     )
-    volfrac_within_tolerance = (
-        volfrac_error is not None and volfrac_error <= volfrac_tolerance
-    )
-    volfrac_accuracy = _score_param_accuracy(
-        volfrac_actual, volfrac_expected, volfrac_tolerance
-    )
-
     logger.info(
         "Example %s: volfrac actual=%s expected=%.3f error=%s within_tol=%s",
         example_id,
@@ -276,23 +286,12 @@ def score_rag_evaluation(
     )
 
     # --- Dimension: forcedist accuracy (forcedist two-parameter prompts only) ---
-    forcedist_error: float | None = None
-    forcedist_within_tolerance = False
-    forcedist_accuracy = 0.0
-
-    if forcedist_tested and forcedist_expected is not None:
-        forcedist_error = (
-            abs(forcedist_actual - forcedist_expected)
-            if forcedist_actual is not None
-            else None
+    forcedist_error, forcedist_within_tolerance, forcedist_accuracy = (
+        _score_optional_param(
+            forcedist_actual, forcedist_expected, forcedist_tolerance, forcedist_tested
         )
-        forcedist_within_tolerance = (
-            forcedist_error is not None and forcedist_error <= forcedist_tolerance
-        )
-        forcedist_accuracy = _score_param_accuracy(
-            forcedist_actual, forcedist_expected, forcedist_tolerance
-        )
-
+    )
+    if forcedist_tested:
         logger.info(
             "Example %s: forcedist actual=%s expected=%.3f error=%s within_tol=%s",
             example_id,
@@ -303,19 +302,10 @@ def score_rag_evaluation(
         )
 
     # --- Dimension: rmin accuracy (rmin two-parameter prompts only) ---
-    rmin_error: float | None = None
-    rmin_within_tolerance = False
-    rmin_accuracy = 0.0
-
-    if rmin_tested and rmin_expected is not None:
-        rmin_error = (
-            abs(rmin_actual - rmin_expected) if rmin_actual is not None else None
-        )
-        rmin_within_tolerance = rmin_error is not None and rmin_error <= rmin_tolerance
-        rmin_accuracy = _score_param_accuracy(
-            rmin_actual, rmin_expected, rmin_tolerance
-        )
-
+    rmin_error, rmin_within_tolerance, rmin_accuracy = _score_optional_param(
+        rmin_actual, rmin_expected, rmin_tolerance, rmin_tested
+    )
+    if rmin_tested:
         logger.info(
             "Example %s: rmin actual=%s expected=%.3f error=%s within_tol=%s",
             example_id,

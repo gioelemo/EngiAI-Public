@@ -93,6 +93,36 @@ def _prepare_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _apply_weights(
+    df: pd.DataFrame,
+    present: dict[str, str],
+    w_single: dict[str, float],
+    w_double: dict[str, float],
+    w_rmin: dict[str, float],
+) -> pd.DataFrame:
+    """Add ``_wt_{col}`` weighted-contribution columns to a copy of *df*.
+
+    Selects weights per row based on ``forcedist_tested`` / ``rmin_tested`` flags.
+    """
+    df = df.copy()
+    forcedist_mode = (
+        df.get("forcedist_tested", pd.Series(False, index=df.index))
+        .fillna(False)
+        .astype(bool)
+    )
+    rmin_mode = (
+        df.get("rmin_tested", pd.Series(False, index=df.index))
+        .fillna(False)
+        .astype(bool)
+    )
+    for col in present:
+        w = pd.Series(w_single.get(col, 0.0), index=df.index)
+        w = w.where(~rmin_mode, w_rmin.get(col, 0.0))
+        w = w.where(~forcedist_mode, w_double.get(col, 0.0))
+        df[f"_wt_{col}"] = df[col].fillna(0.0) * w
+    return df
+
+
 # ── Plot 1: Grouped bar — rag_benefit_score ───────────────────────────────────
 
 
@@ -229,22 +259,13 @@ def plot_rag_score_components(
 
     # Weights imported from rag_scorer.py — single source of truth.
     # Applied per-row via mode flags; stacked total equals rag_benefit_score.
-    df = df.copy()
-    forcedist_mode = (
-        df.get("forcedist_tested", pd.Series(False, index=df.index))
-        .fillna(False)
-        .astype(bool)
+    df = _apply_weights(
+        df,
+        present,
+        COMPONENT_WEIGHTS_SINGLE,
+        COMPONENT_WEIGHTS_DOUBLE,
+        COMPONENT_WEIGHTS_RMIN,
     )
-    rmin_mode = (
-        df.get("rmin_tested", pd.Series(False, index=df.index))
-        .fillna(False)
-        .astype(bool)
-    )
-    for col in present:
-        w = pd.Series(COMPONENT_WEIGHTS_SINGLE.get(col, 0.0), index=df.index)
-        w = w.where(~rmin_mode, COMPONENT_WEIGHTS_RMIN.get(col, 0.0))
-        w = w.where(~forcedist_mode, COMPONENT_WEIGHTS_DOUBLE.get(col, 0.0))
-        df[f"_wt_{col}"] = df[col].fillna(0.0) * w
 
     fs = PLOT_STYLE["font_sizes"]
     rag_statuses = ["rag", "no_rag"]
@@ -394,28 +415,11 @@ def plot_rag_accuracy_comparison(
         print("  ⚠️  No accuracy columns — skipping plot_rag_accuracy_comparison")
         return
 
-    # Derive weights: map effective_* → raw column, drop source_cited, renormalise.
+    # Derive weights: map effective_* → raw column names, renormalise to sum to 1.0.
     w_single = _renormalize_weights(COMPONENT_WEIGHTS_SINGLE)
     w_double = _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE)
     w_rmin = _renormalize_weights(COMPONENT_WEIGHTS_RMIN)
-
-    # Apply per-row weights (3-way mode selection)
-    df = df.copy()
-    forcedist_mode = (
-        df.get("forcedist_tested", pd.Series(False, index=df.index))
-        .fillna(False)
-        .astype(bool)
-    )
-    rmin_mode = (
-        df.get("rmin_tested", pd.Series(False, index=df.index))
-        .fillna(False)
-        .astype(bool)
-    )
-    for col in present:
-        w = pd.Series(w_single.get(col, 0.0), index=df.index)
-        w = w.where(~rmin_mode, w_rmin.get(col, 0.0))
-        w = w.where(~forcedist_mode, w_double.get(col, 0.0))
-        df[f"_wt_{col}"] = df[col].fillna(0.0) * w
+    df = _apply_weights(df, present, w_single, w_double, w_rmin)
 
     fs = PLOT_STYLE["font_sizes"]
     rag_statuses = ["rag", "no_rag"]
@@ -596,23 +600,7 @@ def plot_rag_score_combined(
     w_single = _renormalize_weights(COMPONENT_WEIGHTS_SINGLE)
     w_double = _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE)
     w_rmin = _renormalize_weights(COMPONENT_WEIGHTS_RMIN)
-
-    df = df.copy()
-    forcedist_mode = (
-        df.get("forcedist_tested", pd.Series(False, index=df.index))
-        .fillna(False)
-        .astype(bool)
-    )
-    rmin_mode = (
-        df.get("rmin_tested", pd.Series(False, index=df.index))
-        .fillna(False)
-        .astype(bool)
-    )
-    for col in present:
-        w = pd.Series(w_single.get(col, 0.0), index=df.index)
-        w = w.where(~rmin_mode, w_rmin.get(col, 0.0))
-        w = w.where(~forcedist_mode, w_double.get(col, 0.0))
-        df[f"_wt_{col}"] = df[col].fillna(0.0) * w
+    df = _apply_weights(df, present, w_single, w_double, w_rmin)
 
     fs = PLOT_STYLE["font_sizes"]
     models = sorted(df["model_short"].unique())
