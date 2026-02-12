@@ -259,6 +259,14 @@ RAG_PROMPTS: list[dict] = [
                 "Scorer gates all three parameter scores on rag_tool_called=True."
             ),
         },
+        # Two papers → two search calls needed
+        "optimal_tool_calls": [
+            {"name": "search_documents", "count": 2},
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "render_design", "count": 1},
+        ],
+        "optimal_call_count": 5,
         "target": {},
     },
 ]
@@ -295,8 +303,13 @@ def create_rag_prompts(
                     "prompt_style_description": style_config["description"],
                     "success_criteria": style_config["success_criteria"],
                 },
-                "optimal_tool_calls": style_config["optimal_tool_calls"],
-                "optimal_call_count": style_config["optimal_call_count"],
+                # Per-prompt overrides take precedence over style defaults
+                "optimal_tool_calls": raw.get(
+                    "optimal_tool_calls", style_config["optimal_tool_calls"]
+                ),
+                "optimal_call_count": raw.get(
+                    "optimal_call_count", style_config["optimal_call_count"]
+                ),
                 "target": raw["target"],
                 "example_id": i,
                 "dataset_split": "test",
