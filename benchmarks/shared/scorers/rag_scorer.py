@@ -3,7 +3,7 @@
 Measures whether the agent uses RAG-retrieved information to make better
 engineering decisions.
 
-Supports three scoring modes depending on which conditions are present:
+Supports four scoring modes depending on which conditions are present:
 
 Single-parameter mode (expected_volfrac only):
     Dimensions and weights:
@@ -21,6 +21,13 @@ Rmin two-parameter mode (expected_volfrac + expected_rmin):
     1. effective_volfrac_accuracy  0.40  (gated on rag_tool_called)
     2. effective_rmin_accuracy     0.40  (gated on rag_tool_called)
     3. rag_tool_called             0.20
+
+Triple-parameter mode (expected_volfrac + expected_forcedist + expected_rmin):
+    Dimensions and weights:
+    1. effective_volfrac_accuracy   0.30 (gated on rag_tool_called)
+    2. effective_forcedist_accuracy 0.30 (gated on rag_tool_called)
+    3. effective_rmin_accuracy      0.30 (gated on rag_tool_called)
+    4. rag_tool_called              0.10
 
 In all modes, parameter accuracy dimensions only contribute when
 search_documents was called (rag_tool_called=True). This prevents agents
@@ -54,6 +61,12 @@ COMPONENT_WEIGHTS_RMIN: dict[str, float] = {
     "effective_rmin_accuracy": 0.40,
     "rag_tool_called": 0.20,
 }
+COMPONENT_WEIGHTS_TRIPLE: dict[str, float] = {
+    "effective_volfrac_accuracy": 0.30,
+    "effective_forcedist_accuracy": 0.30,
+    "effective_rmin_accuracy": 0.30,
+    "rag_tool_called": 0.10,
+}
 
 # Private aliases kept for internal use
 _W1_VOLFRAC = COMPONENT_WEIGHTS_SINGLE["effective_volfrac_accuracy"]
@@ -64,6 +77,10 @@ _W2_RAG_TOOL = COMPONENT_WEIGHTS_DOUBLE["rag_tool_called"]
 _WR_VOLFRAC = COMPONENT_WEIGHTS_RMIN["effective_volfrac_accuracy"]
 _WR_RMIN = COMPONENT_WEIGHTS_RMIN["effective_rmin_accuracy"]
 _WR_RAG_TOOL = COMPONENT_WEIGHTS_RMIN["rag_tool_called"]
+_WT_VOLFRAC = COMPONENT_WEIGHTS_TRIPLE["effective_volfrac_accuracy"]
+_WT_FORCEDIST = COMPONENT_WEIGHTS_TRIPLE["effective_forcedist_accuracy"]
+_WT_RMIN = COMPONENT_WEIGHTS_TRIPLE["effective_rmin_accuracy"]
+_WT_RAG_TOOL = COMPONENT_WEIGHTS_TRIPLE["rag_tool_called"]
 
 # All fields emitted by score_rag_evaluation — shared with extract/plot layers.
 RAG_OUTPUT_FIELDS: tuple[str, ...] = (
@@ -134,21 +151,16 @@ def _score_param_accuracy(
     expected: float,
     tolerance: float,
 ) -> float:
-    """Score how close the actual value is to the expected.
+    """Score whether the actual value matches the expected within tolerance.
 
     Returns:
-        1.0 if within tolerance, soft linear decay to 0.0 beyond tolerance.
+        1.0 if within tolerance, 0.0 otherwise (binary).
     """
     if actual is None:
         return 0.0
 
     error = abs(actual - expected)
-    if error <= tolerance:
-        return 1.0
-
-    # Soft decay: full penalty at 3x the tolerance
-    decay_range = 3.0 * tolerance
-    return float(max(0.0, 1.0 - (error - tolerance) / decay_range))
+    return 1.0 if error <= tolerance else 0.0
 
 
 def _score_optional_param(
@@ -323,7 +335,15 @@ def score_rag_evaluation(
     effective_forcedist_accuracy = forcedist_accuracy if rag_tool_called else 0.0
     effective_rmin_accuracy = rmin_accuracy if rag_tool_called else 0.0
 
-    if forcedist_tested:
+    if forcedist_tested and rmin_tested:
+        # Triple-parameter mode (volfrac + forcedist + rmin)
+        rag_benefit_score = (
+            _WT_VOLFRAC * effective_volfrac_accuracy
+            + _WT_FORCEDIST * effective_forcedist_accuracy
+            + _WT_RMIN * effective_rmin_accuracy
+            + _WT_RAG_TOOL * float(rag_tool_called)
+        )
+    elif forcedist_tested:
         # Two-parameter mode (volfrac + forcedist)
         rag_benefit_score = (
             _W2_VOLFRAC * effective_volfrac_accuracy
@@ -347,7 +367,7 @@ def score_rag_evaluation(
     logger.info(
         "Example %s: rag_benefit_score=%.3f "
         "(eff_volfrac=%.2f, eff_forcedist=%.2f, eff_rmin=%.2f, "
-        "rag_called=%s, forcedist_mode=%s, rmin_mode=%s)",
+        "rag_called=%s, forcedist_mode=%s, rmin_mode=%s, triple_mode=%s)",
         example_id,
         rag_benefit_score,
         effective_volfrac_accuracy,
@@ -356,6 +376,7 @@ def score_rag_evaluation(
         rag_tool_called,
         forcedist_tested,
         rmin_tested,
+        forcedist_tested and rmin_tested,
     )
 
     return {

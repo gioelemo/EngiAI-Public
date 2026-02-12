@@ -204,6 +204,63 @@ RAG_PROMPTS: list[dict] = [
         },
         "target": {},
     },
+    {
+        # -------------------------------------------------------------------
+        # Prompt 3 — Mixed sources: three non-default parameters from two papers
+        #
+        # The agent must combine information from multiple RAG sources:
+        #   volfrac = 0.7   (EngiBench paper API example, non-default)
+        #   forcedist = 0.3 (EngiBench paper API example, non-default)
+        #   rmin = 6.0      (SOPTX paper 2D cantilever benchmark, post-cutoff)
+        #
+        # This is the hardest prompt: the agent needs to query TWO papers
+        # and ALL three values differ from get_problem_details defaults
+        # (volfrac=0.35, forcedist=0.0, rmin≈3.5). Additionally rmin=6.0
+        # is from a post-cutoff paper so LLMs cannot guess it.
+        #
+        # Scoring uses triple-parameter mode (dynamic weights):
+        #   effective_volfrac_accuracy   0.30 (gated on rag_called)
+        #   effective_forcedist_accuracy 0.30 (gated on rag_called)
+        #   effective_rmin_accuracy      0.30 (gated on rag_called)
+        #   rag_tool_called              0.10
+        #
+        # RAG-on:  searches both papers → finds all three → score ~1.0
+        # RAG-off: no search → all params wrong → rag_called=False → score = 0.0
+        # -------------------------------------------------------------------
+        "prompt": (
+            "Generate a 2D beam design combining parameters from multiple sources:\n\n"
+            "1. Use the volume fraction and force distribution from the EngiBench "
+            "paper's API walkthrough example (the non-default values shown in the "
+            "code snippet).\n"
+            "2. Use the filter radius from the SOPTX paper by He et al. (2025) for "
+            "their 2D cantilever beam benchmark.\n\n"
+            "Search the relevant papers to find each value, then generate a 2D beam "
+            "design using exactly those three parameters. Use default values for all "
+            "other parameters and do not ask for clarification."
+        ),
+        "conditions": {
+            "expected_volfrac": 0.7,
+            "expected_volfrac_tolerance": 0.05,
+            "expected_forcedist": 0.3,
+            "expected_forcedist_tolerance": 0.05,
+            "expected_rmin": 6.0,
+            "expected_rmin_tolerance": 0.5,
+        },
+        "metadata": {
+            "knowledge_source": "EngiBench paper + SOPTX paper (arXiv:2505.02438)",
+            "rag_query_hint": "EngiBench API example volfrac forcedist, SOPTX cantilever rmin",
+            "parameter_tested": "volfrac+forcedist+rmin",
+            "expected_reasoning": (
+                "Agent should: (1) search EngiBench paper for API example showing "
+                "desired_conds = {volfrac: 0.7, forcedist: 0.3}, "
+                "(2) search SOPTX paper for 2D cantilever benchmark rmin=6.0. "
+                "Then call optimize_design with volfrac=0.7, forcedist=0.3, rmin=6.0. "
+                "All three differ from defaults so the agent cannot cheat. "
+                "Scorer gates all three parameter scores on rag_tool_called=True."
+            ),
+        },
+        "target": {},
+    },
 ]
 
 

@@ -40,17 +40,19 @@ from benchmarks.shared.scorers.rag_scorer import (  # noqa: E402
     COMPONENT_WEIGHTS_DOUBLE,
     COMPONENT_WEIGHTS_RMIN,
     COMPONENT_WEIGHTS_SINGLE,
+    COMPONENT_WEIGHTS_TRIPLE,
 )
 
 # Minimum bar value to display an annotation label
 _MIN_LABEL_VALUE = 0.05
 
 # ── Prompt labels ──────────────────────────────────────────────────────────────
-_PROMPT_SHORT_LABELS = {0: "P0", 1: "P1", 2: "P2"}
+_PROMPT_SHORT_LABELS = {0: "P0", 1: "P1", 2: "P2", 3: "P3"}
 _PROMPT_LABELS = {
     0: "P0 — Easy (volfrac)",
     1: "P1 — Hard (volfrac + forcedist)",
-    2: "P2 — Standard (volfrac + rmin)",
+    2: "P2 — Post-cutoff (volfrac + rmin)",
+    3: "P3 — Mixed sources (all three)",
 }
 
 # ── RAG status display labels and styles ───────────────────────────────────────
@@ -96,13 +98,15 @@ def _prepare_data(df: pd.DataFrame) -> pd.DataFrame:
 def _apply_weights(
     df: pd.DataFrame,
     present: dict[str, str],
-    w_single: dict[str, float],
-    w_double: dict[str, float],
-    w_rmin: dict[str, float],
+    mode_weights: dict[str, dict[str, float]],
 ) -> pd.DataFrame:
     """Add ``_wt_{col}`` weighted-contribution columns to a copy of *df*.
 
     Selects weights per row based on ``forcedist_tested`` / ``rmin_tested`` flags.
+    Four modes: single, double (forcedist), rmin, triple (both).
+
+    Args:
+        mode_weights: ``{"single": …, "double": …, "rmin": …, "triple": …}``.
     """
     df = df.copy()
     forcedist_mode = (
@@ -115,10 +119,13 @@ def _apply_weights(
         .fillna(False)
         .astype(bool)
     )
+    ws, wd = mode_weights["single"], mode_weights["double"]
+    wr, wt = mode_weights["rmin"], mode_weights["triple"]
     for col in present:
-        w = pd.Series(w_single.get(col, 0.0), index=df.index)
-        w = w.where(~rmin_mode, w_rmin.get(col, 0.0))
-        w = w.where(~forcedist_mode, w_double.get(col, 0.0))
+        w = pd.Series(ws.get(col, 0.0), index=df.index)
+        w[rmin_mode & ~forcedist_mode] = wr.get(col, 0.0)
+        w[forcedist_mode & ~rmin_mode] = wd.get(col, 0.0)
+        w[forcedist_mode & rmin_mode] = wt.get(col, 0.0)
         df[f"_wt_{col}"] = df[col].fillna(0.0) * w
     return df
 
@@ -262,9 +269,12 @@ def plot_rag_score_components(
     df = _apply_weights(
         df,
         present,
-        COMPONENT_WEIGHTS_SINGLE,
-        COMPONENT_WEIGHTS_DOUBLE,
-        COMPONENT_WEIGHTS_RMIN,
+        {
+            "single": COMPONENT_WEIGHTS_SINGLE,
+            "double": COMPONENT_WEIGHTS_DOUBLE,
+            "rmin": COMPONENT_WEIGHTS_RMIN,
+            "triple": COMPONENT_WEIGHTS_TRIPLE,
+        },
     )
 
     fs = PLOT_STYLE["font_sizes"]
@@ -280,7 +290,7 @@ def plot_rag_score_components(
         if n_eids > 1
         else [0.0]
     )
-    prompt_hatches = dict(zip(example_ids, ["", "//", ".."], strict=False))
+    prompt_hatches = dict(zip(example_ids, ["", "//", "..", "xx"], strict=False))
 
     x = np.arange(len(models))
 
@@ -417,10 +427,13 @@ def plot_rag_accuracy_comparison(
         return
 
     # Derive weights: map effective_* → raw column names, renormalise to sum to 1.0.
-    w_single = _renormalize_weights(COMPONENT_WEIGHTS_SINGLE)
-    w_double = _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE)
-    w_rmin = _renormalize_weights(COMPONENT_WEIGHTS_RMIN)
-    df = _apply_weights(df, present, w_single, w_double, w_rmin)
+    raw_weights = {
+        "single": _renormalize_weights(COMPONENT_WEIGHTS_SINGLE),
+        "double": _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE),
+        "rmin": _renormalize_weights(COMPONENT_WEIGHTS_RMIN),
+        "triple": _renormalize_weights(COMPONENT_WEIGHTS_TRIPLE),
+    }
+    df = _apply_weights(df, present, raw_weights)
 
     fs = PLOT_STYLE["font_sizes"]
     rag_statuses = ["rag", "no_rag"]
@@ -434,7 +447,7 @@ def plot_rag_accuracy_comparison(
         if n_eids > 1
         else [0.0]
     )
-    prompt_hatches = dict(zip(example_ids, ["", "//", ".."], strict=False))
+    prompt_hatches = dict(zip(example_ids, ["", "//", "..", "xx"], strict=False))
 
     x = np.arange(len(models))
 
@@ -599,10 +612,13 @@ def plot_rag_score_combined(
         print("  ⚠️  No accuracy columns — skipping plot_rag_score_combined")
         return
 
-    w_single = _renormalize_weights(COMPONENT_WEIGHTS_SINGLE)
-    w_double = _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE)
-    w_rmin = _renormalize_weights(COMPONENT_WEIGHTS_RMIN)
-    df = _apply_weights(df, present, w_single, w_double, w_rmin)
+    raw_weights = {
+        "single": _renormalize_weights(COMPONENT_WEIGHTS_SINGLE),
+        "double": _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE),
+        "rmin": _renormalize_weights(COMPONENT_WEIGHTS_RMIN),
+        "triple": _renormalize_weights(COMPONENT_WEIGHTS_TRIPLE),
+    }
+    df = _apply_weights(df, present, raw_weights)
 
     fs = PLOT_STYLE["font_sizes"]
     models = sorted(df["model_short"].unique())
