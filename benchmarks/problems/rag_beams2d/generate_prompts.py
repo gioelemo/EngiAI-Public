@@ -73,8 +73,7 @@ RAG_PROMPTS: list[dict] = [
         # agent actually called search_documents (rag_tool_called=True).
         #
         # RAG-on:  searches paper → finds 0.35 → score ~1.0
-        # RAG-off: skips search → may or may not get 0.35 → volfrac ignored
-        #          → score at most 0.20 (source_cited) → score ~0.0
+        # RAG-off: skips search → rag_called=False → eff_volfrac gated → score = 0.0
         # -------------------------------------------------------------------
         "prompt": (
             "The EngiBench paper documents the default design conditions for the "
@@ -115,14 +114,13 @@ RAG_PROMPTS: list[dict] = [
         # both values correctly.
         #
         # Scoring uses two-parameter mode (dynamic weights):
-        #   effective_volfrac_accuracy   0.35 (gated on rag_called)
-        #   effective_forcedist_accuracy 0.35 (gated on rag_called)
+        #   effective_volfrac_accuracy   0.40 (gated on rag_called)
+        #   effective_forcedist_accuracy 0.40 (gated on rag_called)
         #   rag_tool_called              0.20
-        #   source_cited                 0.10
         #
         # RAG-on:  searches paper → finds both 0.7 and 0.3 → score ~1.0
         # RAG-off: calls get_problem_details → gets (0.35, 0.0) (both wrong)
-        #          → parameter scores = 0 → score ~0.0-0.10
+        #          → parameter scores gated → rag_called=False → score = 0.0
         # -------------------------------------------------------------------
         "prompt": (
             "In the EngiBench paper's Section 3.1 API walkthrough, a code example "
@@ -170,13 +168,12 @@ RAG_PROMPTS: list[dict] = [
         # May 2025, beyond all current model knowledge cutoffs.
         #
         # Scoring uses rmin two-parameter mode (dynamic weights):
-        #   effective_volfrac_accuracy 0.35 (gated on rag_called)
-        #   effective_rmin_accuracy    0.35 (gated on rag_called)
+        #   effective_volfrac_accuracy 0.40 (gated on rag_called)
+        #   effective_rmin_accuracy    0.40 (gated on rag_called)
         #   rag_tool_called            0.20
-        #   source_cited               0.10
         #
         # RAG-on:  searches paper → finds volfrac=0.4, rmin=6.0 → score ~1.0
-        # RAG-off: skips search → uses wrong defaults → score ~0.0-0.10
+        # RAG-off: skips search → parameters gated → rag_called=False → score = 0.0
         # -------------------------------------------------------------------
         "prompt": (
             "The SOPTX paper by He et al. (2025) benchmarks its topology optimization "

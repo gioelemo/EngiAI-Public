@@ -272,14 +272,15 @@ def plot_rag_score_components(
     models = sorted(df["model_short"].unique())
     example_ids = sorted(df["example_id"].dropna().unique())
 
-    # Two bars per model group, one per prompt level
-    bar_width = 0.35
+    # One bar per prompt level per model group; bar_width shrinks to avoid overlap.
+    n_eids = len(example_ids)
+    bar_width = 0.7 / max(n_eids, 1)
     offsets = (
-        np.linspace(-bar_width / 2, bar_width / 2, len(example_ids))
-        if len(example_ids) > 1
+        np.linspace(-(n_eids - 1) * bar_width / 2, (n_eids - 1) * bar_width / 2, n_eids)
+        if n_eids > 1
         else [0.0]
     )
-    prompt_hatches = dict(zip(example_ids, ["", "//"], strict=False))
+    prompt_hatches = dict(zip(example_ids, ["", "//", ".."], strict=False))
 
     x = np.arange(len(models))
 
@@ -426,13 +427,14 @@ def plot_rag_accuracy_comparison(
     models = sorted(df["model_short"].unique())
     example_ids = sorted(df["example_id"].dropna().unique())
 
-    bar_width = 0.35
+    n_eids = len(example_ids)
+    bar_width = 0.7 / max(n_eids, 1)
     offsets = (
-        np.linspace(-bar_width / 2, bar_width / 2, len(example_ids))
-        if len(example_ids) > 1
+        np.linspace(-(n_eids - 1) * bar_width / 2, (n_eids - 1) * bar_width / 2, n_eids)
+        if n_eids > 1
         else [0.0]
     )
-    prompt_hatches = dict(zip(example_ids, ["", "//"], strict=False))
+    prompt_hatches = dict(zip(example_ids, ["", "//", ".."], strict=False))
 
     x = np.arange(len(models))
 
