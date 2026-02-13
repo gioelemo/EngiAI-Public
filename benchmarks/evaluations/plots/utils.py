@@ -481,6 +481,13 @@ def _load_global_metrics(path, model, problem, prompt_style="full", rag_status=N
     """Load and clean global metrics for a specific model/problem.
 
     Expects JSON format from compute_global_metrics.py.
+
+    Args:
+        path: Path to the JSON metrics file.
+        model: Model name for the DataFrame column.
+        problem: Problem name for the DataFrame column.
+        prompt_style: Prompt style identifier.
+        rag_status: RAG status identifier (e.g. "rag" or "no_rag").
     """
     if not path.exists():
         return None
@@ -532,6 +539,12 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
     """Load and clean design-level metrics for a specific model.
 
     Expects JSON format from extract_data.py.
+
+    Args:
+        path: Path to the JSON design metrics file.
+        model: Model name for the DataFrame column.
+        prompt_style: Prompt style identifier.
+        rag_status: RAG status identifier (e.g. "rag" or "no_rag").
     """
     if not path.exists():
         return None
@@ -910,10 +923,15 @@ def save_figure(fig, filename, output_dir=None, save_pdf=True):
 
 
 def identify_pareto_front(scores, minimize_x=False, minimize_y=True):
-    """
-    Finds the pareto-efficient points.
-    :param scores: An (n_points, 2) array [x_values, y_values]
-    :return: A boolean array indicating if each point is on the Pareto front.
+    """Find the pareto-efficient points.
+
+    Args:
+        scores: An (n_points, 2) array [x_values, y_values].
+        minimize_x: Whether to minimize the x-axis metric.
+        minimize_y: Whether to minimize the y-axis metric.
+
+    Returns:
+        A boolean array indicating if each point is on the Pareto front.
     """
     is_efficient = np.ones(scores.shape[0], dtype=bool)
     for i, c in enumerate(scores):

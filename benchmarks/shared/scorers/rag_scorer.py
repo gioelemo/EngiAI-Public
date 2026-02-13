@@ -167,6 +167,11 @@ def _score_param_accuracy(
 ) -> float:
     """Score whether the actual value matches the expected within tolerance.
 
+    Args:
+        actual: Extracted parameter value (None if not found).
+        expected: Ground-truth target value.
+        tolerance: Absolute tolerance for matching.
+
     Returns:
         1.0 if within tolerance, 0.0 otherwise (binary).
     """
@@ -185,7 +190,15 @@ def _score_optional_param(
 ) -> tuple[float | None, bool, float]:
     """Compute (error, within_tolerance, accuracy) for an optional parameter.
 
-    Returns (None, False, 0.0) when the parameter is not tested.
+    Args:
+        actual: Extracted parameter value (None if not found).
+        expected: Ground-truth target value (None if not applicable).
+        tolerance: Absolute tolerance for matching.
+        tested: Whether this parameter is being tested in the current prompt.
+
+    Returns:
+        Tuple of (error, within_tolerance, accuracy). Returns (None, False, 0.0)
+        when the parameter is not tested.
     """
     if not tested or expected is None:
         return None, False, 0.0

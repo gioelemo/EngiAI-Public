@@ -465,8 +465,6 @@ def create_contextual_scorer(
 
     Args:
         scorer_func: Original scorer function to wrap
-        model_name: Model name (e.g., "gpt-4o", "gemini-3-flash-preview") [unused, kept for signature compatibility]
-        problem_type: Problem type (e.g., "beams2d", "thermoelastic2d") [unused, kept for signature compatibility]
         scorer_type: Scorer identifier (e.g., "output_quality", "task_completion")
 
     Returns:
