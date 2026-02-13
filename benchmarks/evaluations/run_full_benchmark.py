@@ -241,6 +241,18 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     run_cgan = not args.agent_only
     run_agent = not args.cgan_only
 
+    # CGAN baseline is not applicable for problems without a HuggingFace dataset
+    # (e.g. rag_beams2d uses handcrafted prompts with no ground-truth designs)
+    problem_config = PROBLEMS[args.problem]
+    if run_cgan and not problem_config.dataset_name:
+        if args.cgan_only:
+            print(
+                f"Error: CGAN evaluation is not applicable for '{args.problem}' "
+                f"(no dataset configured)"
+            )
+            sys.exit(1)
+        run_cgan = False
+
     # Setup output directories
     # CGAN: results/baselines/cgan_cnn_2d/{problem}/
     cgan_results_dir = BASELINES_DIR / "cgan_cnn_2d" / args.problem
@@ -285,12 +297,8 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             if ret != 0:
                 print(f"Warning: Prompt generation failed for seed {seed}")
 
-        # Step 2: Run CGAN evaluation (not applicable for RAG evaluation problems)
-        if run_cgan and args.problem == "rag_beams2d":
-            print(
-                f"\n[Seed {seed}] Skipping CGAN evaluation (not applicable for rag_beams2d)"
-            )
-        elif run_cgan:
+        # Step 2: Run CGAN evaluation
+        if run_cgan:
             print(f"\n[Seed {seed}] Running CGAN evaluation...")
             ret = run_cgan_evaluation(
                 args.problem,
