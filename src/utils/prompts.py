@@ -72,7 +72,7 @@ A library of ML algorithms built on top of EngiBench problems:
 
 **Clarification (Required):**
 When the user's request does NOT specify exact numerical values for required design parameters
-(e.g., volume fraction, force distribution), you MUST call
+(e.g., volume fraction, filter radius, force distribution), you MUST call
 `ask_human_for_clarification` to ask the user for the missing values BEFORE calling
 any design tools (optimize_design, simulate_design, render_design, etc.).
 Exception: if the user explicitly says "use default values" or "do not ask for clarification",
