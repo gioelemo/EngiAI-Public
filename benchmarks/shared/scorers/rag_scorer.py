@@ -86,17 +86,31 @@ _WT_RAG_TOOL = COMPONENT_WEIGHTS_TRIPLE["rag_tool_called"]
 RAG_OUTPUT_FIELDS: tuple[str, ...] = (
     "rag_benefit_score",
     "rag_tool_called",
+    # volfrac
     "volfrac_accuracy",
     "effective_volfrac_accuracy",
+    "volfrac_actual",
+    "volfrac_expected",
+    "volfrac_error",
+    "volfrac_within_tolerance",
+    # forcedist
     "forcedist_accuracy",
     "effective_forcedist_accuracy",
+    "forcedist_actual",
+    "forcedist_expected",
+    "forcedist_error",
+    "forcedist_within_tolerance",
     "forcedist_tested",
+    # rmin
     "rmin_accuracy",
     "effective_rmin_accuracy",
-    "rmin_tested",
-    "volfrac_within_tolerance",
-    "forcedist_within_tolerance",
+    "rmin_actual",
+    "rmin_expected",
+    "rmin_error",
     "rmin_within_tolerance",
+    "rmin_tested",
+    # metadata
+    "example_id",
 )
 
 

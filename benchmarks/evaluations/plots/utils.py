@@ -20,6 +20,7 @@ import seaborn as sns
 _PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
+from benchmarks.shared.problem_registry import PROBLEMS as _PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS  # noqa: E402
 
 # Constants
@@ -31,8 +32,8 @@ RESULTS_DIR = Path(__file__).parent.parent / "results"
 OUTPUT_DIR = Path(__file__).parent / "figures"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Known problem types
-KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d", "rag_beams2d"]
+# Known problem types — derived from the problem registry to stay in sync
+KNOWN_PROBLEMS = list(_PROBLEMS.keys())
 
 # Known prompt styles
 KNOWN_PROMPT_STYLES = [
