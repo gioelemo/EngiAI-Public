@@ -550,8 +550,16 @@ def _find_eval_ids_by_name_pattern(
                     if name_pattern in parent_op:
                         matched.append(call.id)
                         continue
-            except Exception:
-                pass
+            except Exception as exc:
+                # Parent lookup failures are non-fatal; log at debug level and continue.
+                logger.debug(
+                    "Failed to fetch parent call %s while searching for evaluations "
+                    "matching pattern '%s': %s",
+                    parent_id,
+                    name_pattern,
+                    exc,
+                    exc_info=True,
+                )
 
         # Collect display names for debug output when nothing matches
         if display_name:
