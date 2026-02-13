@@ -365,8 +365,7 @@ def main() -> None:
     output_dir = Path(__file__).parent / "data" / "generated"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = (
-        output_dir
-        / f"rag_beams2d_prompts_{n}_samples_{args.split}_{args.style}.json"
+        output_dir / f"rag_beams2d_prompts_{n}_samples_{args.split}_{args.style}.json"
     )
 
     with output_file.open("w") as f:
