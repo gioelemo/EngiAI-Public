@@ -328,6 +328,7 @@ PLOT_STYLE = {
         "beams2d": COLOR_PALETTE[0],
         "photonics2d": COLOR_PALETTE[1],
         "thermoelastic2d": COLOR_PALETTE[2],
+        "rag_beams2d": COLOR_PALETTE[3],
     },
     "alpha": 0.7,
     "marker_size": 40,  # Smaller for publication
