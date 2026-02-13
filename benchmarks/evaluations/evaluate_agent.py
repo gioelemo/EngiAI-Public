@@ -761,7 +761,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
             f"     python benchmarks/evaluations/extract_data.py"
             f" --problem {args.problem} --prompt-style {args.prompt_style}"
             f" --rag-status {rag_dir}"
-            f"  # auto-filters by eval name containing '{mmore_suffix}'"
+            f"  # filters rag_beams2d runs using RAG status/metadata; pass --eval-name to narrow if needed"
         )
         print(
             '  2. Run "python benchmarks/evaluations/plots/run_all.py'
