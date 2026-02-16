@@ -83,6 +83,7 @@ def plot_tool_heatmap_counts(tool_data, output_dir=None):
             annot_labels[i, j] = f"{mean_val:.1f}\n±{std_val:.1f}"
 
     n_tools = len(model_tool_mean)
+    # Dynamic height: min 2.4" for small tool sets, 0.2" per tool, max 5.0" to prevent oversized plots
     fig_height = min(max(2.4, n_tools * 0.2), 5.0)
     fig, ax = plt.subplots(
         figsize=(PLOT_STYLE["figsize_single_col"][0], fig_height),
@@ -97,7 +98,7 @@ def plot_tool_heatmap_counts(tool_data, output_dir=None):
         cbar_kws={"label": "Avg. Calls per Sample", "shrink": 0.8},
         linewidths=0.3,
         ax=ax,
-        annot_kws={"size": font_sizes["annotation"] - 1},
+        annot_kws={"size": max(font_sizes["annotation"] - 1, 6)},
     )
 
     ax.set_xlabel("")

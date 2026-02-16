@@ -108,32 +108,51 @@ def _validate_stl_parameters(
         expected_value = expected_params.get(param_name)
         actual_value = stl_details.get(result_key)
 
-        if expected_value is None or actual_value is None:
+        # Only count as violation if we expected a value but didn't get it
+        if expected_value is not None and actual_value is None:
             logger.warning(
-                "Example %s: Missing STL param %s (expected=%s, actual=%s)",
+                "Example %s: Missing STL param %s (expected=%s, actual=None)",
                 example_id,
                 param_name,
                 expected_value,
-                actual_value,
             )
             violations += 1
             metrics[f"stl_{param_name}_valid"] = False
             continue
 
-        # Validate based on type
-        if param_type is float:
-            actual_value = float(actual_value)
-            expected_value = float(expected_value)
-            error = abs(actual_value - expected_value)
-            is_valid = error < tolerance
-        elif param_type is bool:
-            actual_value = bool(actual_value)
-            expected_value = bool(expected_value)
-            error = 0.0 if actual_value == expected_value else 1.0
-            is_valid = actual_value == expected_value
-        else:
-            error = 0.0
-            is_valid = True
+        # Skip validation if parameter not expected for this prompt style
+        if expected_value is None:
+            continue
+
+        # Validate based on type with error handling
+        try:
+            if param_type is float:
+                actual_value = float(actual_value)
+                expected_value = float(expected_value)
+                error = abs(actual_value - expected_value)
+                is_valid = error < tolerance
+            elif param_type is bool:
+                actual_value = bool(actual_value)
+                expected_value = bool(expected_value)
+                error = 0.0 if actual_value == expected_value else 1.0
+                is_valid = actual_value == expected_value
+            else:
+                error = 0.0
+                is_valid = True
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                "Example %s: Type conversion error for STL param %s: %s "
+                "(expected=%s, actual=%s)",
+                example_id,
+                param_name,
+                e,
+                expected_value,
+                actual_value,
+            )
+            violations += 1
+            metrics[f"stl_{param_name}_valid"] = False
+            metrics[f"stl_{param_name}_error"] = "conversion_error"
+            continue
 
         # Store metrics (following constraint validation pattern)
         metrics[f"stl_{param_name}_actual"] = actual_value

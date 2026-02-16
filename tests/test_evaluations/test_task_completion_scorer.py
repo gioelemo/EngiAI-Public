@@ -193,7 +193,7 @@ def test_validate_stl_parameters_missing_actual_param():
 
 @pytest.mark.unit
 def test_validate_stl_parameters_missing_expected_param():
-    """Test validation when expected parameter is missing."""
+    """Test validation when parameter is not in expected dict (legitimately not required)."""
     stl_details = {
         "scale_xy": 2.5,
         "scale_z": 10.0,
@@ -203,17 +203,18 @@ def test_validate_stl_parameters_missing_expected_param():
     expected_params = {
         "scale_xy": 2.5,
         "scale_z": 10.0,
-        # threshold missing in expected
+        # threshold missing in expected (not required for this prompt style)
         "mirror_y": True,
     }
     example_id = 0
 
     score, metrics = _validate_stl_parameters(stl_details, expected_params, example_id)
 
-    # Should fail validation for missing expected param
-    assert score == 0.0
-    assert metrics["stl_param_violations"] >= 1
-    assert metrics["stl_threshold_valid"] is False
+    # Should pass validation - only validates params that are in expected_params
+    assert score == 1.0
+    assert metrics["stl_param_violations"] == 0
+    # threshold should not have validation metrics since it's not expected
+    assert "stl_threshold_valid" not in metrics
 
 
 @pytest.mark.unit

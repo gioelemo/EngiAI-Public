@@ -51,6 +51,13 @@ DERIVED_SCALE_XY_MULTIPLIER = 2
 DERIVED_SCALE_Z_MULTIPLIER = 40
 DERIVED_MIRROR_VOLFRAC_THRESHOLD = 0.4
 
+# Seed offset for distractor parameter generation (workflow-distractor style)
+DISTRACTOR_SEED_OFFSET = 10000
+
+# Fallback thresholds for distractor parameter generation (when random sampling fails)
+DISTRACTOR_THRESHOLD_MIDPOINT = 0.5  # Midpoint of threshold range [0.3, 0.7]
+DISTRACTOR_SCALE_XY_MIDPOINT = 2.75  # Midpoint of scale_xy range [0.5, 5.0]
+
 # Prompt styles configuration with their optimal tool sequences
 PROMPT_STYLES: dict[str, dict[str, Any]] = {
     "full": {
@@ -264,20 +271,35 @@ def _generate_distractor_params(
     """
     min_threshold_gap = 0.1
     min_scale_xy_gap = 0.5
+    max_attempts = 100
 
     # Generate distractor threshold with guaranteed gap from real value
     real_threshold = real_params["threshold"]
-    while True:
-        dt = float(rng.uniform(0.3, 0.7))
-        if abs(dt - real_threshold) >= min_threshold_gap:
+    dt = None
+    for _ in range(max_attempts):
+        candidate = float(rng.uniform(0.3, 0.7))
+        if abs(candidate - real_threshold) >= min_threshold_gap:
+            dt = candidate
             break
+
+    # Fallback: if random sampling fails, use deterministic value with guaranteed gap
+    if dt is None:
+        # Place distractor at opposite end of range from real value
+        dt = 0.3 if real_threshold > DISTRACTOR_THRESHOLD_MIDPOINT else 0.7
 
     # Generate distractor scale_xy with guaranteed gap from real value
     real_scale_xy = real_params["scale_xy"]
-    while True:
-        ds = float(rng.uniform(0.5, 5.0))
-        if abs(ds - real_scale_xy) >= min_scale_xy_gap:
+    ds = None
+    for _ in range(max_attempts):
+        candidate = float(rng.uniform(0.5, 5.0))
+        if abs(candidate - real_scale_xy) >= min_scale_xy_gap:
+            ds = candidate
             break
+
+    # Fallback: if random sampling fails, use deterministic value with guaranteed gap
+    if ds is None:
+        # Place distractor at opposite end of range from real value
+        ds = 0.5 if real_scale_xy > DISTRACTOR_SCALE_XY_MIDPOINT else 5.0
 
     return {
         "distractor_threshold": dt,
@@ -690,7 +712,7 @@ def _create_workflow_distractor_prompt(
     stl_params = _generate_random_stl_params(unique_seed)
 
     # Generate competing distractor values with a derived seed
-    distractor_rng = np.random.default_rng(unique_seed + 10000)
+    distractor_rng = np.random.default_rng(unique_seed + DISTRACTOR_SEED_OFFSET)
     distractors = _generate_distractor_params(distractor_rng, stl_params)
 
     # Format mirror instruction
