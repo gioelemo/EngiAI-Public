@@ -771,6 +771,7 @@ def main():
             "natural",
             "workflow",
             "workflow-random",
+            "workflow-conditional",
             "rag-eval",
         ],
         help="Prompt style used (default: full)",

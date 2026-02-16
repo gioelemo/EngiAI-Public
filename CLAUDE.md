@@ -121,6 +121,7 @@ The beams2d benchmark supports multiple prompt styles for evaluating different a
 - **natural**: Natural language descriptions only
 - **workflow**: Full workflow with STL export (hardcoded parameters)
 - **workflow-random**: Full workflow with randomized STL parameters and validation
+- **workflow-conditional**: Workflow with if/then branching based on simulation results
 
 #### workflow-random Prompt Style
 
@@ -164,5 +165,58 @@ Example prompt excerpt:
    - Mirror: Mirror the design across the y-axis for the final geometry
    - XY Scaling: Scale the X and Y dimensions by 2.47
    - Extrusion: Extrude the 2D result by 17.9 units in the Z-axis...
+   - Export: Save the final geometry as an STL file with these exact parameters
+```
+
+#### workflow-conditional Prompt Style
+
+The `workflow-conditional` style extends `workflow-random` by adding if/then branching logic that depends on the simulation result. The agent must read the compliance value from `simulate_design`, compare it against a threshold, and select the correct parameter set. This tests tool-output → reasoning → tool-input chaining.
+
+**Flow:**
+1. Optimize the design with given parameters
+2. Simulate the design to get compliance
+3. Compare compliance against a randomized threshold
+4. Apply the correct branch-specific parameters (threshold, mirror_y)
+5. Apply common parameters (scale_xy, scale_z) regardless of branch
+6. Export as STL
+
+**Randomized Parameters:**
+- `compliance_threshold`: Float (100-300) - the branching condition
+- `branch_high.threshold` / `branch_low.threshold`: Float (0.3-0.7) - density thresholds (guaranteed ≥0.1 apart)
+- `branch_high.mirror_y` / `branch_low.mirror_y`: Boolean - mirror settings (guaranteed opposite)
+- `common.scale_xy`: Float (0.5-5.0) - X/Y scaling (both branches)
+- `common.scale_z`: Float (5.0-20.0) - Z extrusion height (both branches)
+
+**Validation:**
+The scorer uses ground truth compliance from the dataset to determine the correct branch, then validates STL parameters as in workflow-random (±0.05 for floats, exact match for booleans).
+
+**Usage:**
+```bash
+# Generate workflow-conditional prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-conditional --seed 42
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-conditional --seed 42
+```
+
+**Additional Validation Metrics:**
+- `conditional_compliance_threshold`: The randomized branching threshold
+- `conditional_gt_compliance`: Ground truth compliance from the dataset
+- `conditional_correct_branch`: Which branch was correct ("high" or "low")
+
+Example prompt excerpt:
+```
+3. Post-processing & Export (conditional on compliance)
+   - If compliance > 213.4:
+     - Thresholding: Apply a 0.42 density threshold
+     - Mirror: Mirror the design across the y-axis
+   - If compliance <= 213.4:
+     - Thresholding: Apply a 0.61 density threshold
+     - Mirror: Do NOT mirror the design
+   - In both cases:
+     - XY Scaling: Scale the X and Y dimensions by 3.14
+     - Extrusion: Extrude the 2D result by 11.7 units in the Z-axis
    - Export: Save the final geometry as an STL file with these exact parameters
 ```

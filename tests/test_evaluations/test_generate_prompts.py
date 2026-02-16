@@ -1,7 +1,7 @@
-"""Tests for workflow-random prompt generation functionality.
+"""Tests for workflow-random and workflow-conditional prompt generation functionality.
 
-Tests for the _generate_random_stl_params() function and workflow-random
-prompt creation in benchmarks/problems/beams2d/generate_prompts.py.
+Tests for the _generate_random_stl_params() and _generate_random_conditional_params()
+functions and corresponding prompt creation in benchmarks/problems/beams2d/generate_prompts.py.
 """
 
 import sys
@@ -15,7 +15,9 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from benchmarks.problems.beams2d.generate_prompts import (  # noqa: E402
+    _create_workflow_conditional_prompt,
     _create_workflow_random_prompt,
+    _generate_random_conditional_params,
     _generate_random_stl_params,
     create_prompt_from_conditions,
 )
@@ -388,3 +390,147 @@ def test_workflow_random_different_examples_different_params():
 
     # Same seed but different example_id should give different params
     assert data1["stl_expected_params"] != data2["stl_expected_params"]
+
+
+# ============================================================================
+# WORKFLOW-CONDITIONAL RANDOM PARAMETER GENERATION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_generate_random_conditional_params_deterministic():
+    """Test that same seed produces same conditional parameters."""
+    params1 = _generate_random_conditional_params(seed=42)
+    params2 = _generate_random_conditional_params(seed=42)
+    assert params1 == params2
+
+
+@pytest.mark.unit
+def test_generate_random_conditional_params_structure():
+    """Test conditional params have correct structure and value ranges."""
+    params = _generate_random_conditional_params(seed=42)
+
+    assert params["conditional"] is True
+    assert "compliance_threshold" in params
+    assert "branch_high" in params
+    assert "branch_low" in params
+    assert "common" in params
+
+    # Check ranges
+    assert 100.0 <= params["compliance_threshold"] <= 300.0
+    assert 0.3 <= params["branch_high"]["threshold"] <= 0.7
+    assert 0.3 <= params["branch_low"]["threshold"] <= 0.7
+    assert isinstance(params["branch_high"]["mirror_y"], bool)
+    assert isinstance(params["branch_low"]["mirror_y"], bool)
+    assert 0.5 <= params["common"]["scale_xy"] <= 5.0
+    assert 5.0 <= params["common"]["scale_z"] <= 20.0
+
+
+@pytest.mark.unit
+def test_generate_random_conditional_params_branches_distinct():
+    """Test that branches are guaranteed distinct across many seeds."""
+    for seed in range(20):
+        params = _generate_random_conditional_params(seed=seed)
+        bh = params["branch_high"]
+        bl = params["branch_low"]
+
+        # mirror_y must be opposite
+        assert bh["mirror_y"] != bl["mirror_y"]
+
+        # thresholds must be at least 0.1 apart
+        assert abs(bh["threshold"] - bl["threshold"]) >= 0.1
+
+
+# ============================================================================
+# WORKFLOW-CONDITIONAL PROMPT CREATION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_create_workflow_conditional_prompt_contains_if_then():
+    """Test that prompt text contains conditional instructions."""
+    prompt, params = _create_workflow_conditional_prompt(0.3, 0.5, 2.0, 0, seed=42)
+
+    ct = params["compliance_threshold"]
+    assert f"If compliance > {ct:.1f}" in prompt
+    assert f"If compliance <= {ct:.1f}" in prompt
+    assert f"{params['branch_high']['threshold']:.2f}" in prompt
+    assert f"{params['branch_low']['threshold']:.2f}" in prompt
+    assert f"{params['common']['scale_xy']:.2f}" in prompt
+    assert f"{params['common']['scale_z']:.1f}" in prompt
+    assert "In both cases" in prompt
+
+
+@pytest.mark.unit
+def test_create_workflow_conditional_prompt_deterministic():
+    """Test that same inputs produce same prompt and params."""
+    prompt1, params1 = _create_workflow_conditional_prompt(0.3, 0.5, 2.0, 5, seed=42)
+    prompt2, params2 = _create_workflow_conditional_prompt(0.3, 0.5, 2.0, 5, seed=42)
+
+    assert prompt1 == prompt2
+    assert params1 == params2
+
+
+@pytest.mark.unit
+def test_create_workflow_conditional_prompt_unique_per_example():
+    """Test that different example_ids produce different params."""
+    _, params1 = _create_workflow_conditional_prompt(0.3, 0.5, 2.0, 0, seed=42)
+    _, params2 = _create_workflow_conditional_prompt(0.3, 0.5, 2.0, 1, seed=42)
+
+    assert params1 != params2
+
+
+# ============================================================================
+# WORKFLOW-CONDITIONAL INTEGRATION WITH create_prompt_from_conditions
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_create_prompt_workflow_conditional_integration():
+    """Test workflow-conditional integration in create_prompt_from_conditions."""
+    example = {
+        "volfrac": 0.3,
+        "forcedist": 0.5,
+        "rmin": 2.0,
+        "c": 250.0,
+        "optimal_design": np.zeros((10, 10)),
+        "example_id": 0,
+    }
+
+    prompt_data = create_prompt_from_conditions(
+        example, include_target=True, prompt_style="workflow-conditional", seed=42
+    )
+
+    assert prompt_data["prompt_style"] == "workflow-conditional"
+    assert "stl_expected_params" in prompt_data
+    assert prompt_data["stl_expected_params"]["conditional"] is True
+    assert prompt_data["metadata"]["success_criteria"] == "stl_export_with_params"
+
+    # Target should include compliance
+    assert "target" in prompt_data
+    assert "compliance" in prompt_data["target"]
+
+    # Optimal tool calls should include optimize, simulate, convert_to_stl
+    tool_names = [tool["name"] for tool in prompt_data["optimal_tool_calls"]]
+    assert "optimize_design" in tool_names
+    assert "simulate_design" in tool_names
+    assert "convert_design_to_stl" in tool_names
+
+
+@pytest.mark.unit
+def test_workflow_conditional_no_stl_params_for_other_styles():
+    """Test that existing styles are not affected by conditional additions."""
+    example = {
+        "volfrac": 0.3,
+        "forcedist": 0.5,
+        "rmin": 2.0,
+        "c": 100.0,
+        "optimal_design": np.zeros((10, 10)),
+        "example_id": 0,
+    }
+
+    for style in ["full", "workflow"]:
+        prompt_data = create_prompt_from_conditions(
+            example, include_target=False, prompt_style=style, seed=42
+        )
+        assert "stl_expected_params" not in prompt_data

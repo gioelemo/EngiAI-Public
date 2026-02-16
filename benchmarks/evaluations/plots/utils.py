@@ -42,6 +42,7 @@ KNOWN_PROMPT_STYLES = [
     "natural",
     "workflow",
     "workflow-random",
+    "workflow-conditional",
     "rag-eval",
 ]
 
@@ -254,39 +255,36 @@ def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
     if data_type is None:
         return None
 
-    # 2. Match known problems (longest names first to avoid partial matches).
-    #    This correctly handles compound names like "rag_beams2d" before "beams2d".
-    problem = None
-    model_part = None
+    # 2-4. Try each known problem (longest first) with backtracking.
+    #    For each candidate problem, attempt to parse rag_status + prompt_style
+    #    from the remainder. If that fails, try the next shorter problem.
+    #    This avoids false matches like "no_rag_beams2d" → "rag_beams2d".
     for known_problem in sorted(KNOWN_PROBLEMS, key=len, reverse=True):
-        if key_without_type.endswith(f"_{known_problem}"):
-            problem = known_problem
-            model_part = key_without_type[: -(len(known_problem) + 1)]
-            break
-    if problem is None:
-        return None
-    assert model_part is not None  # set in the same loop branch as problem
+        if not key_without_type.endswith(f"_{known_problem}"):
+            continue
 
-    # 3. Extract rag_status (check "no_rag" before "rag" to avoid partial match)
-    rag_status = None
-    for status in KNOWN_RAG_STATUSES:
-        if model_part.endswith(f"_{status}"):
-            rag_status = status
-            model_part = model_part[: -(len(status) + 1)]
-            break
+        candidate_model = key_without_type[: -(len(known_problem) + 1)]
 
-    # 4. Extract prompt_style (longest styles first to avoid partial matches)
-    for style in sorted(KNOWN_PROMPT_STYLES, key=len, reverse=True):
-        if model_part.endswith(f"_{style}"):
-            model_name = model_part[: -(len(style) + 1)]
-            return {
-                "model": model_name,
-                "prompt_style": style,
-                "rag_status": rag_status,
-                "problem": problem,
-                "type": data_type,
-                "is_baseline": False,
-            }
+        # 3. Extract rag_status (check "no_rag" before "rag" to avoid partial match)
+        candidate_rag = None
+        for status in KNOWN_RAG_STATUSES:
+            if candidate_model.endswith(f"_{status}"):
+                candidate_rag = status
+                candidate_model = candidate_model[: -(len(status) + 1)]
+                break
+
+        # 4. Extract prompt_style (longest styles first to avoid partial matches)
+        for style in sorted(KNOWN_PROMPT_STYLES, key=len, reverse=True):
+            if candidate_model.endswith(f"_{style}"):
+                model_name = candidate_model[: -(len(style) + 1)]
+                return {
+                    "model": model_name,
+                    "prompt_style": style,
+                    "rag_status": candidate_rag,
+                    "problem": known_problem,
+                    "type": data_type,
+                    "is_baseline": False,
+                }
 
     return None
 

@@ -9,6 +9,7 @@ Supports multiple prompt styles:
 - approximate: Rounded/approximate values
 - natural: Natural language descriptions only
 - workflow: Full workflow with export steps
+- workflow-conditional: Workflow with if/then branching based on simulation results
 
 Dataset: https://huggingface.co/datasets/IDEALLab/beams_2d_50_100_v0
 """
@@ -83,6 +84,17 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
     },
     "workflow-random": {
         "description": "Full workflow with random STL parameters",
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "convert_design_to_stl", "count": 1},
+        ],
+        "optimal_call_count": 3,
+        "success_criteria": "stl_export_with_params",
+        "validate_stl_params": True,
+    },
+    "workflow-conditional": {
+        "description": "Workflow with conditional branching based on simulation results",
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
             {"name": "simulate_design", "count": 1},
@@ -217,6 +229,130 @@ def _generate_random_stl_params(seed: int | None = None) -> dict[str, Any]:
     }
 
 
+def _generate_random_conditional_params(seed: int | None = None) -> dict[str, Any]:
+    """Generate random parameters for workflow-conditional prompts.
+
+    Generates a compliance threshold for branching, two distinct sets of
+    branch-specific params (threshold, mirror_y), and common params (scale_xy, scale_z).
+
+    Args:
+        seed: Random seed for reproducibility
+
+    Returns:
+        Dict with: conditional flag, compliance_threshold, branch_high, branch_low, common
+    """
+    rng = np.random.default_rng(seed)
+
+    # Compliance threshold: 100-300 range (centered on COMPLIANCE_FLEXIBLE=200)
+    compliance_threshold = float(rng.uniform(100.0, 300.0))
+
+    # Branch-specific parameters: threshold and mirror_y
+    threshold_high = float(rng.uniform(0.3, 0.7))
+    threshold_low = float(rng.uniform(0.3, 0.7))
+
+    # Ensure the two thresholds are distinguishable
+    min_threshold_gap = 0.1
+    while abs(threshold_high - threshold_low) < min_threshold_gap:
+        threshold_low = float(rng.uniform(0.3, 0.7))
+
+    # Mirror: one branch mirrors, the other does not (guaranteed distinct)
+    mirror_high = bool(rng.choice([True, False]))
+    mirror_low = not mirror_high
+
+    # Common parameters (same for both branches)
+    scale_xy = float(rng.uniform(0.5, 5.0))
+    scale_z = float(rng.uniform(5.0, 20.0))
+
+    return {
+        "conditional": True,
+        "compliance_threshold": round(compliance_threshold, 1),
+        "branch_high": {
+            "threshold": threshold_high,
+            "mirror_y": mirror_high,
+        },
+        "branch_low": {
+            "threshold": threshold_low,
+            "mirror_y": mirror_low,
+        },
+        "common": {
+            "scale_xy": scale_xy,
+            "scale_z": scale_z,
+        },
+    }
+
+
+def _create_workflow_conditional_prompt(
+    volfrac: float,
+    forcedist: float,
+    rmin: float,
+    example_id: int,
+    seed: int | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Create workflow prompt with conditional branching based on compliance.
+
+    The prompt instructs the agent to:
+    1. Optimize and simulate to get compliance
+    2. Branch based on compliance vs. a randomized threshold
+    3. Apply branch-specific STL params (threshold, mirror_y)
+    4. Apply common STL params (scale_xy, scale_z)
+
+    Args:
+        volfrac: Volume fraction for optimization
+        forcedist: Force distribution parameter
+        rmin: Minimum filter radius
+        example_id: Unique example identifier
+        seed: Base seed for random generation
+
+    Returns:
+        Tuple of (prompt_text, conditional_stl_expected_params_dict)
+    """
+    unique_seed = (seed if seed is not None else 0) + example_id
+    params = _generate_random_conditional_params(unique_seed)
+
+    ct = params["compliance_threshold"]
+    bh = params["branch_high"]
+    bl = params["branch_low"]
+    common = params["common"]
+
+    mirror_high_instr = (
+        "Mirror the design across the y-axis"
+        if bh["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+    mirror_low_instr = (
+        "Mirror the design across the y-axis"
+        if bl["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+
+    prompt = (
+        f"Execute a 2D topology optimization, simulate the result, then export "
+        f"the geometry as a 3D-printable STL file with parameters that depend on "
+        f"the simulation outcome.\n\n"
+        f"1. Optimization Configuration\n"
+        f"   - Volume Fraction: {volfrac}\n"
+        f"   - Force Distribution: {forcedist}\n"
+        f"   - Filter Radius (rmin): {rmin}\n"
+        f"   - Objective: Minimize compliance\n\n"
+        f"2. Simulation\n"
+        f"   - After optimization, simulate the design to obtain the compliance value\n\n"
+        f"3. Post-processing & Export (conditional on compliance)\n"
+        f"   - If compliance > {ct:.1f}:\n"
+        f"     - Thresholding: Apply a {bh['threshold']:.2f} density threshold\n"
+        f"     - Mirror: {mirror_high_instr}\n"
+        f"   - If compliance <= {ct:.1f}:\n"
+        f"     - Thresholding: Apply a {bl['threshold']:.2f} density threshold\n"
+        f"     - Mirror: {mirror_low_instr}\n"
+        f"   - In both cases:\n"
+        f"     - XY Scaling: Scale the X and Y dimensions by {common['scale_xy']:.2f}\n"
+        f"     - Extrusion: Extrude the 2D result by {common['scale_z']:.1f} units "
+        f"in the Z-axis to create a 3D volume\n"
+        f"   - Export: Save the final geometry as an STL file with these exact parameters"
+    )
+
+    return prompt, params
+
+
 def _create_workflow_random_prompt(
     volfrac: float,
     forcedist: float,
@@ -280,8 +416,10 @@ def create_prompt_from_conditions(
     Args:
         example: Single example from the HuggingFace dataset
         include_target: Whether to include target compliance for validation
-        prompt_style: Style of prompt to generate ('full', 'approximate', 'natural', 'workflow', 'workflow-random')
-        seed: Random seed for reproducible random parameter generation (workflow-random only)
+        prompt_style: Style of prompt to generate ('full', 'approximate', 'natural',
+            'workflow', 'workflow-random', 'workflow-conditional')
+        seed: Random seed for reproducible random parameter generation
+            (workflow-random and workflow-conditional)
 
     Returns:
         Dictionary with prompt, conditions, and optional target values
@@ -316,6 +454,10 @@ def create_prompt_from_conditions(
         prompt = _create_natural_prompt(volfrac, forcedist, compliance)
     elif prompt_style == "workflow-random":
         prompt, stl_expected_params = _create_workflow_random_prompt(
+            volfrac, forcedist, rmin, example.get("example_id", 0), seed
+        )
+    elif prompt_style == "workflow-conditional":
+        prompt, stl_expected_params = _create_workflow_conditional_prompt(
             volfrac, forcedist, rmin, example.get("example_id", 0), seed
         )
     elif prompt_style == "workflow":

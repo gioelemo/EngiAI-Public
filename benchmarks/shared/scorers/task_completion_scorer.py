@@ -3,6 +3,7 @@
 This scorer checks task completion based on prompt style:
 - Standard prompts (full, approximate, natural): render_design must be called successfully
 - Workflow prompts: convert_design_to_stl must be called successfully
+- Workflow-conditional: STL export with params resolved from compliance-based branching
 """
 
 import ast
@@ -154,9 +155,70 @@ def _validate_stl_parameters(
     return validation_score, metrics
 
 
+def _resolve_conditional_params(
+    conditional_params: dict[str, Any],
+    target: dict[str, Any],
+    example_id: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve conditional STL parameters based on ground truth compliance.
+
+    For workflow-conditional prompts, determines which branch the agent should
+    have taken based on the ground truth compliance value, and returns the
+    expected flat parameter dict for validation.
+
+    Args:
+        conditional_params: The conditional stl_expected_params structure with
+            compliance_threshold, branch_high, branch_low, and common keys
+        target: Target dict containing ground truth compliance
+        example_id: Example ID for logging
+
+    Returns:
+        Tuple of (resolved_flat_params, branch_metrics)
+        - resolved_flat_params: Flat dict with scale_xy, scale_z, threshold, mirror_y
+        - branch_metrics: Dict with branch decision details for reporting
+    """
+    compliance_threshold = conditional_params["compliance_threshold"]
+    gt_compliance = target.get("compliance", 0.0)
+
+    # Determine correct branch
+    if gt_compliance > compliance_threshold:
+        correct_branch = "high"
+        branch_params = conditional_params["branch_high"]
+    else:
+        correct_branch = "low"
+        branch_params = conditional_params["branch_low"]
+
+    common_params = conditional_params["common"]
+
+    # Build flat expected params (same format as workflow-random)
+    resolved = {
+        "threshold": branch_params["threshold"],
+        "mirror_y": branch_params["mirror_y"],
+        "scale_xy": common_params["scale_xy"],
+        "scale_z": common_params["scale_z"],
+    }
+
+    branch_metrics = {
+        "conditional_compliance_threshold": compliance_threshold,
+        "conditional_gt_compliance": gt_compliance,
+        "conditional_correct_branch": correct_branch,
+    }
+
+    logger.info(
+        "Example %s (workflow-conditional): gt_compliance=%.2f, threshold=%.1f, "
+        "correct_branch=%s",
+        example_id,
+        gt_compliance,
+        compliance_threshold,
+        correct_branch,
+    )
+
+    return resolved, branch_metrics
+
+
 def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     output: dict[str, Any],
-    target: dict[str, Any],  # noqa: ARG001 - Required by scorer interface
+    target: dict[str, Any],
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
     """Score task completion based on prompt style.
@@ -173,7 +235,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
 
     Args:
         output: Agent output with messages and model info
-        target: Target/ground truth data from dataset (unused)
+        target: Target/ground truth data from dataset (used for workflow-conditional)
         metadata: Metadata including example_id, problem_type, prompt_style, etc.
 
     Returns:
@@ -205,11 +267,16 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     messages = output.get("messages", [])
 
     # Determine success criteria based on prompt style
-    is_workflow = prompt_style in ["workflow", "workflow-random"]
+    is_workflow = prompt_style in [
+        "workflow",
+        "workflow-random",
+        "workflow-conditional",
+    ]
     is_workflow_random = prompt_style == "workflow-random"
+    is_workflow_conditional = prompt_style == "workflow-conditional"
     is_clarification = metadata.get("success_criteria") == "clarification_requested"
     success_criteria = "stl_export" if is_workflow else "render_design"
-    if is_workflow_random:
+    if is_workflow_random or is_workflow_conditional:
         success_criteria = "stl_export_with_params"
     if is_clarification:
         success_criteria = "clarification_requested"
@@ -435,35 +502,56 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 render_save_path,
             )
 
-    # STL Parameter Validation for workflow-random
+    # STL Parameter Validation for workflow-random and workflow-conditional
     stl_param_validation_score = 1.0
     stl_param_metrics: dict[str, Any] = {}
 
-    if is_workflow_random and stl_success:
+    if (is_workflow_random or is_workflow_conditional) and stl_success:
         expected_stl_params = metadata.get("stl_expected_params", {})
 
         if expected_stl_params:
-            stl_param_validation_score, stl_param_metrics = _validate_stl_parameters(
+            # For workflow-conditional: resolve branch before validation
+            if is_workflow_conditional and expected_stl_params.get("conditional"):
+                resolved_params, branch_metrics = _resolve_conditional_params(
+                    conditional_params=expected_stl_params,
+                    target=target,
+                    example_id=example_id,
+                )
+                stl_param_metrics.update(branch_metrics)
+                expected_stl_params = resolved_params
+
+            stl_param_validation_score, param_metrics = _validate_stl_parameters(
                 stl_details=stl_details,
                 expected_params=expected_stl_params,
                 example_id=example_id,
             )
+            stl_param_metrics.update(param_metrics)
 
-            # For workflow-random: task ONLY complete if params valid
+            # Task ONLY complete if params valid
             if stl_param_validation_score == 0.0:
                 success_rate = 0.0
                 task_completed = False
+                style_label = (
+                    "workflow-conditional"
+                    if is_workflow_conditional
+                    else "workflow-random"
+                )
                 logger.info(
-                    "Example %s (workflow-random): Task incomplete due to "
+                    "Example %s (%s): Task incomplete due to "
                     "STL parameter validation failure "
                     "(%s violations)",
                     example_id,
+                    style_label,
                     stl_param_metrics.get("stl_param_violations", 0),
                 )
         else:
+            style_label = (
+                "workflow-conditional" if is_workflow_conditional else "workflow-random"
+            )
             logger.warning(
-                "Example %s (workflow-random): No stl_expected_params in metadata",
+                "Example %s (%s): No stl_expected_params in metadata",
                 example_id,
+                style_label,
             )
 
     return {

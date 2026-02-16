@@ -354,7 +354,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         "--prompt-style",
         type=str,
         default="full",
-        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
+        choices=["full", "approximate", "natural", "workflow", "workflow-random", "workflow-conditional"],
         help="Prompt style used (default: full)",
     )
     parser.add_argument(

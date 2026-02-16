@@ -1,7 +1,7 @@
-"""Tests for workflow-random STL parameter validation functionality.
+"""Tests for STL parameter validation and conditional resolution functionality.
 
-Tests for the _validate_stl_parameters() function in
-benchmarks/shared/scorers/task_completion_scorer.py.
+Tests for the _validate_stl_parameters() and _resolve_conditional_params() functions
+in benchmarks/shared/scorers/task_completion_scorer.py.
 """
 
 import sys
@@ -14,6 +14,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from benchmarks.shared.scorers.task_completion_scorer import (  # noqa: E402
+    _resolve_conditional_params,
     _validate_stl_parameters,
 )
 
@@ -429,3 +430,89 @@ def test_validate_stl_parameters_very_close_floats():
     assert metrics["stl_scale_xy_error"] < 0.01
     assert metrics["stl_scale_z_error"] < 0.01
     assert metrics["stl_threshold_error"] < 0.01
+
+
+# ============================================================================
+# WORKFLOW-CONDITIONAL BRANCH RESOLUTION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_resolve_conditional_params_high_branch():
+    """Test that high branch is selected when compliance > threshold."""
+    conditional_params = {
+        "conditional": True,
+        "compliance_threshold": 200.0,
+        "branch_high": {"threshold": 0.42, "mirror_y": True},
+        "branch_low": {"threshold": 0.61, "mirror_y": False},
+        "common": {"scale_xy": 3.14, "scale_z": 11.7},
+    }
+    target = {"compliance": 250.0}  # > 200.0
+
+    resolved, metrics = _resolve_conditional_params(conditional_params, target, 0)
+
+    assert resolved["threshold"] == 0.42
+    assert resolved["mirror_y"] is True
+    assert resolved["scale_xy"] == 3.14
+    assert resolved["scale_z"] == 11.7
+    assert metrics["conditional_correct_branch"] == "high"
+    assert metrics["conditional_compliance_threshold"] == 200.0
+    assert metrics["conditional_gt_compliance"] == 250.0
+
+
+@pytest.mark.unit
+def test_resolve_conditional_params_low_branch():
+    """Test that low branch is selected when compliance <= threshold."""
+    conditional_params = {
+        "conditional": True,
+        "compliance_threshold": 200.0,
+        "branch_high": {"threshold": 0.42, "mirror_y": True},
+        "branch_low": {"threshold": 0.61, "mirror_y": False},
+        "common": {"scale_xy": 3.14, "scale_z": 11.7},
+    }
+    target = {"compliance": 150.0}  # <= 200.0
+
+    resolved, metrics = _resolve_conditional_params(conditional_params, target, 0)
+
+    assert resolved["threshold"] == 0.61
+    assert resolved["mirror_y"] is False
+    assert resolved["scale_xy"] == 3.14
+    assert resolved["scale_z"] == 11.7
+    assert metrics["conditional_correct_branch"] == "low"
+
+
+@pytest.mark.unit
+def test_resolve_conditional_params_at_boundary():
+    """Test that compliance == threshold selects low branch (<=)."""
+    conditional_params = {
+        "conditional": True,
+        "compliance_threshold": 200.0,
+        "branch_high": {"threshold": 0.42, "mirror_y": True},
+        "branch_low": {"threshold": 0.61, "mirror_y": False},
+        "common": {"scale_xy": 3.14, "scale_z": 11.7},
+    }
+    target = {"compliance": 200.0}  # == threshold, should be "low" (<=)
+
+    resolved, metrics = _resolve_conditional_params(conditional_params, target, 0)
+
+    assert metrics["conditional_correct_branch"] == "low"
+    assert resolved["threshold"] == 0.61
+    assert resolved["mirror_y"] is False
+
+
+@pytest.mark.unit
+def test_resolve_conditional_params_missing_compliance():
+    """Test resolution when target has no compliance (defaults to 0.0)."""
+    conditional_params = {
+        "conditional": True,
+        "compliance_threshold": 200.0,
+        "branch_high": {"threshold": 0.42, "mirror_y": True},
+        "branch_low": {"threshold": 0.61, "mirror_y": False},
+        "common": {"scale_xy": 3.14, "scale_z": 11.7},
+    }
+    target = {}  # No compliance → defaults to 0.0 → low branch
+
+    _resolved, metrics = _resolve_conditional_params(conditional_params, target, 0)
+
+    assert metrics["conditional_correct_branch"] == "low"
+    assert metrics["conditional_gt_compliance"] == 0.0
