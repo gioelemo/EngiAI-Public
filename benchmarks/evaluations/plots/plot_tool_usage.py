@@ -570,6 +570,64 @@ def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
     )  # Uses bbox_inches='tight'
 
 
+def _plot_single_performance_by_tool_count(df, metric, ylabel, output_name, output_dir):
+    """Plot a single violin of a metric grouped by total tool count.
+
+    Args:
+        df: DataFrame with tool usage and performance data
+        metric: Column name to plot on y-axis
+        ylabel: Display label for y-axis
+        output_name: Output filename
+        output_dir: Optional output directory
+    """
+    setup_style()
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
+    )
+
+    n_groups = df["total_tools"].nunique()
+    palette = PLOT_STYLE["color_palette"][:n_groups]
+
+    sns.violinplot(
+        data=df,
+        x="total_tools",
+        y=metric,
+        hue="total_tools",
+        legend=False,
+        inner="box",
+        palette=palette,
+        linewidth=0.5,
+        ax=ax,
+    )
+
+    # Mean annotations
+    font_sizes = PLOT_STYLE["font_sizes"]
+    y_bot = df[metric].min()
+    for j, tool_count in enumerate(sorted(df["total_tools"].unique())):
+        subset = df[df["total_tools"] == tool_count][metric]
+        if len(subset) > 0:
+            ax.annotate(
+                f"$\\mu$={subset.mean():.2f}",
+                xy=(j, y_bot),
+                ha="center",
+                va="bottom",
+                fontsize=font_sizes["annotation"],
+                bbox={
+                    "boxstyle": "round,pad=0.3",
+                    "facecolor": "white",
+                    "alpha": 0.8,
+                    "edgecolor": "0.8",
+                },
+            )
+
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel("Total Tools Used")
+    ax.grid(True, axis="y", alpha=0.3)
+
+    save_figure(fig, output_name, output_dir)
+    return fig
+
+
 def plot_performance_distribution_by_tool_count(
     combined_tools,
     combined_design,  # noqa: ARG001
@@ -577,71 +635,27 @@ def plot_performance_distribution_by_tool_count(
 ):
     """Show the distribution of performance metrics relative to tools used.
 
+    Generates two separate figures: one for overall score, one for IoU.
+
     Args:
         combined_tools: Combined design DataFrame with tool usage metrics
         combined_design: Unused, kept for compatibility
         output_dir: Optional output directory for saving
     """
-    setup_style()
-
-    # In the JSON pipeline, tool data and design data are in the same DataFrame
     df = combined_tools
 
-    # Check for required columns
     if "total_tools" not in df.columns or "combined_overall_score" not in df.columns:
         print("Missing required columns (total_tools or combined_overall_score)")
         return
 
-    fig, axes = plt.subplots(
-        1, 2, figsize=PLOT_STYLE["figsize_full_width"], constrained_layout=True
+    _plot_single_performance_by_tool_count(
+        df, "combined_overall_score", "Overall Score",
+        "performance_by_tools_overall.png", output_dir,
     )
-    metrics = ["combined_overall_score", "iou"]
-    labels = ["Overall Score", "IoU"]
-
-    for i, metric in enumerate(metrics):
-        ax = axes[i]
-
-        # FIX: Added hue="total_tools" and legend=False to resolve the FutureWarnings
-        n_groups = df["total_tools"].nunique()
-        palette = PLOT_STYLE["color_palette"][:n_groups]
-
-        sns.violinplot(
-            data=df,
-            x="total_tools",
-            y=metric,
-            hue="total_tools",
-            legend=False,
-            inner="box",
-            palette=palette,
-            linewidth=0.5,
-            ax=ax,
-        )
-
-        # Mean annotations
-        font_sizes = PLOT_STYLE["font_sizes"]
-        y_bot = df[metric].min()
-        for j, tool_count in enumerate(sorted(df["total_tools"].unique())):
-            subset = df[df["total_tools"] == tool_count][metric]
-            if len(subset) > 0:
-                ax.annotate(
-                    f"$\\mu$={subset.mean():.2f}",
-                    xy=(j, y_bot),
-                    ha="center",
-                    va="bottom",
-                    fontsize=font_sizes["annotation"],
-                    bbox={
-                        "boxstyle": "round,pad=0.3",
-                        "facecolor": "white",
-                        "alpha": 0.8,
-                        "edgecolor": "0.8",
-                    },
-                )
-
-        ax.set_ylabel(labels[i])
-        ax.set_xlabel("Total Tools Used")
-        ax.grid(True, axis="y", alpha=0.3)
-
-    save_figure(fig, "performance_stats_distribution.png", output_dir)
+    _plot_single_performance_by_tool_count(
+        df, "iou", "IoU",
+        "performance_by_tools_iou.png", output_dir,
+    )
 
 
 def main():
