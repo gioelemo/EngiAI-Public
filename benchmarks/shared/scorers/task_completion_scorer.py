@@ -489,9 +489,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
             if result is not None and result.get("success", False):
                 clarification_question = result.get("question")
             else:
-                clarification_question = (
-                    content if isinstance(content, str) else None
-                )
+                clarification_question = content if isinstance(content, str) else None
             logger.debug(
                 "Example %s: Parsed clarification question: %s",
                 example_id,

@@ -363,7 +363,9 @@ def _generate_random_conditional_params(seed: int | None = None) -> dict[str, An
     else:
         # Deterministic fallback: place at opposite end of range
         midpoint = (STL_THRESHOLD_MIN + STL_THRESHOLD_MAX) / 2
-        threshold_low = STL_THRESHOLD_MIN if threshold_high > midpoint else STL_THRESHOLD_MAX
+        threshold_low = (
+            STL_THRESHOLD_MIN if threshold_high > midpoint else STL_THRESHOLD_MAX
+        )
 
     # Mirror: one branch mirrors, the other does not (guaranteed distinct)
     mirror_high = bool(rng.choice([True, False]))
