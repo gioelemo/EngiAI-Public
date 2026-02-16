@@ -767,7 +767,6 @@ def main():
         default="full",
         choices=[
             "full",
-            "approximate",
             "natural",
             "workflow",
             "workflow-random",

@@ -356,7 +356,6 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         default="full",
         choices=[
             "full",
-            "approximate",
             "natural",
             "workflow",
             "workflow-random",

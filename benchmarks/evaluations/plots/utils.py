@@ -38,7 +38,6 @@ KNOWN_PROBLEMS = list(_PROBLEMS.keys())
 # Known prompt styles
 KNOWN_PROMPT_STYLES = [
     "full",
-    "approximate",
     "natural",
     "workflow",
     "workflow-random",
@@ -770,7 +769,7 @@ def filter_by_prompt_style(df, prompt_style: str, include_baselines: bool = True
 
     Args:
         df: DataFrame with a 'prompt_style' column
-        prompt_style: Prompt style to filter by (full, approximate, natural, workflow)
+        prompt_style: Prompt style to filter by (full, natural, workflow)
         include_baselines: If True, include baselines (which have no prompt_style)
 
     Returns:
@@ -821,7 +820,7 @@ def get_prompt_style_output_dir(prompt_style: str):
     """Return output directory for a specific prompt style.
 
     Args:
-        prompt_style: Prompt style (full, approximate, natural, workflow)
+        prompt_style: Prompt style (full, natural, workflow)
 
     Returns:
         Path to the output directory for this prompt style
@@ -840,7 +839,7 @@ def get_problem_prompt_output_dir(
 
     Args:
         problem: Problem name (e.g., "beams2d")
-        prompt_style: Prompt style (e.g., "full", "approximate")
+        prompt_style: Prompt style (e.g., "full", "natural")
         rag_status: RAG status (e.g., "rag", "no_rag"), optional for backwards compatibility
 
     Returns:

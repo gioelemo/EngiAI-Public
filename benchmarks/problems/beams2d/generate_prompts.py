@@ -6,7 +6,6 @@ into natural language prompts that can be used to evaluate the engineering agent
 
 Supports multiple prompt styles:
 - full: Exact numerical parameters
-- approximate: Rounded/approximate values
 - natural: Natural language descriptions only
 - workflow: Full workflow with export steps
 - workflow-conditional: Workflow with if/then branching based on simulation results
@@ -49,15 +48,6 @@ VOLFRAC_MODERATE = 0.5
 PROMPT_STYLES: dict[str, dict[str, Any]] = {
     "full": {
         "description": "Exact numerical parameters",
-        "optimal_tool_calls": [
-            {"name": "optimize_design", "count": 1},
-            {"name": "simulate_design", "count": 1},
-            {"name": "render_design", "count": 1},
-        ],
-        "optimal_call_count": 3,
-    },
-    "approximate": {
-        "description": "Rounded/approximate values",
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
             {"name": "simulate_design", "count": 1},
@@ -162,23 +152,6 @@ def _create_full_prompt(volfrac: float, forcedist: float, rmin: float) -> str:
         f"- Use a material volume fraction of {volfrac}\n"
         f"- Force distribution parameter: {forcedist}\n"
         f"- Minimum filter radius (rmin): {rmin}\n\n"
-        f"Optimize the structure to minimize compliance while respecting the volume constraint."
-    )
-
-
-def _create_approximate_prompt(volfrac: float, forcedist: float, rmin: float) -> str:
-    """Create prompt with rounded/approximate values."""
-    # Round to 1 decimal place
-    volfrac_approx = round(volfrac, 1)
-    forcedist_approx = round(forcedist, 1)
-    rmin_approx = round(rmin, 1)
-
-    return (
-        f"Design a 2D beam structure.\n\n"
-        f"Design requirements:\n"
-        f"- Use a material volume fraction of approximately {volfrac_approx}\n"
-        f"- Force distribution parameter: around {forcedist_approx}\n"
-        f"- Minimum filter radius (rmin): {rmin_approx}\n\n"
         f"Optimize the structure to minimize compliance while respecting the volume constraint."
     )
 
@@ -561,7 +534,7 @@ def create_prompt_from_conditions(
     Args:
         example: Single example from the HuggingFace dataset
         include_target: Whether to include target compliance for validation
-        prompt_style: Style of prompt to generate ('full', 'approximate', 'natural',
+        prompt_style: Style of prompt to generate ('full', 'natural',
             'workflow', 'workflow-random', 'workflow-conditional',
             'workflow-multi-export')
         seed: Random seed for reproducible random parameter generation
@@ -594,8 +567,6 @@ def create_prompt_from_conditions(
 
     if prompt_style == "full":
         prompt = _create_full_prompt(volfrac, forcedist, rmin)
-    elif prompt_style == "approximate":
-        prompt = _create_approximate_prompt(volfrac, forcedist, rmin)
     elif prompt_style == "natural":
         prompt = _create_natural_prompt(volfrac, forcedist, compliance)
     elif prompt_style == "workflow-random":

@@ -262,7 +262,6 @@ def _parse_args():
         type=str,
         choices=[
             "full",
-            "approximate",
             "natural",
             "workflow",
             "workflow-random",

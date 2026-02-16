@@ -1,7 +1,7 @@
 """Task completion scorer for engineering agent evaluations.
 
 This scorer checks task completion based on prompt style:
-- Standard prompts (full, approximate, natural): render_design must be called successfully
+- Standard prompts (full, natural): render_design must be called successfully
 - Workflow prompts: convert_design_to_stl must be called successfully
 - Workflow-conditional: STL export with params resolved from compliance-based branching
 - Workflow-multi-export: Two STL exports with different params, validated in order
@@ -292,7 +292,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
 ) -> dict[str, Any]:
     """Score task completion based on prompt style.
 
-    For standard prompts (full, approximate):
+    For standard prompts (full):
     - Success = render_design called and returned success=True
 
     For workflow prompts:

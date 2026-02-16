@@ -117,7 +117,6 @@ make mmore-eval-run ARGS="--problem beams2d --samples 1"
 The beams2d benchmark supports multiple prompt styles for evaluating different aspects of agent behavior:
 
 - **full**: Exact numerical parameters
-- **approximate**: Rounded/approximate values
 - **natural**: Natural language descriptions only
 - **workflow**: Full workflow with STL export (hardcoded parameters)
 - **workflow-random**: Full workflow with randomized STL parameters and validation
