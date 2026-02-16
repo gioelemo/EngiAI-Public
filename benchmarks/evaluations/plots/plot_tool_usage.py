@@ -602,6 +602,9 @@ def plot_performance_distribution_by_tool_count(
         ax = axes[i]
 
         # FIX: Added hue="total_tools" and legend=False to resolve the FutureWarnings
+        n_groups = df["total_tools"].nunique()
+        palette = PLOT_STYLE["color_palette"][:n_groups]
+
         sns.violinplot(
             data=df,
             x="total_tools",
@@ -609,27 +612,22 @@ def plot_performance_distribution_by_tool_count(
             hue="total_tools",
             legend=False,
             inner="box",
-            palette="Pastel1",
-            linewidth=0.7,
+            palette=palette,
+            linewidth=0.5,
             ax=ax,
-            cut=0,
         )
 
-        # Add mean and std annotations
+        # Mean annotations
         font_sizes = PLOT_STYLE["font_sizes"]
+        y_bot = df[metric].min()
         for j, tool_count in enumerate(sorted(df["total_tools"].unique())):
             subset = df[df["total_tools"] == tool_count][metric]
             if len(subset) > 0:
-                stats_text = f"$\\mu$={subset.mean():.2f}\n$\\sigma$={subset.std():.2f}"
-                # Place annotation at the top of the data range (not axis limit)
-                y_max = subset.max()
-                y_min = subset.min()
-                y_pos = y_min + (y_max - y_min) * 0.5  # Center of data range
                 ax.annotate(
-                    stats_text,
-                    xy=(j, y_pos),
+                    f"$\\mu$={subset.mean():.2f}",
+                    xy=(j, y_bot),
                     ha="center",
-                    va="center",
+                    va="bottom",
                     fontsize=font_sizes["annotation"],
                     bbox={
                         "boxstyle": "round,pad=0.3",
@@ -639,11 +637,9 @@ def plot_performance_distribution_by_tool_count(
                     },
                 )
 
-        ax.set_ylabel(labels[i], fontsize=PLOT_STYLE["font_sizes"]["axes_label"])
-        ax.set_xlabel(
-            "Total Tools Used", fontsize=PLOT_STYLE["font_sizes"]["axes_label"]
-        )
-        sns.despine(ax=ax)
+        ax.set_ylabel(labels[i])
+        ax.set_xlabel("Total Tools Used")
+        ax.grid(True, axis="y", alpha=0.3)
 
     save_figure(fig, "performance_stats_distribution.png", output_dir)
 

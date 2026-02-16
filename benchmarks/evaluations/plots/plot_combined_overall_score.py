@@ -80,20 +80,17 @@ def plot_combined_overall_score(combined_design_df, output_path=None, output_dir
     for label in ax.get_xticklabels():
         label.set_ha("right")
 
-    # Statistics annotations — stagger vertically to avoid overlap
-    y_positions = [0.02, 0.10]  # alternate between two y-levels
+    # Mean annotations
     for i, source in enumerate(valid_designs["_label"].unique()):
         subset = valid_designs[valid_designs["_label"] == source][
             "combined_overall_score"
         ]
-        stats_text = f"$\\mu$={subset.mean():.2f}\n$\\sigma$={subset.std():.2f}"
         ax.annotate(
-            stats_text,
-            xy=(i, y_positions[i % 2]),
+            f"$\\mu$={subset.mean():.2f}",
+            xy=(i, 0.02),
             ha="center",
             va="bottom",
             fontsize=font_sizes["annotation"],
-            linespacing=1.2,
             bbox={
                 "boxstyle": "round,pad=0.3",
                 "facecolor": "white",

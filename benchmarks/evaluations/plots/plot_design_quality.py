@@ -74,16 +74,16 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     for label in ax.get_xticklabels():
         label.set_ha("right")
 
-    # Statistics annotations (smaller, cleaner)
+    # Mean annotations
     for i, source in enumerate(valid_designs["_label"].unique()):
         subset = valid_designs[valid_designs["_label"] == source][
             "design_quality_score"
         ]
-        stats_text = f"$\\mu$={subset.mean():.2f}, $\\sigma$={subset.std():.2f}"
         ax.annotate(
-            stats_text,
+            f"$\\mu$={subset.mean():.2f}",
             xy=(i, 0.02),
             ha="center",
+            va="bottom",
             fontsize=font_sizes["annotation"],
             bbox={
                 "boxstyle": "round,pad=0.3",
