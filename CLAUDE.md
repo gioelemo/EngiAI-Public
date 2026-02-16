@@ -220,3 +220,39 @@ Example prompt excerpt:
      - Extrusion: Extrude the 2D result by 11.7 units in the Z-axis
    - Export: Save the final geometry as an STL file with these exact parameters
 ```
+
+#### workflow-multi-export Prompt Style
+
+The `workflow-multi-export` style requires the agent to call `convert_design_to_stl` **twice** with completely different parameter sets from the same optimization. This tests working memory and instruction tracking — LLMs commonly merge the two exports into one, swap parameters between them, or only do one export.
+
+**Flow:**
+1. Optimize the design with given parameters
+2. Simulate the design
+3. Export STL with Export A parameters
+4. Export STL with Export B parameters (different from A)
+
+**Randomized Parameters (per export):**
+- `mirror_y`: Boolean - guaranteed opposite between A and B
+- `threshold`: Float (0.3-0.7) - gap ≥ 0.1 between A and B
+- `scale_xy`: Float (0.5-5.0) - gap ≥ 0.2 between A and B
+- `scale_z`: Float (5.0-20.0) - gap ≥ 0.2 between A and B
+
+**Validation:**
+The scorer validates both STL calls **in order** (first call → Export A, second call → Export B). All-or-nothing: both exports must have correct parameters for task completion. Uses the same ±0.05 float tolerance and exact boolean match as workflow-random.
+
+**Usage:**
+```bash
+# Generate workflow-multi-export prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-multi-export --seed 42
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-multi-export --seed 42
+```
+
+**Validation Metrics:**
+- `multi_export_count`: Number of successful STL calls detected
+- `multi_export_both_valid`: Whether both exports passed validation
+- `export_a_stl_{param}_actual/expected/error/valid`: Per-parameter details for Export A
+- `export_b_stl_{param}_actual/expected/error/valid`: Per-parameter details for Export B

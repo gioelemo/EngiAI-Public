@@ -361,6 +361,7 @@ def parse_arguments() -> argparse.Namespace:
             "workflow",
             "workflow-random",
             "workflow-conditional",
+            "workflow-multi-export",
             "rag-eval",
         ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",

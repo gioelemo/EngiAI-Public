@@ -16,8 +16,10 @@ sys.path.insert(0, str(project_root))
 
 from benchmarks.problems.beams2d.generate_prompts import (  # noqa: E402
     _create_workflow_conditional_prompt,
+    _create_workflow_multi_export_prompt,
     _create_workflow_random_prompt,
     _generate_random_conditional_params,
+    _generate_random_multi_export_params,
     _generate_random_stl_params,
     create_prompt_from_conditions,
 )
@@ -534,3 +536,152 @@ def test_workflow_conditional_no_stl_params_for_other_styles():
             example, include_target=False, prompt_style=style, seed=42
         )
         assert "stl_expected_params" not in prompt_data
+
+
+# ============================================================================
+# WORKFLOW-MULTI-EXPORT RANDOM PARAMETER GENERATION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_generate_random_multi_export_params_deterministic():
+    """Test that same seed produces same multi-export parameters."""
+    params1 = _generate_random_multi_export_params(seed=42)
+    params2 = _generate_random_multi_export_params(seed=42)
+    assert params1 == params2
+
+
+@pytest.mark.unit
+def test_generate_random_multi_export_params_structure():
+    """Test multi-export params have correct structure and types."""
+    params = _generate_random_multi_export_params(seed=42)
+
+    assert params["multi_export"] is True
+    assert "exports" in params
+    assert len(params["exports"]) == 2
+
+    for export in params["exports"]:
+        assert "label" in export
+        assert "mirror_y" in export
+        assert "scale_xy" in export
+        assert "scale_z" in export
+        assert "threshold" in export
+        assert isinstance(export["mirror_y"], bool)
+        assert isinstance(export["scale_xy"], float)
+        assert isinstance(export["scale_z"], float)
+        assert isinstance(export["threshold"], float)
+
+    assert params["exports"][0]["label"] == "A"
+    assert params["exports"][1]["label"] == "B"
+
+
+@pytest.mark.unit
+def test_generate_random_multi_export_params_ranges():
+    """Test that generated parameters are within expected ranges across seeds."""
+    for seed in range(20):
+        params = _generate_random_multi_export_params(seed=seed)
+        for export in params["exports"]:
+            assert 0.3 <= export["threshold"] <= 0.7
+            assert 0.5 <= export["scale_xy"] <= 5.0
+            assert 5.0 <= export["scale_z"] <= 20.0
+            assert isinstance(export["mirror_y"], bool)
+
+
+@pytest.mark.unit
+def test_generate_random_multi_export_params_distinctness():
+    """Test that the two exports are guaranteed distinct across many seeds."""
+    for seed in range(20):
+        params = _generate_random_multi_export_params(seed=seed)
+        a = params["exports"][0]
+        b = params["exports"][1]
+
+        # mirror_y must be opposite
+        assert a["mirror_y"] != b["mirror_y"]
+
+        # thresholds must be at least 0.1 apart
+        assert abs(a["threshold"] - b["threshold"]) >= 0.1
+
+        # scale_xy must be at least 0.2 apart
+        assert abs(a["scale_xy"] - b["scale_xy"]) >= 0.2
+
+        # scale_z must be at least 0.2 apart
+        assert abs(a["scale_z"] - b["scale_z"]) >= 0.2
+
+
+# ============================================================================
+# WORKFLOW-MULTI-EXPORT PROMPT CREATION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_create_workflow_multi_export_prompt_contains_both_exports():
+    """Test that prompt text contains both export parameter sets."""
+    prompt, params = _create_workflow_multi_export_prompt(0.3, 0.5, 2.0, 0, seed=42)
+
+    a = params["exports"][0]
+    b = params["exports"][1]
+
+    assert "Export A" in prompt
+    assert "Export B" in prompt
+    assert f"{a['threshold']:.2f}" in prompt
+    assert f"{b['threshold']:.2f}" in prompt
+    assert f"{a['scale_xy']:.2f}" in prompt
+    assert f"{b['scale_xy']:.2f}" in prompt
+    assert f"{a['scale_z']:.1f}" in prompt
+    assert f"{b['scale_z']:.1f}" in prompt
+
+
+@pytest.mark.unit
+def test_create_workflow_multi_export_prompt_contains_twice_instruction():
+    """Test that prompt explicitly says to call convert_design_to_stl twice."""
+    prompt, _ = _create_workflow_multi_export_prompt(0.3, 0.5, 2.0, 0, seed=42)
+
+    assert "TWICE" in prompt or "twice" in prompt
+
+
+@pytest.mark.unit
+def test_create_workflow_multi_export_prompt_deterministic():
+    """Test that same inputs produce same prompt and params."""
+    prompt1, params1 = _create_workflow_multi_export_prompt(0.3, 0.5, 2.0, 5, seed=42)
+    prompt2, params2 = _create_workflow_multi_export_prompt(0.3, 0.5, 2.0, 5, seed=42)
+
+    assert prompt1 == prompt2
+    assert params1 == params2
+
+
+@pytest.mark.unit
+def test_create_prompt_workflow_multi_export_integration():
+    """Test workflow-multi-export integration in create_prompt_from_conditions."""
+    example = {
+        "volfrac": 0.3,
+        "forcedist": 0.5,
+        "rmin": 2.0,
+        "c": 100.0,
+        "optimal_design": np.zeros((10, 10)),
+        "example_id": 0,
+    }
+
+    prompt_data = create_prompt_from_conditions(
+        example, include_target=True, prompt_style="workflow-multi-export", seed=42
+    )
+
+    assert prompt_data["prompt_style"] == "workflow-multi-export"
+    assert "stl_expected_params" in prompt_data
+    assert prompt_data["stl_expected_params"]["multi_export"] is True
+    assert len(prompt_data["stl_expected_params"]["exports"]) == 2
+    assert prompt_data["metadata"]["success_criteria"] == "stl_export_with_params"
+
+    # Check optimal tool calls
+    assert prompt_data["optimal_call_count"] == 4
+    tool_names = [tool["name"] for tool in prompt_data["optimal_tool_calls"]]
+    assert "optimize_design" in tool_names
+    assert "simulate_design" in tool_names
+    assert "convert_design_to_stl" in tool_names
+
+    # convert_design_to_stl should have count=2
+    stl_tool = next(
+        t
+        for t in prompt_data["optimal_tool_calls"]
+        if t["name"] == "convert_design_to_stl"
+    )
+    assert stl_tool["count"] == 2

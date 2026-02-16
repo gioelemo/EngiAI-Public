@@ -1,7 +1,7 @@
-"""Tests for STL parameter validation and conditional resolution functionality.
+"""Tests for STL parameter validation, conditional resolution, and multi-export validation.
 
-Tests for the _validate_stl_parameters() and _resolve_conditional_params() functions
-in benchmarks/shared/scorers/task_completion_scorer.py.
+Tests for the _validate_stl_parameters(), _resolve_conditional_params(), and
+_validate_multi_export_params() functions in benchmarks/shared/scorers/task_completion_scorer.py.
 """
 
 import sys
@@ -15,6 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from benchmarks.shared.scorers.task_completion_scorer import (  # noqa: E402
     _resolve_conditional_params,
+    _validate_multi_export_params,
     _validate_stl_parameters,
 )
 
@@ -516,3 +517,114 @@ def test_resolve_conditional_params_missing_compliance():
 
     assert metrics["conditional_correct_branch"] == "low"
     assert metrics["conditional_gt_compliance"] == 0.0
+
+
+# ============================================================================
+# WORKFLOW-MULTI-EXPORT VALIDATION TESTS
+# ============================================================================
+
+# Shared fixtures for multi-export tests
+_EXPORT_A_EXPECTED = {
+    "label": "A",
+    "mirror_y": True,
+    "scale_xy": 1.50,
+    "scale_z": 8.0,
+    "threshold": 0.35,
+}
+_EXPORT_B_EXPECTED = {
+    "label": "B",
+    "mirror_y": False,
+    "scale_xy": 3.20,
+    "scale_z": 15.5,
+    "threshold": 0.65,
+}
+
+_STL_DETAILS_A = {
+    "scale_xy": 1.50,
+    "scale_z": 8.0,
+    "threshold": 0.35,
+    "mirrored": True,
+}
+_STL_DETAILS_B = {
+    "scale_xy": 3.20,
+    "scale_z": 15.5,
+    "threshold": 0.65,
+    "mirrored": False,
+}
+
+
+@pytest.mark.unit
+def test_validate_multi_export_params_both_valid():
+    """Test validation with both exports having correct parameters."""
+    score, metrics = _validate_multi_export_params(
+        all_stl_details=[_STL_DETAILS_A, _STL_DETAILS_B],
+        expected_exports=[_EXPORT_A_EXPECTED, _EXPORT_B_EXPECTED],
+        example_id=0,
+    )
+
+    assert score == 1.0
+    assert metrics["multi_export_both_valid"] is True
+    assert metrics["multi_export_count"] == 2
+    assert metrics["export_a_stl_param_violations"] == 0
+    assert metrics["export_b_stl_param_violations"] == 0
+
+
+@pytest.mark.unit
+def test_validate_multi_export_params_first_invalid():
+    """Test validation when first export has wrong parameters."""
+    wrong_a = {**_STL_DETAILS_A, "scale_xy": 999.0}
+
+    score, metrics = _validate_multi_export_params(
+        all_stl_details=[wrong_a, _STL_DETAILS_B],
+        expected_exports=[_EXPORT_A_EXPECTED, _EXPORT_B_EXPECTED],
+        example_id=0,
+    )
+
+    assert score == 0.0
+    assert metrics["multi_export_both_valid"] is False
+    assert metrics["export_a_stl_scale_xy_valid"] is False
+    assert metrics["export_b_stl_param_violations"] == 0
+
+
+@pytest.mark.unit
+def test_validate_multi_export_params_second_invalid():
+    """Test validation when second export has wrong parameters."""
+    wrong_b = {**_STL_DETAILS_B, "mirrored": True}  # Should be False
+
+    score, metrics = _validate_multi_export_params(
+        all_stl_details=[_STL_DETAILS_A, wrong_b],
+        expected_exports=[_EXPORT_A_EXPECTED, _EXPORT_B_EXPECTED],
+        example_id=0,
+    )
+
+    assert score == 0.0
+    assert metrics["multi_export_both_valid"] is False
+    assert metrics["export_a_stl_param_violations"] == 0
+    assert metrics["export_b_stl_mirror_y_valid"] is False
+
+
+@pytest.mark.unit
+def test_validate_multi_export_params_only_one_call():
+    """Test validation when only one STL call was made."""
+    score, metrics = _validate_multi_export_params(
+        all_stl_details=[_STL_DETAILS_A],
+        expected_exports=[_EXPORT_A_EXPECTED, _EXPORT_B_EXPECTED],
+        example_id=0,
+    )
+
+    assert score == 0.0
+    assert metrics["multi_export_both_valid"] is False
+    assert metrics["multi_export_count"] == 1
+
+
+@pytest.mark.unit
+def test_validate_multi_export_params_swapped_order():
+    """Test validation when parameters are swapped between the two calls."""
+    score, metrics = _validate_multi_export_params(
+        all_stl_details=[_STL_DETAILS_B, _STL_DETAILS_A],  # Swapped!
+        expected_exports=[_EXPORT_A_EXPECTED, _EXPORT_B_EXPECTED],
+        example_id=0,
+    )
+
+    assert score == 0.0
+    assert metrics["multi_export_both_valid"] is False

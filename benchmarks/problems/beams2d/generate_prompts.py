@@ -10,6 +10,7 @@ Supports multiple prompt styles:
 - natural: Natural language descriptions only
 - workflow: Full workflow with export steps
 - workflow-conditional: Workflow with if/then branching based on simulation results
+- workflow-multi-export: Workflow requiring two STL exports with different parameters
 
 Dataset: https://huggingface.co/datasets/IDEALLab/beams_2d_50_100_v0
 """
@@ -101,6 +102,17 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
             {"name": "convert_design_to_stl", "count": 1},
         ],
         "optimal_call_count": 3,
+        "success_criteria": "stl_export_with_params",
+        "validate_stl_params": True,
+    },
+    "workflow-multi-export": {
+        "description": "Workflow requiring two STL exports with different parameters",
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "convert_design_to_stl", "count": 2},
+        ],
+        "optimal_call_count": 4,
         "success_criteria": "stl_export_with_params",
         "validate_stl_params": True,
     },
@@ -281,6 +293,139 @@ def _generate_random_conditional_params(seed: int | None = None) -> dict[str, An
     }
 
 
+def _generate_random_multi_export_params(seed: int | None = None) -> dict[str, Any]:
+    """Generate random parameters for workflow-multi-export prompts.
+
+    Generates TWO distinct param sets for two STL exports from the same optimization.
+    Distinctness guarantees: mirror_y opposite, threshold gap >= MIN_THRESHOLD_GAP,
+    scale_xy gap >= MIN_SCALE_GAP, scale_z gap >= MIN_SCALE_GAP.
+
+    Args:
+        seed: Random seed for reproducibility
+
+    Returns:
+        Dict with: multi_export flag, exports list of two param dicts
+    """
+    rng = np.random.default_rng(seed)
+
+    min_threshold_gap = 0.1
+    min_scale_gap = 0.2
+
+    # Mirror: guaranteed opposite
+    mirror_a = bool(rng.choice([True, False]))
+    mirror_b = not mirror_a
+
+    # Thresholds: both in [0.3, 0.7], gap >= min_threshold_gap
+    threshold_a = float(rng.uniform(0.3, 0.7))
+    threshold_b = float(rng.uniform(0.3, 0.7))
+    while abs(threshold_a - threshold_b) < min_threshold_gap:
+        threshold_b = float(rng.uniform(0.3, 0.7))
+
+    # Scale XY: both in [0.5, 5.0], gap >= min_scale_gap
+    scale_xy_a = float(rng.uniform(0.5, 5.0))
+    scale_xy_b = float(rng.uniform(0.5, 5.0))
+    while abs(scale_xy_a - scale_xy_b) < min_scale_gap:
+        scale_xy_b = float(rng.uniform(0.5, 5.0))
+
+    # Scale Z: both in [5.0, 20.0], gap >= min_scale_gap
+    scale_z_a = float(rng.uniform(5.0, 20.0))
+    scale_z_b = float(rng.uniform(5.0, 20.0))
+    while abs(scale_z_a - scale_z_b) < min_scale_gap:
+        scale_z_b = float(rng.uniform(5.0, 20.0))
+
+    return {
+        "multi_export": True,
+        "exports": [
+            {
+                "label": "A",
+                "mirror_y": mirror_a,
+                "scale_xy": scale_xy_a,
+                "scale_z": scale_z_a,
+                "threshold": threshold_a,
+            },
+            {
+                "label": "B",
+                "mirror_y": mirror_b,
+                "scale_xy": scale_xy_b,
+                "scale_z": scale_z_b,
+                "threshold": threshold_b,
+            },
+        ],
+    }
+
+
+def _create_workflow_multi_export_prompt(
+    volfrac: float,
+    forcedist: float,
+    rmin: float,
+    example_id: int,
+    seed: int | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Create workflow prompt requiring two STL exports with different parameters.
+
+    The prompt instructs the agent to:
+    1. Optimize and simulate
+    2. Export STL twice with completely different parameter sets (A and B)
+
+    Args:
+        volfrac: Volume fraction for optimization
+        forcedist: Force distribution parameter
+        rmin: Minimum filter radius
+        example_id: Unique example identifier
+        seed: Base seed for random generation
+
+    Returns:
+        Tuple of (prompt_text, multi_export_params_dict)
+    """
+    unique_seed = (seed if seed is not None else 0) + example_id
+    params = _generate_random_multi_export_params(unique_seed)
+
+    export_a = params["exports"][0]
+    export_b = params["exports"][1]
+
+    mirror_a_instr = (
+        "Mirror the design across the y-axis"
+        if export_a["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+    mirror_b_instr = (
+        "Mirror the design across the y-axis"
+        if export_b["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+
+    prompt = (
+        f"Execute a 2D topology optimization and export the resulting geometry "
+        f"as TWO separate 3D-printable STL files with different parameters.\n\n"
+        f"1. Optimization Configuration\n"
+        f"   - Volume Fraction: {volfrac}\n"
+        f"   - Force Distribution: {forcedist}\n"
+        f"   - Filter Radius (rmin): {rmin}\n"
+        f"   - Objective: Minimize compliance\n\n"
+        f"2. Post-processing & Export\n"
+        f"   IMPORTANT: You must call convert_design_to_stl TWICE with different "
+        f"parameters.\n\n"
+        f"   Export A:\n"
+        f"   - Thresholding: Apply a {export_a['threshold']:.2f} density threshold "
+        f"to convert the continuous density map into binary geometry\n"
+        f"   - Mirror: {mirror_a_instr} for the final geometry\n"
+        f"   - XY Scaling: Scale the X and Y dimensions by {export_a['scale_xy']:.2f}\n"
+        f"   - Extrusion: Extrude the 2D result by {export_a['scale_z']:.1f} units "
+        f"in the Z-axis to create a 3D volume\n"
+        f"   - Export: Save as STL file with these exact parameters\n\n"
+        f"   Export B:\n"
+        f"   - Thresholding: Apply a {export_b['threshold']:.2f} density threshold "
+        f"to convert the continuous density map into binary geometry\n"
+        f"   - Mirror: {mirror_b_instr} for the final geometry\n"
+        f"   - XY Scaling: Scale the X and Y dimensions by {export_b['scale_xy']:.2f}\n"
+        f"   - Extrusion: Extrude the 2D result by {export_b['scale_z']:.1f} units "
+        f"in the Z-axis to create a 3D volume\n"
+        f"   - Export: Save as STL file with these exact parameters"
+    )
+
+    return prompt, params
+
+
 def _create_workflow_conditional_prompt(
     volfrac: float,
     forcedist: float,
@@ -417,9 +562,10 @@ def create_prompt_from_conditions(
         example: Single example from the HuggingFace dataset
         include_target: Whether to include target compliance for validation
         prompt_style: Style of prompt to generate ('full', 'approximate', 'natural',
-            'workflow', 'workflow-random', 'workflow-conditional')
+            'workflow', 'workflow-random', 'workflow-conditional',
+            'workflow-multi-export')
         seed: Random seed for reproducible random parameter generation
-            (workflow-random and workflow-conditional)
+            (workflow-random, workflow-conditional, workflow-multi-export)
 
     Returns:
         Dictionary with prompt, conditions, and optional target values
@@ -454,6 +600,10 @@ def create_prompt_from_conditions(
         prompt = _create_natural_prompt(volfrac, forcedist, compliance)
     elif prompt_style == "workflow-random":
         prompt, stl_expected_params = _create_workflow_random_prompt(
+            volfrac, forcedist, rmin, example.get("example_id", 0), seed
+        )
+    elif prompt_style == "workflow-multi-export":
+        prompt, stl_expected_params = _create_workflow_multi_export_prompt(
             volfrac, forcedist, rmin, example.get("example_id", 0), seed
         )
     elif prompt_style == "workflow-conditional":

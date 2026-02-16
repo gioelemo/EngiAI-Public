@@ -661,12 +661,18 @@ def plot_performance_distribution_by_tool_count(
         return
 
     _plot_single_performance_by_tool_count(
-        df, "combined_overall_score", "Overall Score",
-        "performance_by_tools_overall.png", output_dir,
+        df,
+        "combined_overall_score",
+        "Overall Score",
+        "performance_by_tools_overall.png",
+        output_dir,
     )
     _plot_single_performance_by_tool_count(
-        df, "iou", "IoU",
-        "performance_by_tools_iou.png", output_dir,
+        df,
+        "iou",
+        "IoU",
+        "performance_by_tools_iou.png",
+        output_dir,
     )
 
 
