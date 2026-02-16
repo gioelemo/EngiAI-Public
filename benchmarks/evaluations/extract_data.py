@@ -238,7 +238,7 @@ def _extract_metrics_from_scorers(
             {
                 "design_found": output_quality.get("design_found", False),
                 "design_quality_score": output_quality.get("design_quality_score"),
-                "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
+                # Note: tool_efficiency_score is extracted from tool_use scorer below
                 # Design metrics
                 "iou": output_quality.get("iou"),
                 "pixel_accuracy": output_quality.get("pixel_accuracy"),
@@ -306,6 +306,7 @@ def _extract_metrics_from_scorers(
         result.update(
             {
                 "efficiency_ratio": tool_use.get("efficiency_ratio"),
+                "tool_efficiency_score": tool_use.get("efficiency_ratio"),
                 "total_tools": tool_use.get("actual_call_count"),  # Map to total_tools
                 "unique_tools": len(
                     tool_use.get("tool_call_breakdown", {})
