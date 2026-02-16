@@ -206,14 +206,14 @@ Example prompt excerpt:
 
 #### workflow-distractor Prompt Style
 
-The `workflow-distractor` style tests **parameter filtering** — the agent must distinguish valid STL tool parameters from plausible but irrelevant distractors mixed into the prompt. This tests the agent's ability to reason about tool schemas under noisy instructions.
+The `workflow-distractor` style tests **parameter filtering** — the agent must distinguish valid STL tool parameters from plausible but irrelevant distractors mixed into the prompt. No hints are provided about which parameters are distractors; the agent must consult the `convert_design_to_stl` tool schema to determine which parameters it actually accepts.
 
-**Distractor Parameters** (randomized, with parenthetical hints):
-- `smoothing_sigma`: Float (0.5-3.0) — "(for visualization only, do not apply to STL export)"
-- `infill_density`: Int (10-50%) — "(this is a slicer setting, not relevant to STL export)"
-- `layer_height`: Float (0.1-0.3mm) — "(3D printer setting, does not affect STL geometry)"
+**Distractor Parameters** (randomized, presented without hints):
+- `smoothing_sigma`: Float (0.5-3.0) — Gaussian smoothing
+- `infill_density`: Int (10-50%) — infill density percentage
+- `layer_height`: Float (0.1-0.3mm) — layer height
 
-**Why it breaks LLMs:** If the agent passes extra parameters to `convert_design_to_stl`, LangChain's schema validation rejects the tool call entirely — the tool never executes and the task fails.
+**Why it breaks LLMs:** If the agent passes extra parameters to `convert_design_to_stl`, LangChain's schema validation rejects the tool call entirely — the tool never executes and the task fails. Without hints, the agent must reason about the tool schema to filter correctly.
 
 **Real Parameters:** Same 4 randomized STL params as workflow-random (threshold, scale_xy, scale_z, mirror_y).
 
@@ -234,13 +234,13 @@ Example prompt excerpt:
 ```
 2. Post-processing & Export
    - Thresholding: Apply a 0.53 density threshold to convert the continuous density map into binary geometry
-   - Smoothing: Apply Gaussian smoothing with sigma=2.0 (for visualization only, do not apply to STL export)
+   - Smoothing: Apply Gaussian smoothing with sigma=2.0
    - Mirror: Mirror the design across the y-axis for the final geometry
    - XY Scaling: Scale the X and Y dimensions by 1.88
-   - Infill: Use 20% infill density (this is a slicer setting, not relevant to STL export)
+   - Infill: Use 20% infill density
    - Extrusion: Extrude the 2D result by 12.4 units in the Z-axis to create a 3D volume
-   - Layer Height: Use 0.15mm layer height (3D printer setting, does not affect STL geometry)
-   - Export: Save the final geometry as an STL file using only the STL-relevant parameters above (exclude visualization and slicer settings)
+   - Layer Height: Use 0.15mm layer height
+   - Export: Save the final geometry as an STL file with all the applicable parameters listed above
 ```
 
 #### workflow-conditional Prompt Style

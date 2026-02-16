@@ -643,9 +643,9 @@ def _create_workflow_distractor_prompt(
     """Create workflow prompt with real STL params mixed with distractor params.
 
     The prompt includes plausible but irrelevant parameters (smoothing, infill,
-    layer height) alongside the 4 real STL params. Each distractor has a
-    parenthetical hint explaining it's not relevant to STL export. The agent
-    must filter out distractors and use only the valid tool parameters.
+    layer height) alongside the 4 real STL params. No hints are given about
+    which parameters are distractors — the agent must consult the tool schema
+    to determine which parameters ``convert_design_to_stl`` actually accepts.
 
     Args:
         volfrac: Volume fraction for optimization
@@ -685,19 +685,16 @@ def _create_workflow_distractor_prompt(
         f"   - Thresholding: Apply a {stl_params['threshold']:.2f} density threshold "
         f"to convert the continuous density map into binary geometry\n"
         f"   - Smoothing: Apply Gaussian smoothing with "
-        f"sigma={distractors['smoothing_sigma']:.1f} "
-        f"(for visualization only, do not apply to STL export)\n"
+        f"sigma={distractors['smoothing_sigma']:.1f}\n"
         f"   - Mirror: {mirror_instruction} for the final geometry\n"
         f"   - XY Scaling: Scale the X and Y dimensions by "
         f"{stl_params['scale_xy']:.2f}\n"
-        f"   - Infill: Use {distractors['infill_density']}% infill density "
-        f"(this is a slicer setting, not relevant to STL export)\n"
+        f"   - Infill: Use {distractors['infill_density']}% infill density\n"
         f"   - Extrusion: Extrude the 2D result by {stl_params['scale_z']:.1f} units "
         f"in the Z-axis to create a 3D volume\n"
-        f"   - Layer Height: Use {distractors['layer_height']:.2f}mm layer height "
-        f"(3D printer setting, does not affect STL geometry)\n"
-        f"   - Export: Save the final geometry as an STL file using only the "
-        f"STL-relevant parameters above (exclude visualization and slicer settings)"
+        f"   - Layer Height: Use {distractors['layer_height']:.2f}mm layer height\n"
+        f"   - Export: Save the final geometry as an STL file with all the "
+        f"applicable parameters listed above"
     )
 
     return prompt, stl_params

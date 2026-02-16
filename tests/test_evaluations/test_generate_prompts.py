@@ -864,12 +864,17 @@ def test_generate_distractor_params_deterministic():
 
 @pytest.mark.unit
 def test_create_workflow_distractor_prompt_contains_distractors():
-    """Test that distractor prompt contains distractor hints."""
+    """Test that distractor prompt contains distractor parameter values (no hints)."""
     prompt, _ = _create_workflow_distractor_prompt(0.35, 0.5, 1.5, 0, seed=42)
 
-    assert "visualization only" in prompt.lower()
-    assert "slicer setting" in prompt.lower()
-    assert "does not affect stl geometry" in prompt.lower()
+    # Distractor values appear in the prompt without any filtering hints
+    assert "sigma=" in prompt
+    assert "infill density" in prompt.lower()
+    assert "layer height" in prompt.lower()
+    # No hints should be present
+    assert "visualization only" not in prompt.lower()
+    assert "slicer setting" not in prompt.lower()
+    assert "does not affect stl geometry" not in prompt.lower()
 
 
 @pytest.mark.unit
@@ -883,11 +888,16 @@ def test_create_workflow_distractor_prompt_contains_real_params():
 
 
 @pytest.mark.unit
-def test_create_workflow_distractor_prompt_exclude_instruction():
-    """Test that the prompt tells the agent to exclude non-STL params."""
+def test_create_workflow_distractor_prompt_no_filtering_hints():
+    """Test that the prompt does NOT give hints about which params to exclude."""
     prompt, _ = _create_workflow_distractor_prompt(0.35, 0.5, 1.5, 0, seed=42)
 
-    assert "exclude visualization and slicer settings" in prompt.lower()
+    # The prompt should not hint at which parameters are irrelevant
+    assert "exclude" not in prompt.lower()
+    assert "not relevant" not in prompt.lower()
+    assert "do not apply" not in prompt.lower()
+    # It should use neutral export language
+    assert "applicable parameters" in prompt.lower()
 
 
 @pytest.mark.unit
