@@ -465,7 +465,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                     example_id,
                     render_save_path,
                 )
-                # Continue iterating to find the LAST successful render (most recent)
+                # Continue iterating - if multiple renders, keep the LAST successful one
             else:
                 render_error = result.get("error", "Unknown error")
                 logger.debug(
@@ -548,7 +548,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                     example_id,
                     stl_save_path,
                 )
-                # Continue iterating to find the LAST successful export (most recent)
+                # Continue iterating to collect all STL exports (FIRST used for single-export)
             else:
                 stl_error = result.get("error", "Unknown error")
                 logger.debug(

@@ -54,9 +54,28 @@ DERIVED_MIRROR_VOLFRAC_THRESHOLD = 0.4
 # Seed offset for distractor parameter generation (workflow-distractor style)
 DISTRACTOR_SEED_OFFSET = 10000
 
+# STL parameter ranges for random generation (used across all workflow styles)
+STL_THRESHOLD_MIN = 0.3  # Minimum density threshold for solid/void conversion
+STL_THRESHOLD_MAX = 0.7  # Maximum density threshold
+STL_SCALE_XY_MIN = 0.5  # Minimum XY dimension scaling factor
+STL_SCALE_XY_MAX = 5.0  # Maximum XY dimension scaling factor
+STL_SCALE_Z_MIN = 5.0  # Minimum Z extrusion height
+STL_SCALE_Z_MAX = 20.0  # Maximum Z extrusion height
+
+# Compliance threshold range for workflow-conditional branching
+COMPLIANCE_THRESHOLD_MIN = 100.0  # Minimum compliance threshold value
+COMPLIANCE_THRESHOLD_MAX = 300.0  # Maximum compliance threshold value
+
+# Gap requirements for parameter distinctness
+MIN_THRESHOLD_GAP = 0.1  # Minimum gap between threshold values for distinguishability
+MIN_DISTRACTOR_SCALE_GAP = (
+    0.5  # Larger gap for distractor vs real (clearer distinction)
+)
+MIN_MULTI_EXPORT_SCALE_GAP = 0.2  # Smaller gap for two valid exports (both are real)
+
 # Fallback thresholds for distractor parameter generation (when random sampling fails)
-DISTRACTOR_THRESHOLD_MIDPOINT = 0.5  # Midpoint of threshold range [0.3, 0.7]
-DISTRACTOR_SCALE_XY_MIDPOINT = 2.75  # Midpoint of scale_xy range [0.5, 5.0]
+DISTRACTOR_THRESHOLD_MIDPOINT = (STL_THRESHOLD_MIN + STL_THRESHOLD_MAX) / 2  # 0.5
+DISTRACTOR_SCALE_XY_MIDPOINT = (STL_SCALE_XY_MIN + STL_SCALE_XY_MAX) / 2  # 2.75
 
 # Prompt styles configuration with their optimal tool sequences
 PROMPT_STYLES: dict[str, dict[str, Any]] = {
@@ -242,9 +261,9 @@ def _generate_random_stl_params(seed: int | None = None) -> dict[str, Any]:
 
     return {
         "mirror_y": bool(rng.choice([True, False])),
-        "scale_xy": float(rng.uniform(0.5, 5.0)),
-        "scale_z": float(rng.uniform(5.0, 20.0)),
-        "threshold": float(rng.uniform(0.3, 0.7)),
+        "scale_xy": float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX)),
+        "scale_z": float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX)),
+        "threshold": float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX)),
     }
 
 
@@ -269,37 +288,43 @@ def _generate_distractor_params(
         Dict with ``distractor_threshold`` (float) and
         ``distractor_scale_xy`` (float).
     """
-    min_threshold_gap = 0.1
-    min_scale_xy_gap = 0.5
     max_attempts = 100
 
     # Generate distractor threshold with guaranteed gap from real value
     real_threshold = real_params["threshold"]
     dt = None
     for _ in range(max_attempts):
-        candidate = float(rng.uniform(0.3, 0.7))
-        if abs(candidate - real_threshold) >= min_threshold_gap:
+        candidate = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+        if abs(candidate - real_threshold) >= MIN_THRESHOLD_GAP:
             dt = candidate
             break
 
     # Fallback: if random sampling fails, use deterministic value with guaranteed gap
     if dt is None:
         # Place distractor at opposite end of range from real value
-        dt = 0.3 if real_threshold > DISTRACTOR_THRESHOLD_MIDPOINT else 0.7
+        dt = (
+            STL_THRESHOLD_MIN
+            if real_threshold > DISTRACTOR_THRESHOLD_MIDPOINT
+            else STL_THRESHOLD_MAX
+        )
 
     # Generate distractor scale_xy with guaranteed gap from real value
     real_scale_xy = real_params["scale_xy"]
     ds = None
     for _ in range(max_attempts):
-        candidate = float(rng.uniform(0.5, 5.0))
-        if abs(candidate - real_scale_xy) >= min_scale_xy_gap:
+        candidate = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+        if abs(candidate - real_scale_xy) >= MIN_DISTRACTOR_SCALE_GAP:
             ds = candidate
             break
 
     # Fallback: if random sampling fails, use deterministic value with guaranteed gap
     if ds is None:
         # Place distractor at opposite end of range from real value
-        ds = 0.5 if real_scale_xy > DISTRACTOR_SCALE_XY_MIDPOINT else 5.0
+        ds = (
+            STL_SCALE_XY_MIN
+            if real_scale_xy > DISTRACTOR_SCALE_XY_MIDPOINT
+            else STL_SCALE_XY_MAX
+        )
 
     return {
         "distractor_threshold": dt,
@@ -322,24 +347,25 @@ def _generate_random_conditional_params(seed: int | None = None) -> dict[str, An
     rng = np.random.default_rng(seed)
 
     # Compliance threshold: 100-300 range (centered on COMPLIANCE_FLEXIBLE=200)
-    compliance_threshold = float(rng.uniform(100.0, 300.0))
+    compliance_threshold = float(
+        rng.uniform(COMPLIANCE_THRESHOLD_MIN, COMPLIANCE_THRESHOLD_MAX)
+    )
 
     # Branch-specific parameters: threshold and mirror_y
-    threshold_high = float(rng.uniform(0.3, 0.7))
-    threshold_low = float(rng.uniform(0.3, 0.7))
+    threshold_high = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+    threshold_low = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
 
     # Ensure the two thresholds are distinguishable
-    min_threshold_gap = 0.1
-    while abs(threshold_high - threshold_low) < min_threshold_gap:
-        threshold_low = float(rng.uniform(0.3, 0.7))
+    while abs(threshold_high - threshold_low) < MIN_THRESHOLD_GAP:
+        threshold_low = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
 
     # Mirror: one branch mirrors, the other does not (guaranteed distinct)
     mirror_high = bool(rng.choice([True, False]))
     mirror_low = not mirror_high
 
     # Common parameters (same for both branches)
-    scale_xy = float(rng.uniform(0.5, 5.0))
-    scale_z = float(rng.uniform(5.0, 20.0))
+    scale_xy = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+    scale_z = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
 
     return {
         "conditional": True,
@@ -374,30 +400,27 @@ def _generate_random_multi_export_params(seed: int | None = None) -> dict[str, A
     """
     rng = np.random.default_rng(seed)
 
-    min_threshold_gap = 0.1
-    min_scale_gap = 0.2
-
     # Mirror: guaranteed opposite
     mirror_a = bool(rng.choice([True, False]))
     mirror_b = not mirror_a
 
     # Thresholds: both in [0.3, 0.7], gap >= min_threshold_gap
-    threshold_a = float(rng.uniform(0.3, 0.7))
-    threshold_b = float(rng.uniform(0.3, 0.7))
-    while abs(threshold_a - threshold_b) < min_threshold_gap:
-        threshold_b = float(rng.uniform(0.3, 0.7))
+    threshold_a = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+    threshold_b = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+    while abs(threshold_a - threshold_b) < MIN_THRESHOLD_GAP:
+        threshold_b = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
 
     # Scale XY: both in [0.5, 5.0], gap >= min_scale_gap
-    scale_xy_a = float(rng.uniform(0.5, 5.0))
-    scale_xy_b = float(rng.uniform(0.5, 5.0))
-    while abs(scale_xy_a - scale_xy_b) < min_scale_gap:
-        scale_xy_b = float(rng.uniform(0.5, 5.0))
+    scale_xy_a = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+    scale_xy_b = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+    while abs(scale_xy_a - scale_xy_b) < MIN_MULTI_EXPORT_SCALE_GAP:
+        scale_xy_b = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
 
     # Scale Z: both in [5.0, 20.0], gap >= min_scale_gap
-    scale_z_a = float(rng.uniform(5.0, 20.0))
-    scale_z_b = float(rng.uniform(5.0, 20.0))
-    while abs(scale_z_a - scale_z_b) < min_scale_gap:
-        scale_z_b = float(rng.uniform(5.0, 20.0))
+    scale_z_a = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
+    scale_z_b = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
+    while abs(scale_z_a - scale_z_b) < MIN_MULTI_EXPORT_SCALE_GAP:
+        scale_z_b = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
 
     return {
         "multi_export": True,
@@ -854,7 +877,7 @@ def create_prompt_from_conditions(
             "optimal_design": example["optimal_design"],
         }
 
-    # Add STL expected params for workflow-random
+    # Add STL expected params for workflow styles that validate parameters
     if stl_expected_params is not None:
         prompt_data["stl_expected_params"] = stl_expected_params
 
