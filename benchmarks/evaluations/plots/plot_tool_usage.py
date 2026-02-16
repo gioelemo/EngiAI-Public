@@ -22,7 +22,7 @@ from utils import (
 
 
 def plot_tool_usage_frequency(tool_data, output_dir=None):
-    """Plot frequency of each tool across all models (NeurIPS format).
+    """Plot frequency of each tool across all models (publication format).
 
     Args:
         tool_data: Combined tool usage DataFrame
@@ -88,7 +88,7 @@ def plot_tool_usage_frequency(tool_data, output_dir=None):
 
 
 def plot_tool_usage_by_model(tool_data, output_dir=None):
-    """Plot tool usage comparison across models (NeurIPS format).
+    """Plot tool usage comparison across models (publication format).
 
     Args:
         tool_data: Combined tool usage DataFrame
@@ -230,7 +230,7 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
 
 
 def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # noqa: ARG001, PLR0911
-    """Plot correlation between tool usage and performance (NeurIPS format).
+    """Plot correlation between tool usage and performance (publication format).
 
     Args:
         tool_data: Combined design DataFrame with tool usage metrics

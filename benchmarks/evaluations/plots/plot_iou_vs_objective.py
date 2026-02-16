@@ -19,7 +19,7 @@ from utils import (
 
 
 def plot_iou_vs_objective(combined_design_df, output_path=None, output_dir=None):
-    """Create IoU vs Objective Score scatter plot (NeurIPS format).
+    """Create IoU vs Objective Score scatter plot (publication format).
 
     Args:
         combined_design_df: DataFrame with design-level metrics

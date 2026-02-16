@@ -289,10 +289,10 @@ def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
     return None
 
 
-# NeurIPS 2-column format dimensions (inches)
+# 2-column format dimensions (inches)
 # Single column: ~3.25", Full width: ~6.75"
-NEURIPS_COLUMN_WIDTH = 3.25
-NEURIPS_FULL_WIDTH = 6.75
+COLUMN_WIDTH = 3.25
+FULL_WIDTH = 6.75
 
 # Colorblind-friendly palette (Okabe-Ito)
 # These can be used as a list for dynamic assignment
@@ -310,13 +310,13 @@ COLOR_PALETTE = [
 # Marker styles to cycle through
 MARKER_PALETTE = ["o", "s", "^", "D", "v", "p", "*", "h"]
 
-# Plot style configuration for NeurIPS publication
+# Plot style configuration for publication
 PLOT_STYLE = {
-    # Figure sizes for 2-column conference format
-    "figsize_single_col": (NEURIPS_COLUMN_WIDTH, 2.4),
-    "figsize_single_col_tall": (NEURIPS_COLUMN_WIDTH, 3.0),
-    "figsize_full_width": (NEURIPS_FULL_WIDTH, 2.8),
-    "figsize_full_width_tall": (NEURIPS_FULL_WIDTH, 4.0),
+    # Figure sizes for 2-column format
+    "figsize_single_col": (COLUMN_WIDTH, 2.4),
+    "figsize_single_col_tall": (COLUMN_WIDTH, 3.0),
+    "figsize_full_width": (FULL_WIDTH, 2.8),
+    "figsize_full_width_tall": (FULL_WIDTH, 4.0),
     "dpi": 300,
     # Color palette for dynamic assignment (cycle through for models)
     "color_palette": COLOR_PALETTE,
@@ -380,7 +380,7 @@ def get_model_style(models: list[str]) -> dict[str, dict]:
 
 
 def setup_style(use_latex=None):
-    """Configure matplotlib/seaborn for NeurIPS publication-quality figures.
+    """Configure matplotlib/seaborn for publication-quality figures.
 
     Args:
         use_latex: If True, force LaTeX. If False, disable LaTeX.
@@ -405,7 +405,7 @@ def setup_style(use_latex=None):
                     "font.serif": ["Computer Modern Roman"],
                     # LaTeX preamble for math support
                     "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
-                    # NeurIPS publication font sizes
+                    # Publication font sizes
                     "axes.labelsize": font_sizes["axes_label"],
                     "axes.titlesize": font_sizes["axes_title"],
                     "xtick.labelsize": font_sizes["tick_label"],
@@ -442,7 +442,7 @@ def setup_style(use_latex=None):
             "text.usetex": False,
             "font.family": "serif",
             "mathtext.fontset": "cm",  # Computer Modern math fonts
-            # NeurIPS publication font sizes
+            # Publication font sizes
             "axes.labelsize": font_sizes["axes_label"],
             "axes.titlesize": font_sizes["axes_title"],
             "xtick.labelsize": font_sizes["tick_label"],

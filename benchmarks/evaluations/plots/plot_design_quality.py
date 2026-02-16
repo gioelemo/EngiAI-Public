@@ -21,7 +21,7 @@ from utils import (
 
 
 def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
-    """Create violin plot of design quality distribution (NeurIPS format).
+    """Create violin plot of design quality distribution (publication format).
 
     Args:
         combined_design_df: DataFrame with design-level metrics

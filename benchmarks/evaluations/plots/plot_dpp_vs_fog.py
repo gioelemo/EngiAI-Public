@@ -29,7 +29,7 @@ MIN_HULL_POINTS = 3
 
 
 def plot_dpp_vs_fog(combined_df, output_path=None, output_dir=None):
-    """Create DPP vs FOG scatter plot (NeurIPS format).
+    """Create DPP vs FOG scatter plot (publication format).
 
     Args:
         combined_df: DataFrame with global metrics

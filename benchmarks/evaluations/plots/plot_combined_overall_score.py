@@ -24,7 +24,7 @@ from utils import (
 
 
 def plot_combined_overall_score(combined_design_df, output_path=None, output_dir=None):
-    """Create violin plot of combined overall score distribution (NeurIPS format).
+    """Create violin plot of combined overall score distribution (publication format).
 
     Args:
         combined_design_df: DataFrame with design-level metrics
