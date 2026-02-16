@@ -856,7 +856,9 @@ def test_generate_distractor_params_minimum_gap():
         real_params = _generate_random_stl_params(seed)
         rng = np.random.default_rng(seed + 10000)
         distractors = _generate_distractor_params(rng, real_params)
-        assert abs(distractors["distractor_threshold"] - real_params["threshold"]) >= 0.1
+        assert (
+            abs(distractors["distractor_threshold"] - real_params["threshold"]) >= 0.1
+        )
         assert abs(distractors["distractor_scale_xy"] - real_params["scale_xy"]) >= 0.5
 
 
@@ -893,7 +895,9 @@ def test_create_workflow_distractor_prompt_contains_competing_values():
     threshold_lines = [
         line for line in prompt.split("\n") if "threshold" in line.lower()
     ]
-    assert len(threshold_lines) == 2, f"Expected 2 threshold lines, got {threshold_lines}"
+    assert len(threshold_lines) == 2, (
+        f"Expected 2 threshold lines, got {threshold_lines}"
+    )
 
 
 @pytest.mark.unit
