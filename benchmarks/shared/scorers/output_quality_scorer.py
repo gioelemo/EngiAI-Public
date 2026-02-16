@@ -253,7 +253,12 @@ def _extract_watertightness_from_messages(
 
 
 def _extract_float_field(content: str, field: str) -> float | None:
-    """Extract float field from content string."""
+    """Extract float field from content string.
+
+    Args:
+        content: Raw text content to search in.
+        field: Field name to extract.
+    """
     match = re.search(rf"['\"]?{field}['\"]?\s*:([\d.\s]+)", content)
     if match:
         try:
@@ -264,7 +269,12 @@ def _extract_float_field(content: str, field: str) -> float | None:
 
 
 def _extract_int_field(content: str, field: str) -> int | None:
-    """Extract int field from content string."""
+    """Extract int field from content string.
+
+    Args:
+        content: Raw text content to search in.
+        field: Field name to extract.
+    """
     match = re.search(rf"['\"]?{field}['\"]?\s*:(\d+)", content)
     if match:
         try:
@@ -275,7 +285,12 @@ def _extract_int_field(content: str, field: str) -> int | None:
 
 
 def _extract_bool_field(content: str, field: str) -> bool:
-    """Extract bool field from content string."""
+    """Extract bool field from content string.
+
+    Args:
+        content: Raw text content to search in.
+        field: Field name to extract.
+    """
     match = re.search(rf"['\"]?{field}['\"]?\s*:\s*(\w+)", content)
     if match:
         value = match.group(1)
@@ -284,7 +299,12 @@ def _extract_bool_field(content: str, field: str) -> bool:
 
 
 def _get_target_value(conditions: dict[str, Any], cond_config: Any) -> float | None:
-    """Extract target value from conditions, trying aliases if needed."""
+    """Extract target value from conditions, trying aliases if needed.
+
+    Args:
+        conditions: Conditions dictionary from the dataset sample.
+        cond_config: ConditionConfig with field_name and aliases.
+    """
     target_value = conditions.get(cond_config.field_name)
     if target_value is None:
         for alias in cond_config.aliases:
@@ -299,7 +319,12 @@ def _compute_constraint_partial_score(
 ) -> tuple[float, float]:
     """Compute normalized error and partial score for a constraint.
 
-    Returns (normalized_error, partial_score).
+    Args:
+        error: Absolute error between actual and target values.
+        tolerance: Tolerance threshold for the constraint.
+
+    Returns:
+        Tuple of (normalized_error, partial_score).
     """
     if tolerance > 0:
         normalized_error = error / tolerance
@@ -480,6 +505,13 @@ def _validate_inputs(
     except ValueError as e:
         return _create_error_result({"error": str(e)})
 
+    # Guard: problems without a HuggingFace dataset (e.g. rag_beams2d) cannot
+    # be scored here — they use a dedicated scorer instead.
+    if not problem_config.dataset_name:
+        return _create_error_result(
+            {"skipped": True, "reason": "No dataset configured for this problem"}
+        )
+
     return problem_name, example_id, problem_config
 
 
@@ -550,7 +582,6 @@ def _compute_hierarchical_score(
             - objective_score: float
             - connectivity_metrics: dict with connected_design, num_components
             - watertightness_metrics: dict with is_watertight, etc.
-        design_found: Whether design was successfully found
         metadata: Metadata dict (may contain tool_calls_info from tool_use_scorer)
 
     Returns:

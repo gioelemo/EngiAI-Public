@@ -31,6 +31,7 @@ from plot_dpp_vs_fog import plot_dpp_vs_fog  # noqa: E402
 from plot_dpp_vs_mmd import plot_dpp_vs_mmd  # noqa: E402
 from plot_iou_vs_objective import plot_iou_vs_objective  # noqa: E402
 from plot_metrics_comparison import plot_metrics_comparison  # noqa: E402
+from plot_rag_evaluation import main as plot_rag_evaluation_main  # noqa: E402
 from plot_success_curves import plot_convergence_profile  # noqa: E402
 from plot_tool_usage import (  # noqa: E402
     plot_performance_distribution_by_tool_count,
@@ -228,6 +229,17 @@ def _generate_plots_for_problem(  # noqa: PLR0913
         problem_design = filter_by_rag_status(problem_design, rag_status)
         problem_tools = filter_by_rag_status(problem_tools, rag_status)
 
+    # RAG evaluation problems use a dedicated set of plots
+    if problem == "rag_beams2d":
+        print("\n" + "-" * 40)
+        print("Generating RAG evaluation plots...")
+        print("-" * 40)
+        if problem_design is not None and not problem_design.empty:
+            plot_rag_evaluation_main(problem_design, output_dir)
+        else:
+            print("  ⚠️  No design data — run extract_data.py first.")
+        return
+
     # Generate plots
     _generate_global_plots(problem_global, output_dir, problem)
     _generate_design_plots(problem_design, output_dir, problem)
@@ -248,7 +260,14 @@ def _parse_args():
     parser.add_argument(
         "--prompt-style",
         type=str,
-        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
+        choices=[
+            "full",
+            "approximate",
+            "natural",
+            "workflow",
+            "workflow-random",
+            "rag-eval",
+        ],
         help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",
     )
     parser.add_argument(
@@ -346,7 +365,7 @@ def _detect_rag_statuses_with_data(combined_global, combined_design, combined_to
     return rag_statuses
 
 
-def main():  # noqa: PLR0912
+def main():  # noqa: PLR0912, PLR0915
     """Generate all visualizations."""
     args = _parse_args()
 
@@ -397,6 +416,26 @@ def main():  # noqa: PLR0912
 
     if args.problem not in problems_with_data:
         print(f"WARNING: No data found for problem '{args.problem}'")
+        return
+
+    # RAG evaluation problems: generate a single combined plot (both rag + no_rag in one figure)
+    # No rag_status subfolder — output goes directly to figures/{problem}/{prompt_style}/
+    if args.problem == "rag_beams2d":
+        _generate_plots_for_problem(
+            args.problem,
+            combined_global,
+            combined_design,
+            combined_tools,
+            prompt_style=args.prompt_style,
+            rag_status=None,
+        )
+        if args.prompt_style:
+            output_dir = get_problem_prompt_output_dir(args.problem, args.prompt_style)
+        else:
+            output_dir = get_problem_output_dir(args.problem)
+        print("\n" + "=" * 60)
+        print(f"DONE! Figures saved to: {output_dir}")
+        print("=" * 60)
         return
 
     # Determine which RAG statuses to generate plots for

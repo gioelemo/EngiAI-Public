@@ -62,6 +62,7 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
     score_output_quality,
+    score_rag_evaluation,
     score_task_completion,
     score_tool_use,
 )
@@ -344,10 +345,23 @@ def parse_arguments() -> argparse.Namespace:
         help="Random seed for optimization (e.g., 1, 2, 3). Run multiple times with different seeds to collect statistics.",
     )
     parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Run number for repeated evaluations (e.g., 1, 2, 3). Uses a fixed optimization seed across all runs. Combine with --seed to override the default optimization seed.",
+    )
+    parser.add_argument(
         "--prompt-style",
         type=str,
         default="full",
-        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
+        choices=[
+            "full",
+            "approximate",
+            "natural",
+            "workflow",
+            "workflow-random",
+            "rag-eval",
+        ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
     )
     parser.add_argument(
@@ -363,7 +377,16 @@ def parse_arguments() -> argparse.Namespace:
         action="store_false",
         help="Disable MMORE RAG system (default)",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # --run = tracking identifier (1, 2, 3, …) with a fixed optimization seed.
+    # --seed = optimization seed that also serves as tracking identifier.
+    # When --run is used without --seed, default optimization seed to 1.
+    if args.run is not None and args.seed is None:
+        args.seed = 1
+    args.run_id = args.run if args.run is not None else args.seed
+
+    return args
 
 
 def load_prompts(problem: str, prompt_file_name: str) -> list[dict[str, Any]] | None:
@@ -410,13 +433,16 @@ def get_or_create_dataset(
     """
     try:
         dataset = weave.ref(dataset_name).get()
-        if len(dataset.rows) == num_samples:
+        # Check count AND prompt content so stale cached datasets are refreshed
+        existing_prompts = [row.get("prompt", "") for row in dataset.rows]
+        new_prompts = [row.get("prompt", "") for row in eval_dataset]
+        if existing_prompts == new_prompts:
             print(
                 f"📦 Using existing evaluation dataset from Weave ({len(dataset.rows)} samples)"
             )
         else:
             print(
-                f"⚠️  Existing dataset has {len(dataset.rows)} samples, need {num_samples}. Recreating..."
+                f"⚠️  Dataset prompts changed (had {len(dataset.rows)}, need {num_samples}). Recreating..."
             )
             dataset = weave.Dataset(name=dataset_name, rows=eval_dataset)  # type: ignore[arg-type]
             weave.publish(dataset)
@@ -439,8 +465,6 @@ def create_contextual_scorer(
 
     Args:
         scorer_func: Original scorer function to wrap
-        model_name: Model name (e.g., "gpt-4o", "gemini-3-flash-preview") [unused, kept for signature compatibility]
-        problem_type: Problem type (e.g., "beams2d", "thermoelastic2d") [unused, kept for signature compatibility]
         scorer_type: Scorer identifier (e.g., "output_quality", "task_completion")
 
     Returns:
@@ -454,10 +478,14 @@ def create_contextual_scorer(
     def contextual_scorer(
         output: dict[str, Any],
         target: dict[str, Any],
+        conditions: dict[str, Any],
         metadata: dict[str, Any],
     ) -> dict[str, Any]:
         """Contextual wrapper that delegates to the original scorer."""
-        return scorer_func(output, target, metadata)
+        # Weave passes `conditions` from the top-level dataset row field; merge it
+        # into metadata so all scorers can access it via metadata["conditions"].
+        full_metadata = {**metadata, "conditions": conditions}
+        return scorer_func(output, target, full_metadata)
 
     # Set the __name__ attribute so it displays correctly
     contextual_scorer.__name__ = scorer_type  # type: ignore[attr-defined]
@@ -505,6 +533,12 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Reset MMORE cache to pick up the new env var value
     config.reset_mmore_cache()
 
+    # For RAG evaluation problems disable ArXiv so MMORE is the only document source.
+    # This keeps the RAG-on vs RAG-off comparison clean: the only variable is whether
+    # MMORE (search_documents) is available, not whether the agent can reach the paper
+    # via the ArXiv agent as an alternative route.
+    os.environ["SKIP_ARXIV"] = "true" if args.problem == "rag_beams2d" else "false"
+
     # Get problem configuration
     problem_config = PROBLEM_CONFIGS[args.problem]
     model_name = args.model or config.llm_model
@@ -546,6 +580,18 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         ]
         scorer_types = ["output_quality", "task_completion", "tool_use"]
 
+    # For RAG problems, substitute score_output_quality with score_rag_evaluation.
+    # The RAG scorer replaces design-quality metrics (IoU, pixel accuracy, etc.)
+    # with RAG-specific metrics (parameter accuracy, tool usage, source citation).
+    if args.problem == "rag_beams2d":
+        base_scorers = [
+            score_rag_evaluation if s is score_output_quality else s
+            for s in base_scorers
+        ]
+        scorer_types = [
+            "rag_evaluation" if t == "output_quality" else t for t in scorer_types
+        ]
+
     # Wrap scorers with evaluation context for better trace naming in Weave UI
     scorers = [
         create_contextual_scorer(scorer_func, scorer_type)
@@ -563,9 +609,13 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print(f"Dataset Split: {args.split}")
     print(f"Prompt Style: {args.prompt_style}")
     print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
-    print(f"Samples: {args.samples}")
-    if args.seed is not None:
-        print(f"Seed: {args.seed}")
+    print(
+        f"ArXiv: {'disabled (rag eval)' if args.problem == 'rag_beams2d' else 'enabled'}"
+    )
+    print(f"Max Samples: {args.samples}")
+    if args.run_id is not None:
+        run_label = "Run" if args.run is not None else "Seed"
+        print(f"{run_label}: {args.run_id}")
     print(f"Scorer Set: {args.scorers}")
     print(f"Active Scorers: {[s.__name__ for s in scorers]}")  # type: ignore[attr-defined]
 
@@ -577,8 +627,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     expected_eval_run_name = (
         f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_evaluation"
     )
-    if args.seed is not None:
-        expected_eval_run_name += f"_seed_{args.seed}"
+    if args.run_id is not None:
+        run_suffix = "run" if args.run is not None else "seed"
+        expected_eval_run_name += f"_{run_suffix}_{args.run_id}"
 
     print("Expected Weave trace names:")
     print(f"  Evaluation: {expected_eval_run_name}")
@@ -608,15 +659,18 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     if prompts is None:
         return
 
+    # Cap samples to actual number of prompts available
+    n_eval = min(args.samples, len(prompts))
     print(f"✅ Loaded {len(prompts)} prompts")
-    print(f"📊 Evaluating on {args.samples} samples")
+    print(f"📊 Evaluating on {n_eval} samples")
     print()
 
     # Prepare evaluation dataset
     eval_metadata = {
         "problem_type": args.problem,
         "dataset_name": problem_config["dataset_name"],
-        "seed": args.seed,
+        "seed": args.seed,  # Only --seed adds "Use seed=N" prompt instruction
+        "run_id": args.run_id,  # Tracking identifier (from --run or --seed)
         "prompt_style": args.prompt_style,
         "mmore_enabled": args.mmore_enabled,
         "model_name": model_name,
@@ -627,8 +681,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Get or create Weave dataset (include sample count to avoid conflicts)
     dataset_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_eval_dataset_{safe_model}_n{args.samples}"
-    if args.seed is not None:
-        dataset_name += f"_seed_{args.seed}"
+    if args.run_id is not None:
+        run_suffix = "run" if args.run is not None else "seed"
+        dataset_name += f"_{run_suffix}_{args.run_id}"
     dataset = get_or_create_dataset(eval_dataset, dataset_name, len(eval_dataset))
     print()
 
@@ -645,8 +700,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Define evaluation
     print("🔍 Running evaluation...")
     eval_type_name = f"{args.problem}_{args.prompt_style}_{mmore_suffix}_agent_eval_{model_name.replace('/', '_')}_{args.scorers}"
-    if args.seed is not None:
-        eval_type_name += f"_seed_{args.seed}"
+    if args.run_id is not None:
+        run_suffix = "run" if args.run is not None else "seed"
+        eval_type_name += f"_{run_suffix}_{args.run_id}"
     evaluation = weave.Evaluation(
         name=eval_type_name,
         dataset=dataset,
@@ -658,8 +714,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     eval_run_name = (
         f"{safe_model}_{args.problem}_{args.prompt_style}_{mmore_suffix}_evaluation"
     )
-    if args.seed is not None:
-        eval_run_name += f"_seed_{args.seed}"
+    if args.run_id is not None:
+        run_suffix = "run" if args.run is not None else "seed"
+        eval_run_name += f"_{run_suffix}_{args.run_id}"
 
     # Wrap evaluation.evaluate() in a named weave op for custom trace naming
     @weave.op(name=eval_run_name)
@@ -682,6 +739,36 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
     )
     results_dir.mkdir(parents=True, exist_ok=True)
+
+    # RAG evaluation — no HuggingFace ground-truth designs, so skip global metrics.
+    # Per-example results are in Weave; use extract_data.py to export to JSON.
+    if args.problem == "rag_beams2d":
+        print()
+        print("=" * 60)
+        print("RAG EVALUATION RESULTS")
+        print("=" * 60)
+        print()
+        mmore_status = (
+            "enabled (RAG on)" if args.mmore_enabled else "disabled (RAG off)"
+        )
+        print(f"MMORE RAG: {mmore_status}")
+        print()
+        print("Next steps:")
+        print("  1. Run extract_data.py to export per-example RAG metrics to JSON:")
+        print(
+            f"     python benchmarks/evaluations/extract_data.py"
+            f" --problem {args.problem} --prompt-style {args.prompt_style}"
+            f" --rag-status {rag_dir}"
+            f"  # filters rag_beams2d runs using RAG status/metadata; pass --eval-name to narrow if needed"
+        )
+        print(
+            '  2. Run "python benchmarks/evaluations/plots/run_all.py'
+            f' --problem {args.problem}" to generate RAG plots across models.'
+        )
+        print()
+        print("🎉 Evaluation complete!")
+        print("📊 View detailed results in Weave dashboard")
+        return
 
     # Compute global metrics for all scorer types (all scorers now support design extraction)
     # Skip for task_completion and tool_use scorers which don't extract designs

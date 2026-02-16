@@ -9,12 +9,19 @@ Shared utilities for plots.
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+from benchmarks.shared.problem_registry import PROBLEMS as _PROBLEMS  # noqa: E402
+from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS  # noqa: E402
 
 # Constants
 DEFAULT_N_SAMPLES = 10
@@ -25,11 +32,18 @@ RESULTS_DIR = Path(__file__).parent.parent / "results"
 OUTPUT_DIR = Path(__file__).parent / "figures"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Known problem types
-KNOWN_PROBLEMS = ["beams2d", "photonics2d", "thermoelastic2d"]
+# Known problem types — derived from the problem registry to stay in sync
+KNOWN_PROBLEMS = list(_PROBLEMS.keys())
 
 # Known prompt styles
-KNOWN_PROMPT_STYLES = ["full", "approximate", "natural", "workflow", "workflow-random"]
+KNOWN_PROMPT_STYLES = [
+    "full",
+    "approximate",
+    "natural",
+    "workflow",
+    "workflow-random",
+    "rag-eval",
+]
 
 # Directory structure:
 # results/baselines/{baseline_type}/{problem}/                              - for baselines (CGAN, CNN, etc.)
@@ -215,42 +229,56 @@ def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
     Returns:
         Dictionary with 'model', 'prompt_style', 'rag_status', 'problem', 'type' or None if invalid.
     """
-    parts = key.rsplit("_", 2)  # Split from right: [model_part, problem, type]
-    if len(parts) < MIN_KEY_PARTS:
-        return None
-
-    data_type = parts[-1]  # "global", "design", "tools"
-    problem = parts[-2]
-
-    if problem not in KNOWN_PROBLEMS:
-        return None
-
-    model_part = "_".join(parts[:-2])
-
-    # Check for CGAN baseline
+    # Check for CGAN baseline first
     if key.startswith("cgan_"):
+        parts = key.rsplit("_", 2)
+        if len(parts) < MIN_KEY_PARTS:
+            return None
         return {
-            "model": model_part,
+            "model": "_".join(parts[:-2]),
             "prompt_style": None,
             "rag_status": None,
-            "problem": problem,
-            "type": data_type,
+            "problem": parts[-2],
+            "type": parts[-1],
             "is_baseline": True,
         }
 
-    # Format: {model_name}_{prompt_style}_{rag_status}
-    # Try to extract rag_status first
+    # 1. Extract data type from the end of the key
+    data_type = None
+    key_without_type = key
+    for suffix in ("_global", "_design"):
+        if key.endswith(suffix):
+            data_type = suffix[1:]  # "global" or "design"
+            key_without_type = key[: -len(suffix)]
+            break
+    if data_type is None:
+        return None
+
+    # 2. Match known problems (longest names first to avoid partial matches).
+    #    This correctly handles compound names like "rag_beams2d" before "beams2d".
+    problem = None
+    model_part = None
+    for known_problem in sorted(KNOWN_PROBLEMS, key=len, reverse=True):
+        if key_without_type.endswith(f"_{known_problem}"):
+            problem = known_problem
+            model_part = key_without_type[: -(len(known_problem) + 1)]
+            break
+    if problem is None:
+        return None
+    assert model_part is not None  # set in the same loop branch as problem
+
+    # 3. Extract rag_status (check "no_rag" before "rag" to avoid partial match)
     rag_status = None
     for status in KNOWN_RAG_STATUSES:
         if model_part.endswith(f"_{status}"):
             rag_status = status
-            model_part = model_part[: -(len(status) + 1)]  # Remove _status suffix
+            model_part = model_part[: -(len(status) + 1)]
             break
 
-    # Now extract prompt_style
-    for style in KNOWN_PROMPT_STYLES:
+    # 4. Extract prompt_style (longest styles first to avoid partial matches)
+    for style in sorted(KNOWN_PROMPT_STYLES, key=len, reverse=True):
         if model_part.endswith(f"_{style}"):
-            model_name = model_part[: -(len(style) + 1)]  # Remove _style suffix
+            model_name = model_part[: -(len(style) + 1)]
             return {
                 "model": model_name,
                 "prompt_style": style,
@@ -300,6 +328,7 @@ PLOT_STYLE = {
         "beams2d": COLOR_PALETTE[0],
         "photonics2d": COLOR_PALETTE[1],
         "thermoelastic2d": COLOR_PALETTE[2],
+        "rag_beams2d": COLOR_PALETTE[3],
     },
     "alpha": 0.7,
     "marker_size": 40,  # Smaller for publication
@@ -452,6 +481,13 @@ def _load_global_metrics(path, model, problem, prompt_style="full", rag_status=N
     """Load and clean global metrics for a specific model/problem.
 
     Expects JSON format from compute_global_metrics.py.
+
+    Args:
+        path: Path to the JSON metrics file.
+        model: Model name for the DataFrame column.
+        problem: Problem name for the DataFrame column.
+        prompt_style: Prompt style identifier.
+        rag_status: RAG status identifier (e.g. "rag" or "no_rag").
     """
     if not path.exists():
         return None
@@ -503,6 +539,12 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
     """Load and clean design-level metrics for a specific model.
 
     Expects JSON format from extract_data.py.
+
+    Args:
+        path: Path to the JSON design metrics file.
+        model: Model name for the DataFrame column.
+        prompt_style: Prompt style identifier.
+        rag_status: RAG status identifier (e.g. "rag" or "no_rag").
     """
     if not path.exists():
         return None
@@ -547,6 +589,9 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
 
             # Also include any individual tool usage fields (tool_*)
             row.update({k: v for k, v in design.items() if k.startswith("tool_")})
+
+            # Include RAG evaluation fields (rag_beams2d problems)
+            row.update({f: design[f] for f in RAG_OUTPUT_FIELDS if f in design})
 
             rows.append(row)
 
@@ -878,10 +923,15 @@ def save_figure(fig, filename, output_dir=None, save_pdf=True):
 
 
 def identify_pareto_front(scores, minimize_x=False, minimize_y=True):
-    """
-    Finds the pareto-efficient points.
-    :param scores: An (n_points, 2) array [x_values, y_values]
-    :return: A boolean array indicating if each point is on the Pareto front.
+    """Find the pareto-efficient points.
+
+    Args:
+        scores: An (n_points, 2) array [x_values, y_values].
+        minimize_x: Whether to minimize the x-axis metric.
+        minimize_y: Whether to minimize the y-axis metric.
+
+    Returns:
+        A boolean array indicating if each point is on the Pareto front.
     """
     is_efficient = np.ones(scores.shape[0], dtype=bool)
     for i, c in enumerate(scores):

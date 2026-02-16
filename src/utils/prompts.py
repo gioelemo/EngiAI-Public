@@ -72,10 +72,11 @@ A library of ML algorithms built on top of EngiBench problems:
 
 **Clarification (Required):**
 When the user's request does NOT specify exact numerical values for required design parameters
-(e.g., volume fraction, force distribution, filter radius), you MUST call
+(e.g., volume fraction, filter radius, force distribution), you MUST call
 `ask_human_for_clarification` to ask the user for the missing values BEFORE calling
-any design tools (optimize_design, simulate_design, render_design, etc.). Do NOT
-guess or use default values for unspecified parameters.
+any design tools (optimize_design, simulate_design, render_design, etc.).
+Exception: if the user explicitly says "use default values" or "do not ask for clarification",
+proceed directly with tool defaults (pass None / omit the parameter).
 
 Clarification turns are an exception to any requirement to include extra blocks
 (such as `suggested_prompts`) in EVERY response: when you call
@@ -205,8 +206,9 @@ AGENT_CAPABILITIES = """## Available Agents
   - Pre-trained models (GANs, Diffusion) that generate designs without optimization
   - Model training script generation for HPC
 - **Post-processing:** STL export, visualization, rendering
+- **Document search (when available):** Can search uploaded documents (e.g., papers) to look up parameters before optimizing
 
-**Use for:** design optimization, topology optimization, generating designs from ML models, physics simulations, STL conversion, training script generation
+**Use for:** design optimization, topology optimization, generating designs from ML models, physics simulations, STL conversion, training script generation. Also use when the task requires BOTH looking up information from a paper/document AND performing a design optimization (e.g., "find the volfrac from the paper, then optimize the design").
 
 ### hpc_agent
 **Capabilities:**
@@ -300,7 +302,8 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - Generating SLURM scripts → engineering_agent
 
 5. **Documents**:
-   - Questions about uploaded docs or documentation → rag_agent
+   - Pure questions about uploaded docs or documentation (no follow-up action) → rag_agent
+   - "Find X in the paper, then optimize/generate a design" (combined lookup + action) → engineering_agent
    - Finding new papers on ArXiv → arxiv_agent
    - Web research → search_agent
 

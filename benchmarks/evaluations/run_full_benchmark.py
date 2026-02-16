@@ -174,7 +174,14 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         "--prompt-style",
         type=str,
         default="full",
-        choices=["full", "approximate", "natural", "workflow", "workflow-random"],
+        choices=[
+            "full",
+            "approximate",
+            "natural",
+            "workflow",
+            "workflow-random",
+            "rag-eval",
+        ],
         help="Prompt style for agent evaluation (default: full)",
     )
     parser.add_argument(
@@ -233,6 +240,18 @@ def main() -> None:  # noqa: PLR0912, PLR0915
 
     run_cgan = not args.agent_only
     run_agent = not args.cgan_only
+
+    # CGAN baseline is not applicable for problems without a HuggingFace dataset
+    # (e.g. rag_beams2d uses handcrafted prompts with no ground-truth designs)
+    problem_config = PROBLEMS[args.problem]
+    if run_cgan and not problem_config.dataset_name:
+        if args.cgan_only:
+            print(
+                f"Error: CGAN evaluation is not applicable for '{args.problem}' "
+                f"(no dataset configured)"
+            )
+            sys.exit(1)
+        run_cgan = False
 
     # Setup output directories
     # CGAN: results/baselines/cgan_cnn_2d/{problem}/

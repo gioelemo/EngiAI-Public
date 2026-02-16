@@ -103,8 +103,9 @@ class ProblemConfig:
     name: str
     """Problem identifier (e.g., 'beams2d', 'photonics2d')"""
 
-    dataset_name: str
-    """HuggingFace dataset identifier (e.g., 'IDEALLab/beams_2d_50_100_v0')"""
+    dataset_name: str = ""
+    """HuggingFace dataset identifier (e.g., 'IDEALLab/beams_2d_50_100_v0').
+    Leave empty for problems without a HuggingFace dataset (e.g., RAG evaluations)."""
 
     design_field: str = "optimal_design"
     """Field name for design array in the dataset"""
@@ -172,8 +173,8 @@ class ProblemConfig:
                 f"Categories: {list(self.score_categories.keys())}"
             )
 
-        # Validate objectives
-        if not self.objectives:
+        # Validate objectives (only required for problems with HuggingFace datasets)
+        if self.dataset_name and not self.objectives:
             raise ValueError(f"Problem '{self.name}' must have at least one objective")
 
         # Check for duplicate objective names

@@ -12,6 +12,9 @@ by compute_global_metrics.py using the extracted design data.
 from benchmarks.shared.scorers.output_quality_scorer import (
     score_output_quality,
 )
+from benchmarks.shared.scorers.rag_scorer import (
+    score_rag_evaluation,
+)
 from benchmarks.shared.scorers.task_completion_scorer import (
     score_task_completion,
 )
@@ -21,6 +24,7 @@ from benchmarks.shared.scorers.tool_use_scorer import (
 
 __all__ = [
     "score_output_quality",
+    "score_rag_evaluation",
     "score_task_completion",
     "score_tool_use",
 ]
