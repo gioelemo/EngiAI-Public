@@ -770,6 +770,7 @@ def main():
             "natural",
             "workflow",
             "workflow-random",
+            "workflow-derived-params",
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",

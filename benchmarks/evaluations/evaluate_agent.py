@@ -359,6 +359,7 @@ def parse_arguments() -> argparse.Namespace:
             "natural",
             "workflow",
             "workflow-random",
+            "workflow-derived-params",
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",

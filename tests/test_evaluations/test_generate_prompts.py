@@ -1,7 +1,7 @@
-"""Tests for workflow-random and workflow-conditional prompt generation functionality.
+"""Tests for workflow prompt generation functionality.
 
-Tests for the _generate_random_stl_params() and _generate_random_conditional_params()
-functions and corresponding prompt creation in benchmarks/problems/beams2d/generate_prompts.py.
+Tests for parameter generation functions and corresponding prompt creation
+in benchmarks/problems/beams2d/generate_prompts.py.
 """
 
 import sys
@@ -15,7 +15,9 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from benchmarks.problems.beams2d.generate_prompts import (  # noqa: E402
+    _compute_derived_stl_params,
     _create_workflow_conditional_prompt,
+    _create_workflow_derived_params_prompt,
     _create_workflow_multi_export_prompt,
     _create_workflow_random_prompt,
     _generate_random_conditional_params,
@@ -685,3 +687,133 @@ def test_create_prompt_workflow_multi_export_integration():
         if t["name"] == "convert_design_to_stl"
     )
     assert stl_tool["count"] == 2
+
+
+# ============================================================================
+# WORKFLOW-DERIVED-PARAMS PARAMETER COMPUTATION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_compute_derived_stl_params_basic():
+    """Test derivation rules with known inputs: volfrac=0.35, rmin=1.5."""
+    params = _compute_derived_stl_params(volfrac=0.35, rmin=1.5)
+
+    assert params["threshold"] == 0.35  # threshold = volfrac
+    assert params["scale_xy"] == 3.0  # scale_xy = 2 * rmin
+    assert params["scale_z"] == 14.0  # scale_z = volfrac * 40
+    assert params["mirror_y"] is False  # 0.35 <= 0.4
+
+
+@pytest.mark.unit
+def test_compute_derived_stl_params_mirror_true():
+    """Test that mirror_y is True when volfrac > 0.4."""
+    params = _compute_derived_stl_params(volfrac=0.5, rmin=1.5)
+
+    assert params["mirror_y"] is True  # 0.5 > 0.4
+    assert params["threshold"] == 0.5
+    assert params["scale_xy"] == 3.0
+    assert params["scale_z"] == 20.0  # 0.5 * 40
+
+
+@pytest.mark.unit
+def test_compute_derived_stl_params_mirror_boundary():
+    """Test that mirror_y is False at exactly volfrac=0.4 (not strictly greater)."""
+    params = _compute_derived_stl_params(volfrac=0.4, rmin=2.0)
+
+    assert params["mirror_y"] is False  # 0.4 is NOT > 0.4
+    assert params["threshold"] == 0.4
+    assert params["scale_xy"] == 4.0  # 2 * 2.0
+    assert params["scale_z"] == 16.0  # 0.4 * 40
+
+
+@pytest.mark.unit
+def test_compute_derived_stl_params_structure():
+    """Test that computed parameters have correct keys and types."""
+    params = _compute_derived_stl_params(volfrac=0.35, rmin=1.5)
+
+    assert set(params.keys()) == {"mirror_y", "scale_xy", "scale_z", "threshold"}
+    assert isinstance(params["mirror_y"], bool)
+    assert isinstance(params["scale_xy"], float)
+    assert isinstance(params["scale_z"], float)
+    assert isinstance(params["threshold"], float)
+
+
+# ============================================================================
+# WORKFLOW-DERIVED-PARAMS PROMPT CREATION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_create_workflow_derived_params_prompt_contains_rules():
+    """Test that prompt describes derivation rules, not just final values."""
+    prompt, _ = _create_workflow_derived_params_prompt(0.35, 0.5, 1.5)
+
+    assert "volume fraction value as the density threshold" in prompt
+    assert "twice the filter radius" in prompt
+    assert "multiplied by 40" in prompt
+    assert "greater than 0.4" in prompt
+
+
+@pytest.mark.unit
+def test_create_workflow_derived_params_prompt_no_explicit_values():
+    """Test that prompt does NOT contain computed numerical STL values."""
+    prompt, _params = _create_workflow_derived_params_prompt(0.35, 0.5, 1.5)
+
+    # The prompt should contain optimization inputs
+    assert "0.35" in prompt  # volfrac
+    assert "0.5" in prompt  # forcedist
+    assert "1.5" in prompt  # rmin
+
+    # The derived scale_z (14.0) should NOT appear — agent must compute it
+    assert "14.0" not in prompt
+
+
+@pytest.mark.unit
+def test_create_workflow_derived_params_prompt_deterministic():
+    """Test that same inputs always produce same prompt and params."""
+    prompt1, params1 = _create_workflow_derived_params_prompt(0.3, 0.5, 2.0)
+    prompt2, params2 = _create_workflow_derived_params_prompt(0.3, 0.5, 2.0)
+
+    assert prompt1 == prompt2
+    assert params1 == params2
+
+
+# ============================================================================
+# WORKFLOW-DERIVED-PARAMS INTEGRATION WITH create_prompt_from_conditions
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_create_prompt_workflow_derived_params_integration():
+    """Test workflow-derived-params integration in create_prompt_from_conditions."""
+    example = {
+        "volfrac": 0.35,
+        "forcedist": 0.5,
+        "rmin": 1.5,
+        "c": 100.0,
+        "optimal_design": np.zeros((10, 10)),
+        "example_id": 0,
+    }
+
+    prompt_data = create_prompt_from_conditions(
+        example, include_target=True, prompt_style="workflow-derived-params"
+    )
+
+    assert prompt_data["prompt_style"] == "workflow-derived-params"
+    assert "stl_expected_params" in prompt_data
+    assert prompt_data["metadata"]["success_criteria"] == "stl_export_with_params"
+
+    # Verify derived values
+    stl_params = prompt_data["stl_expected_params"]
+    assert stl_params["threshold"] == 0.35
+    assert stl_params["scale_xy"] == 3.0
+    assert stl_params["scale_z"] == 14.0
+    assert stl_params["mirror_y"] is False
+
+    # Check optimal tool calls
+    assert prompt_data["optimal_call_count"] == 3
+    tool_names = [tool["name"] for tool in prompt_data["optimal_tool_calls"]]
+    assert "optimize_design" in tool_names
+    assert "simulate_design" in tool_names
+    assert "convert_design_to_stl" in tool_names

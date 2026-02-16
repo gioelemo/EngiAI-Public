@@ -120,6 +120,7 @@ The beams2d benchmark supports multiple prompt styles for evaluating different a
 - **natural**: Natural language descriptions only
 - **workflow**: Full workflow with STL export (hardcoded parameters)
 - **workflow-random**: Full workflow with randomized STL parameters and validation
+- **workflow-derived-params**: Workflow with STL parameters derived from optimization inputs
 - **workflow-conditional**: Workflow with if/then branching based on simulation results
 
 #### workflow-random Prompt Style
@@ -165,6 +166,41 @@ Example prompt excerpt:
    - XY Scaling: Scale the X and Y dimensions by 2.47
    - Extrusion: Extrude the 2D result by 17.9 units in the Z-axis...
    - Export: Save the final geometry as an STL file with these exact parameters
+```
+
+#### workflow-derived-params Prompt Style
+
+The `workflow-derived-params` style tests **arithmetic reasoning** — the agent must compute STL export parameters from the optimization inputs rather than following explicit values. The prompt gives derivation rules, not final numbers.
+
+**Derivation Rules:**
+- `threshold` = volume fraction value (e.g., volfrac=0.35 → threshold=0.35)
+- `scale_xy` = 2 × filter radius (e.g., rmin=1.5 → scale_xy=3.0)
+- `scale_z` = threshold × 40 (e.g., 0.35 × 40 = 14.0)
+- `mirror_y` = True only if volume fraction > 0.4
+
+**Key Design:** No randomness — parameters are deterministically derived from optimization inputs. No seed needed.
+
+**Validation:** Same ±0.05 float tolerance and exact boolean match as workflow-random.
+
+**Usage:**
+```bash
+# Generate workflow-derived-params prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-derived-params
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-derived-params
+```
+
+Example prompt excerpt:
+```
+2. Post-processing & Export
+   The STL export parameters must be derived from the optimization inputs:
+   - Thresholding: Use the volume fraction value as the density threshold
+   - XY Scaling: Scale the X and Y dimensions by twice the filter radius
+   - Extrusion: Extrude the 2D result in the Z-axis by the threshold value multiplied by 40
+   - Mirror: Mirror the design across the y-axis only if the volume fraction is greater than 0.4
 ```
 
 #### workflow-conditional Prompt Style

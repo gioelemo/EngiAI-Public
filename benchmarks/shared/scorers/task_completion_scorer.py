@@ -3,6 +3,7 @@
 This scorer checks task completion based on prompt style:
 - Standard prompts (full, natural): render_design must be called successfully
 - Workflow prompts: convert_design_to_stl must be called successfully
+- Workflow-derived-params: STL export with params computed from optimization inputs
 - Workflow-conditional: STL export with params resolved from compliance-based branching
 - Workflow-multi-export: Two STL exports with different params, validated in order
 """
@@ -339,15 +340,22 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     is_workflow = prompt_style in [
         "workflow",
         "workflow-random",
+        "workflow-derived-params",
         "workflow-conditional",
         "workflow-multi-export",
     ]
     is_workflow_random = prompt_style == "workflow-random"
+    is_workflow_derived = prompt_style == "workflow-derived-params"
     is_workflow_conditional = prompt_style == "workflow-conditional"
     is_workflow_multi_export = prompt_style == "workflow-multi-export"
     is_clarification = metadata.get("success_criteria") == "clarification_requested"
     success_criteria = "stl_export" if is_workflow else "render_design"
-    if is_workflow_random or is_workflow_conditional or is_workflow_multi_export:
+    if (
+        is_workflow_random
+        or is_workflow_derived
+        or is_workflow_conditional
+        or is_workflow_multi_export
+    ):
         success_criteria = "stl_export_with_params"
     if is_clarification:
         success_criteria = "clarification_requested"
@@ -605,7 +613,9 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 "in metadata",
                 example_id,
             )
-    elif (is_workflow_random or is_workflow_conditional) and stl_success:
+    elif (
+        is_workflow_random or is_workflow_derived or is_workflow_conditional
+    ) and stl_success:
         expected_stl_params = metadata.get("stl_expected_params", {})
 
         if expected_stl_params:
@@ -630,27 +640,19 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
             if stl_param_validation_score == 0.0:
                 success_rate = 0.0
                 task_completed = False
-                style_label = (
-                    "workflow-conditional"
-                    if is_workflow_conditional
-                    else "workflow-random"
-                )
                 logger.info(
                     "Example %s (%s): Task incomplete due to "
                     "STL parameter validation failure "
                     "(%s violations)",
                     example_id,
-                    style_label,
+                    prompt_style,
                     stl_param_metrics.get("stl_param_violations", 0),
                 )
         else:
-            style_label = (
-                "workflow-conditional" if is_workflow_conditional else "workflow-random"
-            )
             logger.warning(
                 "Example %s (%s): No stl_expected_params in metadata",
                 example_id,
-                style_label,
+                prompt_style,
             )
 
     return {

@@ -179,6 +179,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             "natural",
             "workflow",
             "workflow-random",
+            "workflow-derived-params",
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",

@@ -8,6 +8,7 @@ Supports multiple prompt styles:
 - full: Exact numerical parameters
 - natural: Natural language descriptions only
 - workflow: Full workflow with export steps
+- workflow-derived-params: Workflow with STL parameters derived from optimization inputs
 - workflow-conditional: Workflow with if/then branching based on simulation results
 - workflow-multi-export: Workflow requiring two STL exports with different parameters
 
@@ -44,6 +45,11 @@ COMPLIANCE_FLEXIBLE = 200
 VOLFRAC_LIGHTWEIGHT = 0.3
 VOLFRAC_MODERATE = 0.5
 
+# Derivation rule constants for workflow-derived-params
+DERIVED_SCALE_XY_MULTIPLIER = 2
+DERIVED_SCALE_Z_MULTIPLIER = 40
+DERIVED_MIRROR_VOLFRAC_THRESHOLD = 0.4
+
 # Prompt styles configuration with their optimal tool sequences
 PROMPT_STYLES: dict[str, dict[str, Any]] = {
     "full": {
@@ -75,6 +81,17 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
     },
     "workflow-random": {
         "description": "Full workflow with random STL parameters",
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "convert_design_to_stl", "count": 1},
+        ],
+        "optimal_call_count": 3,
+        "success_criteria": "stl_export_with_params",
+        "validate_stl_params": True,
+    },
+    "workflow-derived-params": {
+        "description": "Workflow with STL parameters derived from optimization inputs",
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
             {"name": "simulate_design", "count": 1},
@@ -327,6 +344,71 @@ def _generate_random_multi_export_params(seed: int | None = None) -> dict[str, A
     }
 
 
+def _compute_derived_stl_params(volfrac: float, rmin: float) -> dict[str, Any]:
+    """Compute STL parameters from optimization inputs using derivation rules.
+
+    Rules:
+    - threshold = volfrac
+    - scale_xy = 2 * rmin
+    - scale_z = threshold * 40 = volfrac * 40
+    - mirror_y = True if volfrac > 0.4
+
+    Args:
+        volfrac: Volume fraction from optimization
+        rmin: Minimum filter radius from optimization
+
+    Returns:
+        Flat dict with: mirror_y (bool), scale_xy (float), scale_z (float), threshold (float)
+    """
+    threshold = volfrac
+    return {
+        "mirror_y": volfrac > DERIVED_MIRROR_VOLFRAC_THRESHOLD,
+        "scale_xy": float(DERIVED_SCALE_XY_MULTIPLIER * rmin),
+        "scale_z": float(DERIVED_SCALE_Z_MULTIPLIER * threshold),
+        "threshold": float(threshold),
+    }
+
+
+def _create_workflow_derived_params_prompt(
+    volfrac: float, forcedist: float, rmin: float
+) -> tuple[str, dict[str, Any]]:
+    """Create workflow prompt where STL params are derived from optimization inputs.
+
+    The prompt gives derivation RULES (not final values). The agent must compute
+    the correct parameters from the optimization inputs.
+
+    Args:
+        volfrac: Volume fraction for optimization
+        forcedist: Force distribution parameter
+        rmin: Minimum filter radius
+
+    Returns:
+        Tuple of (prompt_text, stl_expected_params_flat_dict)
+    """
+    stl_params = _compute_derived_stl_params(volfrac, rmin)
+
+    prompt = (
+        f"Execute a 2D topology optimization and export the resulting geometry "
+        f"as a 3D-printable STL file.\n\n"
+        f"1. Optimization Configuration\n"
+        f"   - Volume Fraction: {volfrac}\n"
+        f"   - Force Distribution: {forcedist}\n"
+        f"   - Filter Radius (rmin): {rmin}\n"
+        f"   - Objective: Minimize compliance\n\n"
+        f"2. Post-processing & Export\n"
+        f"   The STL export parameters must be derived from the optimization inputs:\n"
+        f"   - Thresholding: Use the volume fraction value as the density threshold\n"
+        f"   - XY Scaling: Scale the X and Y dimensions by twice the filter radius\n"
+        f"   - Extrusion: Extrude the 2D result in the Z-axis by the threshold value "
+        f"multiplied by 40\n"
+        f"   - Mirror: Mirror the design across the y-axis only if the volume fraction "
+        f"is greater than 0.4\n"
+        f"   - Export: Save the final geometry as an STL file with these derived parameters"
+    )
+
+    return prompt, stl_params
+
+
 def _create_workflow_multi_export_prompt(
     volfrac: float,
     forcedist: float,
@@ -535,8 +617,8 @@ def create_prompt_from_conditions(
         example: Single example from the HuggingFace dataset
         include_target: Whether to include target compliance for validation
         prompt_style: Style of prompt to generate ('full', 'natural',
-            'workflow', 'workflow-random', 'workflow-conditional',
-            'workflow-multi-export')
+            'workflow', 'workflow-random', 'workflow-derived-params',
+            'workflow-conditional', 'workflow-multi-export')
         seed: Random seed for reproducible random parameter generation
             (workflow-random, workflow-conditional, workflow-multi-export)
 
@@ -572,6 +654,10 @@ def create_prompt_from_conditions(
     elif prompt_style == "workflow-random":
         prompt, stl_expected_params = _create_workflow_random_prompt(
             volfrac, forcedist, rmin, example.get("example_id", 0), seed
+        )
+    elif prompt_style == "workflow-derived-params":
+        prompt, stl_expected_params = _create_workflow_derived_params_prompt(
+            volfrac, forcedist, rmin
         )
     elif prompt_style == "workflow-multi-export":
         prompt, stl_expected_params = _create_workflow_multi_export_prompt(
