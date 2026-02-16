@@ -18,8 +18,10 @@ from benchmarks.problems.beams2d.generate_prompts import (  # noqa: E402
     _compute_derived_stl_params,
     _create_workflow_conditional_prompt,
     _create_workflow_derived_params_prompt,
+    _create_workflow_distractor_prompt,
     _create_workflow_multi_export_prompt,
     _create_workflow_random_prompt,
+    _generate_distractor_params,
     _generate_random_conditional_params,
     _generate_random_multi_export_params,
     _generate_random_stl_params,
@@ -817,3 +819,121 @@ def test_create_prompt_workflow_derived_params_integration():
     assert "optimize_design" in tool_names
     assert "convert_design_to_stl" in tool_names
     assert "simulate_design" not in tool_names
+
+
+# ============================================================================
+# DISTRACTOR PARAMETER GENERATION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_generate_distractor_params_ranges():
+    """Test that distractor parameters fall within expected ranges."""
+    rng = np.random.default_rng(42)
+    for _ in range(20):
+        params = _generate_distractor_params(rng)
+        assert 0.5 <= params["smoothing_sigma"] <= 3.0
+        assert 10 <= params["infill_density"] <= 50
+        assert 0.1 <= params["layer_height"] <= 0.3
+
+
+@pytest.mark.unit
+def test_generate_distractor_params_structure():
+    """Test that distractor params have correct keys and types."""
+    rng = np.random.default_rng(42)
+    params = _generate_distractor_params(rng)
+
+    assert set(params.keys()) == {"smoothing_sigma", "infill_density", "layer_height"}
+    assert isinstance(params["smoothing_sigma"], float)
+    assert isinstance(params["infill_density"], int)
+    assert isinstance(params["layer_height"], float)
+
+
+@pytest.mark.unit
+def test_generate_distractor_params_deterministic():
+    """Test that same RNG state produces same distractor params."""
+    params1 = _generate_distractor_params(np.random.default_rng(42))
+    params2 = _generate_distractor_params(np.random.default_rng(42))
+    assert params1 == params2
+
+
+# ============================================================================
+# WORKFLOW-DISTRACTOR PROMPT TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_create_workflow_distractor_prompt_contains_distractors():
+    """Test that distractor prompt contains distractor hints."""
+    prompt, _ = _create_workflow_distractor_prompt(0.35, 0.5, 1.5, 0, seed=42)
+
+    assert "visualization only" in prompt.lower()
+    assert "slicer setting" in prompt.lower()
+    assert "does not affect stl geometry" in prompt.lower()
+
+
+@pytest.mark.unit
+def test_create_workflow_distractor_prompt_contains_real_params():
+    """Test that distractor prompt contains the real STL parameter values."""
+    prompt, stl_params = _create_workflow_distractor_prompt(0.35, 0.5, 1.5, 0, seed=42)
+
+    assert f"{stl_params['threshold']:.2f}" in prompt
+    assert f"{stl_params['scale_xy']:.2f}" in prompt
+    assert f"{stl_params['scale_z']:.1f}" in prompt
+
+
+@pytest.mark.unit
+def test_create_workflow_distractor_prompt_exclude_instruction():
+    """Test that the prompt tells the agent to exclude non-STL params."""
+    prompt, _ = _create_workflow_distractor_prompt(0.35, 0.5, 1.5, 0, seed=42)
+
+    assert "exclude visualization and slicer settings" in prompt.lower()
+
+
+@pytest.mark.unit
+def test_create_workflow_distractor_prompt_deterministic():
+    """Test that same inputs always produce same prompt and params."""
+    prompt1, params1 = _create_workflow_distractor_prompt(0.3, 0.5, 2.0, 0, seed=42)
+    prompt2, params2 = _create_workflow_distractor_prompt(0.3, 0.5, 2.0, 0, seed=42)
+
+    assert prompt1 == prompt2
+    assert params1 == params2
+
+
+# ============================================================================
+# WORKFLOW-DISTRACTOR INTEGRATION WITH create_prompt_from_conditions
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_create_prompt_workflow_distractor_integration():
+    """Test workflow-distractor integration in create_prompt_from_conditions."""
+    example = {
+        "volfrac": 0.35,
+        "forcedist": 0.5,
+        "rmin": 1.5,
+        "c": 100.0,
+        "optimal_design": np.zeros((10, 10)),
+        "example_id": 0,
+    }
+
+    prompt_data = create_prompt_from_conditions(
+        example, include_target=True, prompt_style="workflow-distractor", seed=42
+    )
+
+    assert prompt_data["prompt_style"] == "workflow-distractor"
+    assert "stl_expected_params" in prompt_data
+    assert prompt_data["metadata"]["success_criteria"] == "stl_export_with_params"
+
+    # Expected params should have ONLY the 4 real STL params, no distractors
+    stl_params = prompt_data["stl_expected_params"]
+    assert set(stl_params.keys()) == {"threshold", "scale_xy", "scale_z", "mirror_y"}
+    assert "smoothing_sigma" not in stl_params
+    assert "infill_density" not in stl_params
+    assert "layer_height" not in stl_params
+
+    # Check optimal tool calls
+    assert prompt_data["optimal_call_count"] == 2
+    tool_names = [tool["name"] for tool in prompt_data["optimal_tool_calls"]]
+    assert "optimize_design" in tool_names
+    assert "convert_design_to_stl" in tool_names

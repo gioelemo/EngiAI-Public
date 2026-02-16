@@ -360,6 +360,7 @@ def parse_arguments() -> argparse.Namespace:
             "workflow",
             "workflow-random",
             "workflow-derived-params",
+            "workflow-distractor",
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",

@@ -180,6 +180,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             "workflow",
             "workflow-random",
             "workflow-derived-params",
+            "workflow-distractor",
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",

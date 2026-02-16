@@ -9,6 +9,7 @@ Supports multiple prompt styles:
 - natural: Natural language descriptions only
 - workflow: Full workflow with export steps
 - workflow-derived-params: Workflow with STL parameters derived from optimization inputs
+- workflow-distractor: Workflow with distractor parameters mixed with real STL params
 - workflow-conditional: Workflow with if/then branching based on simulation results
 - workflow-multi-export: Workflow requiring two STL exports with different parameters
 
@@ -92,6 +93,16 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
     },
     "workflow-derived-params": {
         "description": "Workflow with STL parameters derived from optimization inputs",
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "convert_design_to_stl", "count": 1},
+        ],
+        "optimal_call_count": 2,
+        "success_criteria": "stl_export_with_params",
+        "validate_stl_params": True,
+    },
+    "workflow-distractor": {
+        "description": "Workflow with distractor parameters mixed with real STL params",
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
             {"name": "convert_design_to_stl", "count": 1},
@@ -227,6 +238,25 @@ def _generate_random_stl_params(seed: int | None = None) -> dict[str, Any]:
         "scale_xy": float(rng.uniform(0.5, 5.0)),
         "scale_z": float(rng.uniform(5.0, 20.0)),
         "threshold": float(rng.uniform(0.3, 0.7)),
+    }
+
+
+def _generate_distractor_params(rng: np.random.Generator) -> dict[str, Any]:
+    """Generate randomized distractor parameters for workflow-distractor prompts.
+
+    These parameters look plausible but are NOT accepted by convert_design_to_stl.
+    The agent must identify and ignore them.
+
+    Args:
+        rng: NumPy random generator instance
+
+    Returns:
+        Dict with: smoothing_sigma (float), infill_density (int), layer_height (float)
+    """
+    return {
+        "smoothing_sigma": float(rng.uniform(0.5, 3.0)),
+        "infill_density": int(rng.integers(10, 51)),  # 10-50%
+        "layer_height": float(rng.uniform(0.1, 0.3)),
     }
 
 
@@ -603,6 +633,76 @@ def _create_workflow_random_prompt(
     return prompt, stl_params
 
 
+def _create_workflow_distractor_prompt(
+    volfrac: float,
+    forcedist: float,
+    rmin: float,
+    example_id: int,
+    seed: int | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Create workflow prompt with real STL params mixed with distractor params.
+
+    The prompt includes plausible but irrelevant parameters (smoothing, infill,
+    layer height) alongside the 4 real STL params. Each distractor has a
+    parenthetical hint explaining it's not relevant to STL export. The agent
+    must filter out distractors and use only the valid tool parameters.
+
+    Args:
+        volfrac: Volume fraction for optimization
+        forcedist: Force distribution parameter
+        rmin: Minimum filter radius
+        example_id: Unique example identifier
+        seed: Base seed for random generation
+
+    Returns:
+        Tuple of (prompt_text, stl_expected_params_dict) where expected params
+        contains only the 4 real STL parameters
+    """
+    # Generate real params (same as workflow-random)
+    unique_seed = (seed if seed is not None else 0) + example_id
+    stl_params = _generate_random_stl_params(unique_seed)
+
+    # Generate distractor params with a derived seed to avoid correlation
+    distractor_rng = np.random.default_rng(unique_seed + 10000)
+    distractors = _generate_distractor_params(distractor_rng)
+
+    # Format mirror instruction
+    mirror_instruction = (
+        "Mirror the design across the y-axis"
+        if stl_params["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+
+    prompt = (
+        f"Execute a 2D topology optimization and export the resulting geometry "
+        f"as a 3D-printable STL file.\n\n"
+        f"1. Optimization Configuration\n"
+        f"   - Volume Fraction: {volfrac}\n"
+        f"   - Force Distribution: {forcedist}\n"
+        f"   - Filter Radius (rmin): {rmin}\n"
+        f"   - Objective: Minimize compliance\n\n"
+        f"2. Post-processing & Export\n"
+        f"   - Thresholding: Apply a {stl_params['threshold']:.2f} density threshold "
+        f"to convert the continuous density map into binary geometry\n"
+        f"   - Smoothing: Apply Gaussian smoothing with "
+        f"sigma={distractors['smoothing_sigma']:.1f} "
+        f"(for visualization only, do not apply to STL export)\n"
+        f"   - Mirror: {mirror_instruction} for the final geometry\n"
+        f"   - XY Scaling: Scale the X and Y dimensions by "
+        f"{stl_params['scale_xy']:.2f}\n"
+        f"   - Infill: Use {distractors['infill_density']}% infill density "
+        f"(this is a slicer setting, not relevant to STL export)\n"
+        f"   - Extrusion: Extrude the 2D result by {stl_params['scale_z']:.1f} units "
+        f"in the Z-axis to create a 3D volume\n"
+        f"   - Layer Height: Use {distractors['layer_height']:.2f}mm layer height "
+        f"(3D printer setting, does not affect STL geometry)\n"
+        f"   - Export: Save the final geometry as an STL file using only the "
+        f"STL-relevant parameters above (exclude visualization and slicer settings)"
+    )
+
+    return prompt, stl_params
+
+
 def create_prompt_from_conditions(
     example: dict[str, Any],
     include_target: bool = True,
@@ -617,9 +717,10 @@ def create_prompt_from_conditions(
         include_target: Whether to include target compliance for validation
         prompt_style: Style of prompt to generate ('full', 'natural',
             'workflow', 'workflow-random', 'workflow-derived-params',
-            'workflow-conditional', 'workflow-multi-export')
+            'workflow-distractor', 'workflow-conditional', 'workflow-multi-export')
         seed: Random seed for reproducible random parameter generation
-            (workflow-random, workflow-conditional, workflow-multi-export)
+            (workflow-random, workflow-distractor, workflow-conditional,
+            workflow-multi-export)
 
     Returns:
         Dictionary with prompt, conditions, and optional target values
@@ -657,6 +758,10 @@ def create_prompt_from_conditions(
     elif prompt_style == "workflow-derived-params":
         prompt, stl_expected_params = _create_workflow_derived_params_prompt(
             volfrac, forcedist, rmin
+        )
+    elif prompt_style == "workflow-distractor":
+        prompt, stl_expected_params = _create_workflow_distractor_prompt(
+            volfrac, forcedist, rmin, example.get("example_id", 0), seed
         )
     elif prompt_style == "workflow-multi-export":
         prompt, stl_expected_params = _create_workflow_multi_export_prompt(

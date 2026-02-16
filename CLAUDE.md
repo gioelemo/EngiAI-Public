@@ -121,6 +121,7 @@ The beams2d benchmark supports multiple prompt styles for evaluating different a
 - **workflow**: Full workflow with STL export (hardcoded parameters)
 - **workflow-random**: Full workflow with randomized STL parameters and validation
 - **workflow-derived-params**: Workflow with STL parameters derived from optimization inputs
+- **workflow-distractor**: Workflow with distractor parameters mixed with real STL params
 - **workflow-conditional**: Workflow with if/then branching based on simulation results
 
 #### workflow-random Prompt Style
@@ -201,6 +202,45 @@ Example prompt excerpt:
    - XY Scaling: Scale the X and Y dimensions by twice the filter radius
    - Extrusion: Extrude the 2D result in the Z-axis by the threshold value multiplied by 40
    - Mirror: Mirror the design across the y-axis only if the volume fraction is greater than 0.4
+```
+
+#### workflow-distractor Prompt Style
+
+The `workflow-distractor` style tests **parameter filtering** — the agent must distinguish valid STL tool parameters from plausible but irrelevant distractors mixed into the prompt. This tests the agent's ability to reason about tool schemas under noisy instructions.
+
+**Distractor Parameters** (randomized, with parenthetical hints):
+- `smoothing_sigma`: Float (0.5-3.0) — "(for visualization only, do not apply to STL export)"
+- `infill_density`: Int (10-50%) — "(this is a slicer setting, not relevant to STL export)"
+- `layer_height`: Float (0.1-0.3mm) — "(3D printer setting, does not affect STL geometry)"
+
+**Why it breaks LLMs:** If the agent passes extra parameters to `convert_design_to_stl`, LangChain's schema validation rejects the tool call entirely — the tool never executes and the task fails.
+
+**Real Parameters:** Same 4 randomized STL params as workflow-random (threshold, scale_xy, scale_z, mirror_y).
+
+**Validation:** Same ±0.05 float tolerance and exact boolean match as workflow-random. Only the 4 real params are validated.
+
+**Usage:**
+```bash
+# Generate workflow-distractor prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-distractor --seed 42
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-distractor --seed 42
+```
+
+Example prompt excerpt:
+```
+2. Post-processing & Export
+   - Thresholding: Apply a 0.53 density threshold to convert the continuous density map into binary geometry
+   - Smoothing: Apply Gaussian smoothing with sigma=2.0 (for visualization only, do not apply to STL export)
+   - Mirror: Mirror the design across the y-axis for the final geometry
+   - XY Scaling: Scale the X and Y dimensions by 1.88
+   - Infill: Use 20% infill density (this is a slicer setting, not relevant to STL export)
+   - Extrusion: Extrude the 2D result by 12.4 units in the Z-axis to create a 3D volume
+   - Layer Height: Use 0.15mm layer height (3D printer setting, does not affect STL geometry)
+   - Export: Save the final geometry as an STL file using only the STL-relevant parameters above (exclude visualization and slicer settings)
 ```
 
 #### workflow-conditional Prompt Style

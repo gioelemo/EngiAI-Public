@@ -266,6 +266,7 @@ def _parse_args():
             "workflow",
             "workflow-random",
             "workflow-derived-params",
+            "workflow-distractor",
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",

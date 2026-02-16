@@ -341,11 +341,13 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
         "workflow",
         "workflow-random",
         "workflow-derived-params",
+        "workflow-distractor",
         "workflow-conditional",
         "workflow-multi-export",
     ]
     is_workflow_random = prompt_style == "workflow-random"
     is_workflow_derived = prompt_style == "workflow-derived-params"
+    is_workflow_distractor = prompt_style == "workflow-distractor"
     is_workflow_conditional = prompt_style == "workflow-conditional"
     is_workflow_multi_export = prompt_style == "workflow-multi-export"
     is_clarification = metadata.get("success_criteria") == "clarification_requested"
@@ -353,6 +355,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     if (
         is_workflow_random
         or is_workflow_derived
+        or is_workflow_distractor
         or is_workflow_conditional
         or is_workflow_multi_export
     ):
@@ -614,7 +617,10 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 example_id,
             )
     elif (
-        is_workflow_random or is_workflow_derived or is_workflow_conditional
+        is_workflow_random
+        or is_workflow_derived
+        or is_workflow_distractor
+        or is_workflow_conditional
     ) and stl_success:
         expected_stl_params = metadata.get("stl_expected_params", {})
 
