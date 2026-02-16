@@ -253,6 +253,8 @@ def _extract_metrics_from_scorers(
                 "connected_design": output_quality.get("connected_design"),
                 "num_components": output_quality.get("num_components"),
                 "is_watertight": output_quality.get("is_watertight"),
+                "num_vertices": output_quality.get("num_vertices"),
+                "num_faces": output_quality.get("num_faces"),
                 "volume_mm3": output_quality.get("volume_mm3"),
                 "surface_area_mm2": output_quality.get("surface_area_mm2"),
                 "watertight_check_available": output_quality.get(
@@ -307,10 +309,12 @@ def _extract_metrics_from_scorers(
             {
                 "efficiency_ratio": tool_use.get("efficiency_ratio"),
                 "tool_efficiency_score": tool_use.get("efficiency_ratio"),
-                "total_tools": tool_use.get("actual_call_count"),  # Map to total_tools
+                "optimal_call_count": tool_use.get("optimal_call_count"),
+                "total_tools": tool_use.get("actual_call_count"),
+                "excess_calls": tool_use.get("excess_calls"),
                 "unique_tools": len(
                     tool_use.get("tool_call_breakdown", {})
-                ),  # Count unique tools
+                ),
             }
         )
 
@@ -351,6 +355,19 @@ def _extract_metrics_from_scorers(
                 k: v for k, v in task_completion.items()
                 if k.startswith("stl_") and k not in _stl_internal
             })
+
+        # Extract workflow-conditional branch resolution metrics
+        result.update({
+            k: v for k, v in task_completion.items()
+            if k.startswith("conditional_") and isinstance(v, (int, float, str))
+        })
+
+        # Extract workflow-multi-export validation metrics
+        result.update({
+            k: v for k, v in task_completion.items()
+            if k.startswith(("multi_export_", "export_a_", "export_b_"))
+            and isinstance(v, (int, float, bool))
+        })
 
     # Compute true weighted overall score combining all three scorers
     # Use problem_type to derive weights from registry
