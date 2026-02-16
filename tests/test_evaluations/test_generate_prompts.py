@@ -828,32 +828,44 @@ def test_create_prompt_workflow_derived_params_integration():
 
 @pytest.mark.unit
 def test_generate_distractor_params_ranges():
-    """Test that distractor parameters fall within expected ranges."""
+    """Test that competing distractor values fall within expected ranges."""
+    real_params = {"threshold": 0.5, "scale_xy": 2.5, "scale_z": 10.0, "mirror_y": True}
     rng = np.random.default_rng(42)
     for _ in range(20):
-        params = _generate_distractor_params(rng)
-        assert 0.5 <= params["smoothing_sigma"] <= 3.0
-        assert 10 <= params["infill_density"] <= 50
-        assert 0.1 <= params["layer_height"] <= 0.3
+        params = _generate_distractor_params(rng, real_params)
+        assert 0.3 <= params["distractor_threshold"] <= 0.7
+        assert 0.5 <= params["distractor_scale_xy"] <= 5.0
 
 
 @pytest.mark.unit
 def test_generate_distractor_params_structure():
     """Test that distractor params have correct keys and types."""
+    real_params = {"threshold": 0.5, "scale_xy": 2.5, "scale_z": 10.0, "mirror_y": True}
     rng = np.random.default_rng(42)
-    params = _generate_distractor_params(rng)
+    params = _generate_distractor_params(rng, real_params)
 
-    assert set(params.keys()) == {"smoothing_sigma", "infill_density", "layer_height"}
-    assert isinstance(params["smoothing_sigma"], float)
-    assert isinstance(params["infill_density"], int)
-    assert isinstance(params["layer_height"], float)
+    assert set(params.keys()) == {"distractor_threshold", "distractor_scale_xy"}
+    assert isinstance(params["distractor_threshold"], float)
+    assert isinstance(params["distractor_scale_xy"], float)
+
+
+@pytest.mark.unit
+def test_generate_distractor_params_minimum_gap():
+    """Test that distractors differ from real values by at least the minimum gap."""
+    for seed in range(50):
+        real_params = _generate_random_stl_params(seed)
+        rng = np.random.default_rng(seed + 10000)
+        distractors = _generate_distractor_params(rng, real_params)
+        assert abs(distractors["distractor_threshold"] - real_params["threshold"]) >= 0.1
+        assert abs(distractors["distractor_scale_xy"] - real_params["scale_xy"]) >= 0.5
 
 
 @pytest.mark.unit
 def test_generate_distractor_params_deterministic():
     """Test that same RNG state produces same distractor params."""
-    params1 = _generate_distractor_params(np.random.default_rng(42))
-    params2 = _generate_distractor_params(np.random.default_rng(42))
+    real_params = {"threshold": 0.5, "scale_xy": 2.5, "scale_z": 10.0, "mirror_y": True}
+    params1 = _generate_distractor_params(np.random.default_rng(42), real_params)
+    params2 = _generate_distractor_params(np.random.default_rng(42), real_params)
     assert params1 == params2
 
 
@@ -863,18 +875,25 @@ def test_generate_distractor_params_deterministic():
 
 
 @pytest.mark.unit
-def test_create_workflow_distractor_prompt_contains_distractors():
-    """Test that distractor prompt contains distractor parameter values (no hints)."""
-    prompt, _ = _create_workflow_distractor_prompt(0.35, 0.5, 1.5, 0, seed=42)
+def test_create_workflow_distractor_prompt_contains_competing_values():
+    """Test that prompt contains both distractor and real values for threshold/scale_xy."""
+    prompt, stl_params = _create_workflow_distractor_prompt(0.35, 0.5, 1.5, 0, seed=42)
 
-    # Distractor values appear in the prompt without any filtering hints
-    assert "sigma=" in prompt
-    assert "infill density" in prompt.lower()
-    assert "layer height" in prompt.lower()
-    # No hints should be present
-    assert "visualization only" not in prompt.lower()
-    assert "slicer setting" not in prompt.lower()
-    assert "does not affect stl geometry" not in prompt.lower()
+    # Real export-context values appear
+    assert f"{stl_params['threshold']:.2f}" in prompt
+    assert f"{stl_params['scale_xy']:.2f}" in prompt
+    assert f"{stl_params['scale_z']:.1f}" in prompt
+
+    # Distractor (preview-context) values also appear
+    assert "preview" in prompt.lower()
+    assert "inspection" in prompt.lower()
+
+    # Threshold appears twice (distractor + real) — count occurrences of
+    # lines mentioning threshold-like context
+    threshold_lines = [
+        line for line in prompt.split("\n") if "threshold" in line.lower()
+    ]
+    assert len(threshold_lines) == 2, f"Expected 2 threshold lines, got {threshold_lines}"
 
 
 @pytest.mark.unit
@@ -885,19 +904,28 @@ def test_create_workflow_distractor_prompt_contains_real_params():
     assert f"{stl_params['threshold']:.2f}" in prompt
     assert f"{stl_params['scale_xy']:.2f}" in prompt
     assert f"{stl_params['scale_z']:.1f}" in prompt
+    # Export-context keywords
+    assert "final solid/void geometry" in prompt.lower()
+    assert "manufacturing" in prompt.lower()
 
 
 @pytest.mark.unit
-def test_create_workflow_distractor_prompt_no_filtering_hints():
-    """Test that the prompt does NOT give hints about which params to exclude."""
-    prompt, _ = _create_workflow_distractor_prompt(0.35, 0.5, 1.5, 0, seed=42)
+def test_create_workflow_distractor_prompt_competing_values_differ():
+    """Test that distractor values differ from real values in the prompt."""
+    for example_id in range(10):
+        prompt, stl_params = _create_workflow_distractor_prompt(
+            0.35, 0.5, 1.5, example_id, seed=42
+        )
+        # Generate distractors the same way the function does internally
+        unique_seed = 42 + example_id
+        rng = np.random.default_rng(unique_seed + 10000)
+        distractors = _generate_distractor_params(rng, stl_params)
 
-    # The prompt should not hint at which parameters are irrelevant
-    assert "exclude" not in prompt.lower()
-    assert "not relevant" not in prompt.lower()
-    assert "do not apply" not in prompt.lower()
-    # It should use neutral export language
-    assert "applicable parameters" in prompt.lower()
+        # Distractor values must be in the prompt and differ from real values
+        assert f"{distractors['distractor_threshold']:.2f}" in prompt
+        assert f"{distractors['distractor_scale_xy']:.2f}" in prompt
+        assert distractors["distractor_threshold"] != stl_params["threshold"]
+        assert distractors["distractor_scale_xy"] != stl_params["scale_xy"]
 
 
 @pytest.mark.unit
@@ -938,9 +966,8 @@ def test_create_prompt_workflow_distractor_integration():
     # Expected params should have ONLY the 4 real STL params, no distractors
     stl_params = prompt_data["stl_expected_params"]
     assert set(stl_params.keys()) == {"threshold", "scale_xy", "scale_z", "mirror_y"}
-    assert "smoothing_sigma" not in stl_params
-    assert "infill_density" not in stl_params
-    assert "layer_height" not in stl_params
+    assert "distractor_threshold" not in stl_params
+    assert "distractor_scale_xy" not in stl_params
 
     # Check optimal tool calls
     assert prompt_data["optimal_call_count"] == 2

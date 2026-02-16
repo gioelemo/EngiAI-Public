@@ -206,18 +206,18 @@ Example prompt excerpt:
 
 #### workflow-distractor Prompt Style
 
-The `workflow-distractor` style tests **parameter filtering** — the agent must distinguish valid STL tool parameters from plausible but irrelevant distractors mixed into the prompt. No hints are provided about which parameters are distractors; the agent must consult the `convert_design_to_stl` tool schema to determine which parameters it actually accepts.
+The `workflow-distractor` style tests **semantic parameter disambiguation** — the prompt presents two plausible values for `threshold` and `scale_xy`: one in a preview/analysis context and one in the manufacturing/export context. The agent must pick the export-context values. Because both values map to valid tool-schema keys, LangChain will not reject the call; only the parameter-validation scorer catches wrong choices.
 
-**Distractor Parameters** (randomized, presented without hints):
-- `smoothing_sigma`: Float (0.5-3.0) — Gaussian smoothing
-- `infill_density`: Int (10-50%) — infill density percentage
-- `layer_height`: Float (0.1-0.3mm) — layer height
+**Competing Parameter Pairs** (randomized):
+- `threshold`: a "preview topology" value vs the "final solid/void geometry" value (gap >= 0.1)
+- `scale_xy`: a "preview display" value vs the "manufacturing" value (gap >= 0.5)
+- `scale_z` and `mirror_y`: single values (no competitors)
 
-**Why it breaks LLMs:** If the agent passes extra parameters to `convert_design_to_stl`, LangChain's schema validation rejects the tool call entirely — the tool never executes and the task fails. Without hints, the agent must reason about the tool schema to filter correctly.
+**Why it breaks LLMs:** The tool call always succeeds regardless of which value the agent picks — the STL file gets created. But if the agent uses the preview-context value instead of the export-context value, the parameter error exceeds the ±0.05 tolerance and validation fails. The agent must do semantic reasoning about which value belongs to the export step.
 
 **Real Parameters:** Same 4 randomized STL params as workflow-random (threshold, scale_xy, scale_z, mirror_y).
 
-**Validation:** Same ±0.05 float tolerance and exact boolean match as workflow-random. Only the 4 real params are validated.
+**Validation:** Same ±0.05 float tolerance and exact boolean match as workflow-random. Only the 4 real params (export-context values) are validated.
 
 **Usage:**
 ```bash
@@ -233,14 +233,13 @@ python benchmarks/evaluations/evaluate_agent.py \
 Example prompt excerpt:
 ```
 2. Post-processing & Export
-   - Thresholding: Apply a 0.53 density threshold to convert the continuous density map into binary geometry
-   - Smoothing: Apply Gaussian smoothing with sigma=2.0
-   - Mirror: Mirror the design across the y-axis for the final geometry
-   - XY Scaling: Scale the X and Y dimensions by 1.88
-   - Infill: Use 20% infill density
-   - Extrusion: Extrude the 2D result by 12.4 units in the Z-axis to create a 3D volume
-   - Layer Height: Use 0.15mm layer height
-   - Export: Save the final geometry as an STL file with all the applicable parameters listed above
+   - Threshold the density field at 0.35 to preview the design topology
+   - Apply a 0.58 density threshold to produce the final solid/void geometry
+   - Scale the preview display by 1.50x in XY for quick inspection
+   - Scale the X and Y dimensions of the part by 2.47 for manufacturing
+   - Mirror the design across the y-axis for the final geometry
+   - Extrude the 2D result by 12.7 units in the Z-axis to create a 3D volume
+   - Export: Save the final geometry as an STL file
 ```
 
 #### workflow-conditional Prompt Style

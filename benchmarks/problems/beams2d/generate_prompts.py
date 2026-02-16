@@ -241,22 +241,47 @@ def _generate_random_stl_params(seed: int | None = None) -> dict[str, Any]:
     }
 
 
-def _generate_distractor_params(rng: np.random.Generator) -> dict[str, Any]:
-    """Generate randomized distractor parameters for workflow-distractor prompts.
+def _generate_distractor_params(
+    rng: np.random.Generator,
+    real_params: dict[str, Any],
+) -> dict[str, float]:
+    """Generate competing distractor values for real STL parameters.
 
-    These parameters look plausible but are NOT accepted by convert_design_to_stl.
-    The agent must identify and ignore them.
+    Produces alternative values for ``threshold`` and ``scale_xy`` that look
+    plausible but belong to a non-export context (preview / analysis).  The
+    agent must pick the correct (export) values, not these distractors.
+
+    Each distractor is guaranteed to differ from the real value by at least
+    the minimum gap so the ±0.05 scorer tolerance can always distinguish them.
 
     Args:
-        rng: NumPy random generator instance
+        rng: NumPy random generator instance.
+        real_params: The real STL parameters (from ``_generate_random_stl_params``).
 
     Returns:
-        Dict with: smoothing_sigma (float), infill_density (int), layer_height (float)
+        Dict with ``distractor_threshold`` (float) and
+        ``distractor_scale_xy`` (float).
     """
+    min_threshold_gap = 0.1
+    min_scale_xy_gap = 0.5
+
+    # Generate distractor threshold with guaranteed gap from real value
+    real_threshold = real_params["threshold"]
+    while True:
+        dt = float(rng.uniform(0.3, 0.7))
+        if abs(dt - real_threshold) >= min_threshold_gap:
+            break
+
+    # Generate distractor scale_xy with guaranteed gap from real value
+    real_scale_xy = real_params["scale_xy"]
+    while True:
+        ds = float(rng.uniform(0.5, 5.0))
+        if abs(ds - real_scale_xy) >= min_scale_xy_gap:
+            break
+
     return {
-        "smoothing_sigma": float(rng.uniform(0.5, 3.0)),
-        "infill_density": int(rng.integers(10, 51)),  # 10-50%
-        "layer_height": float(rng.uniform(0.1, 0.3)),
+        "distractor_threshold": dt,
+        "distractor_scale_xy": ds,
     }
 
 
@@ -640,12 +665,14 @@ def _create_workflow_distractor_prompt(
     example_id: int,
     seed: int | None = None,
 ) -> tuple[str, dict[str, Any]]:
-    """Create workflow prompt with real STL params mixed with distractor params.
+    """Create workflow prompt with competing parameter values.
 
-    The prompt includes plausible but irrelevant parameters (smoothing, infill,
-    layer height) alongside the 4 real STL params. No hints are given about
-    which parameters are distractors — the agent must consult the tool schema
-    to determine which parameters ``convert_design_to_stl`` actually accepts.
+    The prompt presents two plausible values for ``threshold`` and
+    ``scale_xy`` — one in a preview/analysis context and one in the
+    manufacturing/export context.  The agent must pick the export-context
+    values.  Because both values map to valid tool-schema keys, LangChain
+    will not reject the call; only the parameter-validation scorer catches
+    the wrong choice.
 
     Args:
         volfrac: Volume fraction for optimization
@@ -656,15 +683,15 @@ def _create_workflow_distractor_prompt(
 
     Returns:
         Tuple of (prompt_text, stl_expected_params_dict) where expected params
-        contains only the 4 real STL parameters
+        contains only the 4 real STL parameters (export-context values)
     """
     # Generate real params (same as workflow-random)
     unique_seed = (seed if seed is not None else 0) + example_id
     stl_params = _generate_random_stl_params(unique_seed)
 
-    # Generate distractor params with a derived seed to avoid correlation
+    # Generate competing distractor values with a derived seed
     distractor_rng = np.random.default_rng(unique_seed + 10000)
-    distractors = _generate_distractor_params(distractor_rng)
+    distractors = _generate_distractor_params(distractor_rng, stl_params)
 
     # Format mirror instruction
     mirror_instruction = (
@@ -682,19 +709,20 @@ def _create_workflow_distractor_prompt(
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
         f"2. Post-processing & Export\n"
-        f"   - Thresholding: Apply a {stl_params['threshold']:.2f} density threshold "
-        f"to convert the continuous density map into binary geometry\n"
-        f"   - Smoothing: Apply Gaussian smoothing with "
-        f"sigma={distractors['smoothing_sigma']:.1f}\n"
-        f"   - Mirror: {mirror_instruction} for the final geometry\n"
-        f"   - XY Scaling: Scale the X and Y dimensions by "
-        f"{stl_params['scale_xy']:.2f}\n"
-        f"   - Infill: Use {distractors['infill_density']}% infill density\n"
-        f"   - Extrusion: Extrude the 2D result by {stl_params['scale_z']:.1f} units "
+        f"   - Threshold the density field at "
+        f"{distractors['distractor_threshold']:.2f} to preview the design "
+        f"topology\n"
+        f"   - Apply a {stl_params['threshold']:.2f} density threshold to "
+        f"produce the final solid/void geometry\n"
+        f"   - Scale the preview display by "
+        f"{distractors['distractor_scale_xy']:.2f}x in XY for quick "
+        f"inspection\n"
+        f"   - Scale the X and Y dimensions of the part by "
+        f"{stl_params['scale_xy']:.2f} for manufacturing\n"
+        f"   - {mirror_instruction} for the final geometry\n"
+        f"   - Extrude the 2D result by {stl_params['scale_z']:.1f} units "
         f"in the Z-axis to create a 3D volume\n"
-        f"   - Layer Height: Use {distractors['layer_height']:.2f}mm layer height\n"
-        f"   - Export: Save the final geometry as an STL file with all the "
-        f"applicable parameters listed above"
+        f"   - Export: Save the final geometry as an STL file"
     )
 
     return prompt, stl_params

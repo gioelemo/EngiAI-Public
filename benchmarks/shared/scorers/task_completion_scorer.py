@@ -635,8 +635,15 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 stl_param_metrics.update(branch_metrics)
                 expected_stl_params = resolved_params
 
+            # Single-export workflows: validate the FIRST successful STL call.
+            # The agent may over-execute (e.g. a "preview" export after the
+            # real one), so the last call is not necessarily the primary one.
+            stl_details_to_validate = (
+                all_stl_details[0] if all_stl_details else stl_details
+            )
+
             stl_param_validation_score, param_metrics = _validate_stl_parameters(
-                stl_details=stl_details,
+                stl_details=stl_details_to_validate,
                 expected_params=expected_stl_params,
                 example_id=example_id,
             )
