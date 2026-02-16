@@ -9,7 +9,7 @@ Metrics:
   - 1.0 = agent called exactly the right tools the right number of times
   - <1.0 = wrong tools called, missing tools, or extra tools
   - A tool swap (one correct tool missing, one wrong tool added) gives <1.0
-    even when total call counts match, unlike the old optimal/actual formula.
+    even when total call counts match.
 """
 
 import logging

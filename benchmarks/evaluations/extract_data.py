@@ -764,8 +764,6 @@ def print_summary(metrics_data: list[dict]) -> None:
         for d in metrics_data
         if (score := d.get("task_completion_score")) is not None
     ]
-    # Note: printability_scores removed - printability is now part of design_quality
-
     print("\n" + "=" * 60)
     print(f"Designs: {total_designs}")
     print("\nAverage Scores:")

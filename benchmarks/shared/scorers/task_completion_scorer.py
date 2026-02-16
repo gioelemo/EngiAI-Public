@@ -488,26 +488,15 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
 
             if result is not None and result.get("success", False):
                 clarification_question = result.get("question")
-                logger.debug(
-                    "Example %s: Parsed clarification question: %s",
-                    example_id,
-                    clarification_question,
-                )
             else:
-                # Fallback: try to extract from raw content for backward compatibility
-                if isinstance(content, str):
-                    if content.startswith("Clarification requested: "):
-                        clarification_question = content.split(
-                            "Clarification requested: ", 1
-                        )[1].split("\n")[0]
-                    else:
-                        clarification_question = content
-                else:
-                    clarification_question = None
-                logger.debug(
-                    "Example %s: Using fallback parsing for clarification question",
-                    example_id,
+                clarification_question = (
+                    content if isinstance(content, str) else None
                 )
+            logger.debug(
+                "Example %s: Parsed clarification question: %s",
+                example_id,
+                clarification_question,
+            )
 
         # Process convert_design_to_stl calls
         elif tool_name == STL_EXPORT_TOOL_NAME:

@@ -620,7 +620,7 @@ def _load_cgan_metrics(path):
 
     # Rename columns for consistency
     rename_map = {
-        "viol": "rvc",  # Old column name
+        "viol": "rvc",  # metrics.py outputs "viol", plots use "rvc"
         "model_id": "model",  # From new benchmark script
         "problem_id": "problem",  # From new benchmark script
     }
@@ -842,7 +842,7 @@ def get_problem_prompt_output_dir(
     Args:
         problem: Problem name (e.g., "beams2d")
         prompt_style: Prompt style (e.g., "full", "natural")
-        rag_status: RAG status (e.g., "rag", "no_rag"), optional for backwards compatibility
+        rag_status: RAG status (e.g., "rag", "no_rag"), optional
 
     Returns:
         Path to the output directory

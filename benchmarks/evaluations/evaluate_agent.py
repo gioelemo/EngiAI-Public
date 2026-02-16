@@ -566,16 +566,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         # Tool use scorer: compute efficiency ratio and sequence correctness
         base_scorers = [score_tool_use]
         scorer_types = ["tool_use"]
-    elif args.scorers == "all":
-        # Use output_quality + task_completion + tool_use for comprehensive metrics
-        base_scorers = [
-            score_output_quality,
-            score_task_completion,
-            score_tool_use,
-        ]
-        scorer_types = ["output_quality", "task_completion", "tool_use"]
     else:
-        # Default: run all scorers for comprehensive evaluation
+        # "all" (the argparse default): comprehensive evaluation with all scorers
         base_scorers = [
             score_output_quality,
             score_task_completion,

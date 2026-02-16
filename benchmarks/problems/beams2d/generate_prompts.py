@@ -356,8 +356,14 @@ def _generate_random_conditional_params(seed: int | None = None) -> dict[str, An
     threshold_low = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
 
     # Ensure the two thresholds are distinguishable
-    while abs(threshold_high - threshold_low) < MIN_THRESHOLD_GAP:
+    for _ in range(100):
+        if abs(threshold_high - threshold_low) >= MIN_THRESHOLD_GAP:
+            break
         threshold_low = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+    else:
+        # Deterministic fallback: place at opposite end of range
+        midpoint = (STL_THRESHOLD_MIN + STL_THRESHOLD_MAX) / 2
+        threshold_low = STL_THRESHOLD_MIN if threshold_high > midpoint else STL_THRESHOLD_MAX
 
     # Mirror: one branch mirrors, the other does not (guaranteed distinct)
     mirror_high = bool(rng.choice([True, False]))
@@ -404,23 +410,38 @@ def _generate_random_multi_export_params(seed: int | None = None) -> dict[str, A
     mirror_a = bool(rng.choice([True, False]))
     mirror_b = not mirror_a
 
-    # Thresholds: both in [0.3, 0.7], gap >= min_threshold_gap
+    # Thresholds: both in [0.3, 0.7], gap >= MIN_THRESHOLD_GAP
     threshold_a = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
     threshold_b = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
-    while abs(threshold_a - threshold_b) < MIN_THRESHOLD_GAP:
+    for _ in range(100):
+        if abs(threshold_a - threshold_b) >= MIN_THRESHOLD_GAP:
+            break
         threshold_b = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+    else:
+        midpoint = (STL_THRESHOLD_MIN + STL_THRESHOLD_MAX) / 2
+        threshold_b = STL_THRESHOLD_MIN if threshold_a > midpoint else STL_THRESHOLD_MAX
 
-    # Scale XY: both in [0.5, 5.0], gap >= min_scale_gap
+    # Scale XY: both in [0.5, 5.0], gap >= MIN_MULTI_EXPORT_SCALE_GAP
     scale_xy_a = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
     scale_xy_b = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
-    while abs(scale_xy_a - scale_xy_b) < MIN_MULTI_EXPORT_SCALE_GAP:
+    for _ in range(100):
+        if abs(scale_xy_a - scale_xy_b) >= MIN_MULTI_EXPORT_SCALE_GAP:
+            break
         scale_xy_b = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+    else:
+        midpoint = (STL_SCALE_XY_MIN + STL_SCALE_XY_MAX) / 2
+        scale_xy_b = STL_SCALE_XY_MIN if scale_xy_a > midpoint else STL_SCALE_XY_MAX
 
-    # Scale Z: both in [5.0, 20.0], gap >= min_scale_gap
+    # Scale Z: both in [5.0, 20.0], gap >= MIN_MULTI_EXPORT_SCALE_GAP
     scale_z_a = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
     scale_z_b = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
-    while abs(scale_z_a - scale_z_b) < MIN_MULTI_EXPORT_SCALE_GAP:
+    for _ in range(100):
+        if abs(scale_z_a - scale_z_b) >= MIN_MULTI_EXPORT_SCALE_GAP:
+            break
         scale_z_b = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
+    else:
+        midpoint = (STL_SCALE_Z_MIN + STL_SCALE_Z_MAX) / 2
+        scale_z_b = STL_SCALE_Z_MIN if scale_z_a > midpoint else STL_SCALE_Z_MAX
 
     return {
         "multi_export": True,

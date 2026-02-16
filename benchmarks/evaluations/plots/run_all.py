@@ -244,7 +244,6 @@ def _generate_plots_for_problem(  # noqa: PLR0913
     _generate_global_plots(problem_global, output_dir, problem)
     _generate_design_plots(problem_design, output_dir, problem)
     _generate_tool_usage_plots(problem_tools, problem_design, output_dir, problem)
-    # Token/latency plots removed - data not consistently available in Weave
 
 
 def _parse_args():
