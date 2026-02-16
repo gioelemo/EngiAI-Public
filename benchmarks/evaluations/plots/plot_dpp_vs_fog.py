@@ -8,7 +8,6 @@ Key question: Do diverse designs maintain quality?
 """
 
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy import stats
 from scipy.spatial import ConvexHull
 
@@ -178,7 +177,6 @@ def plot_tradeoff_with_pareto(
         title="Models \& Frontier",
     )
 
-    sns.despine()
     save_figure(fig, output_name)
 
 

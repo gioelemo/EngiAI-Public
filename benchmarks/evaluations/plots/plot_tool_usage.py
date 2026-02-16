@@ -64,9 +64,15 @@ def plot_tool_usage_frequency(tool_data, output_dir=None):
         figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
     )
 
-    # Use a neutral color from the colorblind-friendly palette
-    default_color = "#0072B2"  # Blue
-    bars = ax.barh(tool_names, tool_counts, color=default_color, height=0.7)
+    bars = ax.barh(
+        tool_names,
+        tool_counts,
+        color=PLOT_STYLE["color_palette"][0],
+        height=0.7,
+        alpha=PLOT_STYLE["alpha"],
+        edgecolor="white",
+        linewidth=0.5,
+    )
 
     # Add count labels
     for bar in bars:
@@ -148,6 +154,8 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
         color=colors,
         alpha=PLOT_STYLE["alpha"],
         capsize=2,
+        edgecolor="white",
+        linewidth=0.5,
     )
 
     ax1.set_xlabel("")
@@ -191,6 +199,8 @@ def plot_tool_usage_by_model(tool_data, output_dir=None):
         color=colors,
         alpha=PLOT_STYLE["alpha"],
         capsize=2,
+        edgecolor="white",
+        linewidth=0.5,
     )
 
     ax2.set_xlabel("")
@@ -303,6 +313,8 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # 
                 color=style["color"],
                 alpha=PLOT_STYLE["alpha"],
                 s=PLOT_STYLE["marker_size"],
+                edgecolors="white",
+                linewidth=0.3,
             )
 
         # Add trend line
