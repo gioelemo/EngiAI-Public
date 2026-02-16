@@ -312,9 +312,7 @@ def _extract_metrics_from_scorers(
                 "optimal_call_count": tool_use.get("optimal_call_count"),
                 "total_tools": tool_use.get("actual_call_count"),
                 "excess_calls": tool_use.get("excess_calls"),
-                "unique_tools": len(
-                    tool_use.get("tool_call_breakdown", {})
-                ),
+                "unique_tools": len(tool_use.get("tool_call_breakdown", {})),
             }
         )
 
@@ -345,29 +343,42 @@ def _extract_metrics_from_scorers(
         stl_validation = task_completion.get("stl_param_validation_score")
         if stl_validation is not None:
             result["stl_param_validation_score"] = stl_validation
-            result["stl_param_violations"] = task_completion.get(
-                "stl_param_violations"
-            )
+            result["stl_param_violations"] = task_completion.get("stl_param_violations")
             # Extract per-parameter details (stl_{param}_{valid,expected,actual,error})
-            _stl_internal = {"stl_called", "stl_success", "stl_save_path",
-                             "stl_error", "stl_details", "stl_param_validation_score"}
-            result.update({
-                k: v for k, v in task_completion.items()
-                if k.startswith("stl_") and k not in _stl_internal
-            })
+            _stl_internal = {
+                "stl_called",
+                "stl_success",
+                "stl_save_path",
+                "stl_error",
+                "stl_details",
+                "stl_param_validation_score",
+            }
+            result.update(
+                {
+                    k: v
+                    for k, v in task_completion.items()
+                    if k.startswith("stl_") and k not in _stl_internal
+                }
+            )
 
         # Extract workflow-conditional branch resolution metrics
-        result.update({
-            k: v for k, v in task_completion.items()
-            if k.startswith("conditional_") and isinstance(v, (int, float, str))
-        })
+        result.update(
+            {
+                k: v
+                for k, v in task_completion.items()
+                if k.startswith("conditional_") and isinstance(v, (int, float, str))
+            }
+        )
 
         # Extract workflow-multi-export validation metrics
-        result.update({
-            k: v for k, v in task_completion.items()
-            if k.startswith(("multi_export_", "export_a_", "export_b_"))
-            and isinstance(v, (int, float, bool))
-        })
+        result.update(
+            {
+                k: v
+                for k, v in task_completion.items()
+                if k.startswith(("multi_export_", "export_a_", "export_b_"))
+                and isinstance(v, (int, float, bool))
+            }
+        )
 
     # Compute true weighted overall score combining all three scorers
     # Use problem_type to derive weights from registry
