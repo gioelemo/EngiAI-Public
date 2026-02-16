@@ -94,10 +94,9 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
         "description": "Workflow with STL parameters derived from optimization inputs",
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
-            {"name": "simulate_design", "count": 1},
             {"name": "convert_design_to_stl", "count": 1},
         ],
-        "optimal_call_count": 3,
+        "optimal_call_count": 2,
         "success_criteria": "stl_export_with_params",
         "validate_stl_params": True,
     },

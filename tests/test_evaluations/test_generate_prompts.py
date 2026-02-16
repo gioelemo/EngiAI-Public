@@ -811,9 +811,9 @@ def test_create_prompt_workflow_derived_params_integration():
     assert stl_params["scale_z"] == 14.0
     assert stl_params["mirror_y"] is False
 
-    # Check optimal tool calls
-    assert prompt_data["optimal_call_count"] == 3
+    # Check optimal tool calls (no simulate_design — params derived from inputs only)
+    assert prompt_data["optimal_call_count"] == 2
     tool_names = [tool["name"] for tool in prompt_data["optimal_tool_calls"]]
     assert "optimize_design" in tool_names
-    assert "simulate_design" in tool_names
     assert "convert_design_to_stl" in tool_names
+    assert "simulate_design" not in tool_names
