@@ -272,9 +272,9 @@ def test_validate_stl_parameters_exact_tolerance_boundary():
     """Test validation at exact tolerance boundary."""
     float_tolerance = 0.01
 
-    # Exactly at tolerance boundary (should fail, since error < tolerance, not <=)
+    # Error of 0.01 is well within the 0.05 tolerance, so should pass
     stl_details = {
-        "scale_xy": 2.51,  # Error ~= 0.01 (at boundary, may have float precision issues)
+        "scale_xy": 2.51,  # Error = 0.01, within 0.05 tolerance
         "scale_z": 10.0,
         "threshold": 0.5,
         "mirrored": True,
@@ -289,10 +289,7 @@ def test_validate_stl_parameters_exact_tolerance_boundary():
 
     score, metrics = _validate_stl_parameters(stl_details, expected_params, example_id)
 
-    # At exact tolerance (0.01), should pass since error is very close to tolerance
-    # Due to floating point precision, 2.51 - 2.5 may not be exactly 0.01
     assert abs(metrics["stl_scale_xy_error"] - float_tolerance) < 1e-10
-    # Should pass validation since error < tolerance (barely)
     assert score == 1.0
     assert metrics["stl_scale_xy_valid"] is True
 

@@ -520,11 +520,11 @@ def _create_workflow_derived_params_prompt(
         f"2. Post-processing & Export\n"
         f"   The STL export parameters must be derived from the optimization inputs:\n"
         f"   - Thresholding: Use the volume fraction value as the density threshold\n"
+        f"   - Mirror: Mirror the design across the y-axis only if the volume fraction "
+        f"is greater than 0.4\n"
         f"   - XY Scaling: Scale the X and Y dimensions by twice the filter radius\n"
         f"   - Extrusion: Extrude the 2D result in the Z-axis by the threshold value "
         f"multiplied by 40\n"
-        f"   - Mirror: Mirror the design across the y-axis only if the volume fraction "
-        f"is greater than 0.4\n"
         f"   - Export: Save the final geometry as an STL file with these derived parameters"
     )
 
@@ -589,7 +589,7 @@ def _create_workflow_multi_export_prompt(
         f"   - XY Scaling: Scale the X and Y dimensions by {export_a['scale_xy']:.2f}\n"
         f"   - Extrusion: Extrude the 2D result by {export_a['scale_z']:.1f} units "
         f"in the Z-axis to create a 3D volume\n"
-        f"   - Export: Save as STL file with these exact parameters\n\n"
+        f"   - Export: Save the final geometry as an STL file with these exact parameters\n\n"
         f"   Export B:\n"
         f"   - Thresholding: Apply a {export_b['threshold']:.2f} density threshold "
         f"to convert the continuous density map into binary geometry\n"
@@ -597,7 +597,7 @@ def _create_workflow_multi_export_prompt(
         f"   - XY Scaling: Scale the X and Y dimensions by {export_b['scale_xy']:.2f}\n"
         f"   - Extrusion: Extrude the 2D result by {export_b['scale_z']:.1f} units "
         f"in the Z-axis to create a 3D volume\n"
-        f"   - Export: Save as STL file with these exact parameters"
+        f"   - Export: Save the final geometry as an STL file with these exact parameters"
     )
 
     return prompt, params
@@ -660,11 +660,13 @@ def _create_workflow_conditional_prompt(
         f"   - After optimization, simulate the design to obtain the compliance value\n\n"
         f"3. Post-processing & Export (conditional on compliance)\n"
         f"   - If compliance > {ct:.1f}:\n"
-        f"     - Thresholding: Apply a {bh['threshold']:.2f} density threshold\n"
-        f"     - Mirror: {mirror_high_instr}\n"
+        f"     - Thresholding: Apply a {bh['threshold']:.2f} density threshold "
+        f"to convert the continuous density map into binary geometry\n"
+        f"     - Mirror: {mirror_high_instr} for the final geometry\n"
         f"   - If compliance <= {ct:.1f}:\n"
-        f"     - Thresholding: Apply a {bl['threshold']:.2f} density threshold\n"
-        f"     - Mirror: {mirror_low_instr}\n"
+        f"     - Thresholding: Apply a {bl['threshold']:.2f} density threshold "
+        f"to convert the continuous density map into binary geometry\n"
+        f"     - Mirror: {mirror_low_instr} for the final geometry\n"
         f"   - In both cases:\n"
         f"     - XY Scaling: Scale the X and Y dimensions by {common['scale_xy']:.2f}\n"
         f"     - Extrusion: Extrude the 2D result by {common['scale_z']:.1f} units "
@@ -790,7 +792,7 @@ def _create_workflow_distractor_prompt(
         f"   - {mirror_instruction} for the final geometry\n"
         f"   - Extrude the 2D result by {stl_params['scale_z']:.1f} units "
         f"in the Z-axis to create a 3D volume\n"
-        f"   - Export: Save the final geometry as an STL file"
+        f"   - Export: Save the final geometry as an STL file with these exact parameters"
     )
 
     return prompt, stl_params
