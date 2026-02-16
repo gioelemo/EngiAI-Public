@@ -361,6 +361,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             "workflow",
             "workflow-random",
             "workflow-conditional",
+            "workflow-multi-export",
         ],
         help="Prompt style used (default: full)",
     )

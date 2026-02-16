@@ -43,6 +43,7 @@ KNOWN_PROMPT_STYLES = [
     "workflow",
     "workflow-random",
     "workflow-conditional",
+    "workflow-multi-export",
     "rag-eval",
 ]
 

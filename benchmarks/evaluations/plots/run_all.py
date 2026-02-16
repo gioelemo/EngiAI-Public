@@ -267,6 +267,7 @@ def _parse_args():
             "workflow",
             "workflow-random",
             "workflow-conditional",
+            "workflow-multi-export",
             "rag-eval",
         ],
         help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",
