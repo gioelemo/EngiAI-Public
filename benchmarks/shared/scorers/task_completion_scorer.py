@@ -142,7 +142,7 @@ def _validate_stl_parameters(  # noqa: PLR0915 - Many statements for thorough va
                 actual_value = float(actual_value)
                 expected_value = float(expected_value)
                 error = abs(actual_value - expected_value)
-                is_valid = error < tolerance
+                is_valid = error <= tolerance
             elif param_type is bool:
                 actual_value = bool(actual_value)
                 expected_value = bool(expected_value)

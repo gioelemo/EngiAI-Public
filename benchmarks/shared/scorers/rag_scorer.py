@@ -118,6 +118,13 @@ def _extract_param_from_args(args: dict[str, Any], aliases: list[str]) -> float 
     """Extract a float parameter from optimize_design tool args.
 
     Checks flat keys first, then nested in problem_config dict.
+
+    Args:
+        args: Tool call arguments dictionary.
+        aliases: List of possible key names for the parameter.
+
+    Returns:
+        Extracted float value, or None if not found.
     """
     for alias in aliases:
         value = args.get(alias)

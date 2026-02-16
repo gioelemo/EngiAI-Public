@@ -42,7 +42,7 @@ def generate_prompts_from_huggingface(
     Args:
         problem_name: Name of the problem (e.g., 'beams2d', 'photonics2d')
         prompt_creator_func: Function that creates a prompt from an example.
-            Signature: (example: dict, include_target: bool, prompt_style: str) -> dict
+            Signature: (example: dict, include_target: bool, prompt_style: str, seed: int | None) -> dict
         num_samples: Number of samples to generate
         dataset_split: Dataset split to use ('train', 'val', or 'test')
         include_targets: Whether to include target values

@@ -74,8 +74,8 @@ MIN_DISTRACTOR_SCALE_GAP = (
 MIN_MULTI_EXPORT_SCALE_GAP = 0.2  # Smaller gap for two valid exports (both are real)
 
 # Fallback thresholds for distractor parameter generation (when random sampling fails)
-DISTRACTOR_THRESHOLD_MIDPOINT = (STL_THRESHOLD_MIN + STL_THRESHOLD_MAX) / 2  # 0.5
-DISTRACTOR_SCALE_XY_MIDPOINT = (STL_SCALE_XY_MIN + STL_SCALE_XY_MAX) / 2  # 2.75
+DISTRACTOR_THRESHOLD_MIDPOINT = (STL_THRESHOLD_MIN + STL_THRESHOLD_MAX) / 2
+DISTRACTOR_SCALE_XY_MIDPOINT = (STL_SCALE_XY_MIN + STL_SCALE_XY_MAX) / 2
 
 # Prompt styles configuration with their optimal tool sequences
 PROMPT_STYLES: dict[str, dict[str, Any]] = {
@@ -390,7 +390,7 @@ def _generate_random_multi_export_params(seed: int | None = None) -> dict[str, A
 
     Generates TWO distinct param sets for two STL exports from the same optimization.
     Distinctness guarantees: mirror_y opposite, threshold gap >= MIN_THRESHOLD_GAP,
-    scale_xy gap >= MIN_SCALE_GAP, scale_z gap >= MIN_SCALE_GAP.
+    scale_xy gap >= MIN_MULTI_EXPORT_SCALE_GAP, scale_z gap >= MIN_MULTI_EXPORT_SCALE_GAP.
 
     Args:
         seed: Random seed for reproducibility
