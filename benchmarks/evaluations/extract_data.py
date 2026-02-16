@@ -239,7 +239,6 @@ def _extract_metrics_from_scorers(
                 "design_found": output_quality.get("design_found", False),
                 "design_quality_score": output_quality.get("design_quality_score"),
                 "tool_efficiency_score": output_quality.get("tool_efficiency_score"),
-                "task_completion_score": output_quality.get("task_completion_score"),
                 # Design metrics
                 "iou": output_quality.get("iou"),
                 "pixel_accuracy": output_quality.get("pixel_accuracy"),
@@ -335,6 +334,22 @@ def _extract_metrics_from_scorers(
     # Extract task completion metrics
     if isinstance(task_completion, dict):
         result["success_rate"] = task_completion.get("success_rate")
+        result["task_completion_score"] = task_completion.get("success_rate")
+
+        # Extract STL parameter validation metrics (workflow-random, workflow-derived-params, etc.)
+        stl_validation = task_completion.get("stl_param_validation_score")
+        if stl_validation is not None:
+            result["stl_param_validation_score"] = stl_validation
+            result["stl_param_violations"] = task_completion.get(
+                "stl_param_violations"
+            )
+            # Extract per-parameter details (stl_{param}_{valid,expected,actual,error})
+            _stl_internal = {"stl_called", "stl_success", "stl_save_path",
+                             "stl_error", "stl_details", "stl_param_validation_score"}
+            result.update({
+                k: v for k, v in task_completion.items()
+                if k.startswith("stl_") and k not in _stl_internal
+            })
 
     # Compute true weighted overall score combining all three scorers
     # Use problem_type to derive weights from registry
