@@ -68,7 +68,7 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     return None
 
 
-def _validate_stl_parameters(
+def _validate_stl_parameters(  # noqa: PLR0915 - Many statements for thorough validation
     stl_details: dict[str, Any],
     expected_params: dict[str, Any],
     example_id: int,
@@ -122,6 +122,18 @@ def _validate_stl_parameters(
 
         # Skip validation if parameter not expected for this prompt style
         if expected_value is None:
+            continue
+
+        # At this point, expected_value is not None and actual_value should not be None
+        # (would have been caught by the first check). Add explicit check for type safety.
+        if actual_value is None:
+            logger.warning(
+                "Example %s: Unexpected None for STL param %s after validation checks",
+                example_id,
+                param_name,
+            )
+            violations += 1
+            metrics[f"stl_{param_name}_valid"] = False
             continue
 
         # Validate based on type with error handling
