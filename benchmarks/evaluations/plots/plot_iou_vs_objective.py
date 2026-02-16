@@ -41,7 +41,7 @@ def plot_iou_vs_objective(combined_design_df, output_path=None, output_dir=None)
             subset["iou"],
             subset["objective_score"],
             c=colors.get(problem, "gray"),
-            alpha=0.6,
+            alpha=PLOT_STYLE["alpha"],
             s=PLOT_STYLE["marker_size"],
             label=problem,
             edgecolors="white",

@@ -95,7 +95,7 @@ def plot_combined_overall_score(combined_design_df, output_path=None, output_dir
             fontsize=font_sizes["annotation"],
             linespacing=1.2,
             bbox={
-                "boxstyle": "round,pad=0.2",
+                "boxstyle": "round,pad=0.3",
                 "facecolor": "white",
                 "alpha": 0.8,
                 "edgecolor": "0.8",

@@ -77,7 +77,7 @@ def plot_dpp_vs_mmd(combined_df, output_path=None, output_dir=None):
                 "boxstyle": "round,pad=0.3",
                 "facecolor": "white",
                 "alpha": 0.8,
-                "edgecolor": "0.7",
+                "edgecolor": "0.8",
             },
         )
 

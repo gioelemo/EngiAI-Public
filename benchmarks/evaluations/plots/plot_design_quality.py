@@ -48,12 +48,16 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
     else:
         valid_designs["_label"] = valid_designs["source"]
 
+    # Assign colors dynamically based on number of unique labels
+    n_labels = valid_designs["_label"].nunique()
+    palette = PLOT_STYLE["color_palette"][:n_labels]
+
     sns.violinplot(
         data=valid_designs,
         x="_label",
         y="design_quality_score",
         hue="_label",
-        palette=[PLOT_STYLE["colors"]["beams2d"], PLOT_STYLE["colors"]["photonics2d"]],
+        palette=palette,
         inner="box",
         legend=False,
         ax=ax,
@@ -82,7 +86,7 @@ def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
             ha="center",
             fontsize=font_sizes["annotation"],
             bbox={
-                "boxstyle": "round,pad=0.2",
+                "boxstyle": "round,pad=0.3",
                 "facecolor": "white",
                 "alpha": 0.8,
                 "edgecolor": "0.8",

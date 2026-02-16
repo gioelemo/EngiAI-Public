@@ -323,10 +323,10 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # 
                 fontsize=font_sizes["annotation"],
                 verticalalignment="top",
                 bbox={
-                    "boxstyle": "round,pad=0.2",
+                    "boxstyle": "round,pad=0.3",
                     "facecolor": "white",
                     "alpha": 0.8,
-                    "edgecolor": "0.7",
+                    "edgecolor": "0.8",
                 },
             )
 
@@ -488,6 +488,8 @@ def plot_tool_heatmap_with_std(tool_data, output_dir=None):
 
 def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
     """Plot how much each model deviates from the average tool usage."""
+    setup_style()
+
     # 1. Calculate usage rate per model (exclude metric fields)
     exclude_metrics = {"tool_efficiency_score", "tool_completion_score"}
     tool_columns = [
@@ -550,7 +552,7 @@ def plot_tool_usage_delta_heatmap(tool_data, output_dir=None):
         fmt="",  # Empty format since we're using custom strings
         cmap="RdBu_r",
         center=0,
-        linewidths=0.5,
+        linewidths=0.3,
         ax=ax,
         cbar_kws={
             "label": r"$\Delta$ Avg. Calls per Sample (\%)",
@@ -580,6 +582,8 @@ def plot_performance_distribution_by_tool_count(
         combined_design: Unused, kept for compatibility
         output_dir: Optional output directory for saving
     """
+    setup_style()
+
     # In the JSON pipeline, tool data and design data are in the same DataFrame
     df = combined_tools
 
@@ -630,7 +634,7 @@ def plot_performance_distribution_by_tool_count(
                     bbox={
                         "boxstyle": "round,pad=0.3",
                         "facecolor": "white",
-                        "alpha": 0.85,
+                        "alpha": 0.8,
                         "edgecolor": "0.8",
                     },
                 )

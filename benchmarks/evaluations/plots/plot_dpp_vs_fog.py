@@ -83,7 +83,7 @@ def plot_dpp_vs_fog(combined_df, output_path=None, output_dir=None):
                 "boxstyle": "round,pad=0.3",
                 "facecolor": "white",
                 "alpha": 0.8,
-                "edgecolor": "0.7",
+                "edgecolor": "0.8",
             },
         )
 
@@ -136,8 +136,8 @@ def plot_tradeoff_with_pareto(
             label=model.split("-")[0],  # Simplify name for legend
             marker=style["marker"],
             color=style["color"],
-            s=20,
-            alpha=0.7,
+            s=PLOT_STYLE["marker_size"],
+            alpha=PLOT_STYLE["alpha"],
             edgecolors="white",
             lw=0.3,
         )

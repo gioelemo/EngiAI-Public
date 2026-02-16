@@ -75,7 +75,7 @@ def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
                 yerr=stds,
                 capsize=2,
                 color=colors,
-                alpha=0.85,
+                alpha=PLOT_STYLE["alpha"],
                 edgecolor="white",
                 linewidth=0.5,
             )

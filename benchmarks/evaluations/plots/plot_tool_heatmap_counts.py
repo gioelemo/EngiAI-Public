@@ -80,7 +80,7 @@ def plot_tool_heatmap_counts(tool_data, output_dir=None):
         for j in range(model_tool_mean.shape[1]):
             mean_val = model_tool_mean.iloc[i, j]
             std_val = model_tool_std.iloc[i, j]
-            annot_labels[i, j] = f"{mean_val:.2f}\n±{std_val:.2f}"
+            annot_labels[i, j] = f"{mean_val:.1f}\n±{std_val:.1f}"
 
     n_tools = len(model_tool_mean)
     fig_height = min(max(2.4, n_tools * 0.2), 5.0)
