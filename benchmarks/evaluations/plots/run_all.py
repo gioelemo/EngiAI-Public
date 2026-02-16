@@ -33,6 +33,7 @@ from plot_iou_vs_objective import plot_iou_vs_objective  # noqa: E402
 from plot_metrics_comparison import plot_metrics_comparison  # noqa: E402
 from plot_rag_evaluation import main as plot_rag_evaluation_main  # noqa: E402
 from plot_success_curves import plot_convergence_profile  # noqa: E402
+from plot_tool_heatmap_counts import plot_tool_heatmap_counts  # noqa: E402
 from plot_tool_usage import (  # noqa: E402
     plot_performance_distribution_by_tool_count,
     plot_tool_heatmap_by_model,
@@ -153,38 +154,42 @@ def _generate_tool_usage_plots(
     print(f"  Tool usage: {len(combined_tools)} records")
 
     # Tool usage frequency
-    print("\n[1/7] Tool usage frequency...")
+    print("\n[1/8] Tool usage frequency...")
     plot_tool_usage_frequency(combined_tools, output_dir)
 
     # Tool usage by model
-    print("\n[2/7] Tool usage by model...")
+    print("\n[2/8] Tool usage by model...")
     plot_tool_usage_by_model(combined_tools, output_dir)
 
     # Tool usage heatmap
-    print("\n[3/7] Tool usage heatmap...")
+    print("\n[3/8] Tool usage heatmap...")
     plot_tool_heatmap_by_model(combined_tools, output_dir)
 
     # Tool usage heatmap with std
-    print("\n[4/7] Tool usage heatmap with std...")
+    print("\n[4/8] Tool usage heatmap with std...")
     plot_tool_heatmap_with_std(combined_tools, output_dir)
 
+    # Tool usage heatmap with raw counts
+    print("\n[5/8] Tool usage heatmap (raw counts)...")
+    plot_tool_heatmap_counts(combined_tools, output_dir)
+
     # Tool usage delta heatmap
-    print("\n[5/7] Tool usage delta heatmap...")
+    print("\n[6/8] Tool usage delta heatmap...")
     plot_tool_usage_delta_heatmap(combined_tools, output_dir)
 
     # Performance distribution by tool count
     if combined_design is not None:
-        print("\n[6/7] Performance distribution by tool count...")
+        print("\n[7/8] Performance distribution by tool count...")
         plot_performance_distribution_by_tool_count(
             combined_tools, combined_design, output_dir
         )
 
     # Tool usage vs performance
     if combined_design is not None:
-        print("\n[7/7] Tool usage vs performance...")
+        print("\n[8/8] Tool usage vs performance...")
         plot_tool_usage_vs_performance(combined_tools, combined_design, output_dir)
     else:
-        print("\n[6/7] Skipping performance plots (no design data)")
+        print("\n[7/8] Skipping performance plots (no design data)")
 
 
 def _generate_plots_for_problem(  # noqa: PLR0913
