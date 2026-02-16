@@ -756,10 +756,12 @@ def score_output_quality(
     messages = output.get("messages", [])
     watertightness_metrics = _extract_watertightness_from_messages(messages, example_id)
 
-    # Get conditions from target or dataset row
-    conditions = target if isinstance(target, dict) else {}
-    if not conditions and "conditions" in hf_dataset[example_id]:
-        conditions = hf_dataset[example_id]["conditions"]
+    # Get conditions (volfrac, forcedist, rmin, etc.) for constraint checking.
+    # Primary source: metadata["conditions"] (set by evaluate_agent.py from prompt data).
+    # Fallback: HuggingFace dataset row (which stores conditions as flat fields).
+    conditions = metadata.get("conditions", {})
+    if not conditions:
+        conditions = dict(hf_dataset[example_id])
 
     # Calculate constraint matching score
     constraint_score, constraint_metrics = _calculate_constraint_score(

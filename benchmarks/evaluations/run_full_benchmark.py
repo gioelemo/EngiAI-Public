@@ -271,7 +271,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     print(f"Samples per seed: {args.samples}")
     print(f"Prompt style: {args.prompt_style}")
     if run_agent:
-        print(f"Agent model: {args.model or '(from config.llm_model)'}")
+        print(f"Agent model: {args.model or config.llm_model}")
         print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
         print(f"Scorers: {args.scorers}")
     if run_cgan:
