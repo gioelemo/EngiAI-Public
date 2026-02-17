@@ -23,6 +23,11 @@ from src.models.state import MessagesState
 
 logger = logging.getLogger(__name__)
 
+# Stop the agent after this many successful ask_human_for_clarification calls.
+# The first call lets the LLM observe the "awaiting response" result; the second
+# call halts the graph to prevent infinite clarification loops.
+_MAX_CLARIFICATION_CALLS = 2
+
 
 class BaseAgent(ABC):
     """Abstract base class for LangGraph agents with common functionality."""
@@ -181,9 +186,11 @@ class BaseAgent(ABC):
     def _after_tools(self, state: MessagesState) -> Literal["llm_call", "__end__"]:
         """Route after tool execution.
 
-        Stops the graph immediately if clarification was requested, so the LLM
-        cannot call further tools or generate additional output after asking the
-        user for input.
+        After the first ask_human_for_clarification call, the LLM is allowed to
+        observe the tool response and decide what to do next (e.g. stop
+        naturally or — incorrectly — call design tools anyway).  The graph is
+        only halted after the **second** successful clarification call to
+        prevent infinite clarification loops.
 
         Args:
             state: Current conversation state
@@ -192,22 +199,24 @@ class BaseAgent(ABC):
             Next node to execute ("llm_call" or "__end__")
         """
         messages = state["messages"]
-        # Walk backwards through the most recent ToolMessages from this turn
-        for message in reversed(messages):
+        # Count ALL successful ask_human_for_clarification calls in the history
+        clarification_count = 0
+        for message in messages:
             if not isinstance(message, ToolMessage):
-                break
-            if message.name == "ask_human_for_clarification":
-                # Only stop if the tool actually succeeded; on error let the
-                # LLM recover (e.g. retry with corrected arguments).
-                try:
-                    content = message.content
-                    if not isinstance(content, str):
-                        continue
-                    payload = json.loads(content)
-                    if payload.get("success") is True:
-                        return "__end__"
-                except (json.JSONDecodeError, AttributeError):
-                    pass
+                continue
+            if message.name != "ask_human_for_clarification":
+                continue
+            try:
+                content = message.content
+                if not isinstance(content, str):
+                    continue
+                payload = json.loads(content)
+                if payload.get("success") is True:
+                    clarification_count += 1
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        if clarification_count >= _MAX_CLARIFICATION_CALLS:
+            return "__end__"
         return "llm_call"
 
     def _build_agent(self) -> Any:
