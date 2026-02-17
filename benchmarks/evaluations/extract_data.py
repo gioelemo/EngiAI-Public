@@ -404,11 +404,28 @@ def _mmore_matches(example, mmore_filter: bool | None) -> bool:
         return True  # Cannot read field — do not filter out
 
 
-def _process_score_call_for_complete_data(
+def _prompt_style_matches(example, prompt_style_filter: str | None) -> bool:
+    """Return False if example.metadata.prompt_style contradicts prompt_style_filter."""
+    if prompt_style_filter is None:
+        return True
+    try:
+        ex_meta = example.get("metadata", {}) if hasattr(example, "get") else {}
+        prompt_style = (ex_meta or {}).get("prompt_style")
+        if prompt_style is None:
+            return False  # No tag — exclude to avoid mixing styles
+    except (AttributeError, TypeError, KeyError) as exc:
+        logger.warning("Could not read prompt_style from example metadata: %s", exc)
+        return True  # Cannot read field — do not filter out
+    else:
+        return prompt_style == prompt_style_filter
+
+
+def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912
     score_call,
     model_filter: str | None,
     seen_models: set,
     mmore_filter: bool | None = None,
+    prompt_style_filter: str | None = None,
 ) -> dict | None:
     """Process a predict_and_score call and extract ALL data for offline processing.
 
@@ -418,6 +435,8 @@ def _process_score_call_for_complete_data(
         seen_models: Set to track seen models
         mmore_filter: If True, only include calls where example.metadata.mmore_enabled
             is True; if False, only include calls where it is False; None = no filter.
+        prompt_style_filter: If set, only include calls where
+            example.metadata.prompt_style matches this value; None = no filter.
 
     Returns:
         Complete design data dict if successful, None otherwise
@@ -429,6 +448,10 @@ def _process_score_call_for_complete_data(
 
         # Filter by mmore_enabled (stored in inputs.example.metadata.mmore_enabled)
         if not _mmore_matches(example, mmore_filter):
+            return None
+
+        # Filter by prompt_style (stored in inputs.example.metadata.prompt_style)
+        if not _prompt_style_matches(example, prompt_style_filter):
             return None
         example_id, seed, problem_id = _extract_metadata_from_example(example)
 
@@ -458,12 +481,21 @@ def _process_score_call_for_complete_data(
         if model_filter and model_id != model_filter:
             return None
 
+        # Extract prompt_style from metadata for result dict
+        prompt_style = None
+        try:
+            ex_meta = example.get("metadata", {}) if hasattr(example, "get") else {}
+            prompt_style = (ex_meta or {}).get("prompt_style")
+        except (AttributeError, TypeError, KeyError):
+            pass
+
         # Build result dict with metadata
         result = {
             "example_id": example_id,
             "seed": seed,
             "problem_id": problem_id,
             "model_id": model_id,
+            "prompt_style": prompt_style,
         }
 
         # Extract root-level metrics
@@ -622,12 +654,13 @@ def _find_eval_ids_by_name_pattern(
     return matched
 
 
-def extract_complete_design_data_from_evaluation(
+def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
     project: str,
     model_filter: str | None = None,
     limit: int = 100,
     eval_id: str | None = None,
     mmore_filter: bool | None = None,
+    prompt_style_filter: str | None = None,
 ) -> list[dict]:
     """Extract complete per-design data from Weave evaluations.
 
@@ -640,6 +673,9 @@ def extract_complete_design_data_from_evaluation(
             example.metadata.mmore_enabled matches.  Used to separate RAG-on
             (True) from RAG-off (False) runs — the value lives in the Weave UI
             at inputs.example.metadata.mmore_enabled.
+        prompt_style_filter: If set, only include calls where
+            example.metadata.prompt_style matches this value.  Used to separate
+            different prompt styles within a single Weave project.
 
     Returns:
         List of dictionaries with complete design data (metrics, arrays, histories) per example
@@ -650,6 +686,8 @@ def extract_complete_design_data_from_evaluation(
     print(f"Fetching up to {limit} predict_and_score calls from Weave...")
     if mmore_filter is not None:
         print(f"  Filtering by mmore_enabled={mmore_filter} (from example metadata)")
+    if prompt_style_filter is not None:
+        print(f"  Filtering by prompt_style='{prompt_style_filter}' (from example metadata)")
 
     filter_dict = {
         "op_names": [f"weave:///{project}/op/Evaluation.predict_and_score:*"],
@@ -685,7 +723,7 @@ def extract_complete_design_data_from_evaluation(
             )
 
         result = _process_score_call_for_complete_data(
-            score_call, model_filter, seen_models, mmore_filter
+            score_call, model_filter, seen_models, mmore_filter, prompt_style_filter
         )
         if result:
             results.append(result)
@@ -867,8 +905,11 @@ def main():
         mmore_filter = args.rag_status == "rag"
         print(f"  mmore_filter={mmore_filter} (rag_status='{args.rag_status}')")
 
+    prompt_style_filter = args.prompt_style
+    print(f"  prompt_style_filter='{prompt_style_filter}'")
+
     data = extract_complete_design_data_from_evaluation(
-        project, model, args.limit, resolved_eval_id, mmore_filter
+        project, model, args.limit, resolved_eval_id, mmore_filter, prompt_style_filter
     )
 
     if not data:
