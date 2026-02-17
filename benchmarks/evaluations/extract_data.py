@@ -687,7 +687,9 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
     if mmore_filter is not None:
         print(f"  Filtering by mmore_enabled={mmore_filter} (from example metadata)")
     if prompt_style_filter is not None:
-        print(f"  Filtering by prompt_style='{prompt_style_filter}' (from example metadata)")
+        print(
+            f"  Filtering by prompt_style='{prompt_style_filter}' (from example metadata)"
+        )
 
     filter_dict = {
         "op_names": [f"weave:///{project}/op/Evaluation.predict_and_score:*"],
