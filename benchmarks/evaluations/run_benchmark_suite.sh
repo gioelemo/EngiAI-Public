@@ -78,7 +78,7 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
             --prompt-style "${STYLE}" \
             --rag-status "${RAG_STATUS}" \
             --model "${MODEL}" \
-            --limit 500
+            --limit 2000
 
         # Step 3: Compute global metrics
         python benchmarks/evaluations/compute_global_metrics.py \
