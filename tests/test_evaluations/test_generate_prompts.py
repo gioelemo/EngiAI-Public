@@ -636,11 +636,13 @@ def test_create_workflow_multi_export_prompt_contains_both_exports():
 
 
 @pytest.mark.unit
-def test_create_workflow_multi_export_prompt_contains_twice_instruction():
-    """Test that prompt explicitly says to call convert_design_to_stl twice."""
+def test_create_workflow_multi_export_prompt_contains_two_exports():
+    """Test that prompt contains TWO and both Export A/B sections."""
     prompt, _ = _create_workflow_multi_export_prompt(0.3, 0.5, 2.0, 0, seed=42)
 
-    assert "TWICE" in prompt or "twice" in prompt
+    assert "TWO" in prompt
+    assert "Export A:" in prompt
+    assert "Export B:" in prompt
 
 
 @pytest.mark.unit
