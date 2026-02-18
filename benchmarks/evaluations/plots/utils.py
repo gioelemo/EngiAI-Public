@@ -38,10 +38,13 @@ KNOWN_PROBLEMS = list(_PROBLEMS.keys())
 # Known prompt styles
 KNOWN_PROMPT_STYLES = [
     "full",
-    "approximate",
     "natural",
     "workflow",
     "workflow-random",
+    "workflow-derived-params",
+    "workflow-distractor",
+    "workflow-conditional",
+    "workflow-multi-export",
     "rag-eval",
 ]
 
@@ -254,47 +257,44 @@ def _parse_data_key(key: str) -> dict[str, str | bool | None] | None:
     if data_type is None:
         return None
 
-    # 2. Match known problems (longest names first to avoid partial matches).
-    #    This correctly handles compound names like "rag_beams2d" before "beams2d".
-    problem = None
-    model_part = None
+    # 2-4. Try each known problem (longest first) with backtracking.
+    #    For each candidate problem, attempt to parse rag_status + prompt_style
+    #    from the remainder. If that fails, try the next shorter problem.
+    #    This avoids false matches like "no_rag_beams2d" → "rag_beams2d".
     for known_problem in sorted(KNOWN_PROBLEMS, key=len, reverse=True):
-        if key_without_type.endswith(f"_{known_problem}"):
-            problem = known_problem
-            model_part = key_without_type[: -(len(known_problem) + 1)]
-            break
-    if problem is None:
-        return None
-    assert model_part is not None  # set in the same loop branch as problem
+        if not key_without_type.endswith(f"_{known_problem}"):
+            continue
 
-    # 3. Extract rag_status (check "no_rag" before "rag" to avoid partial match)
-    rag_status = None
-    for status in KNOWN_RAG_STATUSES:
-        if model_part.endswith(f"_{status}"):
-            rag_status = status
-            model_part = model_part[: -(len(status) + 1)]
-            break
+        candidate_model = key_without_type[: -(len(known_problem) + 1)]
 
-    # 4. Extract prompt_style (longest styles first to avoid partial matches)
-    for style in sorted(KNOWN_PROMPT_STYLES, key=len, reverse=True):
-        if model_part.endswith(f"_{style}"):
-            model_name = model_part[: -(len(style) + 1)]
-            return {
-                "model": model_name,
-                "prompt_style": style,
-                "rag_status": rag_status,
-                "problem": problem,
-                "type": data_type,
-                "is_baseline": False,
-            }
+        # 3. Extract rag_status (check "no_rag" before "rag" to avoid partial match)
+        candidate_rag = None
+        for status in KNOWN_RAG_STATUSES:
+            if candidate_model.endswith(f"_{status}"):
+                candidate_rag = status
+                candidate_model = candidate_model[: -(len(status) + 1)]
+                break
+
+        # 4. Extract prompt_style (longest styles first to avoid partial matches)
+        for style in sorted(KNOWN_PROMPT_STYLES, key=len, reverse=True):
+            if candidate_model.endswith(f"_{style}"):
+                model_name = candidate_model[: -(len(style) + 1)]
+                return {
+                    "model": model_name,
+                    "prompt_style": style,
+                    "rag_status": candidate_rag,
+                    "problem": known_problem,
+                    "type": data_type,
+                    "is_baseline": False,
+                }
 
     return None
 
 
-# NeurIPS 2-column format dimensions (inches)
+# 2-column format dimensions (inches)
 # Single column: ~3.25", Full width: ~6.75"
-NEURIPS_COLUMN_WIDTH = 3.25
-NEURIPS_FULL_WIDTH = 6.75
+COLUMN_WIDTH = 3.25
+FULL_WIDTH = 6.75
 
 # Colorblind-friendly palette (Okabe-Ito)
 # These can be used as a list for dynamic assignment
@@ -312,13 +312,13 @@ COLOR_PALETTE = [
 # Marker styles to cycle through
 MARKER_PALETTE = ["o", "s", "^", "D", "v", "p", "*", "h"]
 
-# Plot style configuration for NeurIPS publication
+# Plot style configuration for publication
 PLOT_STYLE = {
-    # Figure sizes for 2-column conference format
-    "figsize_single_col": (NEURIPS_COLUMN_WIDTH, 2.4),
-    "figsize_single_col_tall": (NEURIPS_COLUMN_WIDTH, 3.0),
-    "figsize_full_width": (NEURIPS_FULL_WIDTH, 2.8),
-    "figsize_full_width_tall": (NEURIPS_FULL_WIDTH, 4.0),
+    # Figure sizes for 2-column format
+    "figsize_single_col": (COLUMN_WIDTH, 2.4),
+    "figsize_single_col_tall": (COLUMN_WIDTH, 3.0),
+    "figsize_full_width": (FULL_WIDTH, 2.8),
+    "figsize_full_width_tall": (FULL_WIDTH, 4.0),
     "dpi": 300,
     # Color palette for dynamic assignment (cycle through for models)
     "color_palette": COLOR_PALETTE,
@@ -382,7 +382,7 @@ def get_model_style(models: list[str]) -> dict[str, dict]:
 
 
 def setup_style(use_latex=None):
-    """Configure matplotlib/seaborn for NeurIPS publication-quality figures.
+    """Configure matplotlib/seaborn for publication-quality figures.
 
     Args:
         use_latex: If True, force LaTeX. If False, disable LaTeX.
@@ -407,7 +407,7 @@ def setup_style(use_latex=None):
                     "font.serif": ["Computer Modern Roman"],
                     # LaTeX preamble for math support
                     "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
-                    # NeurIPS publication font sizes
+                    # Publication font sizes
                     "axes.labelsize": font_sizes["axes_label"],
                     "axes.titlesize": font_sizes["axes_title"],
                     "xtick.labelsize": font_sizes["tick_label"],
@@ -444,7 +444,7 @@ def setup_style(use_latex=None):
             "text.usetex": False,
             "font.family": "serif",
             "mathtext.fontset": "cm",  # Computer Modern math fonts
-            # NeurIPS publication font sizes
+            # Publication font sizes
             "axes.labelsize": font_sizes["axes_label"],
             "axes.titlesize": font_sizes["axes_title"],
             "xtick.labelsize": font_sizes["tick_label"],
@@ -620,7 +620,7 @@ def _load_cgan_metrics(path):
 
     # Rename columns for consistency
     rename_map = {
-        "viol": "rvc",  # Old column name
+        "viol": "rvc",  # metrics.py outputs "viol", plots use "rvc"
         "model_id": "model",  # From new benchmark script
         "problem_id": "problem",  # From new benchmark script
     }
@@ -771,7 +771,7 @@ def filter_by_prompt_style(df, prompt_style: str, include_baselines: bool = True
 
     Args:
         df: DataFrame with a 'prompt_style' column
-        prompt_style: Prompt style to filter by (full, approximate, natural, workflow)
+        prompt_style: Prompt style to filter by (full, natural, workflow)
         include_baselines: If True, include baselines (which have no prompt_style)
 
     Returns:
@@ -822,7 +822,7 @@ def get_prompt_style_output_dir(prompt_style: str):
     """Return output directory for a specific prompt style.
 
     Args:
-        prompt_style: Prompt style (full, approximate, natural, workflow)
+        prompt_style: Prompt style (full, natural, workflow)
 
     Returns:
         Path to the output directory for this prompt style
@@ -841,8 +841,8 @@ def get_problem_prompt_output_dir(
 
     Args:
         problem: Problem name (e.g., "beams2d")
-        prompt_style: Prompt style (e.g., "full", "approximate")
-        rag_status: RAG status (e.g., "rag", "no_rag"), optional for backwards compatibility
+        prompt_style: Prompt style (e.g., "full", "natural")
+        rag_status: RAG status (e.g., "rag", "no_rag"), optional
 
     Returns:
         Path to the output directory

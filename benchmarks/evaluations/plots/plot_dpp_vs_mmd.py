@@ -23,7 +23,7 @@ from utils import (
 
 
 def plot_dpp_vs_mmd(combined_df, output_path=None, output_dir=None):
-    """Create DPP vs MMD scatter plot (NeurIPS format).
+    """Create DPP vs MMD scatter plot (publication format).
 
     Args:
         combined_df: DataFrame with global metrics
@@ -77,7 +77,7 @@ def plot_dpp_vs_mmd(combined_df, output_path=None, output_dir=None):
                 "boxstyle": "round,pad=0.3",
                 "facecolor": "white",
                 "alpha": 0.8,
-                "edgecolor": "0.7",
+                "edgecolor": "0.8",
             },
         )
 

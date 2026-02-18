@@ -319,8 +319,8 @@ def test_after_tools_routes_to_llm_call_for_regular_tool():
 
 
 @pytest.mark.unit
-def test_after_tools_routes_to_end_for_clarification_tool():
-    """ask_human_for_clarification result must route to __end__, not llm_call."""
+def test_after_tools_routes_to_llm_call_for_first_clarification():
+    """First ask_human_for_clarification should route to llm_call so the LLM can react."""
     agent = _make_agent()
     state = {
         "messages": [
@@ -338,12 +338,12 @@ def test_after_tools_routes_to_end_for_clarification_tool():
             ),
         ]
     }
-    assert agent._after_tools(state) == "__end__"
+    assert agent._after_tools(state) == "llm_call"
 
 
 @pytest.mark.unit
-def test_after_tools_routes_to_end_when_clarification_mixed_with_other_tools():
-    """If clarification tool is among the last batch of tool calls, still route to __end__."""
+def test_after_tools_routes_to_llm_call_for_first_clarification_mixed():
+    """First clarification among other tools should still route to llm_call."""
     agent = _make_agent()
     state = {
         "messages": [
@@ -367,7 +367,7 @@ def test_after_tools_routes_to_end_when_clarification_mixed_with_other_tools():
             ),
         ]
     }
-    assert agent._after_tools(state) == "__end__"
+    assert agent._after_tools(state) == "llm_call"
 
 
 @pytest.mark.unit
@@ -408,11 +408,11 @@ def test_after_tools_routes_to_llm_call_when_clarification_tool_errored():
 
 
 @pytest.mark.unit
-def test_after_tools_only_inspects_trailing_tool_messages():
-    """Clarification from a previous turn (not trailing) must not affect current routing."""
+def test_after_tools_prior_clarification_does_not_block_regular_tools():
+    """One prior clarification (count=1 < 2) must not block routing after regular tools."""
     agent = _make_agent()
     # First turn: clarification was requested
-    # Second turn: a regular tool is called — should route to llm_call
+    # Second turn: user responded, then a regular tool is called — should route to llm_call
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
@@ -438,3 +438,112 @@ def test_after_tools_only_inspects_trailing_tool_messages():
         ]
     }
     assert agent._after_tools(state) == "llm_call"
+
+
+@pytest.mark.unit
+def test_after_tools_routes_to_end_for_second_clarification():
+    """Second successful ask_human_for_clarification must route to __end__."""
+    agent = _make_agent()
+    state = {
+        "messages": [
+            HumanMessage(content="optimize a beam"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "t1", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            ToolMessage(
+                content='{"success": true, "question": "What volume fraction?"}',
+                tool_call_id="t1",
+                name="ask_human_for_clarification",
+            ),
+            AIMessage(
+                content="I need more details.",
+                tool_calls=[
+                    {"id": "t2", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            ToolMessage(
+                content='{"success": true, "question": "Please also specify filter radius."}',
+                tool_call_id="t2",
+                name="ask_human_for_clarification",
+            ),
+        ]
+    }
+    assert agent._after_tools(state) == "__end__"
+
+
+@pytest.mark.unit
+def test_after_tools_error_plus_success_counts_as_one():
+    """One errored + one successful clarification = count 1, should route to llm_call."""
+    agent = _make_agent()
+    state = {
+        "messages": [
+            HumanMessage(content="optimize a beam"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "t1", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            ToolMessage(
+                content="Error executing tool 'ask_human_for_clarification': something broke",
+                tool_call_id="t1",
+                name="ask_human_for_clarification",
+            ),
+            AIMessage(
+                content="Let me retry.",
+                tool_calls=[
+                    {"id": "t2", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            ToolMessage(
+                content='{"success": true, "question": "What volume fraction?"}',
+                tool_call_id="t2",
+                name="ask_human_for_clarification",
+            ),
+        ]
+    }
+    assert agent._after_tools(state) == "llm_call"
+
+
+@pytest.mark.unit
+def test_after_tools_two_clarifications_with_intermediate_tools():
+    """Two successful clarifications with design tools in between must route to __end__."""
+    agent = _make_agent()
+    state = {
+        "messages": [
+            HumanMessage(content="optimize a beam"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "t1", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            ToolMessage(
+                content='{"success": true, "question": "What volume fraction?"}',
+                tool_call_id="t1",
+                name="ask_human_for_clarification",
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "t2", "name": "optimize_design", "args": {}}],
+            ),
+            ToolMessage(
+                content="design optimized", tool_call_id="t2", name="optimize_design"
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "t3", "name": "ask_human_for_clarification", "args": {}}
+                ],
+            ),
+            ToolMessage(
+                content='{"success": true, "question": "What filter radius?"}',
+                tool_call_id="t3",
+                name="ask_human_for_clarification",
+            ),
+        ]
+    }
+    assert agent._after_tools(state) == "__end__"

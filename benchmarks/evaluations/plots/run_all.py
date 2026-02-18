@@ -32,7 +32,7 @@ from plot_dpp_vs_mmd import plot_dpp_vs_mmd  # noqa: E402
 from plot_iou_vs_objective import plot_iou_vs_objective  # noqa: E402
 from plot_metrics_comparison import plot_metrics_comparison  # noqa: E402
 from plot_rag_evaluation import main as plot_rag_evaluation_main  # noqa: E402
-from plot_success_curves import plot_convergence_profile  # noqa: E402
+from plot_tool_heatmap_counts import plot_tool_heatmap_counts  # noqa: E402
 from plot_tool_usage import (  # noqa: E402
     plot_performance_distribution_by_tool_count,
     plot_tool_heatmap_by_model,
@@ -76,23 +76,19 @@ def _generate_global_plots(combined_global, output_dir, problem: str | None = No
     print(f"  Global metrics: {len(combined_global)} rows")
 
     # 1. DPP vs FOG
-    print("\n[1/5] DPP vs FOG scatter...")
+    print("\n[1/4] DPP vs FOG scatter...")
     plot_dpp_vs_fog(combined_global, "dpp_vs_fog.png", output_dir)
 
     # 2. DPP vs MMD
-    print("\n[2/5] DPP vs MMD scatter...")
+    print("\n[2/4] DPP vs MMD scatter...")
     plot_dpp_vs_mmd(combined_global, "dpp_vs_mmd.png", output_dir)
 
     # 3. Metrics comparison bars
-    print("\n[3/5] Metrics comparison bars...")
+    print("\n[3/4] Metrics comparison bars...")
     plot_metrics_comparison(combined_global, "metrics_comparison.png", output_dir)
 
-    # 4. Convergence profile
-    print("\n[4/5] Convergence profile...")
-    plot_convergence_profile(combined_global, "convergence_profile.png", output_dir)
-
-    # 5. Summary table
-    print("\n[5/5] Summary statistics table...")
+    # 4. Summary table
+    print("\n[4/4] Summary statistics table...")
     create_summary_table(combined_global, output_dir)
 
 
@@ -153,38 +149,42 @@ def _generate_tool_usage_plots(
     print(f"  Tool usage: {len(combined_tools)} records")
 
     # Tool usage frequency
-    print("\n[1/7] Tool usage frequency...")
+    print("\n[1/8] Tool usage frequency...")
     plot_tool_usage_frequency(combined_tools, output_dir)
 
     # Tool usage by model
-    print("\n[2/7] Tool usage by model...")
+    print("\n[2/8] Tool usage by model...")
     plot_tool_usage_by_model(combined_tools, output_dir)
 
     # Tool usage heatmap
-    print("\n[3/7] Tool usage heatmap...")
+    print("\n[3/8] Tool usage heatmap...")
     plot_tool_heatmap_by_model(combined_tools, output_dir)
 
     # Tool usage heatmap with std
-    print("\n[4/7] Tool usage heatmap with std...")
+    print("\n[4/8] Tool usage heatmap with std...")
     plot_tool_heatmap_with_std(combined_tools, output_dir)
 
+    # Tool usage heatmap with raw counts
+    print("\n[5/8] Tool usage heatmap (raw counts)...")
+    plot_tool_heatmap_counts(combined_tools, output_dir)
+
     # Tool usage delta heatmap
-    print("\n[5/7] Tool usage delta heatmap...")
+    print("\n[6/8] Tool usage delta heatmap...")
     plot_tool_usage_delta_heatmap(combined_tools, output_dir)
 
     # Performance distribution by tool count
     if combined_design is not None:
-        print("\n[6/7] Performance distribution by tool count...")
+        print("\n[7/8] Performance distribution by tool count...")
         plot_performance_distribution_by_tool_count(
             combined_tools, combined_design, output_dir
         )
 
     # Tool usage vs performance
     if combined_design is not None:
-        print("\n[7/7] Tool usage vs performance...")
+        print("\n[8/8] Tool usage vs performance...")
         plot_tool_usage_vs_performance(combined_tools, combined_design, output_dir)
     else:
-        print("\n[6/7] Skipping performance plots (no design data)")
+        print("\n[7/8] Skipping performance plots (no design data)")
 
 
 def _generate_plots_for_problem(  # noqa: PLR0913
@@ -244,7 +244,6 @@ def _generate_plots_for_problem(  # noqa: PLR0913
     _generate_global_plots(problem_global, output_dir, problem)
     _generate_design_plots(problem_design, output_dir, problem)
     _generate_tool_usage_plots(problem_tools, problem_design, output_dir, problem)
-    # Token/latency plots removed - data not consistently available in Weave
 
 
 def _parse_args():
@@ -262,10 +261,13 @@ def _parse_args():
         type=str,
         choices=[
             "full",
-            "approximate",
             "natural",
             "workflow",
             "workflow-random",
+            "workflow-derived-params",
+            "workflow-distractor",
+            "workflow-conditional",
+            "workflow-multi-export",
             "rag-eval",
         ],
         help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",

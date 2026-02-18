@@ -176,10 +176,13 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         default="full",
         choices=[
             "full",
-            "approximate",
             "natural",
             "workflow",
             "workflow-random",
+            "workflow-derived-params",
+            "workflow-distractor",
+            "workflow-conditional",
+            "workflow-multi-export",
             "rag-eval",
         ],
         help="Prompt style for agent evaluation (default: full)",
@@ -268,7 +271,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     print(f"Samples per seed: {args.samples}")
     print(f"Prompt style: {args.prompt_style}")
     if run_agent:
-        print(f"Agent model: {args.model or '(from config.llm_model)'}")
+        print(f"Agent model: {args.model or config.llm_model}")
         print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
         print(f"Scorers: {args.scorers}")
     if run_cgan:

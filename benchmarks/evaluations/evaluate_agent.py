@@ -233,7 +233,7 @@ def prepare_evaluation_dataset(
             - problem_type: Type of problem being evaluated
             - dataset_name: Name of the HuggingFace dataset for ground truth
             - seed: Optional seed to use for all prompts in this evaluation (optimization seed)
-            - prompt_style: Style of prompt (full, approximate, natural, workflow)
+            - prompt_style: Style of prompt (full, natural, workflow)
             - mmore_enabled: Whether MMORE RAG system is enabled
             - model_name: LLM model used for evaluation
             - temperature: Model temperature setting
@@ -356,10 +356,13 @@ def parse_arguments() -> argparse.Namespace:
         default="full",
         choices=[
             "full",
-            "approximate",
             "natural",
             "workflow",
             "workflow-random",
+            "workflow-derived-params",
+            "workflow-distractor",
+            "workflow-conditional",
+            "workflow-multi-export",
             "rag-eval",
         ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
@@ -563,16 +566,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         # Tool use scorer: compute efficiency ratio and sequence correctness
         base_scorers = [score_tool_use]
         scorer_types = ["tool_use"]
-    elif args.scorers == "all":
-        # Use output_quality + task_completion + tool_use for comprehensive metrics
-        base_scorers = [
-            score_output_quality,
-            score_task_completion,
-            score_tool_use,
-        ]
-        scorer_types = ["output_quality", "task_completion", "tool_use"]
     else:
-        # Default: run all scorers for comprehensive evaluation
+        # "all" (the argparse default): comprehensive evaluation with all scorers
         base_scorers = [
             score_output_quality,
             score_task_completion,

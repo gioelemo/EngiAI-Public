@@ -64,8 +64,8 @@ def _get_design_array(
 
     Args:
         output: Agent output with messages
-        metadata: Metadata dict
-        problem_config: Problem configuration
+        _metadata: Metadata dict (unused, required by scorer interface)
+        _problem_config: Problem configuration (unused, required by scorer interface)
         example_id: Example ID for logging
 
     Returns:
@@ -258,6 +258,9 @@ def _extract_float_field(content: str, field: str) -> float | None:
     Args:
         content: Raw text content to search in.
         field: Field name to extract.
+
+    Returns:
+        Extracted float value, or None if not found or parsing fails.
     """
     match = re.search(rf"['\"]?{field}['\"]?\s*:([\d.\s]+)", content)
     if match:
@@ -274,6 +277,9 @@ def _extract_int_field(content: str, field: str) -> int | None:
     Args:
         content: Raw text content to search in.
         field: Field name to extract.
+
+    Returns:
+        Extracted integer value, or None if not found or parsing fails.
     """
     match = re.search(rf"['\"]?{field}['\"]?\s*:(\d+)", content)
     if match:
@@ -290,6 +296,9 @@ def _extract_bool_field(content: str, field: str) -> bool:
     Args:
         content: Raw text content to search in.
         field: Field name to extract.
+
+    Returns:
+        Extracted boolean value, or False if not found.
     """
     match = re.search(rf"['\"]?{field}['\"]?\s*:\s*(\w+)", content)
     if match:
@@ -304,6 +313,9 @@ def _get_target_value(conditions: dict[str, Any], cond_config: Any) -> float | N
     Args:
         conditions: Conditions dictionary from the dataset sample.
         cond_config: ConditionConfig with field_name and aliases.
+
+    Returns:
+        Target value if found, None otherwise.
     """
     target_value = conditions.get(cond_config.field_name)
     if target_value is None:
@@ -417,7 +429,7 @@ def _calculate_constraint_score(
         metrics[f"{cond_config.name}_partial_score"] = float(partial_score)
 
         # Log and count violations
-        is_violation = error >= cond_config.tolerance
+        is_violation = error > cond_config.tolerance
         violations += int(is_violation)
 
         log_msg = (
@@ -427,7 +439,7 @@ def _calculate_constraint_score(
             f"error={error:.4f}"
         )
         if is_violation:
-            log_msg += f" >= tolerance={cond_config.tolerance}"
+            log_msg += f" > tolerance={cond_config.tolerance}"
         log_msg += f", partial_score={partial_score:.4f}"
         logger.debug(log_msg)
 
@@ -744,10 +756,12 @@ def score_output_quality(
     messages = output.get("messages", [])
     watertightness_metrics = _extract_watertightness_from_messages(messages, example_id)
 
-    # Get conditions from target or dataset row
-    conditions = target if isinstance(target, dict) else {}
-    if not conditions and "conditions" in hf_dataset[example_id]:
-        conditions = hf_dataset[example_id]["conditions"]
+    # Get conditions (volfrac, forcedist, rmin, etc.) for constraint checking.
+    # Primary source: metadata["conditions"] (set by evaluate_agent.py from prompt data).
+    # Fallback: HuggingFace dataset row (which stores conditions as flat fields).
+    conditions = metadata.get("conditions", {})
+    if not conditions:
+        conditions = dict(hf_dataset[example_id])
 
     # Calculate constraint matching score
     constraint_score, constraint_metrics = _calculate_constraint_score(

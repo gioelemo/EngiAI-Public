@@ -117,10 +117,12 @@ make mmore-eval-run ARGS="--problem beams2d --samples 1"
 The beams2d benchmark supports multiple prompt styles for evaluating different aspects of agent behavior:
 
 - **full**: Exact numerical parameters
-- **approximate**: Rounded/approximate values
 - **natural**: Natural language descriptions only
 - **workflow**: Full workflow with STL export (hardcoded parameters)
 - **workflow-random**: Full workflow with randomized STL parameters and validation
+- **workflow-derived-params**: Workflow with STL parameters derived from optimization inputs
+- **workflow-distractor**: Workflow with distractor parameters mixed with real STL params
+- **workflow-conditional**: Workflow with if/then branching based on simulation results
 
 #### workflow-random Prompt Style
 
@@ -166,3 +168,165 @@ Example prompt excerpt:
    - Extrusion: Extrude the 2D result by 17.9 units in the Z-axis...
    - Export: Save the final geometry as an STL file with these exact parameters
 ```
+
+#### workflow-derived-params Prompt Style
+
+The `workflow-derived-params` style tests **arithmetic reasoning** — the agent must compute STL export parameters from the optimization inputs rather than following explicit values. The prompt gives derivation rules, not final numbers.
+
+**Derivation Rules:**
+- `threshold` = volume fraction value (e.g., volfrac=0.35 → threshold=0.35)
+- `scale_xy` = 2 × filter radius (e.g., rmin=1.5 → scale_xy=3.0)
+- `scale_z` = threshold × 40 (e.g., 0.35 × 40 = 14.0)
+- `mirror_y` = True only if volume fraction > 0.4
+
+**Key Design:** No randomness — parameters are deterministically derived from optimization inputs. No seed needed.
+
+**Validation:** Same ±0.05 float tolerance and exact boolean match as workflow-random.
+
+**Usage:**
+```bash
+# Generate workflow-derived-params prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-derived-params
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-derived-params
+```
+
+Example prompt excerpt:
+```
+2. Post-processing & Export
+   The STL export parameters must be derived from the optimization inputs:
+   - Thresholding: Use the volume fraction value as the density threshold
+   - XY Scaling: Scale the X and Y dimensions by twice the filter radius
+   - Extrusion: Extrude the 2D result in the Z-axis by the threshold value multiplied by 40
+   - Mirror: Mirror the design across the y-axis only if the volume fraction is greater than 0.4
+```
+
+#### workflow-distractor Prompt Style
+
+The `workflow-distractor` style tests **semantic parameter disambiguation** — the prompt presents two plausible values for `threshold` and `scale_xy`: one in a preview/analysis context and one in the manufacturing/export context. The agent must pick the export-context values. Because both values map to valid tool-schema keys, LangChain will not reject the call; only the parameter-validation scorer catches wrong choices.
+
+**Competing Parameter Pairs** (randomized):
+- `threshold`: a "preview topology" value vs the "final solid/void geometry" value (gap >= 0.1)
+- `scale_xy`: a "preview display" value vs the "manufacturing" value (gap >= 0.5)
+- `scale_z` and `mirror_y`: single values (no competitors)
+
+**Why it breaks LLMs:** The tool call always succeeds regardless of which value the agent picks — the STL file gets created. But if the agent uses the preview-context value instead of the export-context value, the parameter error exceeds the ±0.05 tolerance and validation fails. The agent must do semantic reasoning about which value belongs to the export step.
+
+**Real Parameters:** Same 4 randomized STL params as workflow-random (threshold, scale_xy, scale_z, mirror_y).
+
+**Validation:** Same ±0.05 float tolerance and exact boolean match as workflow-random. Only the 4 real params (export-context values) are validated.
+
+**Usage:**
+```bash
+# Generate workflow-distractor prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-distractor --seed 42
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-distractor --seed 42
+```
+
+Example prompt excerpt:
+```
+2. Post-processing & Export
+   - Threshold the density field at 0.35 to preview the design topology
+   - Apply a 0.58 density threshold to produce the final solid/void geometry
+   - Scale the preview display by 1.50x in XY for quick inspection
+   - Scale the X and Y dimensions of the part by 2.47 for manufacturing
+   - Mirror the design across the y-axis for the final geometry
+   - Extrude the 2D result by 12.7 units in the Z-axis to create a 3D volume
+   - Export: Save the final geometry as an STL file
+```
+
+#### workflow-conditional Prompt Style
+
+The `workflow-conditional` style extends `workflow-random` by adding if/then branching logic that depends on the simulation result. The agent must read the compliance value from `simulate_design`, compare it against a threshold, and select the correct parameter set. This tests tool-output → reasoning → tool-input chaining.
+
+**Flow:**
+1. Optimize the design with given parameters
+2. Simulate the design to get compliance
+3. Compare compliance against a randomized threshold
+4. Apply the correct branch-specific parameters (threshold, mirror_y)
+5. Apply common parameters (scale_xy, scale_z) regardless of branch
+6. Export as STL
+
+**Randomized Parameters:**
+- `compliance_threshold`: Float (100-300) - the branching condition
+- `branch_high.threshold` / `branch_low.threshold`: Float (0.3-0.7) - density thresholds (guaranteed ≥0.1 apart)
+- `branch_high.mirror_y` / `branch_low.mirror_y`: Boolean - mirror settings (guaranteed opposite)
+- `common.scale_xy`: Float (0.5-5.0) - X/Y scaling (both branches)
+- `common.scale_z`: Float (5.0-20.0) - Z extrusion height (both branches)
+
+**Validation:**
+The scorer uses ground truth compliance from the dataset to determine the correct branch, then validates STL parameters as in workflow-random (±0.05 for floats, exact match for booleans).
+
+**Usage:**
+```bash
+# Generate workflow-conditional prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-conditional --seed 42
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-conditional --seed 42
+```
+
+**Additional Validation Metrics:**
+- `conditional_compliance_threshold`: The randomized branching threshold
+- `conditional_gt_compliance`: Ground truth compliance from the dataset
+- `conditional_correct_branch`: Which branch was correct ("high" or "low")
+
+Example prompt excerpt:
+```
+3. Post-processing & Export (conditional on compliance)
+   - If compliance > 213.4:
+     - Thresholding: Apply a 0.42 density threshold
+     - Mirror: Mirror the design across the y-axis
+   - If compliance <= 213.4:
+     - Thresholding: Apply a 0.61 density threshold
+     - Mirror: Do NOT mirror the design
+   - In both cases:
+     - XY Scaling: Scale the X and Y dimensions by 3.14
+     - Extrusion: Extrude the 2D result by 11.7 units in the Z-axis
+   - Export: Save the final geometry as an STL file with these exact parameters
+```
+
+#### workflow-multi-export Prompt Style
+
+The `workflow-multi-export` style requires the agent to call `convert_design_to_stl` **twice** with completely different parameter sets from the same optimization. This tests working memory and instruction tracking — LLMs commonly merge the two exports into one, swap parameters between them, or only do one export.
+
+**Flow:**
+1. Optimize the design with given parameters
+2. Simulate the design
+3. Export STL with Export A parameters
+4. Export STL with Export B parameters (different from A)
+
+**Randomized Parameters (per export):**
+- `mirror_y`: Boolean - guaranteed opposite between A and B
+- `threshold`: Float (0.3-0.7) - gap ≥ 0.1 between A and B
+- `scale_xy`: Float (0.5-5.0) - gap ≥ 0.2 between A and B
+- `scale_z`: Float (5.0-20.0) - gap ≥ 0.2 between A and B
+
+**Validation:**
+The scorer validates both STL calls **in order** (first call → Export A, second call → Export B). All-or-nothing: both exports must have correct parameters for task completion. Uses the same ±0.05 float tolerance and exact boolean match as workflow-random.
+
+**Usage:**
+```bash
+# Generate workflow-multi-export prompts
+cd benchmarks/problems/beams2d
+python generate_prompts.py --samples 5 --style workflow-multi-export --seed 42
+
+# Run evaluation
+python benchmarks/evaluations/evaluate_agent.py \
+    --problem beams2d --samples 5 --prompt-style workflow-multi-export --seed 42
+```
+
+**Validation Metrics:**
+- `multi_export_count`: Number of successful STL calls detected
+- `multi_export_both_valid`: Whether both exports passed validation
+- `export_a_stl_{param}_actual/expected/error/valid`: Per-parameter details for Export A
+- `export_b_stl_{param}_actual/expected/error/valid`: Per-parameter details for Export B

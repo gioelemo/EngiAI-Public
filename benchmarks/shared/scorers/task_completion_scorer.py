@@ -1,8 +1,11 @@
 """Task completion scorer for engineering agent evaluations.
 
 This scorer checks task completion based on prompt style:
-- Standard prompts (full, approximate, natural): render_design must be called successfully
+- Standard prompts (full, natural): render_design must be called successfully
 - Workflow prompts: convert_design_to_stl must be called successfully
+- Workflow-derived-params: STL export with params computed from optimization inputs
+- Workflow-conditional: STL export with params resolved from compliance-based branching
+- Workflow-multi-export: Two STL exports with different params, validated in order
 """
 
 import ast
@@ -17,6 +20,9 @@ logger = logging.getLogger(__name__)
 RENDER_TOOL_NAME = "render_design"
 STL_EXPORT_TOOL_NAME = "convert_design_to_stl"
 CLARIFICATION_TOOL_NAME = "ask_human_for_clarification"
+
+# Expected number of STL exports for workflow-multi-export
+MULTI_EXPORT_COUNT = 2
 
 
 def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
@@ -37,7 +43,7 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     # Approach 1: Try direct JSON parsing first (handles valid JSON with apostrophes)
     try:
         return json.loads(content)
-    except (json.JSONDecodeError, Exception):
+    except json.JSONDecodeError:
         pass  # Continue to fallback approaches
 
     # Approach 2: Try converting Python repr to JSON
@@ -62,7 +68,7 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     return None
 
 
-def _validate_stl_parameters(
+def _validate_stl_parameters(  # noqa: PLR0915 - Many statements for thorough validation
     stl_details: dict[str, Any],
     expected_params: dict[str, Any],
     example_id: int,
@@ -102,32 +108,63 @@ def _validate_stl_parameters(
         expected_value = expected_params.get(param_name)
         actual_value = stl_details.get(result_key)
 
-        if expected_value is None or actual_value is None:
+        # Only count as violation if we expected a value but didn't get it
+        if expected_value is not None and actual_value is None:
             logger.warning(
-                "Example %s: Missing STL param %s (expected=%s, actual=%s)",
+                "Example %s: Missing STL param %s (expected=%s, actual=None)",
                 example_id,
                 param_name,
                 expected_value,
-                actual_value,
             )
             violations += 1
             metrics[f"stl_{param_name}_valid"] = False
             continue
 
-        # Validate based on type
-        if param_type is float:
-            actual_value = float(actual_value)
-            expected_value = float(expected_value)
-            error = abs(actual_value - expected_value)
-            is_valid = error < tolerance
-        elif param_type is bool:
-            actual_value = bool(actual_value)
-            expected_value = bool(expected_value)
-            error = 0.0 if actual_value == expected_value else 1.0
-            is_valid = actual_value == expected_value
-        else:
-            error = 0.0
-            is_valid = True
+        # Skip validation if parameter not expected for this prompt style
+        if expected_value is None:
+            continue
+
+        # At this point, expected_value is not None and actual_value should not be None
+        # (would have been caught by the first check). Add explicit check for type safety.
+        if actual_value is None:
+            logger.warning(
+                "Example %s: Unexpected None for STL param %s after validation checks",
+                example_id,
+                param_name,
+            )
+            violations += 1
+            metrics[f"stl_{param_name}_valid"] = False
+            continue
+
+        # Validate based on type with error handling
+        try:
+            if param_type is float:
+                actual_value = float(actual_value)
+                expected_value = float(expected_value)
+                error = abs(actual_value - expected_value)
+                is_valid = error <= tolerance
+            elif param_type is bool:
+                actual_value = bool(actual_value)
+                expected_value = bool(expected_value)
+                error = 0.0 if actual_value == expected_value else 1.0
+                is_valid = actual_value == expected_value
+            else:
+                error = 0.0
+                is_valid = True
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                "Example %s: Type conversion error for STL param %s: %s "
+                "(expected=%s, actual=%s)",
+                example_id,
+                param_name,
+                e,
+                expected_value,
+                actual_value,
+            )
+            violations += 1
+            metrics[f"stl_{param_name}_valid"] = False
+            metrics[f"stl_{param_name}_error"] = "conversion_error"
+            continue
 
         # Store metrics (following constraint validation pattern)
         metrics[f"stl_{param_name}_actual"] = actual_value
@@ -154,14 +191,143 @@ def _validate_stl_parameters(
     return validation_score, metrics
 
 
+def _resolve_conditional_params(
+    conditional_params: dict[str, Any],
+    target: dict[str, Any],
+    example_id: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve conditional STL parameters based on ground truth compliance.
+
+    For workflow-conditional prompts, determines which branch the agent should
+    have taken based on the ground truth compliance value, and returns the
+    expected flat parameter dict for validation.
+
+    Args:
+        conditional_params: The conditional stl_expected_params structure with
+            compliance_threshold, branch_high, branch_low, and common keys
+        target: Target dict containing ground truth compliance
+        example_id: Example ID for logging
+
+    Returns:
+        Tuple of (resolved_flat_params, branch_metrics)
+        - resolved_flat_params: Flat dict with scale_xy, scale_z, threshold, mirror_y
+        - branch_metrics: Dict with branch decision details for reporting
+    """
+    compliance_threshold = conditional_params["compliance_threshold"]
+    gt_compliance = target.get("compliance", 0.0)
+
+    # Determine correct branch
+    if gt_compliance > compliance_threshold:
+        correct_branch = "high"
+        branch_params = conditional_params["branch_high"]
+    else:
+        correct_branch = "low"
+        branch_params = conditional_params["branch_low"]
+
+    common_params = conditional_params["common"]
+
+    # Build flat expected params (same format as workflow-random)
+    resolved = {
+        "threshold": branch_params["threshold"],
+        "mirror_y": branch_params["mirror_y"],
+        "scale_xy": common_params["scale_xy"],
+        "scale_z": common_params["scale_z"],
+    }
+
+    branch_metrics = {
+        "conditional_compliance_threshold": compliance_threshold,
+        "conditional_gt_compliance": gt_compliance,
+        "conditional_correct_branch": correct_branch,
+    }
+
+    logger.info(
+        "Example %s (workflow-conditional): gt_compliance=%.2f, threshold=%.1f, "
+        "correct_branch=%s",
+        example_id,
+        gt_compliance,
+        compliance_threshold,
+        correct_branch,
+    )
+
+    return resolved, branch_metrics
+
+
+def _validate_multi_export_params(
+    all_stl_details: list[dict[str, Any]],
+    expected_exports: list[dict[str, Any]],
+    example_id: int,
+) -> tuple[float, dict[str, Any]]:
+    """Validate parameters for workflow-multi-export (two STL calls in order).
+
+    Validates the first two successful STL calls against expected Export A and B.
+    Order-based: first call → exports[0], second call → exports[1].
+    All-or-nothing: both must pass for overall score of 1.0.
+
+    Args:
+        all_stl_details: List of detail dicts from each successful STL call
+        expected_exports: List of expected param dicts (length 2)
+        example_id: Example ID for logging
+
+    Returns:
+        Tuple of (overall_score, combined_metrics)
+    """
+    metrics: dict[str, Any] = {
+        "multi_export_count": len(all_stl_details),
+    }
+
+    if len(all_stl_details) < MULTI_EXPORT_COUNT:
+        logger.info(
+            "Example %s (workflow-multi-export): Expected 2 STL exports, got %d",
+            example_id,
+            len(all_stl_details),
+        )
+        metrics["multi_export_both_valid"] = False
+        metrics["stl_param_validation_score"] = 0.0
+        metrics["stl_param_violations"] = 4  # All params missing for missing export
+        return 0.0, metrics
+
+    # Validate each export in order
+    labels = ["export_a", "export_b"]
+    all_valid = True
+
+    for i, (label, expected) in enumerate(zip(labels, expected_exports, strict=True)):
+        actual_details = all_stl_details[i]
+        score_i, metrics_i = _validate_stl_parameters(
+            stl_details=actual_details,
+            expected_params=expected,
+            example_id=example_id,
+        )
+
+        # Prefix metrics with export label
+        for key, value in metrics_i.items():
+            metrics[f"{label}_{key}"] = value
+
+        if score_i == 0.0:
+            all_valid = False
+            logger.info(
+                "Example %s (workflow-multi-export): %s validation failed",
+                example_id,
+                label,
+            )
+
+    overall_score = 1.0 if all_valid else 0.0
+    metrics["multi_export_both_valid"] = all_valid
+    metrics["stl_param_validation_score"] = overall_score
+    metrics["stl_param_violations"] = sum(
+        metrics.get(f"{label}_stl_param_violations", 0) for label in labels
+    )
+
+    return overall_score, metrics
+
+
 def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     output: dict[str, Any],
-    target: dict[str, Any],  # noqa: ARG001 - Required by scorer interface
+    target: dict[str, Any],
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
     """Score task completion based on prompt style.
 
-    For standard prompts (full, approximate):
+    For standard prompts (full):
     - Success = render_design called and returned success=True
 
     For workflow prompts:
@@ -173,7 +339,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
 
     Args:
         output: Agent output with messages and model info
-        target: Target/ground truth data from dataset (unused)
+        target: Target/ground truth data from dataset (used for workflow-conditional)
         metadata: Metadata including example_id, problem_type, prompt_style, etc.
 
     Returns:
@@ -205,11 +371,28 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     messages = output.get("messages", [])
 
     # Determine success criteria based on prompt style
-    is_workflow = prompt_style in ["workflow", "workflow-random"]
+    is_workflow = prompt_style in [
+        "workflow",
+        "workflow-random",
+        "workflow-derived-params",
+        "workflow-distractor",
+        "workflow-conditional",
+        "workflow-multi-export",
+    ]
     is_workflow_random = prompt_style == "workflow-random"
+    is_workflow_derived = prompt_style == "workflow-derived-params"
+    is_workflow_distractor = prompt_style == "workflow-distractor"
+    is_workflow_conditional = prompt_style == "workflow-conditional"
+    is_workflow_multi_export = prompt_style == "workflow-multi-export"
     is_clarification = metadata.get("success_criteria") == "clarification_requested"
     success_criteria = "stl_export" if is_workflow else "render_design"
-    if is_workflow_random:
+    if (
+        is_workflow_random
+        or is_workflow_derived
+        or is_workflow_distractor
+        or is_workflow_conditional
+        or is_workflow_multi_export
+    ):
         success_criteria = "stl_export_with_params"
     if is_clarification:
         success_criteria = "clarification_requested"
@@ -232,6 +415,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     stl_save_path = None
     stl_error = None
     stl_details: dict[str, Any] = {}
+    all_stl_details: list[dict[str, Any]] = []  # Accumulates all successful STL calls
 
     # Iterate through messages looking for tool results
     for msg in messages:
@@ -284,7 +468,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                     example_id,
                     render_save_path,
                 )
-                # Continue iterating to find the LAST successful render (most recent)
+                # Continue iterating - if multiple renders, keep the LAST successful one
             else:
                 render_error = result.get("error", "Unknown error")
                 logger.debug(
@@ -307,26 +491,13 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
 
             if result is not None and result.get("success", False):
                 clarification_question = result.get("question")
-                logger.debug(
-                    "Example %s: Parsed clarification question: %s",
-                    example_id,
-                    clarification_question,
-                )
             else:
-                # Fallback: try to extract from raw content for backward compatibility
-                if isinstance(content, str):
-                    if content.startswith("Clarification requested: "):
-                        clarification_question = content.split(
-                            "Clarification requested: ", 1
-                        )[1].split("\n")[0]
-                    else:
-                        clarification_question = content
-                else:
-                    clarification_question = None
-                logger.debug(
-                    "Example %s: Using fallback parsing for clarification question",
-                    example_id,
-                )
+                clarification_question = content if isinstance(content, str) else None
+            logger.debug(
+                "Example %s: Parsed clarification question: %s",
+                example_id,
+                clarification_question,
+            )
 
         # Process convert_design_to_stl calls
         elif tool_name == STL_EXPORT_TOOL_NAME:
@@ -360,12 +531,14 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                     "threshold": result.get("threshold"),
                     "message": result.get("message"),
                 }
+                # Accumulate for multi-export validation (order matters)
+                all_stl_details.append(dict(stl_details))
                 logger.debug(
                     "Example %s: convert_design_to_stl succeeded, saved to %s",
                     example_id,
                     stl_save_path,
                 )
-                # Continue iterating to find the LAST successful export (most recent)
+                # Continue iterating to collect all STL exports (FIRST used for single-export)
             else:
                 stl_error = result.get("error", "Unknown error")
                 logger.debug(
@@ -435,35 +608,85 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
                 render_save_path,
             )
 
-    # STL Parameter Validation for workflow-random
+    # STL Parameter Validation for workflow-random, workflow-conditional,
+    # and workflow-multi-export
     stl_param_validation_score = 1.0
     stl_param_metrics: dict[str, Any] = {}
 
-    if is_workflow_random and stl_success:
+    if is_workflow_multi_export and stl_called:
         expected_stl_params = metadata.get("stl_expected_params", {})
-
-        if expected_stl_params:
-            stl_param_validation_score, stl_param_metrics = _validate_stl_parameters(
-                stl_details=stl_details,
-                expected_params=expected_stl_params,
+        if expected_stl_params and expected_stl_params.get("multi_export"):
+            stl_param_validation_score, param_metrics = _validate_multi_export_params(
+                all_stl_details=all_stl_details,
+                expected_exports=expected_stl_params["exports"],
                 example_id=example_id,
             )
+            stl_param_metrics.update(param_metrics)
 
-            # For workflow-random: task ONLY complete if params valid
             if stl_param_validation_score == 0.0:
                 success_rate = 0.0
                 task_completed = False
                 logger.info(
-                    "Example %s (workflow-random): Task incomplete due to "
+                    "Example %s (workflow-multi-export): Task incomplete due to "
+                    "multi-export validation failure",
+                    example_id,
+                )
+        else:
+            logger.warning(
+                "Example %s (workflow-multi-export): No stl_expected_params "
+                "in metadata",
+                example_id,
+            )
+    elif (
+        is_workflow_random
+        or is_workflow_derived
+        or is_workflow_distractor
+        or is_workflow_conditional
+    ) and stl_success:
+        expected_stl_params = metadata.get("stl_expected_params", {})
+
+        if expected_stl_params:
+            # For workflow-conditional: resolve branch before validation
+            if is_workflow_conditional and expected_stl_params.get("conditional"):
+                resolved_params, branch_metrics = _resolve_conditional_params(
+                    conditional_params=expected_stl_params,
+                    target=target,
+                    example_id=example_id,
+                )
+                stl_param_metrics.update(branch_metrics)
+                expected_stl_params = resolved_params
+
+            # Single-export workflows: validate the FIRST successful STL call.
+            # The agent may over-execute (e.g. a "preview" export after the
+            # real one), so the last call is not necessarily the primary one.
+            stl_details_to_validate = (
+                all_stl_details[0] if all_stl_details else stl_details
+            )
+
+            stl_param_validation_score, param_metrics = _validate_stl_parameters(
+                stl_details=stl_details_to_validate,
+                expected_params=expected_stl_params,
+                example_id=example_id,
+            )
+            stl_param_metrics.update(param_metrics)
+
+            # Task ONLY complete if params valid
+            if stl_param_validation_score == 0.0:
+                success_rate = 0.0
+                task_completed = False
+                logger.info(
+                    "Example %s (%s): Task incomplete due to "
                     "STL parameter validation failure "
                     "(%s violations)",
                     example_id,
+                    prompt_style,
                     stl_param_metrics.get("stl_param_violations", 0),
                 )
         else:
             logger.warning(
-                "Example %s (workflow-random): No stl_expected_params in metadata",
+                "Example %s (%s): No stl_expected_params in metadata",
                 example_id,
+                prompt_style,
             )
 
     return {

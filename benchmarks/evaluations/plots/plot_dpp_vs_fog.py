@@ -8,7 +8,6 @@ Key question: Do diverse designs maintain quality?
 """
 
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy import stats
 from scipy.spatial import ConvexHull
 
@@ -29,7 +28,7 @@ MIN_HULL_POINTS = 3
 
 
 def plot_dpp_vs_fog(combined_df, output_path=None, output_dir=None):
-    """Create DPP vs FOG scatter plot (NeurIPS format).
+    """Create DPP vs FOG scatter plot (publication format).
 
     Args:
         combined_df: DataFrame with global metrics
@@ -83,7 +82,7 @@ def plot_dpp_vs_fog(combined_df, output_path=None, output_dir=None):
                 "boxstyle": "round,pad=0.3",
                 "facecolor": "white",
                 "alpha": 0.8,
-                "edgecolor": "0.7",
+                "edgecolor": "0.8",
             },
         )
 
@@ -136,8 +135,8 @@ def plot_tradeoff_with_pareto(
             label=model.split("-")[0],  # Simplify name for legend
             marker=style["marker"],
             color=style["color"],
-            s=20,
-            alpha=0.7,
+            s=PLOT_STYLE["marker_size"],
+            alpha=PLOT_STYLE["alpha"],
             edgecolors="white",
             lw=0.3,
         )
@@ -178,7 +177,6 @@ def plot_tradeoff_with_pareto(
         title="Models \& Frontier",
     )
 
-    sns.despine()
     save_figure(fig, output_name)
 
 

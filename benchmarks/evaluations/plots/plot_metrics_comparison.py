@@ -21,7 +21,7 @@ from utils import (
 
 
 def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
-    """Create bar chart comparing metrics across models (NeurIPS format).
+    """Create bar chart comparing metrics across models (publication format).
 
     Args:
         combined_df: DataFrame with global metrics
@@ -75,7 +75,7 @@ def plot_metrics_comparison(combined_df, output_path=None, output_dir=None):
                 yerr=stds,
                 capsize=2,
                 color=colors,
-                alpha=0.85,
+                alpha=PLOT_STYLE["alpha"],
                 edgecolor="white",
                 linewidth=0.5,
             )
