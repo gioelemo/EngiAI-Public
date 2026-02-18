@@ -427,9 +427,14 @@ def _draw_by_prompt_axes(ax: plt.Axes, df_sub: pd.DataFrame, cfg: dict) -> None:
                 vals.append(0.0 if np.isnan(v) else float(v))
             vals_arr = np.array(vals)
             ax.bar(
-                x + offset, vals_arr, bar_width, bottom=bottoms,
+                x + offset,
+                vals_arr,
+                bar_width,
+                bottom=bottoms,
                 color=_COMPONENT_COLORS.get(key, COLOR_PALETTE[0]),
-                hatch=hatch, edgecolor="white", linewidth=0.5,
+                hatch=hatch,
+                edgecolor="white",
+                linewidth=0.5,
             )
             bottoms += vals_arr
 
@@ -444,9 +449,15 @@ def _draw_by_prompt_axes(ax: plt.Axes, df_sub: pd.DataFrame, cfg: dict) -> None:
     for eid, xi in zip(example_ids, x, strict=False):
         plabel = _PROMPT_SHORT_LABELS.get(int(eid), f"P{int(eid)}")
         ax.text(
-            xi, -0.22, plabel, ha="center", va="top",
-            fontsize=fs["tick_label"], fontweight="bold",
-            transform=xaxis_tr, clip_on=False,
+            xi,
+            -0.22,
+            plabel,
+            ha="center",
+            va="top",
+            fontsize=fs["tick_label"],
+            fontweight="bold",
+            transform=xaxis_tr,
+            clip_on=False,
         )
 
     style = _RAG_DISPLAY.get(cfg["rag_status"], {"label": cfg["rag_status"]})
@@ -516,12 +527,20 @@ def plot_rag_score_components_by_prompt(
     model_hatches = dict(zip(models, ["", "//", "..", "xx", "++", "oo"], strict=False))
     x = np.arange(len(example_ids))
 
-    fig, axes = plt.subplots(1, 2, figsize=PLOT_STYLE["figsize_full_width"], sharey=True)
+    fig, axes = plt.subplots(
+        1, 2, figsize=PLOT_STYLE["figsize_full_width"], sharey=True
+    )
 
     cfg = {
-        "models": models, "example_ids": example_ids, "offsets": offsets,
-        "bar_width": bar_width, "model_hatches": model_hatches, "abbrev": abbrev,
-        "present": present, "x": x, "fs": fs,
+        "models": models,
+        "example_ids": example_ids,
+        "offsets": offsets,
+        "bar_width": bar_width,
+        "model_hatches": model_hatches,
+        "abbrev": abbrev,
+        "present": present,
+        "x": x,
+        "fs": fs,
     }
     for ax, rs in zip(axes, ["rag", "no_rag"], strict=False):
         _draw_by_prompt_axes(ax, df[df["rag_status"] == rs], {**cfg, "rag_status": rs})
