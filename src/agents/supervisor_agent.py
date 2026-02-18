@@ -161,15 +161,36 @@ class SupervisorAgent:
             )
         return prompt
 
+    @staticmethod
+    def _filter_supervisor_instructions(messages: list) -> list:
+        """Remove [SUPERVISOR INSTRUCTION] messages from routing context.
+
+        These scoped sub-task instructions were injected for delegated agents.
+        When the supervisor re-evaluates, it should see the original user
+        request + agent results, not its own prior sub-task scoping.
+        """
+        return [
+            m
+            for m in messages
+            if not (
+                isinstance(m, HumanMessage)
+                and isinstance(m.content, str)
+                and m.content.startswith("[SUPERVISOR INSTRUCTION")
+            )
+        ]
+
     def _supervisor_node(self, state: SupervisorState):
         """Supervisor decides which agent should act next using LLM-based routing.
 
         After each agent completes, the supervisor re-evaluates the full message
         history to decide whether to route to another agent or finish.
         """
+        # Filter out prior [SUPERVISOR INSTRUCTION] messages so the LLM
+        # re-evaluates against the original user request, not scoped sub-tasks.
+        filtered = self._filter_supervisor_instructions(state["messages"])
         messages = [
             {"role": "system", "content": self._build_routing_prompt()},
-            *state["messages"],
+            *filtered,
         ]
 
         # Use structured output to get routing decision from LLM

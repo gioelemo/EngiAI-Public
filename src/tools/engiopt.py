@@ -1797,3 +1797,180 @@ def generate_training_command(cfg: TrainingConfig) -> dict[str, Any]:
         "message": f"✅ Generated SLURM script for {cfg.algorithm} ({cfg.problem_id}).\n"
         f"Saved to {slurm_file}\n\nAPI Keys:\n{api_status}",
     }
+
+
+@tool
+def evaluate_model(  # noqa: PLR0913
+    problem_id: ProblemId = "beams2d",
+    algorithm: str = "cgan_cnn_2d",
+    seed: int = 1,
+    n_samples: int = 50,
+    sigma: float = 10.0,
+    wandb_entity: str | None = None,
+    wandb_project: str = "engiopt",
+    output_csv: str | None = None,
+) -> dict[str, Any]:
+    """
+    Evaluate a trained generative model against the dataset baseline using EngiOpt metrics.
+
+    This tool downloads a trained model from WandB, generates designs using sampled
+    conditions from the dataset, and computes standard evaluation metrics:
+    IOG (Initial Optimality Gap), COG (Cumulative Optimality Gap),
+    FOG (Final Optimality Gap), MMD (Maximum Mean Discrepancy), DPP (diversity),
+    and violation rate.
+
+    Supports all generative model architectures in EngiOpt: cGAN, GAN, diffusion,
+    VQGAN, and their variants (1D, 2D, 3D, CNN, Bezier, VAE).
+
+    Use this tool after training a model on HPC to evaluate its quality against
+    the ground truth dataset designs.
+
+    Args:
+        problem_id: Engineering problem identifier. Supported: "beams2d", "thermoelastic2d", "photonics2d"
+        algorithm: Model architecture. Options include:
+            - cgan_cnn_2d: Conditional GAN + CNN (2D) [default]
+            - cgan_2d, cgan_1d, cgan_cnn_3d, cgan_vae: Other cGAN variants
+            - diffusion_2d_cond, diffusion_1d: Diffusion models
+            - gan_2d, gan_1d, gan_cnn_2d, gan_bezier: GAN variants
+            - vqgan: Vector Quantized GAN
+        seed: Random seed of the trained model to evaluate.
+            IMPORTANT: Must match the seed used during training.
+        n_samples: Number of designs to generate for evaluation (default: 50)
+        sigma: Kernel bandwidth for MMD and DPP metrics (default: 10.0)
+        wandb_entity: WandB entity where the model is stored. If None, searches
+            personal project first, then official engibench project.
+        wandb_project: WandB project name (default: "engiopt")
+        output_csv: Path to save metrics CSV. If None, saves to
+            "evaluate_{algorithm}_{problem_id}_seed{seed}_metrics.csv"
+
+    Returns:
+        dict with:
+        - success: bool indicating if evaluation succeeded
+        - metrics: dict with IOG, COG, FOG, MMD, DPP, viol values
+        - output_csv: str path to saved CSV file
+        - message: str with formatted results summary
+        - error: str with error message (only if success=False)
+
+    Example:
+        >>> # Evaluate a cGAN CNN model trained with seed 1
+        >>> result = evaluate_model(
+        ...     problem_id="beams2d",
+        ...     algorithm="cgan_cnn_2d",
+        ...     seed=1,
+        ...     n_samples=50,
+        ... )
+        >>> # Evaluate a diffusion model
+        >>> result = evaluate_model(
+        ...     problem_id="beams2d",
+        ...     algorithm="diffusion_2d_cond",
+        ...     seed=1,
+        ... )
+    """
+    import subprocess
+    import sys
+
+    if output_csv is None:
+        output_csv = f"evaluate_{algorithm}_{problem_id}_seed{seed}_metrics.csv"
+
+    # All EngiOpt evaluation scripts follow: engiopt.{algorithm}.evaluate_{algorithm}
+    if algorithm not in SUPPORTED_ALGORITHMS:
+        return {
+            "success": False,
+            "error": f"Evaluation not supported for algorithm '{algorithm}'. "
+            f"Supported: {', '.join(sorted(SUPPORTED_ALGORITHMS))}",
+        }
+
+    eval_module = f"engiopt.{algorithm}.evaluate_{algorithm}"
+
+    # Build command
+    cmd = [
+        sys.executable,
+        "-m",
+        eval_module,
+        "--problem-id",
+        str(problem_id),
+        "--seed",
+        str(seed),
+        "--n-samples",
+        str(n_samples),
+        "--sigma",
+        str(sigma),
+        "--wandb-project",
+        wandb_project,
+        "--output-csv",
+        output_csv,
+    ]
+    if wandb_entity:
+        cmd.extend(["--wandb-entity", wandb_entity])
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=1800,  # 30 min timeout
+            check=False,
+        )
+
+        if result.returncode != 0:
+            return {
+                "success": False,
+                "error": f"Evaluation script failed (exit code {result.returncode}):\n"
+                f"{result.stderr or result.stdout}",
+            }
+
+        # Parse metrics from the output CSV
+        metrics = _parse_eval_csv(output_csv)
+
+        message_parts = [
+            f"✅ Evaluation complete for {algorithm} ({problem_id}, seed={seed})",
+            f"   Samples: {n_samples}, Sigma: {sigma}",
+            f"   Results saved to: {output_csv}",
+        ]
+        if metrics:
+            message_parts.append("\n   Metrics:")
+            for k, v in metrics.items():
+                if isinstance(v, float):
+                    message_parts.append(f"     {k}: {v:.6f}")
+
+        return {
+            "success": True,
+            "metrics": metrics,
+            "output_csv": output_csv,
+            "stdout": result.stdout,
+            "message": "\n".join(message_parts),
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "error": "Evaluation timed out after 30 minutes",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to run evaluation: {e!s}",
+        }
+
+
+def _parse_eval_csv(csv_path: str) -> dict[str, Any]:
+    """Parse the last row of an evaluation CSV to extract metrics."""
+    import contextlib
+    import csv
+
+    try:
+        with Path(csv_path).open() as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            if not rows:
+                return {}
+            last_row = rows[-1]
+            metrics: dict[str, Any] = {}
+            for key in ("IOG", "COG", "FOG", "MMD", "DPP", "viol"):
+                val = last_row.get(key) or last_row.get(key.lower())
+                if val is not None:
+                    with contextlib.suppress(ValueError, TypeError):
+                        metrics[key] = float(val)
+            return metrics
+    except Exception:
+        return {}

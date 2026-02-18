@@ -21,6 +21,7 @@ from src.tools.engibench import (
 )
 from src.tools.engiopt import (
     download_wandb_model,
+    evaluate_model,
     generate_training_command,
     list_available_algorithms,
     load_wandb_model,
@@ -97,6 +98,8 @@ class EngineeringAgent(BaseAgent):
             sample_designs_from_model,
             # Model training command generator
             generate_training_command,
+            # Model evaluation
+            evaluate_model,
         ]
 
         # Add RAG tools if MMORE is available

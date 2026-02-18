@@ -3,7 +3,7 @@ Generate HPC cGAN training evaluation prompts for the hpc_train_beams2d problem.
 
 These prompts are handcrafted and do NOT sample from a HuggingFace dataset.
 Each prompt instructs the agent to train a cGAN model on the Euler HPC cluster,
-then download the model, generate designs, and simulate them.
+then evaluate it using the standard EngiOpt evaluation script.
 
 The 3 prompts vary seed and epochs to test different training configurations:
   Prompt 0: seed=1, epochs=20  (~10-20min training)
@@ -29,31 +29,17 @@ sys.path.insert(0, str(project_root))
 
 PROMPT_STYLES: dict[str, dict] = {
     "hpc-train": {
-        "description": "HPC training workflow: train cGAN, generate designs, simulate",
+        "description": "HPC training workflow: train cGAN, then evaluate with EngiOpt metrics",
         "optimal_tool_calls": [
             {"name": "generate_training_command", "count": 1},
             {"name": "submit_slurm_job", "count": 1},
             {"name": "monitor_job_until_complete", "count": 1},
-            {"name": "download_wandb_model", "count": 1},
-            {"name": "sample_designs_from_model", "count": 1},
-            {"name": "simulate_design", "count": 5},
+            {"name": "evaluate_model", "count": 1},
         ],
-        "optimal_call_count": 10,
+        "optimal_call_count": 4,
         "success_criteria": "hpc_workflow_completion",
     },
 }
-
-# ---------------------------------------------------------------------------
-# Fixed design conditions for evaluation (same across all prompts)
-# ---------------------------------------------------------------------------
-
-DESIGN_CONDITIONS = [
-    {"volfrac": 0.30, "rmin": 2.0, "forcedist": 0.0, "overhang_constraint": False},
-    {"volfrac": 0.40, "rmin": 2.5, "forcedist": 0.2, "overhang_constraint": False},
-    {"volfrac": 0.50, "rmin": 3.0, "forcedist": 0.5, "overhang_constraint": False},
-    {"volfrac": 0.60, "rmin": 3.5, "forcedist": 0.8, "overhang_constraint": False},
-    {"volfrac": 0.35, "rmin": 2.0, "forcedist": 0.0, "overhang_constraint": False},
-]
 
 # ---------------------------------------------------------------------------
 # Training configurations (seed x epochs)
@@ -66,26 +52,12 @@ TRAINING_CONFIGS = [
 ]
 
 
-def _build_conditions_text(conditions: list[dict]) -> str:
-    """Format conditions list as prompt text."""
-    lines = []
-    for i, cond in enumerate(conditions):
-        lines.append(
-            f"     Design {i}: volfrac={cond['volfrac']:.2f}, "
-            f"rmin={cond['rmin']:.1f}, "
-            f"forcedist={cond['forcedist']:.1f}, "
-            f"overhang_constraint={cond['overhang_constraint']}"
-        )
-    return "\n".join(lines)
-
-
 def _build_prompt(seed: int, epochs: int) -> str:
     """Build the full prompt text for a training configuration."""
-    conditions_text = _build_conditions_text(DESIGN_CONDITIONS)
     return (
         f"Train a cGAN CNN 2D generative model for the Beams2D topology optimization "
-        f"problem on the Euler HPC cluster, then evaluate it by generating and "
-        f"simulating designs.\n\n"
+        f"problem on the Euler HPC cluster, then evaluate it against the dataset "
+        f"baseline using the standard EngiOpt evaluation script.\n\n"
         f"Step 1: Generate Training Script\n"
         f"   - Use the generate_training_command tool with:\n"
         f"     algorithm: cgan_cnn_2d\n"
@@ -97,16 +69,16 @@ def _build_prompt(seed: int, epochs: int) -> str:
         f"Step 3: Monitor Training\n"
         f"   - Monitor the job until it completes\n"
         f"   - Use check_interval=30 and max_checks=200 for the monitoring\n\n"
-        f"Step 4: Download Trained Model\n"
-        f"   - Download the trained generator model from WandB\n"
-        f"   - Use algorithm=cgan_cnn_2d, problem_id=beams2d, seed={seed}, "
-        f"model_type=generator\n\n"
-        f"Step 5: Generate Designs\n"
-        f"   - Generate 5 designs using the downloaded model with these conditions:\n"
-        f"{conditions_text}\n\n"
-        f"Step 6: Simulate Each Design\n"
-        f"   - Simulate each of the 5 generated designs to get compliance values\n"
-        f"   - Report the compliance value for each design\n\n"
+        f"Step 4: Evaluate Trained Model\n"
+        f"   - Use the evaluate_model tool to evaluate the trained model\n"
+        f"     against the dataset baseline:\n"
+        f"     problem_id: beams2d\n"
+        f"     algorithm: cgan_cnn_2d\n"
+        f"     seed: {seed}\n"
+        f"     n_samples: 50\n"
+        f"   - This downloads the model from WandB, generates designs, and\n"
+        f"     computes metrics (IOG, COG, FOG, MMD, DPP, violation rate)\n"
+        f"   - Report the evaluation metrics from the output\n\n"
         f"Complete all steps in order. Do not ask for clarification."
     )
 
@@ -123,7 +95,6 @@ HPC_TRAIN_PROMPTS: list[dict] = [
             "epochs": cfg["epochs"],
             "algorithm": "cgan_cnn_2d",
             "problem_id": "beams2d",
-            "design_conditions": DESIGN_CONDITIONS,
         },
         "metadata": {
             "training_config": {
@@ -136,11 +107,8 @@ HPC_TRAIN_PROMPTS: list[dict] = [
                 "generate_training_command",
                 "submit_slurm_job",
                 "monitor_job_until_complete",
-                "download_wandb_model",
-                "sample_designs_from_model",
-                "simulate_design",
+                "evaluate_model",
             ],
-            "n_design_conditions": len(DESIGN_CONDITIONS),
         },
         "target": {},
     }

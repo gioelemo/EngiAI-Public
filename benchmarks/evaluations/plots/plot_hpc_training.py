@@ -40,18 +40,14 @@ WORKFLOW_STEPS = [
     "generate_training_command",
     "submit_slurm_job",
     "monitor_job_until_complete",
-    "download_wandb_model",
-    "sample_designs_from_model",
-    "simulate_design",
+    "evaluate_model",
 ]
 
 STEP_SHORT_LABELS = {
     "generate_training_command": "Generate cmd",
     "submit_slurm_job": "Submit job",
     "monitor_job_until_complete": "Monitor job",
-    "download_wandb_model": "Download model",
-    "sample_designs_from_model": "Sample designs",
-    "simulate_design": "Simulate",
+    "evaluate_model": "Evaluate",
 }
 
 # Config labels from example_id
@@ -285,77 +281,80 @@ def plot_step_completion_rate(
     plt.close(fig)
 
 
-# ── Plot 4: Compliance Comparison ────────────────────────────────────────────
+# ── Plot 4: Evaluation Metrics ─────────────────────────────────────────────
 
 
-def plot_compliance_comparison(
+EVAL_METRIC_NAMES = ["eval_IOG", "eval_COG", "eval_FOG", "eval_MMD", "eval_DPP", "eval_viol"]
+EVAL_METRIC_LABELS = {
+    "eval_IOG": "IOG",
+    "eval_COG": "COG",
+    "eval_FOG": "FOG",
+    "eval_MMD": "MMD",
+    "eval_DPP": "DPP",
+    "eval_viol": "Viol. Rate",
+}
+
+
+def plot_evaluation_metrics(
     df: pd.DataFrame,
-    filename: str = "compliance_comparison.png",
+    filename: str = "evaluation_metrics.png",
     output_dir: Path | None = None,
 ) -> None:
-    """Box/strip plot of compliance values per model.
+    """Grouped bar chart of EngiOpt evaluation metrics per model x config.
 
-    Each design's compliance value is a point; boxes show the distribution.
-    Only generated if compliance_values are present and non-empty.
+    Shows IOG, COG, FOG, MMD, DPP, violation rate extracted from
+    evaluate_cgan_2d.py output.
     """
     setup_style()
     df = _prepare_data(df)
 
-    if "compliance_values" not in df.columns:
-        print("  No compliance_values data found, skipping")
+    available = [m for m in EVAL_METRIC_NAMES if m in df.columns]
+    if not available:
+        print("  No evaluation metrics data found, skipping")
         return
 
-    # Explode compliance_values (lists) into individual rows
-    rows = []
-    for _, row in df.iterrows():
-        vals = row.get("compliance_values", [])
-        if not isinstance(vals, list) or len(vals) == 0:
-            continue
-        model = row.get("model_short", "unknown")
-        config = row.get("config_label", "unknown")
-        rows.extend(
-            {"model": model, "config": config, "compliance": float(v)} for v in vals
-        )
+    models = sorted(df["model_short"].unique())
+    configs = sorted(df["example_id"].unique()) if "example_id" in df.columns else [0]
 
-    if not rows:
-        print("  No compliance values extracted, skipping")
-        return
-
-    comp_df = pd.DataFrame(rows)
-
-    fig, ax = plt.subplots(figsize=PLOT_STYLE["figsize_full_width"])
-
-    models = sorted(comp_df["model"].unique())
-    palette = {m: COLOR_PALETTE[i % len(COLOR_PALETTE)] for i, m in enumerate(models)}
-
-    sns.boxplot(
-        data=comp_df,
-        x="model",
-        y="compliance",
-        hue="model",
-        palette=palette,
-        width=0.5,
-        linewidth=0.8,
-        fliersize=3,
-        ax=ax,
-        legend=False,
-    )
-    sns.stripplot(
-        data=comp_df,
-        x="model",
-        y="compliance",
-        hue="model",
-        palette=palette,
-        size=3,
-        alpha=0.5,
-        jitter=True,
-        ax=ax,
-        legend=False,
+    fig, axes = plt.subplots(
+        1, len(available), figsize=(2.5 * len(available), 4), squeeze=False
     )
 
-    ax.set_xlabel("")
-    ax.set_ylabel("Compliance")
-    ax.tick_params(axis="x", rotation=15)
+    for col_idx, metric in enumerate(available):
+        ax = axes[0, col_idx]
+        n_models = len(models)
+        n_configs = len(configs)
+        bar_width = 0.7 / max(n_models, 1)
+        x = np.arange(n_configs)
+
+        for i, model in enumerate(models):
+            model_df = df[df["model_short"] == model]
+            vals = []
+            for cfg in configs:
+                subset = (
+                    model_df[model_df["example_id"] == cfg]
+                    if "example_id" in model_df.columns
+                    else model_df
+                )
+                vals.append(subset[metric].mean() if len(subset) > 0 else 0.0)
+
+            offset = (i - (n_models - 1) / 2) * bar_width
+            ax.bar(
+                x + offset,
+                vals,
+                bar_width * 0.9,
+                label=model,
+                color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
+                alpha=0.85,
+            )
+
+        config_labels = [_CONFIG_LABELS.get(c, f"Config {c}") for c in configs]
+        ax.set_xticks(x)
+        ax.set_xticklabels(config_labels, fontsize=7, rotation=30)
+        ax.set_title(EVAL_METRIC_LABELS.get(metric, metric))
+
+        if col_idx == 0:
+            ax.legend(fontsize=7, loc="upper right")
 
     fig.tight_layout()
     save_figure(fig, filename, output_dir)
@@ -387,8 +386,8 @@ def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
     print("\n[3/4] Step completion rate...")
     plot_step_completion_rate(df, output_dir=output_dir)
 
-    print("\n[4/4] Compliance comparison...")
-    plot_compliance_comparison(df, output_dir=output_dir)
+    print("\n[4/4] Evaluation metrics...")
+    plot_evaluation_metrics(df, output_dir=output_dir)
 
 
 if __name__ == "__main__":

@@ -4,17 +4,13 @@ Scores the agent's ability to orchestrate end-to-end cGAN training on HPC:
 1. generate_training_command — correct seed/epochs/algorithm
 2. submit_slurm_job — job submitted to Euler
 3. monitor_job_until_complete — job monitored to completion
-4. download_wandb_model — trained model downloaded
-5. sample_designs_from_model — designs generated from trained model
-6. simulate_design — designs simulated (>= expected count)
+4. evaluate_model — run EngiOpt evaluation script to compute metrics
 
 Primary metric: step_completion_rate (completed steps / total steps).
-Secondary: design count validation, compliance extraction for offline comparison.
+Secondary: training config correctness, evaluation metrics extraction.
 """
 
-import ast
 import contextlib
-import json
 import logging
 import re
 from typing import Any
@@ -26,38 +22,8 @@ WORKFLOW_STEPS = [
     "generate_training_command",
     "submit_slurm_job",
     "monitor_job_until_complete",
-    "download_wandb_model",
-    "sample_designs_from_model",
-    "simulate_design",
+    "evaluate_model",
 ]
-
-
-def _parse_tool_result(content: str) -> dict[str, Any] | None:
-    """Parse tool result from message content string."""
-    if not isinstance(content, str):
-        return None
-
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        pass
-
-    try:
-        json_content = content.replace("'", '"')
-        json_content = json_content.replace("True", "true")
-        json_content = json_content.replace("False", "false")
-        json_content = json_content.replace("None", "null")
-        json_content = re.sub(r"array\((.*?)\)", r"\1", json_content)
-        return json.loads(json_content)
-    except (json.JSONDecodeError, Exception):
-        pass
-
-    try:
-        return ast.literal_eval(content)
-    except (ValueError, SyntaxError):
-        pass
-
-    return None
 
 
 def _check_training_config(
@@ -88,48 +54,60 @@ def _check_tool_called(tool_calls_info: list[dict[str, Any]], tool_name: str) ->
     return any(tc.get("name") == tool_name for tc in tool_calls_info)
 
 
-def _count_tool_calls(tool_calls_info: list[dict[str, Any]], tool_name: str) -> int:
-    """Count how many times a tool was called."""
-    return sum(1 for tc in tool_calls_info if tc.get("name") == tool_name)
+def _check_evaluate_model(
+    tool_calls_info: list[dict[str, Any]],
+    messages: list,  # noqa: ARG001
+) -> bool:
+    """Check if the evaluate_model tool was called.
+
+    Looks for the evaluate_model tool call in tool_calls_info.
+    Also accepts execute_cli_command with an EngiOpt evaluate command as fallback.
+    """
+    for tc in tool_calls_info:
+        name = tc.get("name", "")
+        # Primary: the dedicated engineering tool
+        if name == "evaluate_model":
+            return True
+        # Fallback: CLI execution of the evaluation script
+        if name == "execute_cli_command":
+            command = tc.get("args", {}).get("command", "")
+            if "evaluate_" in command and "engiopt" in command:
+                return True
+
+    return False
 
 
-def _extract_compliance_values(messages: list) -> list[float]:
-    """Extract compliance values from simulate_design tool results in messages."""
-    compliance_values = []
+def _extract_evaluation_metrics(messages: list) -> dict[str, float]:
+    """Extract evaluation metrics from CLI output in messages.
+
+    Looks for metric values (IOG, COG, FOG, MMD, DPP, viol) in
+    execute_cli_command results or agent responses.
+    """
+    metrics: dict[str, float] = {}
+    metric_names = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
+
     for msg in messages:
-        # Tool messages have a 'name' attribute
-        msg_name = getattr(msg, "name", None)
-        if msg_name != "simulate_design":
-            continue
         content = getattr(msg, "content", "")
-        parsed = _parse_tool_result(content)
-        if parsed is None:
+        if not isinstance(content, str):
             continue
-        # Look for compliance in the result
-        for key in ("compliance", "final_compliance", "c", "final_c"):
-            val = parsed.get(key)
-            if val is not None:
-                with contextlib.suppress(TypeError, ValueError):
-                    compliance_values.append(float(val))
-                break
-    return compliance_values
 
+        for metric_name in metric_names:
+            if metric_name in content and metric_name not in metrics:
+                # Try to extract numeric value after metric name
+                # Patterns: "IOG: 0.123", "IOG=0.123", "'IOG': 0.123"
+                patterns = [
+                    rf"{metric_name}\s*[:=]\s*([0-9]+\.?[0-9]*(?:e[+-]?[0-9]+)?)",
+                    rf"'{metric_name}'\s*:\s*([0-9]+\.?[0-9]*(?:e[+-]?[0-9]+)?)",
+                    rf'"{metric_name}"\s*:\s*([0-9]+\.?[0-9]*(?:e[+-]?[0-9]+)?)',
+                ]
+                for pattern in patterns:
+                    match = re.search(pattern, content)
+                    if match:
+                        with contextlib.suppress(ValueError, TypeError):
+                            metrics[metric_name] = float(match.group(1))
+                        break
 
-def _extract_design_file_paths(messages: list) -> list[str]:
-    """Extract design .npy file paths from sample_designs_from_model results."""
-    paths = []
-    for msg in messages:
-        msg_name = getattr(msg, "name", None)
-        if msg_name != "sample_designs_from_model":
-            continue
-        content = getattr(msg, "content", "")
-        parsed = _parse_tool_result(content)
-        if parsed is None:
-            continue
-        design_files = parsed.get("design_files", [])
-        if isinstance(design_files, list):
-            paths.extend(design_files)
-    return paths
+    return metrics
 
 
 def score_hpc_workflow(
@@ -145,13 +123,12 @@ def score_hpc_workflow(
         metadata: Problem metadata including training_config, expected_workflow_steps
 
     Returns:
-        Dict with workflow completion metrics and extracted data for offline comparison.
+        Dict with workflow completion metrics and extracted evaluation data.
     """
     tool_calls_info = output.get("tool_calls_info", [])
     messages = output.get("messages", [])
     example_id = metadata.get("example_id", -1)
     training_config = metadata.get("training_config", {})
-    n_expected_designs = metadata.get("n_design_conditions", 5)
 
     # --- Step completion scoring ---
     steps_completed: dict[str, bool] = {}
@@ -171,67 +148,36 @@ def score_hpc_workflow(
         tool_calls_info, "monitor_job_until_complete"
     )
 
-    # 4. download_wandb_model called
-    steps_completed["download_wandb_model"] = _check_tool_called(
-        tool_calls_info, "download_wandb_model"
+    # 4. evaluate_model via dedicated tool or CLI fallback
+    steps_completed["evaluate_model"] = _check_evaluate_model(
+        tool_calls_info, messages
     )
-
-    # 5. sample_designs_from_model called
-    steps_completed["sample_designs_from_model"] = _check_tool_called(
-        tool_calls_info, "sample_designs_from_model"
-    )
-
-    # 6. simulate_design called >= n_expected_designs times
-    sim_count = _count_tool_calls(tool_calls_info, "simulate_design")
-    steps_completed["simulate_design"] = sim_count >= n_expected_designs
 
     completed_count = sum(1 for v in steps_completed.values() if v)
     total_steps = len(steps_completed)
     step_completion_rate = completed_count / total_steps if total_steps > 0 else 0.0
 
-    # --- Design data extraction (for offline comparison) ---
-    compliance_values = _extract_compliance_values(messages)
-    design_file_paths = _extract_design_file_paths(messages)
+    # --- Evaluation metrics extraction (for analysis) ---
+    eval_metrics = _extract_evaluation_metrics(messages)
 
-    n_designs_generated = len(design_file_paths)
-    n_simulations_completed = len(compliance_values)
-
-    # Design generation score (binary: did the agent generate enough designs?)
-    designs_generated_score = (
-        1.0
-        if n_designs_generated >= n_expected_designs
-        else (
-            n_designs_generated / n_expected_designs if n_expected_designs > 0 else 0.0
-        )
-    )
-
-    # Simulations score (binary: did the agent simulate enough designs?)
-    simulations_completed_score = (
-        1.0
-        if n_simulations_completed >= n_expected_designs
-        else (
-            n_simulations_completed / n_expected_designs
-            if n_expected_designs > 0
-            else 0.0
-        )
-    )
+    # Evaluation score: did the script run and produce metrics?
+    eval_metrics_score = min(1.0, len(eval_metrics) / 3) if eval_metrics else 0.0
 
     # --- Composite score ---
-    # Weighted combination per score_categories in problem_registry
+    # Weighted: workflow completion (70%) + evaluation quality (15%) + efficiency (15%)
     hpc_workflow_score = (
-        0.50 * step_completion_rate
-        + 0.35 * (0.30 * designs_generated_score + 0.70 * simulations_completed_score)
+        0.70 * step_completion_rate
+        + 0.15 * eval_metrics_score
         + 0.15 * 1.0  # Tool efficiency scored by tool_use_scorer separately
     )
 
     logger.info(
-        "Example %d: step_completion=%d/%d (%.2f), designs=%d, simulations=%d, score=%.3f",
+        "Example %d: step_completion=%d/%d (%.2f), eval_metrics=%d, score=%.3f",
         example_id,
         completed_count,
         total_steps,
         step_completion_rate,
-        n_designs_generated,
-        n_simulations_completed,
+        len(eval_metrics),
         hpc_workflow_score,
     )
 
@@ -243,13 +189,11 @@ def score_hpc_workflow(
         "steps_completed_count": completed_count,
         "steps_total": total_steps,
         **{f"step_{k}": v for k, v in steps_completed.items()},
-        # Design quality data (for offline comparison)
-        "compliance_values": compliance_values,
-        "design_file_paths": design_file_paths,
-        "n_designs_generated": n_designs_generated,
-        "n_simulations_completed": n_simulations_completed,
-        "designs_generated_score": designs_generated_score,
-        "simulations_completed_score": simulations_completed_score,
+        # Evaluation metrics (from EngiOpt evaluation script output)
+        "eval_metrics": eval_metrics,
+        "eval_metrics_count": len(eval_metrics),
+        "eval_metrics_score": eval_metrics_score,
+        **{f"eval_{k}": v for k, v in eval_metrics.items()},
         # Metadata
         "training_config_correct": _check_training_config(
             tool_calls_info, training_config
