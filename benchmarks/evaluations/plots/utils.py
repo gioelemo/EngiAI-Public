@@ -20,6 +20,7 @@ import seaborn as sns
 _PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
+from benchmarks.evaluations.extract_data import HPC_WORKFLOW_OUTPUT_FIELDS  # noqa: E402
 from benchmarks.shared.problem_registry import PROBLEMS as _PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS  # noqa: E402
 
@@ -46,6 +47,7 @@ KNOWN_PROMPT_STYLES = [
     "workflow-conditional",
     "workflow-multi-export",
     "rag-eval",
+    "hpc-train",
 ]
 
 # Directory structure:
@@ -592,6 +594,11 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
 
             # Include RAG evaluation fields (rag_beams2d problems)
             row.update({f: design[f] for f in RAG_OUTPUT_FIELDS if f in design})
+
+            # Include HPC workflow fields (hpc_train_beams2d problems)
+            row.update(
+                {f: design[f] for f in HPC_WORKFLOW_OUTPUT_FIELDS if f in design}
+            )
 
             rows.append(row)
 

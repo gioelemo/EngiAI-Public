@@ -96,7 +96,7 @@ def _build_prompt(seed: int, epochs: int) -> str:
         f"   - Submit the generated SLURM script to the Euler cluster\n\n"
         f"Step 3: Monitor Training\n"
         f"   - Monitor the job until it completes\n"
-        f"   - Use check_interval=120 and max_checks=200 for the monitoring\n\n"
+        f"   - Use check_interval=30 and max_checks=200 for the monitoring\n\n"
         f"Step 4: Download Trained Model\n"
         f"   - Download the trained generator model from WandB\n"
         f"   - Use algorithm=cgan_cnn_2d, problem_id=beams2d, seed={seed}, "

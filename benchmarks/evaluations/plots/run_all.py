@@ -29,6 +29,7 @@ from plot_combined_overall_score import plot_combined_overall_score  # noqa: E40
 from plot_design_quality import plot_design_quality  # noqa: E402
 from plot_dpp_vs_fog import plot_dpp_vs_fog  # noqa: E402
 from plot_dpp_vs_mmd import plot_dpp_vs_mmd  # noqa: E402
+from plot_hpc_training import main as plot_hpc_training_main  # noqa: E402
 from plot_iou_vs_objective import plot_iou_vs_objective  # noqa: E402
 from plot_metrics_comparison import plot_metrics_comparison  # noqa: E402
 from plot_rag_evaluation import main as plot_rag_evaluation_main  # noqa: E402
@@ -240,6 +241,19 @@ def _generate_plots_for_problem(  # noqa: PLR0913
             print("  ⚠️  No design data — run extract_data.py first.")
         return
 
+    # HPC training problems use a dedicated set of plots
+    if problem == "hpc_train_beams2d":
+        print("\n" + "-" * 40)
+        print("Generating HPC training evaluation plots...")
+        print("-" * 40)
+        if problem_design is not None and not problem_design.empty:
+            plot_hpc_training_main(problem_design, output_dir)
+        else:
+            print("  ⚠️  No design data — run extract_data.py first.")
+        # Also generate tool usage plots (useful for HPC workflow analysis)
+        _generate_tool_usage_plots(problem_tools, problem_design, output_dir, problem)
+        return
+
     # Generate plots
     _generate_global_plots(problem_global, output_dir, problem)
     _generate_design_plots(problem_design, output_dir, problem)
@@ -269,6 +283,7 @@ def _parse_args():
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
+            "hpc-train",
         ],
         help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",
     )

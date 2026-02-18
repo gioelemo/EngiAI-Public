@@ -27,6 +27,27 @@ logger = logging.getLogger(__name__)
 # Constants
 REF_EXTRA_MIN_LENGTH = 3
 
+# HPC workflow scorer output fields to extract
+HPC_WORKFLOW_OUTPUT_FIELDS = [
+    "hpc_workflow_score",
+    "step_completion_rate",
+    "steps_completed_count",
+    "steps_total",
+    "step_generate_training_command",
+    "step_submit_slurm_job",
+    "step_monitor_job_until_complete",
+    "step_download_wandb_model",
+    "step_sample_designs_from_model",
+    "step_simulate_design",
+    "compliance_values",
+    "design_file_paths",
+    "n_designs_generated",
+    "n_simulations_completed",
+    "designs_generated_score",
+    "simulations_completed_score",
+    "training_config_correct",
+]
+
 
 def _extract_metadata_from_example(
     example,
@@ -420,7 +441,7 @@ def _prompt_style_matches(example, prompt_style_filter: str | None) -> bool:
         return prompt_style == prompt_style_filter
 
 
-def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912
+def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0915
     score_call,
     model_filter: str | None,
     seen_models: set,
@@ -465,12 +486,14 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912
         task_completion = scores.get("task_completion", {})
         tool_use = scores.get("tool_use", {})
         rag_evaluation = scores.get("rag_evaluation", {})
+        hpc_workflow = scores.get("hpc_workflow", {})
 
         if (
             not output_quality
             and not task_completion
             and not tool_use
             and not rag_evaluation
+            and not hpc_workflow
         ):
             return None
 
@@ -518,6 +541,12 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912
             for field in RAG_OUTPUT_FIELDS:
                 if field in rag_evaluation:
                     result[field] = rag_evaluation[field]
+
+        # Extract HPC workflow metrics (hpc_train_beams2d problems)
+        if isinstance(hpc_workflow, dict) and hpc_workflow:
+            for field in HPC_WORKFLOW_OUTPUT_FIELDS:
+                if field in hpc_workflow:
+                    result[field] = hpc_workflow[field]
 
         # Extract complete data from output_quality scorer for global metrics
         if isinstance(output_quality, dict):
@@ -857,6 +886,7 @@ def main():
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
+            "hpc-train",
         ],
         help="Prompt style used (default: full)",
     )

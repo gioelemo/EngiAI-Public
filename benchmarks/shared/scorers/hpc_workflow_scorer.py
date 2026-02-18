@@ -156,9 +156,9 @@ def score_hpc_workflow(
     # --- Step completion scoring ---
     steps_completed: dict[str, bool] = {}
 
-    # 1. generate_training_command with correct config
-    steps_completed["generate_training_command"] = _check_training_config(
-        tool_calls_info, training_config
+    # 1. generate_training_command called (config correctness scored separately)
+    steps_completed["generate_training_command"] = _check_tool_called(
+        tool_calls_info, "generate_training_command"
     )
 
     # 2. submit_slurm_job called
@@ -251,8 +251,8 @@ def score_hpc_workflow(
         "designs_generated_score": designs_generated_score,
         "simulations_completed_score": simulations_completed_score,
         # Metadata
-        "training_config_correct": steps_completed.get(
-            "generate_training_command", False
+        "training_config_correct": _check_training_config(
+            tool_calls_info, training_config
         ),
         "example_id": example_id,
     }
