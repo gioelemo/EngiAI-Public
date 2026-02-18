@@ -127,7 +127,8 @@ def compute_global_averages(
     global_avg: dict[str, float] = {}
     for metric in EVAL_METRICS:
         values = [
-            sm[metric] for sm in per_seed
+            sm[metric]
+            for sm in per_seed
             if metric in sm and isinstance(sm[metric], (int, float))
         ]
         if values:
@@ -161,7 +162,9 @@ def print_comparison_table(
             a_str = f"{agent_val:.6f}" if isinstance(agent_val, (int, float)) else "N/A"
             b_str = f"{base_val:.6f}" if isinstance(base_val, (int, float)) else "N/A"
 
-            if isinstance(agent_val, (int, float)) and isinstance(base_val, (int, float)):
+            if isinstance(agent_val, (int, float)) and isinstance(
+                base_val, (int, float)
+            ):
                 delta = agent_val - base_val
                 d_str = f"{delta:+.6f}"
             else:
@@ -309,7 +312,9 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             b_str = f"{b_val:.6f}" if b_val is not None else "N/A"
             if a_val is not None and b_val is not None:
                 delta = a_val - b_val
-                print(f"  {metric}: agent={a_str}  baseline={b_str}  delta={delta:+.6f}")
+                print(
+                    f"  {metric}: agent={a_str}  baseline={b_str}  delta={delta:+.6f}"
+                )
             else:
                 print(f"  {metric}: agent={a_str}  baseline={b_str}")
     else:

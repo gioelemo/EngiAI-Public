@@ -284,7 +284,14 @@ def plot_step_completion_rate(
 # ── Plot 4: Evaluation Metrics ─────────────────────────────────────────────
 
 
-EVAL_METRIC_NAMES = ["eval_IOG", "eval_COG", "eval_FOG", "eval_MMD", "eval_DPP", "eval_viol"]
+EVAL_METRIC_NAMES = [
+    "eval_IOG",
+    "eval_COG",
+    "eval_FOG",
+    "eval_MMD",
+    "eval_DPP",
+    "eval_viol",
+]
 EVAL_METRIC_LABELS = {
     "eval_IOG": "IOG",
     "eval_COG": "COG",

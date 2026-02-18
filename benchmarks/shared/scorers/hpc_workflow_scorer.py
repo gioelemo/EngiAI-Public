@@ -149,9 +149,7 @@ def score_hpc_workflow(
     )
 
     # 4. evaluate_model via dedicated tool or CLI fallback
-    steps_completed["evaluate_model"] = _check_evaluate_model(
-        tool_calls_info, messages
-    )
+    steps_completed["evaluate_model"] = _check_evaluate_model(tool_calls_info, messages)
 
     completed_count = sum(1 for v in steps_completed.values() if v)
     total_steps = len(steps_completed)
