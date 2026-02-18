@@ -184,20 +184,25 @@ def _build_data_rows(
         label = STYLE_LABELS.get(style, style.replace("-", r"\text{-}"))
         row_parts = [label]
 
-        # Find best CO model for bolding
-        co_means: dict[str, float] = {}
-        for m in models:
-            vals = data[m].get(style, {}).get("combined_overall_score", [])
-            co_means[m] = float(np.mean(vals)) if vals else -1.0
-        best_co_model = max(co_means, key=lambda k: co_means[k])
+        # Find best model(s) per score for bolding (all ties get bold)
+        best_models_per_score: dict[str, set[str]] = {}
+        for score_key, _ in SCORES:
+            means: dict[str, float] = {}
+            for m in models:
+                vals = data[m].get(style, {}).get(score_key, [])
+                means[m] = float(np.mean(vals)) if vals else -1.0
+            best_val = max(means.values())
+            if best_val > 0:
+                best_models_per_score[score_key] = {
+                    m for m, v in means.items() if np.isclose(v, best_val)
+                }
 
         col_idx = 0
         for m in models:
-            is_best = m == best_co_model and co_means[m] > 0
             style_data = data[m].get(style, {})
             for score_key, _ in SCORES:
                 vals = style_data.get(score_key, [])
-                bold = is_best and score_key == "combined_overall_score"
+                bold = m in best_models_per_score.get(score_key, set())
                 row_parts.append(_fmt(vals, bold=bold))
                 if vals:
                     col_sums[col_idx].append(float(np.mean(vals)))
@@ -231,7 +236,7 @@ def generate_table(problem: str, rag_status: str) -> str:
     lines.append(
         r"\caption{Workflow evaluation results (mean $\pm$ std). "
         r"TC = Task Completion rate, CO = Combined Overall score. "
-        r"\textbf{Bold} = best model per row.}"
+        r"\textbf{Bold} = best model per metric per row.}"
     )
     lines.append(r"\label{tab:workflow_results}")
     lines.append(r"\small")
@@ -246,14 +251,36 @@ def generate_table(problem: str, rag_status: str) -> str:
     col_sums: list[list[float]] = [[] for _ in range(total_data_cols)]
     lines.extend(_build_data_rows(data, models, styles, col_sums))
 
-    # Average row
+    # Average row — bold best CO per model (same logic as data rows)
     lines.append(r"\midrule")
     avg_parts = [r"\textit{Average}"]
-    for col_vals in col_sums:
-        if col_vals:
-            avg_parts.append(f"\\textit{{{np.mean(col_vals):.2f}}}")
-        else:
+
+    # Compute average for each column
+    col_avgs = [float(np.mean(cv)) if cv else None for cv in col_sums]
+
+    # Find best column(s) per score — all ties get bold
+    best_col_per_score: set[int] = set()
+    for score_offset in range(n_score_cols):
+        best_val = -1.0
+        for i in range(len(models)):
+            idx = i * n_score_cols + score_offset
+            val = col_avgs[idx]
+            if val is not None and val > best_val:
+                best_val = val
+        if best_val > 0:
+            for i in range(len(models)):
+                idx = i * n_score_cols + score_offset
+                val = col_avgs[idx]
+                if val is not None and np.isclose(val, best_val):
+                    best_col_per_score.add(idx)
+
+    for col_idx, avg in enumerate(col_avgs):
+        if avg is None:
             avg_parts.append("---")
+        elif col_idx in best_col_per_score:
+            avg_parts.append(f"\\textbf{{\\textit{{{avg:.2f}}}}}")
+        else:
+            avg_parts.append(f"\\textit{{{avg:.2f}}}")
     lines.append(" & ".join(avg_parts) + r" \\")
 
     lines.append(r"\bottomrule")
