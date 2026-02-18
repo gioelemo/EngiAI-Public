@@ -193,15 +193,21 @@ def test_routing_prompt_contains_keywords(_mock_agents):
 
 @pytest.mark.unit
 def test_supervisor_node_already_routed(_mock_agents):
-    """Test supervisor returns FINISH if already routed."""
-    agent = SupervisorAgent()
-
-    state = SupervisorState(
-        messages=[HumanMessage(content="test")], next="engineering_agent"
+    """Test supervisor always re-evaluates via LLM (loop-back architecture)."""
+    mock_llm = create_mock_llm_with_structured_output(
+        "FINISH", "Task already completed"
     )
-    result = agent._supervisor_node(state)
 
-    assert result["next"] == "FINISH"
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
+        agent = SupervisorAgent()
+
+        state = SupervisorState(
+            messages=[HumanMessage(content="test")], next="engineering_agent"
+        )
+        result = agent._supervisor_node(state)
+
+        # With loop-back, supervisor always invokes LLM to re-evaluate
+        assert result["next"] == "FINISH"
 
 
 @pytest.mark.unit
@@ -560,7 +566,7 @@ def test_engineering_node(_mock_agents):
     result = agent._engineering_node(state)
 
     assert "messages" in result
-    assert result["next"] == "FINISH"
+    assert result["next"] == ""
 
 
 @pytest.mark.unit
@@ -576,7 +582,7 @@ def test_hpc_node(_mock_agents):
     result = agent._hpc_node(state)
 
     assert "messages" in result
-    assert result["next"] == "FINISH"
+    assert result["next"] == ""
 
 
 @pytest.mark.unit
@@ -592,7 +598,7 @@ def test_search_node(_mock_agents):
     result = agent._search_node(state)
 
     assert "messages" in result
-    assert result["next"] == "FINISH"
+    assert result["next"] == ""
 
 
 @pytest.mark.unit

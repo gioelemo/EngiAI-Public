@@ -315,7 +315,19 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - Opening applications → cli_agent
    - Running shell commands → cli_agent
 
-Select the agent that best matches the user's intent and explain your reasoning briefly."""
+8. **Multi-Step Workflows** (CRITICAL):
+   - BEFORE choosing an agent, carefully scan the ENTIRE message history for tool calls and their results. Identify which steps have ALREADY been completed successfully.
+   - NEVER re-route to an agent for a step that is already done. If you see a tool result confirming a step succeeded (e.g., "Job submitted with ID: 12345", "Job has completed!", "Downloaded successfully"), that step is DONE — move on to the NEXT incomplete step.
+   - If ALL steps in the user's request are complete, choose FINISH.
+   - Choose supervisor_response only for direct informational questions ("what can you do?")
+   - **IMPORTANT**: Use the `task_instruction` field to scope each agent's work to ONLY the next incomplete step(s). Agents will try to complete everything they can with their tools, so you MUST explicitly tell them what to do and what NOT to do.
+   - Example multi-step workflow for "Train a model on HPC and evaluate":
+     Step 1: engineering_agent → "Generate the SLURM training command. Do NOT submit, download, or simulate."
+     Step 2: hpc_agent → "Submit the script and monitor until completion. Do NOT download models or simulate."
+     Step 3: engineering_agent → "Download the trained model from WandB, generate designs, and simulate them."
+     Step 4: FINISH (all steps done)
+
+Select the agent that best matches the NEXT INCOMPLETE step and explain your reasoning briefly."""
 
 # Supervisor capability response prompt - used when supervisor answers directly
 SUPERVISOR_CAPABILITIES_PROMPT = f"""You are a helpful assistant that can answer questions about the system's capabilities.

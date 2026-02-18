@@ -61,6 +61,7 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
 # Import output quality scorers
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
+    score_hpc_workflow,
     score_output_quality,
     score_rag_evaluation,
     score_task_completion,
@@ -141,10 +142,13 @@ class EngineeringAgent(weave.Model):
             state = {"messages": messages}
 
             # Set recursion_limit to prevent infinite loops (e.g., models repeatedly
-            # calling ask_human_for_clarification without stopping)
+            # calling ask_human_for_clarification without stopping).
+            # HPC training workflows need a higher limit due to multi-agent routing
+            # and long monitoring tool calls.
+            recursion_limit = 200 if self.problem_type == "hpc_train_beams2d" else 50
             config_dict = {
                 "configurable": {"thread_id": thread_id},
-                "recursion_limit": 50,
+                "recursion_limit": recursion_limit,
             }
 
             # Invoke the supervisor agent
@@ -364,6 +368,7 @@ def parse_arguments() -> argparse.Namespace:
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
+            "hpc-train",
         ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
     )
@@ -587,6 +592,18 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
             "rag_evaluation" if t == "output_quality" else t for t in scorer_types
         ]
 
+    # For HPC training problems, substitute score_output_quality with score_hpc_workflow.
+    # The HPC scorer checks workflow step completion instead of design quality metrics.
+    if args.problem == "hpc_train_beams2d":
+        base_scorers = [
+            score_hpc_workflow if s is score_output_quality else s for s in base_scorers
+        ]
+        scorer_types = [
+            "hpc_workflow" if t == "output_quality" else t for t in scorer_types
+        ]
+        # Ensure WandB is enabled for model download after training
+        os.environ["USE_WANDB"] = "True"
+
     # Wrap scorers with evaluation context for better trace naming in Weave UI
     scorers = [
         create_contextual_scorer(scorer_func, scorer_type)
@@ -734,6 +751,30 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
     )
     results_dir.mkdir(parents=True, exist_ok=True)
+
+    # HPC training evaluation — no HuggingFace ground-truth, design quality scored offline.
+    if args.problem == "hpc_train_beams2d":
+        print()
+        print("=" * 60)
+        print("HPC TRAINING EVALUATION RESULTS")
+        print("=" * 60)
+        print()
+        print("Next steps:")
+        print("  1. Run extract_data.py to export per-example HPC workflow metrics:")
+        print(
+            f"     python benchmarks/evaluations/extract_data.py"
+            f" --problem {args.problem} --prompt-style {args.prompt_style}"
+            f" --rag-status {rag_dir}"
+        )
+        print("  2. Run compare_hpc_designs.py to compute design quality vs EngiBench:")
+        print(
+            f"     python benchmarks/evaluations/compare_hpc_designs.py"
+            f" --problem {args.problem}"
+        )
+        print()
+        print("Evaluation complete!")
+        print("View detailed results in Weave dashboard")
+        return
 
     # RAG evaluation — no HuggingFace ground-truth designs, so skip global metrics.
     # Per-example results are in Weave; use extract_data.py to export to JSON.

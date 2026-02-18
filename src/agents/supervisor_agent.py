@@ -11,7 +11,7 @@ import uuid
 from typing import Annotated, Any, Literal, cast
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -47,9 +47,20 @@ class RouteDecision(BaseModel):
         "prusa_agent",
         "cli_agent",
         "supervisor_response",
+        "FINISH",
     ] = Field(description="The agent to route the task to based on the user's request")
     reasoning: str = Field(
         description="Brief explanation of why this agent was selected"
+    )
+    task_instruction: str = Field(
+        default="",
+        description=(
+            "Specific sub-task instruction for the selected agent. For multi-step "
+            "workflows, scope the instruction to ONLY the next step(s) that this "
+            "agent should perform, then stop. E.g. 'Generate the SLURM training "
+            "command. Do NOT download models or simulate designs — that will be "
+            "handled after HPC training completes.' Leave empty for single-step tasks."
+        ),
     )
 
 
@@ -151,15 +162,11 @@ class SupervisorAgent:
         return prompt
 
     def _supervisor_node(self, state: SupervisorState):
-        """Supervisor decides which agent should act next using LLM-based routing."""
-        # Only route if we haven't routed yet (no next value set)
-        if state.get("next") and state["next"] != "":
-            # Already routed, finish
-            return {
-                "next": "FINISH",
-                "messages": [],  # Don't return messages - add_messages will handle state
-            }
+        """Supervisor decides which agent should act next using LLM-based routing.
 
+        After each agent completes, the supervisor re-evaluates the full message
+        history to decide whether to route to another agent or finish.
+        """
         messages = [
             {"role": "system", "content": self._build_routing_prompt()},
             *state["messages"],
@@ -173,9 +180,31 @@ class SupervisorAgent:
         logger.info(
             f"[SUPERVISOR ROUTING] Agent: '{next_agent}' | Reasoning: {route_decision.reasoning}"
         )
+
+        # Inject scoped task instruction as a HumanMessage so the delegated
+        # agent's LLM treats it as a new user directive (not just a prior
+        # assistant turn).  This prevents the agent from ignoring the scope
+        # and trying to handle the entire workflow with its own tools.
+        new_messages: list = []
+        if route_decision.task_instruction and next_agent not in (
+            "FINISH",
+            "supervisor_response",
+        ):
+            new_messages.append(
+                HumanMessage(
+                    content=(
+                        f"[SUPERVISOR INSTRUCTION — follow this exactly] "
+                        f"{route_decision.task_instruction}"
+                    )
+                )
+            )
+            logger.info(
+                f"[SUPERVISOR] Task instruction for {next_agent}: {route_decision.task_instruction}"
+            )
+
         return {
             "next": next_agent,
-            "messages": [],  # Don't return messages - add_messages will handle state
+            "messages": new_messages,
         }
 
     def _supervisor_response_node(self, state: SupervisorState):
@@ -201,7 +230,7 @@ class SupervisorAgent:
         # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": "FINISH"}
+        return {"messages": new_messages, "next": ""}
 
     def _hpc_node(self, state: SupervisorState):
         """Delegate to HPC agent."""
@@ -215,7 +244,7 @@ class SupervisorAgent:
         # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": "FINISH"}
+        return {"messages": new_messages, "next": ""}
 
     def _search_node(self, state: SupervisorState):
         """Delegate to search agent."""
@@ -229,7 +258,7 @@ class SupervisorAgent:
         # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": "FINISH"}
+        return {"messages": new_messages, "next": ""}
 
     def _rag_node(self, state: SupervisorState):
         """Delegate to RAG agent for document Q&A."""
@@ -243,7 +272,7 @@ class SupervisorAgent:
         # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": "FINISH"}
+        return {"messages": new_messages, "next": ""}
 
     def _arxiv_node(self, state: SupervisorState):
         """Delegate to ArXiv agent for paper search and analysis."""
@@ -257,7 +286,7 @@ class SupervisorAgent:
                         )
                     )
                 ],
-                "next": "FINISH",
+                "next": "",
             }
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
@@ -269,7 +298,7 @@ class SupervisorAgent:
         # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": "FINISH"}
+        return {"messages": new_messages, "next": ""}
 
     def _prusa_node(self, state: SupervisorState):
         """Delegate to Prusa agent."""
@@ -283,7 +312,7 @@ class SupervisorAgent:
         # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": "FINISH"}
+        return {"messages": new_messages, "next": ""}
 
     def _cli_node(self, state: SupervisorState):
         """Delegate to CLI agent."""
@@ -298,7 +327,7 @@ class SupervisorAgent:
         # Return all new messages to preserve tool call/response chain
         input_len = len(state["messages"])
         new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": "FINISH"}
+        return {"messages": new_messages, "next": ""}
 
     def _build_graph(self):
         """Build the supervisor workflow graph with agent routing."""
@@ -340,15 +369,16 @@ class SupervisorAgent:
             routing_dict,
         )
 
-        # Agents go directly to END (no looping back to supervisor)
+        # Agents loop back to supervisor for multi-step workflow support
+        workflow.add_edge("engineering_agent", "supervisor")
+        workflow.add_edge("hpc_agent", "supervisor")
+        workflow.add_edge("search_agent", "supervisor")
+        workflow.add_edge("rag_agent", "supervisor")
+        workflow.add_edge("arxiv_agent", "supervisor")
+        workflow.add_edge("prusa_agent", "supervisor")
+        workflow.add_edge("cli_agent", "supervisor")
+        # Only supervisor_response goes directly to END
         workflow.add_edge("supervisor_response", END)
-        workflow.add_edge("engineering_agent", END)
-        workflow.add_edge("hpc_agent", END)
-        workflow.add_edge("search_agent", END)
-        workflow.add_edge("rag_agent", END)
-        workflow.add_edge("arxiv_agent", END)
-        workflow.add_edge("prusa_agent", END)
-        workflow.add_edge("cli_agent", END)
 
         # Compile with persistent checkpointer
         checkpointer = get_checkpointer()
