@@ -53,7 +53,9 @@ def plot_tool_heatmap_counts(tool_data, output_dir=None):
         tool_data.groupby("model")[tool_columns].apply(lambda x: x.fillna(0).mean()).T
     )
     model_tool_std = (
-        tool_data.groupby("model")[tool_columns].apply(lambda x: x.fillna(0).std()).T
+        tool_data.groupby("model")[tool_columns]
+        .apply(lambda x: x.fillna(0).std(ddof=0))
+        .T
     )
 
     # Abbreviate model names

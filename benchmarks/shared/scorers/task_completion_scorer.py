@@ -43,7 +43,7 @@ def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
     # Approach 1: Try direct JSON parsing first (handles valid JSON with apostrophes)
     try:
         return json.loads(content)
-    except (json.JSONDecodeError, Exception):
+    except json.JSONDecodeError:
         pass  # Continue to fallback approaches
 
     # Approach 2: Try converting Python repr to JSON
@@ -313,6 +313,9 @@ def _validate_multi_export_params(
     overall_score = 1.0 if all_valid else 0.0
     metrics["multi_export_both_valid"] = all_valid
     metrics["stl_param_validation_score"] = overall_score
+    metrics["stl_param_violations"] = sum(
+        metrics.get(f"{label}_stl_param_violations", 0) for label in labels
+    )
 
     return overall_score, metrics
 
