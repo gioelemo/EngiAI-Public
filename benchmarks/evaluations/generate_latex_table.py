@@ -36,12 +36,12 @@ STYLE_ORDER = [
 STYLE_LABELS = {
     "full": r"\textsc{Full}",
     "natural": r"\textsc{Natural}",
-    "workflow": r"\textsc{W-Base}",
-    "workflow-random": r"\textsc{W-Rand}",
-    "workflow-derived-params": r"\textsc{W-Derived}",
-    "workflow-distractor": r"\textsc{W-Distract}",
-    "workflow-conditional": r"\textsc{W-Cond}",
-    "workflow-multi-export": r"\textsc{W-Multi}",
+    "workflow": r"\textsc{Base}",
+    "workflow-random": r"\textsc{Random}",
+    "workflow-derived-params": r"\textsc{Derived}",
+    "workflow-distractor": r"\textsc{Distractor}",
+    "workflow-conditional": r"\textsc{Conditional}",
+    "workflow-multi-export": r"\textsc{Multi-Export}",
 }
 
 # Display order for model columns (left to right)
@@ -102,9 +102,7 @@ def _load_scores(
             data[model_key][style] = {}
             for score_key, _ in SCORES:
                 vals = [
-                    float(d[score_key])
-                    for d in designs
-                    if d.get(score_key) is not None
+                    float(d[score_key]) for d in designs if d.get(score_key) is not None
                 ]
                 data[model_key][style][score_key] = vals
 
@@ -123,56 +121,34 @@ def _fmt(vals: list[float], bold: bool = False) -> str:
     return text
 
 
-def generate_table(problem: str, rag_status: str) -> str:
-    """Generate the full LaTeX table string."""
-    data = _load_scores(problem, rag_status)
-
-    if not data:
-        return "% No data found."
-
-    # Discover models that have data, respecting MODEL_ORDER
-    ordered = [m for m in MODEL_ORDER if m in data and any(data[m].get(s) for s in STYLE_ORDER)]
-    # Append any models not in MODEL_ORDER (future-proof)
-    extra = [m for m in data if m not in MODEL_ORDER and any(data[m].get(s) for s in STYLE_ORDER)]
+def _discover_models_and_styles(
+    data: dict[str, dict[str, dict[str, list[float]]]],
+) -> tuple[list[str], list[str]] | None:
+    """Find models and styles that have data. Returns None if nothing found."""
+    ordered = [
+        m for m in MODEL_ORDER if m in data and any(data[m].get(s) for s in STYLE_ORDER)
+    ]
+    extra = [
+        m
+        for m in data
+        if m not in MODEL_ORDER and any(data[m].get(s) for s in STYLE_ORDER)
+    ]
     models = ordered + extra
     if not models:
-        return "% No models with data found."
-
-    # Discover styles that have data for at least one model
+        return None
     styles = [s for s in STYLE_ORDER if any(data[m].get(s) for m in models)]
+    return models, styles
 
-    n_score_cols = len(SCORES)
-    n_models = len(models)
 
-    # Total data columns = n_models * n_score_cols
-    total_data_cols = n_models * n_score_cols
-
+def _build_header(models: list[str], n_score_cols: int) -> list[str]:
+    """Build table header lines (model names, cmidrules, score abbreviations)."""
     lines: list[str] = []
-    lines.append(r"\begin{table*}[ht]")
-    lines.append(r"\centering")
-    lines.append(
-        r"\caption{Workflow evaluation results (mean $\pm$ std). "
-        r"TC = Task Completion rate, CO = Combined Overall score. "
-        r"\textbf{Bold} = best model per row.}"
-    )
-    lines.append(r"\label{tab:workflow_results}")
-    lines.append(r"\small")
-    # Use tabular* with full \textwidth; @{\extracolsep{\fill}} spreads columns
-    lines.append(
-        r"\begin{tabular*}{\textwidth}"
-        r"{@{\extracolsep{\fill}}l"
-        + "c" * total_data_cols
-        + r"@{}}"
-    )
-    lines.append(r"\toprule")
 
-    # Header row 1: model names (spanning TC+CO columns each)
+    # Row 1: model names spanning TC+CO columns each
     header1_parts = [""]
     for m in models:
         label = MODEL_LABELS.get(m, m.replace("_", r"\_"))
-        header1_parts.append(
-            f"\\multicolumn{{{n_score_cols}}}{{c}}{{{label}}}"
-        )
+        header1_parts.append(f"\\multicolumn{{{n_score_cols}}}{{c}}{{{label}}}")
     lines.append(" & ".join(header1_parts) + r" \\")
 
     # cmidrule under each model group
@@ -184,25 +160,31 @@ def generate_table(problem: str, rag_status: str) -> str:
         col_pos = end + 1
     lines.append(" ".join(cmidrule_parts))
 
-    # Header row 2: score abbreviations under each model
+    # Row 2: score abbreviations
     header2_parts = [r"\textbf{Style}"]
     for _ in models:
         for _, abbrev in SCORES:
             header2_parts.append(f"\\textbf{{{abbrev}}}")
     lines.append(" & ".join(header2_parts) + r" \\")
     lines.append(r"\midrule")
+    return lines
 
-    # Separator after Natural (index 1) to split non-STL from STL styles
+
+def _build_data_rows(
+    data: dict[str, dict[str, dict[str, list[float]]]],
+    models: list[str],
+    styles: list[str],
+    col_sums: list[list[float]],
+) -> list[str]:
+    """Build one LaTeX row per style, updating col_sums for the average row."""
+    lines: list[str] = []
     separator_after = {"natural"}
-
-    # Column averages for final row
-    col_sums: list[list[float]] = [[] for _ in range(n_models * n_score_cols)]
 
     for style in styles:
         label = STYLE_LABELS.get(style, style.replace("-", r"\text{-}"))
         row_parts = [label]
 
-        # Collect CO values across models to find the best
+        # Find best CO model for bolding
         co_means: dict[str, float] = {}
         for m in models:
             vals = data[m].get(style, {}).get("combined_overall_score", [])
@@ -224,6 +206,45 @@ def generate_table(problem: str, rag_status: str) -> str:
         lines.append(" & ".join(row_parts) + r" \\")
         if style in separator_after:
             lines.append(r"\midrule")
+
+    return lines
+
+
+def generate_table(problem: str, rag_status: str) -> str:
+    """Generate the full LaTeX table string."""
+    data = _load_scores(problem, rag_status)
+
+    if not data:
+        return "% No data found."
+
+    result = _discover_models_and_styles(data)
+    if result is None:
+        return "% No models with data found."
+    models, styles = result
+
+    n_score_cols = len(SCORES)
+    total_data_cols = len(models) * n_score_cols
+
+    lines: list[str] = []
+    lines.append(r"\begin{table*}[ht]")
+    lines.append(r"\centering")
+    lines.append(
+        r"\caption{Workflow evaluation results (mean $\pm$ std). "
+        r"TC = Task Completion rate, CO = Combined Overall score. "
+        r"\textbf{Bold} = best model per row.}"
+    )
+    lines.append(r"\label{tab:workflow_results}")
+    lines.append(r"\small")
+    lines.append(
+        r"\begin{tabular*}{\textwidth}"
+        r"{@{\extracolsep{\fill}}l" + "c" * total_data_cols + r"@{}}"
+    )
+    lines.append(r"\toprule")
+
+    lines.extend(_build_header(models, n_score_cols))
+
+    col_sums: list[list[float]] = [[] for _ in range(total_data_cols)]
+    lines.extend(_build_data_rows(data, models, styles, col_sums))
 
     # Average row
     lines.append(r"\midrule")
