@@ -371,7 +371,7 @@ def plot_rag_score_components(
     print(f"  ✅ {filename}")
 
 
-# ── Plot 3: Raw accuracy comparison — ungated accuracy + RAG usage ────────────
+# ── Shared helpers for raw/ungated accuracy plots ─────────────────────────────
 
 # Maps effective_* scorer keys → raw accuracy column names for the ungated plot.
 _EFFECTIVE_TO_RAW = {
@@ -390,6 +390,163 @@ def _renormalize_weights(src: dict[str, float]) -> dict[str, float]:
             remapped[raw_key] = src[orig_key]
     total = sum(remapped.values()) or 1.0
     return {k: v / total for k, v in remapped.items()}
+
+
+# ── Plot 2b: Score components grouped by prompt ──────────────────────────────
+
+
+_MODEL_ABBREVIATIONS = {
+    "GPT-5-mini": "GPT-5m",
+    "Gemini-3-flash": "Gem-3f",
+    "Gemini-3-flash-preview": "Gem-3f",
+    "Qwen3-4B-Q8": "Qw3-4B",
+}
+
+
+def _abbreviate_model(name: str) -> str:
+    """Return a compact display name for a model (for dense bar charts)."""
+    return _MODEL_ABBREVIATIONS.get(name, name[:8])
+
+
+def _draw_by_prompt_axes(ax: plt.Axes, df_sub: pd.DataFrame, cfg: dict) -> None:
+    """Draw stacked bars and axis labels for one RAG-status panel."""
+    models, example_ids = cfg["models"], cfg["example_ids"]
+    offsets, bar_width = cfg["offsets"], cfg["bar_width"]
+    model_hatches, abbrev = cfg["model_hatches"], cfg["abbrev"]
+    present, x, fs = cfg["present"], cfg["x"], cfg["fs"]
+
+    for model, offset in zip(models, offsets, strict=False):
+        sub_model = df_sub[df_sub["model_short"] == model]
+        hatch = model_hatches.get(model, "")
+        bottoms = np.zeros(len(example_ids))
+        for col, key in present.items():
+            vals = []
+            for eid in example_ids:
+                series = sub_model.loc[sub_model["example_id"] == eid, f"_wt_{col}"]
+                v = series.mean() if len(series) else 0.0
+                vals.append(0.0 if np.isnan(v) else float(v))
+            vals_arr = np.array(vals)
+            ax.bar(
+                x + offset, vals_arr, bar_width, bottom=bottoms,
+                color=_COMPONENT_COLORS.get(key, COLOR_PALETTE[0]),
+                hatch=hatch, edgecolor="white", linewidth=0.5,
+            )
+            bottoms += vals_arr
+
+    # Per-bar ticks: one tick per model under each bar
+    tick_pos = [xi + off for xi in x for _, off in zip(models, offsets, strict=False)]
+    tick_labels = [abbrev[m] for _ in x for m in models]
+    ax.set_xticks(tick_pos)
+    ax.set_xticklabels(tick_labels, fontsize=fs["annotation"], rotation=45, ha="right")
+
+    # Group labels (P0, P1, …) centered below each prompt cluster
+    xaxis_tr = ax.get_xaxis_transform()
+    for eid, xi in zip(example_ids, x, strict=False):
+        plabel = _PROMPT_SHORT_LABELS.get(int(eid), f"P{int(eid)}")
+        ax.text(
+            xi, -0.22, plabel, ha="center", va="top",
+            fontsize=fs["tick_label"], fontweight="bold",
+            transform=xaxis_tr, clip_on=False,
+        )
+
+    style = _RAG_DISPLAY.get(cfg["rag_status"], {"label": cfg["rag_status"]})
+    ax.set_title(style["label"], fontsize=fs["axes_title"])
+    ax.tick_params(axis="y", labelsize=fs["tick_label"])
+    ax.set_ylim(0, 1.05)
+    ax.grid(axis="y", linewidth=0.3, alpha=0.4)
+
+
+def plot_rag_score_components_by_prompt(
+    df: pd.DataFrame,
+    filename: str = "rag_score_components_by_prompt.png",
+    output_dir: Path | None = None,
+) -> None:
+    """Stacked bar chart: score component breakdown grouped by **prompt**.
+
+    Same data as ``plot_rag_score_components`` but transposed:
+    x-axis = prompt (P0, P1, …) and within each prompt group there is one
+    bar per model, distinguished by hatch pattern.  Two subplots for
+    RAG on / RAG off.
+
+    Args:
+        df: Design data DataFrame.
+        filename: Output filename.
+        output_dir: Directory to save figures.
+    """
+    setup_style()
+    df = _prepare_data(df)
+
+    # Use raw (ungated) accuracy so RAG-off bars are non-zero when a model
+    # guesses parameters correctly — same data as plot_rag_accuracy_comparison.
+    components = {
+        "volfrac_accuracy": "eff_volfrac",
+        "forcedist_accuracy": "eff_forcedist",
+        "rmin_accuracy": "eff_rmin",
+        "rag_tool_called": "rag_called",
+    }
+    present = {k: v for k, v in components.items() if k in df.columns}
+    if not present:
+        print("  ⚠️  No accuracy columns — skipping plot_rag_score_components_by_prompt")
+        return
+
+    raw_weights = {
+        "single": _renormalize_weights(COMPONENT_WEIGHTS_SINGLE),
+        "double": _renormalize_weights(COMPONENT_WEIGHTS_DOUBLE),
+        "rmin": _renormalize_weights(COMPONENT_WEIGHTS_RMIN),
+        "triple": _renormalize_weights(COMPONENT_WEIGHTS_TRIPLE),
+    }
+    df = _apply_weights(df, present, raw_weights)
+
+    fs = PLOT_STYLE["font_sizes"]
+    models = sorted(df["model_short"].unique())
+    example_ids = sorted(df["example_id"].dropna().unique())
+    abbrev = {m: _abbreviate_model(m) for m in models}
+
+    n_models = len(models)
+    bar_width = 0.7 / max(n_models, 1)
+    offsets = (
+        np.linspace(
+            -(n_models - 1) * bar_width / 2,
+            (n_models - 1) * bar_width / 2,
+            n_models,
+        )
+        if n_models > 1
+        else [0.0]
+    )
+    model_hatches = dict(zip(models, ["", "//", "..", "xx", "++", "oo"], strict=False))
+    x = np.arange(len(example_ids))
+
+    fig, axes = plt.subplots(1, 2, figsize=PLOT_STYLE["figsize_full_width"], sharey=True)
+
+    cfg = {
+        "models": models, "example_ids": example_ids, "offsets": offsets,
+        "bar_width": bar_width, "model_hatches": model_hatches, "abbrev": abbrev,
+        "present": present, "x": x, "fs": fs,
+    }
+    for ax, rs in zip(axes, ["rag", "no_rag"], strict=False):
+        _draw_by_prompt_axes(ax, df[df["rag_status"] == rs], {**cfg, "rag_status": rs})
+
+    axes[0].set_ylabel("Weighted score contribution", fontsize=fs["axes_label"])
+
+    # Legend: colour patches only (models identified by sub-labels)
+    component_patches = [
+        mpatches.Patch(color=_COMPONENT_COLORS[key], label=label)
+        for key, label in _COMPONENT_LABELS.items()
+        if key in set(present.values())
+    ]
+    axes[1].legend(
+        handles=component_patches,
+        fontsize=fs["legend"],
+        loc="upper right",
+        bbox_to_anchor=(1.0, 1.0),
+    )
+    fig.tight_layout()
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+    print(f"  ✅ {filename}")
+
+
+# ── Plot 3: Raw accuracy comparison — ungated accuracy + RAG usage ────────────
 
 
 def plot_rag_accuracy_comparison(
@@ -802,19 +959,22 @@ def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
         df: Design data DataFrame containing RAG metrics.
         output_dir: Directory to save figures.
     """
-    print("\n[1/5] RAG benefit score grouped bar...")
+    print("\n[1/6] RAG benefit score grouped bar...")
     plot_rag_benefit_score(df, output_dir=output_dir)
 
-    print("\n[2/5] Score component breakdown (weighted, gated)...")
+    print("\n[2/6] Score component breakdown (weighted, gated)...")
     plot_rag_score_components(df, output_dir=output_dir)
 
-    print("\n[3/5] Raw accuracy comparison (ungated)...")
+    print("\n[3/6] Score component breakdown grouped by prompt...")
+    plot_rag_score_components_by_prompt(df, output_dir=output_dir)
+
+    print("\n[4/6] Raw accuracy comparison (ungated)...")
     plot_rag_accuracy_comparison(df, output_dir=output_dir)
 
-    print("\n[4/5] Combined score components (gated + raw)...")
+    print("\n[5/6] Combined score components (gated + raw)...")
     plot_rag_score_combined(df, output_dir=output_dir)
 
-    print("\n[5/5] RAG uplift delta bars...")
+    print("\n[6/6] RAG uplift delta bars...")
     plot_rag_uplift(df, output_dir=output_dir)
 
 
