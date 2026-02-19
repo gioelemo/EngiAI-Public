@@ -6,6 +6,7 @@ This scorer checks task completion based on prompt style:
 - Workflow-derived-params: STL export with params computed from optimization inputs
 - Workflow-conditional: STL export with params resolved from compliance-based branching
 - Workflow-multi-export: Two STL exports with different params, validated in order
+- HPC training (hpc-train): all expected workflow steps called
 """
 
 import ast
@@ -23,6 +24,14 @@ CLARIFICATION_TOOL_NAME = "ask_human_for_clarification"
 
 # Expected number of STL exports for workflow-multi-export
 MULTI_EXPORT_COUNT = 2
+
+# Default expected workflow steps for HPC training prompts
+HPC_WORKFLOW_STEPS = [
+    "generate_training_command",
+    "submit_slurm_job",
+    "monitor_job_until_complete",
+    "evaluate_model",
+]
 
 
 def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
@@ -384,6 +393,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     is_workflow_distractor = prompt_style == "workflow-distractor"
     is_workflow_conditional = prompt_style == "workflow-conditional"
     is_workflow_multi_export = prompt_style == "workflow-multi-export"
+    is_hpc_train = prompt_style == "hpc-train"
     is_clarification = metadata.get("success_criteria") == "clarification_requested"
     success_criteria = "stl_export" if is_workflow else "render_design"
     if (
@@ -416,6 +426,47 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     stl_error = None
     stl_details: dict[str, Any] = {}
     all_stl_details: list[dict[str, Any]] = []  # Accumulates all successful STL calls
+
+    # --- HPC training path: check workflow steps instead of STL/render tools ---
+    if is_hpc_train:
+        expected_steps = metadata.get("expected_workflow_steps", HPC_WORKFLOW_STEPS)
+        # Collect tool names from AI messages with tool_calls
+        called_tools = {
+            tc.get("name")
+            for msg in messages
+            if hasattr(msg, "tool_calls") and msg.tool_calls
+            for tc in msg.tool_calls
+        }
+        steps_completed = {step: step in called_tools for step in expected_steps}
+        completed_count = sum(steps_completed.values())
+        total_steps = len(expected_steps)
+        task_completed = completed_count == total_steps
+        success_rate = 1.0 if task_completed else 0.0
+
+        logger.info(
+            "Example %s (hpc-train): %d/%d workflow steps completed",
+            example_id,
+            completed_count,
+            total_steps,
+        )
+
+        return {
+            "success_rate": success_rate,
+            "workflow_complete": task_completed,
+            "prompt_style": prompt_style,
+            "success_criteria": "hpc_workflow_steps",
+            "hpc_steps_completed": completed_count,
+            "hpc_steps_total": total_steps,
+            **{f"hpc_step_{k}": v for k, v in steps_completed.items()},
+            # Zero-out inapplicable fields so Weave doesn't show misleading data
+            "render_called": False,
+            "render_success": False,
+            "stl_called": False,
+            "stl_success": False,
+            "clarification_called": False,
+            "stl_param_validation_score": None,
+            "example_id": example_id,
+        }
 
     # Iterate through messages looking for tool results
     for msg in messages:

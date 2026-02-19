@@ -157,6 +157,12 @@ class EngineeringAgent(weave.Model):
             # Extract the final response from messages
             final_message = result["messages"][-1]
             response_content = final_message.content
+            # content can be a list of content blocks (multimodal); normalise to str
+            if isinstance(response_content, list):
+                response_content = " ".join(
+                    block.get("text", "") if isinstance(block, dict) else str(block)
+                    for block in response_content
+                )
 
             # Debug logging: Extract and log tool calls to see what config is being used
             tool_calls_info = [
