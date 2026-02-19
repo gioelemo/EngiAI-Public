@@ -1,11 +1,12 @@
 """
 HPC Training Evaluation Plots
 
-Four publication-ready figures for hpc_train_beams2d evaluations:
-  1. plot_step_completion_heatmap  -- heatmap: models x 6 workflow steps (completed/not)
+Five publication-ready figures for hpc_train_beams2d evaluations:
+  1. plot_step_completion_heatmap  -- heatmap: models x workflow steps (completed/not)
   2. plot_workflow_score_bars      -- grouped bars: hpc_workflow_score per model x config
   3. plot_step_completion_rate     -- horizontal bars: step_completion_rate per model
-  4. plot_compliance_comparison    -- box/strip plot: compliance values per model x condition
+  4. plot_evaluation_metrics       -- grouped bars: IOG/COG/FOG/MMD/DPP/viol per model x config
+  5. plot_baseline_comparison      -- agent vs official baseline side-by-side per metric
 
 Usage:
     # 1. Extract results from Weave:
@@ -18,6 +19,7 @@ Usage:
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -368,6 +370,130 @@ def plot_evaluation_metrics(
     plt.close(fig)
 
 
+# ── Plot 5: Agent vs Baseline Comparison ─────────────────────────────────────
+
+# Baseline CSV directory
+_BASELINE_DIR = PROJECT_ROOT / "benchmarks" / "problems" / "hpc_train_beams2d" / "data" / "baseline"
+
+# Metrics to compare (column names in the CSV files)
+_COMPARE_METRICS = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
+
+
+def _load_baseline_csvs(baseline_dir: Path) -> pd.DataFrame | None:
+    """Load all baseline metric CSVs from the given directory."""
+    patterns = ["seed*_metrics.csv", "cgan_*_metrics.csv"]
+    found: list[Path] = []
+    for pattern in patterns:
+        found.extend(baseline_dir.rglob(pattern))
+    found = sorted(set(found))
+    if not found:
+        return None
+    dfs = []
+    for p in found:
+        try:
+            dfs.append(pd.read_csv(p))
+        except Exception:
+            continue
+    return pd.concat(dfs, ignore_index=True) if dfs else None
+
+
+def _extract_agent_metrics(df: pd.DataFrame) -> pd.DataFrame | None:
+    """Extract per-seed agent metrics from the eval_* columns."""
+    rows: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        entry: dict[str, Any] = {"seed": row.get("example_id", 0)}
+        for m in _COMPARE_METRICS:
+            val = row.get(f"eval_{m}")
+            if val is not None and not (isinstance(val, float) and np.isnan(val)):
+                entry[m] = float(val)
+        if len(entry) > 1:
+            rows.append(entry)
+    return pd.DataFrame(rows) if rows else None
+
+
+def _extract_baseline_metrics(baseline_df: pd.DataFrame) -> pd.DataFrame:
+    """Extract per-seed baseline metrics from CSV data."""
+    rows: list[dict[str, Any]] = []
+    seeds = sorted(baseline_df["seed"].unique()) if "seed" in baseline_df.columns else [0]
+    for seed in seeds:
+        seed_df = baseline_df[baseline_df["seed"] == seed] if "seed" in baseline_df.columns else baseline_df
+        entry: dict[str, Any] = {"seed": int(seed)}
+        for m in _COMPARE_METRICS:
+            col = m if m in seed_df.columns else (m.lower() if m.lower() in seed_df.columns else None)
+            if col and not seed_df[col].dropna().empty:
+                entry[m] = float(seed_df[col].mean())
+        rows.append(entry)
+    return pd.DataFrame(rows)
+
+
+def _get_seed_val(frame: pd.DataFrame, seed: int, metric: str) -> float:
+    """Get metric value for a seed, returning 0.0 if missing."""
+    row = frame[frame["seed"] == seed]
+    if len(row) == 0 or metric not in row.columns or row[metric].isna().all():
+        return 0.0
+    return float(row[metric].iloc[0])
+
+
+def plot_baseline_comparison(
+    df: pd.DataFrame,
+    filename: str = "baseline_comparison.png",
+    output_dir: Path | None = None,
+    baseline_dir: Path | None = None,
+) -> None:
+    """Side-by-side grouped bars: agent-trained model vs official baseline.
+
+    One subplot per metric (IOG, COG, FOG, MMD, DPP, viol).
+    Within each subplot, bars are grouped by seed with agent vs baseline side-by-side.
+    """
+    setup_style()
+    df = _prepare_data(df)
+
+    bdir = baseline_dir or _BASELINE_DIR
+    baseline_df = _load_baseline_csvs(bdir)
+    if baseline_df is None or baseline_df.empty:
+        print(f"  No baseline CSVs found in {bdir}, skipping baseline comparison")
+        return
+
+    agent_metrics = _extract_agent_metrics(df)
+    if agent_metrics is None:
+        print("  No agent evaluation metrics found in data, skipping baseline comparison")
+        return
+
+    baseline_metrics = _extract_baseline_metrics(baseline_df)
+
+    available = [m for m in _COMPARE_METRICS if m in agent_metrics.columns or m in baseline_metrics.columns]
+    if not available:
+        print("  No overlapping metrics between agent and baseline, skipping")
+        return
+
+    n_metrics = len(available)
+    fig, axes = plt.subplots(1, n_metrics, figsize=(2.8 * n_metrics, 4), squeeze=False)
+
+    all_seeds = sorted(set(agent_metrics["seed"].tolist() + baseline_metrics["seed"].tolist()))
+    x = np.arange(len(all_seeds))
+    bar_w = 0.35
+
+    for col_idx, metric in enumerate(available):
+        ax = axes[0, col_idx]
+        a_vals = [_get_seed_val(agent_metrics, s, metric) for s in all_seeds]
+        b_vals = [_get_seed_val(baseline_metrics, s, metric) for s in all_seeds]
+
+        ax.bar(x - bar_w / 2, a_vals, bar_w, label="Agent", color=COLOR_PALETTE[0], alpha=0.85)
+        ax.bar(x + bar_w / 2, b_vals, bar_w, label="Baseline", color=COLOR_PALETTE[1], alpha=0.85)
+
+        seed_labels = [_CONFIG_LABELS.get(s, f"seed {s}") for s in all_seeds]
+        ax.set_xticks(x)
+        ax.set_xticklabels(seed_labels, fontsize=7, rotation=30)
+        ax.set_title(metric, fontsize=10)
+        if col_idx == 0:
+            ax.legend(fontsize=7, loc="upper right")
+
+    fig.suptitle("Agent-Trained Model vs Official Baseline", fontsize=11, y=1.02)
+    fig.tight_layout()
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+
+
 # ── Main entrypoint ──────────────────────────────────────────────────────────
 
 
@@ -384,17 +510,20 @@ def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
 
     print(f"  HPC training data: {len(df)} rows")
 
-    print("\n[1/4] Step completion heatmap...")
+    print("\n[1/5] Step completion heatmap...")
     plot_step_completion_heatmap(df, output_dir=output_dir)
 
-    print("\n[2/4] Workflow score bars...")
+    print("\n[2/5] Workflow score bars...")
     plot_workflow_score_bars(df, output_dir=output_dir)
 
-    print("\n[3/4] Step completion rate...")
+    print("\n[3/5] Step completion rate...")
     plot_step_completion_rate(df, output_dir=output_dir)
 
-    print("\n[4/4] Evaluation metrics...")
+    print("\n[4/5] Evaluation metrics...")
     plot_evaluation_metrics(df, output_dir=output_dir)
+
+    print("\n[5/5] Baseline comparison...")
+    plot_baseline_comparison(df, output_dir=output_dir)
 
 
 if __name__ == "__main__":
