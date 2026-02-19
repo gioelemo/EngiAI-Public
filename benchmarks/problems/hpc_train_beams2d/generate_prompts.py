@@ -94,42 +94,20 @@ def _build_prompt(seed: int, epochs: int) -> str:
     )
 
 
-# Per-config natural-language templates (varied phrasing to prevent memorisation)
-_NATURAL_TEMPLATES = {
-    0: (
-        "I'd like to do a quick test run of a cGAN CNN 2D model for the Beams2D "
-        "topology optimization problem on our Euler HPC cluster. Use seed {seed} "
-        "for reproducibility and train for {epochs} epochs -- that should be enough "
-        "to see if it converges.\n\n"
-        "Once the training job finishes, evaluate the resulting model against the "
-        "dataset to see how it performs. Report the evaluation metrics.\n\n"
-        "Do not ask for clarification."
-    ),
-    1: (
-        "Can you train a cGAN CNN 2D generative model on Beams2D using the Euler "
-        "cluster? I want a moderate training run with seed {seed} and {epochs} "
-        "epochs. After training completes, run the standard evaluation against "
-        "the dataset and let me know the metrics.\n\n"
-        "Do not ask for clarification."
-    ),
-    2: (
-        "Please run a thorough training of a cGAN CNN 2D model for Beams2D "
-        "topology optimization on Euler. Set the seed to {seed} and train for "
-        "{epochs} epochs. When the job is done, evaluate the trained model "
-        "against the dataset baseline and report how it performs.\n\n"
-        "Do not ask for clarification."
-    ),
-}
-
-
-def _build_natural_prompt(seed: int, epochs: int, config_idx: int) -> str:
+def _build_natural_prompt(seed: int, epochs: int) -> str:
     """Build a natural-language prompt (hpc-train-natural style).
 
     No tool names, no step numbers, no monitoring/evaluation parameters.
     The agent must infer the full workflow from context.
     """
-    template = _NATURAL_TEMPLATES.get(config_idx, _NATURAL_TEMPLATES[0])
-    return template.format(seed=seed, epochs=epochs)
+    return (
+        f"Train a cGAN CNN 2D model for the Beams2D topology optimization problem "
+        f"on the Euler HPC cluster with seed {seed} and {epochs} epochs. "
+        f"You should be able to generate the SLURM training script automatically. "
+        f"Submit the job, wait for it to finish, then evaluate the trained model "
+        f"against the dataset and report the metrics.\n\n"
+        f"Do not ask for clarification."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +166,7 @@ def create_hpc_train_prompts(
     for i, raw in enumerate(HPC_TRAIN_PROMPTS):
         if is_natural:
             cfg = raw["conditions"]
-            prompt_text = _build_natural_prompt(cfg["seed"], cfg["epochs"], i)
+            prompt_text = _build_natural_prompt(cfg["seed"], cfg["epochs"])
         else:
             prompt_text = raw["prompt"]
 
