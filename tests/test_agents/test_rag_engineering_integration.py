@@ -224,8 +224,8 @@ class TestEngineeringAgentRagIntegration:
 
         agent = EngineeringAgent()
 
-        # 12 engineering tools + 5 RAG tools = 17
-        assert len(agent.tools) == 18
+        # 13 engineering tools + 5 RAG tools + 1 evaluate_model = 19
+        assert len(agent.tools) == 19
 
     @pytest.mark.unit
     @patch("src.agents.engineering_agent.MMOREClient")
@@ -332,8 +332,8 @@ class TestEngineeringAgentSkipMmore:
         assert "create_problem" in tool_names
         assert "simulate_design" in tool_names
         assert "optimize_design" in tool_names
-        # 13 engineering tools, 0 RAG tools
-        assert len(agent.tools) == 13
+        # 13 engineering tools + 1 evaluate_model, 0 RAG tools
+        assert len(agent.tools) == 14
 
 
 # ============================================================================
