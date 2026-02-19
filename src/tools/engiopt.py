@@ -1942,7 +1942,7 @@ def evaluate_model(  # noqa: PLR0913
             message_parts.append("\n   Metrics:")
             for k, v in metrics.items():
                 if isinstance(v, float):
-                    message_parts.append(f"     {k}: {v:.6f}")
+                    message_parts.append(f"     {k}: {v:.6g}")
 
         return {
             "success": True,
