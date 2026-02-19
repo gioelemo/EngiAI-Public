@@ -464,7 +464,8 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
             "stl_called": False,
             "stl_success": False,
             "clarification_called": False,
-            "stl_param_validation_score": None,
+            # Omit stl_param_validation_score entirely — extract_data guards
+            # with `is not None`, so absence is cleaner than None for type safety.
             "example_id": example_id,
         }
 

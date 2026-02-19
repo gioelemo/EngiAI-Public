@@ -402,6 +402,18 @@ def _extract_metrics_from_scorers(
             }
         )
 
+        # Extract HPC training workflow step completion metrics (hpc-train prompts)
+        result.update(
+            {
+                k: v
+                for k, v in task_completion.items()
+                if k.startswith("hpc_step_") and isinstance(v, (int, float, bool))
+            }
+        )
+        for field in ("hpc_steps_completed", "hpc_steps_total"):
+            if field in task_completion:
+                result[field] = task_completion[field]
+
     # Compute true weighted overall score combining all three scorers
     # Use problem_type to derive weights from registry
     result["combined_overall_score"] = _compute_combined_overall_score(
