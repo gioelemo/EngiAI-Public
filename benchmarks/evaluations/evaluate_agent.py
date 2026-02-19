@@ -547,6 +547,11 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # via the ArXiv agent as an alternative route.
     os.environ["SKIP_ARXIV"] = "true" if args.problem == "rag_beams2d" else "false"
 
+    # Disable SLURM email notifications for HPC training benchmarks to avoid spam
+    os.environ["SKIP_SLURM_EMAIL"] = (
+        "true" if args.problem == "hpc_train_beams2d" else ""
+    )
+
     # Get problem configuration
     problem_config = PROBLEM_CONFIGS[args.problem]
     model_name = args.model or config.llm_model

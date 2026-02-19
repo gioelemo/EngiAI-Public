@@ -1671,6 +1671,14 @@ def _build_slurm_script(
     # Get logs directory from settings
     logs_dir = get_setting_from_db("slurm_logs_dir", "$SCRATCH/logs")
 
+    if os.getenv("SKIP_SLURM_EMAIL"):
+        mail_lines = "# Mail notifications disabled (SKIP_SLURM_EMAIL)"
+    else:
+        mail_lines = (
+            f"#SBATCH --mail-type=END,FAIL\n"
+            f"#SBATCH --mail-user={slurm['email_user']}"
+        )
+
     return f"""#!/bin/bash
 #SBATCH --job-name={cfg.algorithm}_{cfg.problem_id}
 #SBATCH --time={slurm["time"]}
@@ -1680,8 +1688,7 @@ def _build_slurm_script(
 #SBATCH --gpus={slurm["gpus"]}
 #SBATCH --output=engiopt_{cfg.algorithm}_{cfg.problem_id}_%j.out
 #SBATCH --error=engiopt_{cfg.algorithm}_{cfg.problem_id}_%j.err
-#SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user={slurm["email_user"]}
+{mail_lines}
 
 mkdir -p "{logs_dir}" "{keys["hf_datasets"]}" "{keys["hf_home"]}"
 
@@ -1870,7 +1877,11 @@ def evaluate_model(  # noqa: PLR0913
     import sys
 
     if output_csv is None:
-        output_csv = f"evaluate_{algorithm}_{problem_id}_seed{seed}_metrics.csv"
+        results_dir = Path("benchmarks/evaluations/results")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        output_csv = str(
+            results_dir / f"evaluate_{algorithm}_{problem_id}_seed{seed}_metrics.csv"
+        )
 
     # All EngiOpt evaluation scripts follow: engiopt.{algorithm}.evaluate_{algorithm}
     if algorithm not in SUPPORTED_ALGORITHMS:
