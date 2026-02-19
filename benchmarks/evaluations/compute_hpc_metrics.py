@@ -51,6 +51,7 @@ def find_eval_csvs(search_dir: Path) -> list[Path]:
     Looks for files matching the pattern: *_metrics.csv or cgan_2d_*_metrics.csv
     """
     patterns = [
+        "evaluate_*_metrics.csv",
         "hpc_train_beams2d_seed*_metrics.csv",
         "cgan_2d_*_metrics.csv",
         "seed*_metrics.csv",
@@ -159,14 +160,14 @@ def print_comparison_table(
             agent_val = agent_s.get(metric)
             base_val = base_s.get(metric)
 
-            a_str = f"{agent_val:.6f}" if isinstance(agent_val, (int, float)) else "N/A"
-            b_str = f"{base_val:.6f}" if isinstance(base_val, (int, float)) else "N/A"
+            a_str = f"{agent_val:.6g}" if isinstance(agent_val, (int, float)) else "N/A"
+            b_str = f"{base_val:.6g}" if isinstance(base_val, (int, float)) else "N/A"
 
             if isinstance(agent_val, (int, float)) and isinstance(
                 base_val, (int, float)
             ):
                 delta = agent_val - base_val
-                d_str = f"{delta:+.6f}"
+                d_str = f"{delta:+.6g}"
             else:
                 d_str = "---"
 
@@ -253,15 +254,26 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     print("\n[1] Loading agent evaluation CSVs...")
     agent_csvs = find_eval_csvs(search_dir)
 
+    # Fallback: evaluate_model saves CSVs to benchmarks/evaluations/results/
     if not agent_csvs:
-        cwd_csvs = find_eval_csvs(Path())
-        if cwd_csvs:
-            print(f"  Found {len(cwd_csvs)} CSV(s) in current directory")
-            agent_csvs = cwd_csvs
-        else:
-            print("  No agent evaluation CSVs found.")
-            print("  Run the agent evaluation first, or specify --csv-dir")
-            return
+        flat_results = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
+        if flat_results.exists():
+            agent_csvs = find_eval_csvs(flat_results)
+            if agent_csvs:
+                print(f"  Found {len(agent_csvs)} CSV(s) in {flat_results}")
+
+    if not agent_csvs:
+        print("  No agent evaluation CSVs found.")
+        print(f"  Searched: {search_dir}")
+        print("  Run the agent evaluation first, or specify --csv-dir")
+        return
+
+    # Filter out baseline CSVs that may have been picked up
+    agent_csvs = [p for p in agent_csvs if "baseline" not in str(p)]
+    if not agent_csvs:
+        print("  Only baseline CSVs found — no agent results.")
+        print("  Run the agent evaluation first, or specify --csv-dir")
+        return
 
     agent_df = load_eval_csvs(agent_csvs)
     if agent_df.empty:
@@ -308,12 +320,12 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             a_key = f"avg_{metric}"
             a_val = agent_global.get(a_key)
             b_val = baseline_global.get(a_key)
-            a_str = f"{a_val:.6f}" if a_val is not None else "N/A"
-            b_str = f"{b_val:.6f}" if b_val is not None else "N/A"
+            a_str = f"{a_val:.6g}" if a_val is not None else "N/A"
+            b_str = f"{b_val:.6g}" if b_val is not None else "N/A"
             if a_val is not None and b_val is not None:
                 delta = a_val - b_val
                 print(
-                    f"  {metric}: agent={a_str}  baseline={b_str}  delta={delta:+.6f}"
+                    f"  {metric}: agent={a_str}  baseline={b_str}  delta={delta:+.6g}"
                 )
             else:
                 print(f"  {metric}: agent={a_str}  baseline={b_str}")
@@ -326,14 +338,14 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             for metric in EVAL_METRICS:
                 val = seed_m.get(metric)
                 if isinstance(val, (int, float)):
-                    print(f"    {metric}: {val:.6f}")
+                    print(f"    {metric}: {val:.6g}")
 
         if agent_global:
             print("\n  Global averages:")
             for metric in EVAL_METRICS:
                 key = f"avg_{metric}"
                 if key in agent_global:
-                    print(f"    {metric}: {agent_global[key]:.6f}")
+                    print(f"    {metric}: {agent_global[key]:.6g}")
 
     # ── Save results ────────────────────────────────────────────────────────
     results = {
