@@ -59,6 +59,9 @@ _CONFIG_LABELS = {
     2: "seed=3, ep=100",
 }
 
+# Map example_id → actual training seed (must match TRAINING_CONFIGS in generate_prompts)
+_EXAMPLE_ID_TO_TRAINING_SEED = {0: 1, 1: 2, 2: 3}
+
 
 def _short_model(model_id: str) -> str:
     """Return a short display name for a model."""
@@ -312,7 +315,8 @@ def plot_evaluation_metrics(
     """Grouped bar chart of EngiOpt evaluation metrics per model x config.
 
     Shows IOG, COG, FOG, MMD, DPP, violation rate extracted from
-    evaluate_cgan_2d.py output.
+    evaluate_cgan_2d.py output.  Uses a 2x3 grid to fit within
+    publication full-width dimensions.
     """
     setup_style()
     df = _prepare_data(df)
@@ -324,13 +328,16 @@ def plot_evaluation_metrics(
 
     models = sorted(df["model_short"].unique())
     configs = sorted(df["example_id"].unique()) if "example_id" in df.columns else [0]
+    font_sizes = PLOT_STYLE["font_sizes"]
 
+    n_cols = min(len(available), 3)
+    n_rows = (len(available) + n_cols - 1) // n_cols
     fig, axes = plt.subplots(
-        1, len(available), figsize=(2.5 * len(available), 4), squeeze=False
+        n_rows, n_cols, figsize=PLOT_STYLE["figsize_full_width_tall"], squeeze=False
     )
 
-    for col_idx, metric in enumerate(available):
-        ax = axes[0, col_idx]
+    for idx, metric in enumerate(available):
+        ax = axes[idx // n_cols, idx % n_cols]
         n_models = len(models)
         n_configs = len(configs)
         bar_width = 0.7 / max(n_models, 1)
@@ -354,16 +361,23 @@ def plot_evaluation_metrics(
                 bar_width * 0.9,
                 label=model,
                 color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
-                alpha=0.85,
+                alpha=PLOT_STYLE["alpha"],
             )
 
         config_labels = [_CONFIG_LABELS.get(c, f"Config {c}") for c in configs]
         ax.set_xticks(x)
-        ax.set_xticklabels(config_labels, fontsize=7, rotation=30)
-        ax.set_title(EVAL_METRIC_LABELS.get(metric, metric))
+        ax.set_xticklabels(
+            config_labels, fontsize=font_sizes["tick_label"], rotation=30, ha="right"
+        )
+        ax.set_ylabel(EVAL_METRIC_LABELS.get(metric, metric))
+        ax.grid(True, axis="y", alpha=0.3)
 
-        if col_idx == 0:
-            ax.legend(fontsize=7, loc="upper right")
+        if idx == 0:
+            ax.legend(fontsize=font_sizes["legend"], loc="upper right")
+
+    # Hide unused subplots
+    for idx in range(len(available), n_rows * n_cols):
+        axes[idx // n_cols, idx % n_cols].set_visible(False)
 
     fig.tight_layout()
     save_figure(fig, filename, output_dir)
@@ -379,6 +393,11 @@ _BASELINE_DIR = (
 
 # Metrics to compare (column names in the CSV files)
 _COMPARE_METRICS = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
+
+# Training seeds for which an official baseline exists (100-epoch model only).
+# The agent configs vary epochs (20, 50, 100) so only the 100-epoch config
+# (training seed 3) has a matching official baseline for fair comparison.
+_BASELINE_SEEDS = {3}
 
 
 def _load_baseline_csvs(baseline_dir: Path) -> pd.DataFrame | None:
@@ -403,12 +422,18 @@ def _extract_agent_metrics(df: pd.DataFrame) -> pd.DataFrame | None:
     """Extract per-seed agent metrics from the eval_* columns."""
     rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
-        entry: dict[str, Any] = {"seed": row.get("example_id", 0)}
+        eid = row.get("example_id", 0)
+        # Map example_id to the actual training seed so it aligns with baseline CSVs
+        entry: dict[str, Any] = {
+            "seed": _EXAMPLE_ID_TO_TRAINING_SEED.get(eid, eid),
+            "model": row.get("model_short", row.get("model_id", "unknown")),
+        }
         for m in _COMPARE_METRICS:
             val = row.get(f"eval_{m}")
             if val is not None and not (isinstance(val, float) and np.isnan(val)):
                 entry[m] = float(val)
-        if len(entry) > 1:
+        _min_fields = 2  # seed + model; need at least one metric beyond these
+        if len(entry) > _min_fields:
             rows.append(entry)
     return pd.DataFrame(rows) if rows else None
 
@@ -446,16 +471,83 @@ def _get_seed_val(frame: pd.DataFrame, seed: int, metric: str) -> float:
     return float(row[metric].iloc[0])
 
 
+def _plot_baseline_group(
+    metrics: list[str],
+    agent_metrics: pd.DataFrame,
+    baseline_metrics: pd.DataFrame,
+    filename: str,
+    output_dir: Path | None,
+) -> None:
+    """Plot a 1x3 baseline comparison panel for the given metrics."""
+    font_sizes = PLOT_STYLE["font_sizes"]
+    models = sorted(agent_metrics["model"].unique().tolist())
+    all_seeds = sorted(agent_metrics["seed"].unique().tolist())
+    n_bars = len(models) + 1  # +1 for baseline
+    bar_w = 0.7 / max(n_bars, 1)
+
+    fig, axes = plt.subplots(
+        1, len(metrics), figsize=PLOT_STYLE["figsize_full_width"], squeeze=False
+    )
+
+    for col_idx, metric in enumerate(metrics):
+        ax = axes[0, col_idx]
+        x = np.arange(len(all_seeds))
+
+        for i, model in enumerate(models):
+            model_df = agent_metrics[agent_metrics["model"] == model]
+            vals = [_get_seed_val(model_df, s, metric) for s in all_seeds]
+            offset = (i - (n_bars - 1) / 2) * bar_w
+            ax.bar(
+                x + offset,
+                vals,
+                bar_w * 0.9,
+                label=model,
+                color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
+                alpha=PLOT_STYLE["alpha"],
+            )
+
+        # Baseline bar (only for seeds with a matching official model)
+        b_vals = [
+            _get_seed_val(baseline_metrics, s, metric) if s in _BASELINE_SEEDS else 0.0
+            for s in all_seeds
+        ]
+        b_offset = (len(models) - (n_bars - 1) / 2) * bar_w
+        ax.bar(
+            x + b_offset,
+            b_vals,
+            bar_w * 0.9,
+            label="Baseline (100 ep)",
+            color=COLOR_PALETTE[len(models) % len(COLOR_PALETTE)],
+            alpha=0.50,
+            hatch="//",
+        )
+
+        seed_label_map = {1: "seed=1, ep=20", 2: "seed=2, ep=50", 3: "seed=3, ep=100"}
+        seed_labels = [seed_label_map.get(s, f"seed {s}") for s in all_seeds]
+        ax.set_xticks(x)
+        ax.set_xticklabels(
+            seed_labels, fontsize=font_sizes["tick_label"], rotation=30, ha="right"
+        )
+        ax.set_ylabel(EVAL_METRIC_LABELS.get(f"eval_{metric}", metric))
+        ax.grid(True, axis="y", alpha=0.3)
+        if col_idx == 0:
+            ax.legend(fontsize=font_sizes["legend"], loc="upper right")
+
+    fig.tight_layout()
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+
+
 def plot_baseline_comparison(
     df: pd.DataFrame,
-    filename: str = "baseline_comparison.png",
     output_dir: Path | None = None,
     baseline_dir: Path | None = None,
 ) -> None:
     """Side-by-side grouped bars: agent-trained model vs official baseline.
 
-    One subplot per metric (IOG, COG, FOG, MMD, DPP, viol).
-    Within each subplot, bars are grouped by seed with agent vs baseline side-by-side.
+    Produces two separate figures to fit publication column width:
+      - baseline_comparison_quality.png  (IOG, COG, FOG)
+      - baseline_comparison_stats.png    (MMD, DPP, viol)
     """
     setup_style()
     df = _prepare_data(df)
@@ -484,48 +576,26 @@ def plot_baseline_comparison(
         print("  No overlapping metrics between agent and baseline, skipping")
         return
 
-    n_metrics = len(available)
-    fig, axes = plt.subplots(1, n_metrics, figsize=(2.8 * n_metrics, 4), squeeze=False)
+    # Split into quality metrics (IOG, COG, FOG) and statistical metrics (MMD, DPP, viol)
+    quality = [m for m in ["IOG", "COG", "FOG"] if m in available]
+    stats = [m for m in ["MMD", "DPP", "viol"] if m in available]
 
-    all_seeds = sorted(
-        set(agent_metrics["seed"].tolist() + baseline_metrics["seed"].tolist())
-    )
-    x = np.arange(len(all_seeds))
-    bar_w = 0.35
-
-    for col_idx, metric in enumerate(available):
-        ax = axes[0, col_idx]
-        a_vals = [_get_seed_val(agent_metrics, s, metric) for s in all_seeds]
-        b_vals = [_get_seed_val(baseline_metrics, s, metric) for s in all_seeds]
-
-        ax.bar(
-            x - bar_w / 2,
-            a_vals,
-            bar_w,
-            label="Agent",
-            color=COLOR_PALETTE[0],
-            alpha=0.85,
+    if quality:
+        _plot_baseline_group(
+            quality,
+            agent_metrics,
+            baseline_metrics,
+            "baseline_comparison_quality.png",
+            output_dir,
         )
-        ax.bar(
-            x + bar_w / 2,
-            b_vals,
-            bar_w,
-            label="Baseline",
-            color=COLOR_PALETTE[1],
-            alpha=0.85,
+    if stats:
+        _plot_baseline_group(
+            stats,
+            agent_metrics,
+            baseline_metrics,
+            "baseline_comparison_stats.png",
+            output_dir,
         )
-
-        seed_labels = [_CONFIG_LABELS.get(s, f"seed {s}") for s in all_seeds]
-        ax.set_xticks(x)
-        ax.set_xticklabels(seed_labels, fontsize=7, rotation=30)
-        ax.set_title(metric, fontsize=10)
-        if col_idx == 0:
-            ax.legend(fontsize=7, loc="upper right")
-
-    fig.suptitle("Agent-Trained Model vs Official Baseline", fontsize=11, y=1.02)
-    fig.tight_layout()
-    save_figure(fig, filename, output_dir)
-    plt.close(fig)
 
 
 # ── Main entrypoint ──────────────────────────────────────────────────────────
@@ -544,19 +614,19 @@ def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
 
     print(f"  HPC training data: {len(df)} rows")
 
-    print("\n[1/5] Step completion heatmap...")
+    print("\n[1/6] Step completion heatmap...")
     plot_step_completion_heatmap(df, output_dir=output_dir)
 
-    print("\n[2/5] Workflow score bars...")
+    print("\n[2/6] Workflow score bars...")
     plot_workflow_score_bars(df, output_dir=output_dir)
 
-    print("\n[3/5] Step completion rate...")
+    print("\n[3/6] Step completion rate...")
     plot_step_completion_rate(df, output_dir=output_dir)
 
-    print("\n[4/5] Evaluation metrics...")
+    print("\n[4/6] Evaluation metrics...")
     plot_evaluation_metrics(df, output_dir=output_dir)
 
-    print("\n[5/5] Baseline comparison...")
+    print("\n[5-6/6] Baseline comparison (quality + stats)...")
     plot_baseline_comparison(df, output_dir=output_dir)
 
 
