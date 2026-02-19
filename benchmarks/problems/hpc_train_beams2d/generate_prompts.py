@@ -39,6 +39,17 @@ PROMPT_STYLES: dict[str, dict] = {
         "optimal_call_count": 4,
         "success_criteria": "hpc_workflow_completion",
     },
+    "hpc-train-natural": {
+        "description": "Natural language HPC training — no tool names or explicit steps",
+        "optimal_tool_calls": [
+            {"name": "generate_training_command", "count": 1},
+            {"name": "submit_slurm_job", "count": 1},
+            {"name": "monitor_job_until_complete", "count": 1},
+            {"name": "evaluate_model", "count": 1},
+        ],
+        "optimal_call_count": 4,
+        "success_criteria": "hpc_workflow_completion",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -53,7 +64,7 @@ TRAINING_CONFIGS = [
 
 
 def _build_prompt(seed: int, epochs: int) -> str:
-    """Build the full prompt text for a training configuration."""
+    """Build the explicit step-by-step prompt (hpc-train style)."""
     return (
         f"Train a cGAN CNN 2D generative model for the Beams2D topology optimization "
         f"problem on the Euler HPC cluster, then evaluate it against the dataset "
@@ -81,6 +92,44 @@ def _build_prompt(seed: int, epochs: int) -> str:
         f"   - Report the evaluation metrics from the output\n\n"
         f"Complete all steps in order. Do not ask for clarification."
     )
+
+
+# Per-config natural-language templates (varied phrasing to prevent memorisation)
+_NATURAL_TEMPLATES = {
+    0: (
+        "I'd like to do a quick test run of a cGAN CNN 2D model for the Beams2D "
+        "topology optimization problem on our Euler HPC cluster. Use seed {seed} "
+        "for reproducibility and train for {epochs} epochs -- that should be enough "
+        "to see if it converges.\n\n"
+        "Once the training job finishes, evaluate the resulting model against the "
+        "dataset to see how it performs. Report the evaluation metrics.\n\n"
+        "Do not ask for clarification."
+    ),
+    1: (
+        "Can you train a cGAN CNN 2D generative model on Beams2D using the Euler "
+        "cluster? I want a moderate training run with seed {seed} and {epochs} "
+        "epochs. After training completes, run the standard evaluation against "
+        "the dataset and let me know the metrics.\n\n"
+        "Do not ask for clarification."
+    ),
+    2: (
+        "Please run a thorough training of a cGAN CNN 2D model for Beams2D "
+        "topology optimization on Euler. Set the seed to {seed} and train for "
+        "{epochs} epochs. When the job is done, evaluate the trained model "
+        "against the dataset baseline and report how it performs.\n\n"
+        "Do not ask for clarification."
+    ),
+}
+
+
+def _build_natural_prompt(seed: int, epochs: int, config_idx: int) -> str:
+    """Build a natural-language prompt (hpc-train-natural style).
+
+    No tool names, no step numbers, no monitoring/evaluation parameters.
+    The agent must infer the full workflow from context.
+    """
+    template = _NATURAL_TEMPLATES.get(config_idx, _NATURAL_TEMPLATES[0])
+    return template.format(seed=seed, epochs=epochs)
 
 
 # ---------------------------------------------------------------------------
@@ -133,12 +182,19 @@ def create_hpc_train_prompts(
         )
 
     style_config = PROMPT_STYLES[style]
+    is_natural = style == "hpc-train-natural"
     prompts = []
 
     for i, raw in enumerate(HPC_TRAIN_PROMPTS):
+        if is_natural:
+            cfg = raw["conditions"]
+            prompt_text = _build_natural_prompt(cfg["seed"], cfg["epochs"], i)
+        else:
+            prompt_text = raw["prompt"]
+
         prompts.append(
             {
-                "prompt": raw["prompt"],
+                "prompt": prompt_text,
                 "prompt_style": style,
                 "conditions": raw["conditions"],
                 "metadata": {

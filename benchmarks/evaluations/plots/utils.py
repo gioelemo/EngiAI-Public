@@ -48,6 +48,7 @@ KNOWN_PROMPT_STYLES = [
     "workflow-multi-export",
     "rag-eval",
     "hpc-train",
+    "hpc-train-natural",
 ]
 
 # Directory structure:
