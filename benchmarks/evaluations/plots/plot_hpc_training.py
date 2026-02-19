@@ -373,7 +373,9 @@ def plot_evaluation_metrics(
 # ── Plot 5: Agent vs Baseline Comparison ─────────────────────────────────────
 
 # Baseline CSV directory
-_BASELINE_DIR = PROJECT_ROOT / "benchmarks" / "problems" / "hpc_train_beams2d" / "data" / "baseline"
+_BASELINE_DIR = (
+    PROJECT_ROOT / "benchmarks" / "problems" / "hpc_train_beams2d" / "data" / "baseline"
+)
 
 # Metrics to compare (column names in the CSV files)
 _COMPARE_METRICS = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
@@ -414,12 +416,22 @@ def _extract_agent_metrics(df: pd.DataFrame) -> pd.DataFrame | None:
 def _extract_baseline_metrics(baseline_df: pd.DataFrame) -> pd.DataFrame:
     """Extract per-seed baseline metrics from CSV data."""
     rows: list[dict[str, Any]] = []
-    seeds = sorted(baseline_df["seed"].unique()) if "seed" in baseline_df.columns else [0]
+    seeds = (
+        sorted(baseline_df["seed"].unique()) if "seed" in baseline_df.columns else [0]
+    )
     for seed in seeds:
-        seed_df = baseline_df[baseline_df["seed"] == seed] if "seed" in baseline_df.columns else baseline_df
+        seed_df = (
+            baseline_df[baseline_df["seed"] == seed]
+            if "seed" in baseline_df.columns
+            else baseline_df
+        )
         entry: dict[str, Any] = {"seed": int(seed)}
         for m in _COMPARE_METRICS:
-            col = m if m in seed_df.columns else (m.lower() if m.lower() in seed_df.columns else None)
+            col = (
+                m
+                if m in seed_df.columns
+                else (m.lower() if m.lower() in seed_df.columns else None)
+            )
             if col and not seed_df[col].dropna().empty:
                 entry[m] = float(seed_df[col].mean())
         rows.append(entry)
@@ -456,12 +468,18 @@ def plot_baseline_comparison(
 
     agent_metrics = _extract_agent_metrics(df)
     if agent_metrics is None:
-        print("  No agent evaluation metrics found in data, skipping baseline comparison")
+        print(
+            "  No agent evaluation metrics found in data, skipping baseline comparison"
+        )
         return
 
     baseline_metrics = _extract_baseline_metrics(baseline_df)
 
-    available = [m for m in _COMPARE_METRICS if m in agent_metrics.columns or m in baseline_metrics.columns]
+    available = [
+        m
+        for m in _COMPARE_METRICS
+        if m in agent_metrics.columns or m in baseline_metrics.columns
+    ]
     if not available:
         print("  No overlapping metrics between agent and baseline, skipping")
         return
@@ -469,7 +487,9 @@ def plot_baseline_comparison(
     n_metrics = len(available)
     fig, axes = plt.subplots(1, n_metrics, figsize=(2.8 * n_metrics, 4), squeeze=False)
 
-    all_seeds = sorted(set(agent_metrics["seed"].tolist() + baseline_metrics["seed"].tolist()))
+    all_seeds = sorted(
+        set(agent_metrics["seed"].tolist() + baseline_metrics["seed"].tolist())
+    )
     x = np.arange(len(all_seeds))
     bar_w = 0.35
 
@@ -478,8 +498,22 @@ def plot_baseline_comparison(
         a_vals = [_get_seed_val(agent_metrics, s, metric) for s in all_seeds]
         b_vals = [_get_seed_val(baseline_metrics, s, metric) for s in all_seeds]
 
-        ax.bar(x - bar_w / 2, a_vals, bar_w, label="Agent", color=COLOR_PALETTE[0], alpha=0.85)
-        ax.bar(x + bar_w / 2, b_vals, bar_w, label="Baseline", color=COLOR_PALETTE[1], alpha=0.85)
+        ax.bar(
+            x - bar_w / 2,
+            a_vals,
+            bar_w,
+            label="Agent",
+            color=COLOR_PALETTE[0],
+            alpha=0.85,
+        )
+        ax.bar(
+            x + bar_w / 2,
+            b_vals,
+            bar_w,
+            label="Baseline",
+            color=COLOR_PALETTE[1],
+            alpha=0.85,
+        )
 
         seed_labels = [_CONFIG_LABELS.get(s, f"seed {s}") for s in all_seeds]
         ax.set_xticks(x)
