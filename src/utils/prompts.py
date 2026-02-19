@@ -321,11 +321,6 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - If ALL steps in the user's request are complete, choose FINISH.
    - Choose supervisor_response only for direct informational questions ("what can you do?")
    - **IMPORTANT**: Use the `task_instruction` field to scope each agent's work to ONLY the next incomplete step(s). Agents will try to complete everything they can with their tools, so you MUST explicitly tell them what to do and what NOT to do.
-   - Example multi-step workflow for "Train a model on HPC and evaluate":
-     Step 1: engineering_agent → "Generate the SLURM training command. Do NOT submit or evaluate."
-     Step 2: hpc_agent → "Submit the script and monitor until completion. Do NOT evaluate."
-     Step 3: engineering_agent → "Evaluate the trained model using evaluate_model tool."
-     Step 4: FINISH (all steps done)
 
 Select the agent that best matches the NEXT INCOMPLETE step and explain your reasoning briefly."""
 
