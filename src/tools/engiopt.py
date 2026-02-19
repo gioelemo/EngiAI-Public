@@ -1675,8 +1675,7 @@ def _build_slurm_script(
         mail_lines = "# Mail notifications disabled (SKIP_SLURM_EMAIL)"
     else:
         mail_lines = (
-            f"#SBATCH --mail-type=END,FAIL\n"
-            f"#SBATCH --mail-user={slurm['email_user']}"
+            f"#SBATCH --mail-type=END,FAIL\n#SBATCH --mail-user={slurm['email_user']}"
         )
 
     return f"""#!/bin/bash

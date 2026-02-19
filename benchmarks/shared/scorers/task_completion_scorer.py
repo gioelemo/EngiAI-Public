@@ -430,13 +430,17 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     # --- HPC training path: check workflow steps instead of STL/render tools ---
     if is_hpc_train:
         expected_steps = metadata.get("expected_workflow_steps", HPC_WORKFLOW_STEPS)
-        # Collect tool names from AI messages with tool_calls
-        called_tools = {
-            tc.get("name")
-            for msg in messages
-            if hasattr(msg, "tool_calls") and msg.tool_calls
-            for tc in msg.tool_calls
-        }
+        # Use tool_calls_info (same source as hpc_workflow_scorer) for consistency
+        tool_calls_info = output.get("tool_calls_info", [])
+        called_tools = {tc.get("name") for tc in tool_calls_info}
+        # CLI fallback for evaluate_model (matches hpc_workflow_scorer logic)
+        if "evaluate_model" not in called_tools:
+            for tc in tool_calls_info:
+                if tc.get("name") == "execute_cli_command":
+                    cmd = tc.get("args", {}).get("command", "")
+                    if "evaluate_" in cmd and "engiopt" in cmd:
+                        called_tools.add("evaluate_model")
+                        break
         steps_completed = {step: step in called_tools for step in expected_steps}
         completed_count = sum(steps_completed.values())
         total_steps = len(expected_steps)
