@@ -90,7 +90,7 @@ def plot_step_completion_heatmap(
 ) -> None:
     """Heatmap showing which workflow steps each model completed per config.
 
-    Rows = model x config, Columns = 6 workflow steps.
+    Rows = model x config, Columns = 4 workflow steps.
     Green = completed, Red = not completed.
     """
     setup_style()
@@ -234,7 +234,7 @@ def plot_step_completion_rate(
 ) -> None:
     """Horizontal bar chart: mean step_completion_rate per model.
 
-    Simple overview showing what fraction of the 6 workflow steps each
+    Simple overview showing what fraction of the 4 workflow steps each
     model completes on average across all configs.
     """
     setup_style()
