@@ -82,7 +82,6 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
             --samples "${SAMPLES}" \
             --prompt-style "${STYLE}" \
             --model "${MODEL}" \
-            --agent-only \
             --skip-prompt-generation
 
         # Step 3: Extract data from Weave

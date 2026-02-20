@@ -69,7 +69,6 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
             --samples "${SAMPLES}" \
             --prompt-style "${STYLE}" \
             --model "${MODEL}" \
-            --agent-only \
             ${EXTRA_ARGS}
 
         # Step 2: Extract design data from Weave to JSON

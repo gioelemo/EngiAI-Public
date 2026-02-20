@@ -56,9 +56,7 @@ KNOWN_PROMPT_STYLES = [
 ]
 
 # Directory structure:
-# results/baselines/{baseline_type}/{problem}/                              - for baselines (CGAN, CNN, etc.)
 # results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/       - for LLM agent models
-BASELINES_DIR = RESULTS_DIR / "baselines"
 MODELS_DIR = RESULTS_DIR / "models"
 
 # Known RAG statuses (order matters: check longer patterns first!)
@@ -66,34 +64,6 @@ KNOWN_RAG_STATUSES = ["no_rag", "rag"]
 
 # Minimum parts when parsing keys like "{model}_{prompt_style}_{problem}_{type}"
 MIN_KEY_PARTS = 3
-
-
-def _discover_baseline_paths() -> dict[str, Path]:
-    """Discover baseline result files from baselines directory.
-
-    Structure: results/baselines/{baseline_type}/{problem}/
-
-    Returns:
-        Dictionary mapping keys to file paths
-    """
-    paths: dict[str, Path] = {}
-    if not BASELINES_DIR.exists():
-        return paths
-
-    for baseline_type_dir in BASELINES_DIR.iterdir():
-        if not baseline_type_dir.is_dir():
-            continue
-
-        baseline_type = baseline_type_dir.name  # e.g., "cgan_cnn_2d"
-
-        for problem in KNOWN_PROBLEMS:
-            global_path = (
-                baseline_type_dir / problem / "output_quality_global_metrics.csv"
-            )
-            if global_path.exists():
-                paths[f"{baseline_type}_{problem}_global"] = global_path
-
-    return paths
 
 
 def _discover_models_dir_paths() -> dict[str, Path]:
@@ -163,21 +133,12 @@ def discover_data_paths() -> dict[str, Path]:
     """Auto-discover available result files in the results directory.
 
     Directory structure:
-        results/baselines/{baseline_type}/{problem}/                          - CSV files
         results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/   - JSON files
 
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths: dict[str, Path] = {}
-
-    # 1. Discover from results/models/
-    paths.update(_discover_models_dir_paths())
-
-    # 2. Discover from results/baselines/
-    paths.update(_discover_baseline_paths())
-
-    return paths
+    return _discover_models_dir_paths()
 
 
 def _get_model_label(model_name: str) -> str:
