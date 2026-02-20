@@ -53,7 +53,16 @@ HPC_WORKFLOW_OUTPUT_FIELDS = [
 def _extract_metadata_from_example(
     example,
 ) -> tuple[int | None, int | None, str | None]:
-    """Extract example_id, seed, and problem_id from example object.
+    """Extract example_id, seed, and problem_id from a Weave example object.
+
+    Weave returns different object types depending on the SDK version and how
+    the evaluation was stored (plain dict, WeaveDict with ``__getitem__``,
+    ObjectRef with ``_val``/``_extra`` internals, or plain-attribute objects).
+    The multiple fallback paths below cover all observed variants so that
+    extraction works across Weave versions without requiring a specific API.
+
+    Precedence for **seed**: ``metadata.run_id`` > ``metadata.seed`` >
+    dataset-name suffix (``_seed_N``).
 
     Returns:
         Tuple of (example_id, seed, problem_id)

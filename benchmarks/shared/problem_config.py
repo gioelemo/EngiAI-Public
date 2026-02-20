@@ -98,6 +98,25 @@ class ProblemConfig:
     - Extract objectives from tool outputs
     - Check constraints
     - Compute scores
+
+    Three problem archetypes are supported:
+
+    **Standard** (e.g., beams2d, photonics2d, thermoelastic2d)
+        HuggingFace dataset with ground-truth designs.  Uses
+        ``primary_scorer="output_quality"`` to evaluate design similarity,
+        constraint satisfaction, and objective match.  ``tool_name`` identifies
+        the tool whose output contains objective values (via ``objective_extractor``).
+
+    **RAG** (e.g., rag_beams2d)
+        Handcrafted prompts (``dataset_name=""``, ``objectives=[]``).  Uses
+        ``primary_scorer="rag_evaluation"`` to measure parameter accuracy
+        conditioned on RAG tool usage.  ``tool_name`` is informational only.
+
+    **HPC** (e.g., hpc_train_beams2d)
+        Handcrafted prompts (``dataset_name=""``, ``objectives=[]``).  Uses
+        ``primary_scorer="hpc_workflow"`` to score multi-step workflow completion
+        (generate → submit → monitor → evaluate).  ``tool_name`` is informational
+        only; design quality is scored offline.
     """
 
     name: str
@@ -141,6 +160,16 @@ class ProblemConfig:
         }
     )
     """Hierarchical score configuration with category weights and metric weights within categories"""
+
+    primary_scorer: str = "output_quality"
+    """Primary scorer type for this problem.
+
+    Determines which scorer function replaces ``score_output_quality`` during
+    evaluation.  Allowed values:
+    - ``"output_quality"`` — standard design-quality scorer (default)
+    - ``"rag_evaluation"`` — RAG parameter-accuracy scorer
+    - ``"hpc_workflow"`` — HPC workflow-step-completion scorer
+    """
 
     prompt_file_template: str = "{problem}_prompts_{samples}_samples_{split}.json"
     """Template for prompt file naming"""

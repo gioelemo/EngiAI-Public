@@ -71,9 +71,14 @@ python evaluate_agent.py \
 | `--model` | LLM model name | From config |
 | `--samples` | Number of samples to evaluate | `10` |
 | `--temperature` | Model temperature | From config |
+| `--llm-seed` | LLM random seed for model reproducibility | From config |
 | `--split` | Dataset split (train/val/test) | `test` |
 | `--scorers` | Scorer set (output_quality/all/task_completion/tool_use) | `all` |
-| `--seed` | Random seed for optimization | `None` |
+| `--seed` | Random seed for optimization (also serves as tracking ID) | `None` |
+| `--run` | Run number for repeated evaluations (fixed optimization seed) | `None` |
+| `--prompt-style` | Prompt style (full/natural/workflow/workflow-random/hpc-train-*/rag-eval/...) | `full` |
+| `--mmore` | Enable MMORE RAG system for document retrieval | Disabled |
+| `--no-mmore` | Disable MMORE RAG system (default) | — |
 ## Results Organization
 
 Results are automatically organized by model and problem type:

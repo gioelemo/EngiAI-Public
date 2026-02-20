@@ -25,6 +25,8 @@ def _resolve_weave_value(value: Any) -> Any:
     Weave sometimes passes ObjectRef references instead of actual values.
     This function extracts the underlying value.
 
+    Note: Used by ``_extract_optimal_sequence`` (not dead code).
+
     Args:
         value: A value that might be a Weave reference or actual value
 

@@ -602,28 +602,28 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         ]
         scorer_types = ["output_quality", "task_completion", "tool_use"]
 
-    # For RAG problems, substitute score_output_quality with score_rag_evaluation.
-    # The RAG scorer replaces design-quality metrics (IoU, pixel accuracy, etc.)
-    # with RAG-specific metrics (parameter accuracy, tool usage, source citation).
-    if args.problem == "rag_beams2d":
+    # Substitute the primary scorer based on problem registry configuration.
+    # Problems with a non-default primary_scorer (e.g., rag_evaluation, hpc_workflow)
+    # replace score_output_quality with their domain-specific scorer.
+    scorer_map = {
+        "output_quality": score_output_quality,
+        "rag_evaluation": score_rag_evaluation,
+        "hpc_workflow": score_hpc_workflow,
+    }
+    problem_reg = PROBLEMS[args.problem]
+    primary_scorer_type = problem_reg.primary_scorer
+    if primary_scorer_type != "output_quality":
+        primary_scorer_func = scorer_map[primary_scorer_type]
         base_scorers = [
-            score_rag_evaluation if s is score_output_quality else s
+            primary_scorer_func if s is score_output_quality else s
             for s in base_scorers
         ]
         scorer_types = [
-            "rag_evaluation" if t == "output_quality" else t for t in scorer_types
+            primary_scorer_type if t == "output_quality" else t for t in scorer_types
         ]
 
-    # For HPC training problems, substitute score_output_quality with score_hpc_workflow.
-    # The HPC scorer checks workflow step completion instead of design quality metrics.
+    # HPC training requires WandB for model download after training
     if args.problem == "hpc_train_beams2d":
-        base_scorers = [
-            score_hpc_workflow if s is score_output_quality else s for s in base_scorers
-        ]
-        scorer_types = [
-            "hpc_workflow" if t == "output_quality" else t for t in scorer_types
-        ]
-        # Ensure WandB is enabled for model download after training
         os.environ["USE_WANDB"] = "True"
 
     # Wrap scorers with evaluation context for better trace naming in Weave UI

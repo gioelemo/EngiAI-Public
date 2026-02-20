@@ -206,8 +206,9 @@ PROBLEMS: dict[str, ProblemConfig] = {
         name="rag_beams2d",
         dataset_name="",  # No HuggingFace dataset — handcrafted prompts only
         design_field="optimal_design",
-        tool_name="optimize_design",
+        tool_name="optimize_design",  # Informational only; objectives=[] so objective_extractor is unused
         objectives=[],  # No ground-truth design comparison
+        primary_scorer="rag_evaluation",
         conditions=[
             ConditionConfig(
                 name="expected_volfrac",
@@ -229,8 +230,9 @@ PROBLEMS: dict[str, ProblemConfig] = {
         name="hpc_train_beams2d",
         dataset_name="",  # Handcrafted prompts — no HuggingFace sampling
         design_field="optimal_design",
-        tool_name="generate_training_command",  # Informational only; HPC uses hpc_workflow_scorer (not objective_extractor)
+        tool_name="generate_training_command",  # Informational only; objectives=[] so objective_extractor is unused
         objectives=[],  # Design quality scored offline via compare_hpc_designs.py
+        primary_scorer="hpc_workflow",
         conditions=[
             ConditionConfig(
                 name="seed",
