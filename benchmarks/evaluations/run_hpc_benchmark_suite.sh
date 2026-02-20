@@ -22,12 +22,10 @@ MODELS=(
     "openai:gpt-5-mini"
     "google_genai:gemini-3-flash-preview"
 )
+SEEDS="1 2 3"
+SAMPLES=3
 PROBLEM="hpc_train_beams2d"
 RAG_STATUS="no_rag"
-# HPC prompts are fixed (3 configs) — seed/samples are ignored by
-# generate_prompts.py but required by evaluate_agent.py CLI.
-SEED=0
-SAMPLES=3
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Prompt styles from CLI args
@@ -43,6 +41,8 @@ echo "HPC Training Benchmark Suite"
 echo "  Problem:       ${PROBLEM}"
 echo "  Models:        ${MODELS[*]}"
 echo "  Prompt styles: ${PROMPT_STYLES[*]}"
+echo "  Seeds:         ${SEEDS}"
+echo "  Samples:       ${SAMPLES}"
 echo "  RAG status:    ${RAG_STATUS}"
 echo "============================================================"
 
@@ -69,7 +69,7 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
         # Step 2: Run agent evaluation
         python benchmarks/evaluations/run_full_benchmark.py \
             --problem "${PROBLEM}" \
-            --seeds ${SEED} \
+            --seeds ${SEEDS} \
             --samples "${SAMPLES}" \
             --prompt-style "${STYLE}" \
             --model "${MODEL}" \
