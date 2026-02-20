@@ -229,7 +229,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
         name="hpc_train_beams2d",
         dataset_name="",  # Handcrafted prompts — no HuggingFace sampling
         design_field="optimal_design",
-        tool_name="generate_training_command",  # Primary tool for this benchmark
+        tool_name="generate_training_command",  # Informational only; HPC uses hpc_workflow_scorer (not objective_extractor)
         objectives=[],  # Design quality scored offline via compare_hpc_designs.py
         conditions=[
             ConditionConfig(
