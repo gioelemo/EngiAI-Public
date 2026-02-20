@@ -526,10 +526,10 @@ def _extract_baseline_metrics(baseline_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _get_seed_val(frame: pd.DataFrame, seed: int, metric: str) -> float:
-    """Get metric value for a seed, returning 0.0 if missing."""
+    """Get metric value for a seed, returning NaN if missing."""
     row = frame[frame["seed"] == seed]
     if len(row) == 0 or metric not in row.columns or row[metric].isna().all():
-        return 0.0
+        return float("nan")
     return float(row[metric].iloc[0])
 
 
@@ -580,9 +580,7 @@ def _plot_baseline_metric(  # noqa: PLR0913
     for i, model in enumerate(models):
         model_df = comparable[comparable["model"] == model]
         vals = [_get_seed_val(model_df, s, metric) for s in all_seeds]
-        avg = float(
-            np.mean([v for v in vals if v > 0]) if any(v > 0 for v in vals) else 0.0
-        )
+        avg = float(np.nanmean(vals)) if not all(np.isnan(vals)) else 0.0
         vals.append(avg)
         offset = (i - (n_bars - 1) / 2) * bar_w
         ax.bar(
@@ -596,12 +594,10 @@ def _plot_baseline_metric(  # noqa: PLR0913
 
     # Baseline bar
     b_vals = [
-        _get_seed_val(algo_baseline, s, metric) if s in _BASELINE_SEEDS else 0.0
+        _get_seed_val(algo_baseline, s, metric) if s in _BASELINE_SEEDS else float("nan")
         for s in all_seeds
     ]
-    b_avg = float(
-        np.mean([v for v in b_vals if v > 0]) if any(v > 0 for v in b_vals) else 0.0
-    )
+    b_avg = float(np.nanmean(b_vals)) if not all(np.isnan(b_vals)) else 0.0
     b_vals.append(b_avg)
     b_offset = (len(models) - (n_bars - 1) / 2) * bar_w
     ax.bar(

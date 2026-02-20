@@ -393,7 +393,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     is_workflow_distractor = prompt_style == "workflow-distractor"
     is_workflow_conditional = prompt_style == "workflow-conditional"
     is_workflow_multi_export = prompt_style == "workflow-multi-export"
-    is_hpc_train = prompt_style in ("hpc-train", "hpc-train-natural")
+    is_hpc_train = prompt_style.startswith("hpc-train") if prompt_style else False
     is_clarification = metadata.get("success_criteria") == "clarification_requested"
     success_criteria = "stl_export" if is_workflow else "render_design"
     if (

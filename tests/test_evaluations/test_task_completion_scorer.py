@@ -647,7 +647,7 @@ def _make_hpc_output(tool_names):
 
 _HPC_METADATA = {
     "example_id": 0,
-    "prompt_style": "hpc-train",
+    "prompt_style": "hpc-train-cgan",
     "expected_workflow_steps": [
         "generate_training_command",
         "submit_slurm_job",
@@ -704,9 +704,18 @@ def test_hpc_train_partial_steps():
 
 
 @pytest.mark.unit
-def test_hpc_train_natural_style():
-    """HPC: hpc-train-natural style also routes to HPC path."""
-    metadata = {**_HPC_METADATA, "prompt_style": "hpc-train-natural"}
+@pytest.mark.parametrize(
+    "style",
+    [
+        "hpc-train-cgan",
+        "hpc-train-diff",
+        "hpc-train-natural-cgan",
+        "hpc-train-natural-diff",
+    ],
+)
+def test_hpc_train_all_prompt_styles(style):
+    """HPC: all four algorithm-specific prompt styles route to HPC path."""
+    metadata = {**_HPC_METADATA, "prompt_style": style}
     output = _make_hpc_output(
         [
             "generate_training_command",

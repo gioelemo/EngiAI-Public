@@ -39,8 +39,19 @@ def _check_training_config(
         # Check top-level args or nested 'cfg' dict
         cfg = args.get("cfg", args)
         if isinstance(cfg, dict):
-            seed_match = cfg.get("seed") == training_config.get("seed")
-            epochs_match = cfg.get("epochs") == training_config.get("epochs")
+            # Coerce to int for numeric fields — LLMs may pass strings
+            try:
+                seed_match = int(cfg.get("seed", -1)) == int(
+                    training_config.get("seed", -2)
+                )
+            except (ValueError, TypeError):
+                seed_match = False
+            try:
+                epochs_match = int(cfg.get("epochs", -1)) == int(
+                    training_config.get("epochs", -2)
+                )
+            except (ValueError, TypeError):
+                epochs_match = False
             algo_match = cfg.get("algorithm", "cgan_cnn_2d") == training_config.get(
                 "algorithm", "cgan_cnn_2d"
             )
