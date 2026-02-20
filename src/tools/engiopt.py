@@ -6,6 +6,7 @@ that can be used for inverse design tasks. The models are trained using the engi
 library and are available on the engibench WandB project.
 """
 
+import logging
 import os
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -15,6 +16,8 @@ from langchain_core.tools import tool
 
 from src.tools.algorithms import SUPPORTED_ALGORITHMS
 from src.tools.problems import PROBLEM_CLASSES, ProblemId, SUPPORTED_PROBLEMS
+
+logger = logging.getLogger(__name__)
 
 
 # ======================================================================
@@ -2000,4 +2003,5 @@ def _parse_eval_csv(csv_path: str) -> dict[str, Any]:
                         metrics[key] = float(val)
             return metrics
     except Exception:
+        logger.debug("Failed to parse eval CSV %s", csv_path, exc_info=True)
         return {}
