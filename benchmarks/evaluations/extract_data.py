@@ -927,8 +927,10 @@ def main():
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
-            "hpc-train",
-            "hpc-train-natural",
+            "hpc-train-cgan",
+            "hpc-train-diff",
+            "hpc-train-natural-cgan",
+            "hpc-train-natural-diff",
         ],
         help="Prompt style used (default: full)",
     )

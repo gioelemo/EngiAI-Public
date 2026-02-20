@@ -2,21 +2,21 @@
 # Run HPC training benchmark suite for multiple models and prompt styles.
 #
 # Usage:
-#   ./benchmarks/evaluations/run_hpc_benchmark_suite.sh hpc-train
-#   ./benchmarks/evaluations/run_hpc_benchmark_suite.sh hpc-train hpc-train-natural
+#   ./benchmarks/evaluations/run_hpc_benchmark_suite.sh hpc-train-cgan hpc-train-diff
+#   ./benchmarks/evaluations/run_hpc_benchmark_suite.sh hpc-train-natural-cgan hpc-train-natural-diff
 #
-# Prompt styles are passed as positional arguments.
-# Models are configured below.
+# Algorithm-specific prompt styles ensure data stays separate per algorithm:
+#   hpc-train-cgan / hpc-train-natural-cgan     -> cgan_cnn_2d
+#   hpc-train-diff / hpc-train-natural-diff      -> diffusion_2d_cond
 #
-# Pipeline per (style, algorithm, model):
-#   1. Generate prompts for the algorithm (10 seeds x 100 epochs)
+# Pipeline per (style, model):
+#   1. Generate prompts (10 seeds x 100 epochs, algorithm from style)
 #   2. Run agent evaluation via evaluate_agent.py (repeated RUNS for variance)
 #   3. Extract data from Weave via extract_data.py
 #   4. Compute HPC metrics via compute_hpc_metrics.py
 #   5. Generate plots via run_all.py
 #
 # Note: HPC prompts are 10 seeds at a fixed 100 epochs, per algorithm.
-# Algorithms are evaluated separately to save time.
 # Multiple RUNS give statistical variance from LLM non-determinism.
 # run_full_benchmark.py auto-detects this and passes --run instead of --seed
 # to evaluate_agent.py, so Weave traces are named "run_N" (not "seed_N").
@@ -28,16 +28,16 @@ MODELS=(
     "openai:gpt-5-mini"
 )
 RUNS="1"
-SAMPLES=2
+SAMPLES=10
 PROBLEM="hpc_train_beams2d"
 RAG_STATUS="no_rag"
-ALGORITHMS=("cgan_cnn_2d")
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Prompt styles from CLI args
+# Prompt styles from CLI args (each encodes the algorithm)
 if [ $# -eq 0 ]; then
     echo "Usage: $0 <prompt-style> [<prompt-style> ...]"
-    echo "  e.g. $0 hpc-train hpc-train-natural"
+    echo "  e.g. $0 hpc-train-cgan hpc-train-diff"
+    echo "  e.g. $0 hpc-train-natural-cgan hpc-train-natural-diff"
     exit 1
 fi
 PROMPT_STYLES=("$@")
@@ -46,7 +46,6 @@ echo "============================================================"
 echo "HPC Training Benchmark Suite"
 echo "  Problem:       ${PROBLEM}"
 echo "  Models:        ${MODELS[*]}"
-echo "  Algorithms:    ${ALGORITHMS[*]}"
 echo "  Prompt styles: ${PROMPT_STYLES[*]}"
 echo "  Runs:          ${RUNS}"
 echo "  Samples:       ${SAMPLES}"
@@ -54,65 +53,63 @@ echo "  RAG status:    ${RAG_STATUS}"
 echo "============================================================"
 
 for STYLE in "${PROMPT_STYLES[@]}"; do
-    for ALGO in "${ALGORITHMS[@]}"; do
-        echo ""
-        echo "============================================================"
-        echo "  PROMPT STYLE: ${STYLE}  |  ALGORITHM: ${ALGO}"
-        echo "============================================================"
+    echo ""
+    echo "============================================================"
+    echo "  PROMPT STYLE: ${STYLE}"
+    echo "============================================================"
 
-        # Step 1: Generate prompts for this algorithm
-        echo ""
-        echo "------------------------------------------------------------"
-        echo "  Generating prompts: style=${STYLE}, algorithm=${ALGO}"
-        echo "------------------------------------------------------------"
-        python benchmarks/problems/hpc_train_beams2d/generate_prompts.py \
-            --style "${STYLE}" --algorithm "${ALGO}"
+    # Step 1: Generate prompts (algorithm is encoded in the style)
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  Generating prompts: style=${STYLE}"
+    echo "------------------------------------------------------------"
+    python benchmarks/problems/hpc_train_beams2d/generate_prompts.py \
+        --style "${STYLE}"
 
-        for MODEL in "${MODELS[@]}"; do
-            echo ""
-            echo "------------------------------------------------------------"
-            echo "  Model: ${MODEL}  |  Style: ${STYLE}  |  Algo: ${ALGO}"
-            echo "------------------------------------------------------------"
-
-            # Step 2: Run agent evaluation (--seeds passed to run_full_benchmark.py
-            # which auto-converts to --run for HPC problems)
-            python benchmarks/evaluations/run_full_benchmark.py \
-                --problem "${PROBLEM}" \
-                --seeds ${RUNS} \
-                --samples "${SAMPLES}" \
-                --prompt-style "${STYLE}" \
-                --model "${MODEL}" \
-                --agent-only \
-                --skip-prompt-generation
-
-            # Step 3: Extract data from Weave
-            python benchmarks/evaluations/extract_data.py \
-                --problem "${PROBLEM}" \
-                --prompt-style "${STYLE}" \
-                --rag-status "${RAG_STATUS}" \
-                --model "${MODEL}" \
-                --limit 2000
-
-            # Step 4: Compute HPC metrics (agent vs baseline)
-            python benchmarks/evaluations/compute_hpc_metrics.py \
-                --problem "${PROBLEM}" \
-                --prompt-style "${STYLE}" \
-                --rag-status "${RAG_STATUS}" \
-                --model "${MODEL}"
-
-        done
-
-        # Step 5: Generate plots (scans all models for this style)
+    for MODEL in "${MODELS[@]}"; do
         echo ""
         echo "------------------------------------------------------------"
-        echo "  Generating plots: style=${STYLE}, algorithm=${ALGO}"
+        echo "  Model: ${MODEL}  |  Style: ${STYLE}"
         echo "------------------------------------------------------------"
-        python benchmarks/evaluations/plots/run_all.py \
+
+        # Step 2: Run agent evaluation (--seeds passed to run_full_benchmark.py
+        # which auto-converts to --run for HPC problems)
+        python benchmarks/evaluations/run_full_benchmark.py \
+            --problem "${PROBLEM}" \
+            --seeds ${RUNS} \
+            --samples "${SAMPLES}" \
+            --prompt-style "${STYLE}" \
+            --model "${MODEL}" \
+            --agent-only \
+            --skip-prompt-generation
+
+        # Step 3: Extract data from Weave
+        python benchmarks/evaluations/extract_data.py \
             --problem "${PROBLEM}" \
             --prompt-style "${STYLE}" \
-            --rag-status "${RAG_STATUS}"
+            --rag-status "${RAG_STATUS}" \
+            --model "${MODEL}" \
+            --limit 2000
+
+        # Step 4: Compute HPC metrics (agent vs baseline)
+        python benchmarks/evaluations/compute_hpc_metrics.py \
+            --problem "${PROBLEM}" \
+            --prompt-style "${STYLE}" \
+            --rag-status "${RAG_STATUS}" \
+            --model "${MODEL}"
 
     done
+
+    # Step 5: Generate plots (scans all models for this style)
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  Generating plots: style=${STYLE}"
+    echo "------------------------------------------------------------"
+    python benchmarks/evaluations/plots/run_all.py \
+        --problem "${PROBLEM}" \
+        --prompt-style "${STYLE}" \
+        --rag-status "${RAG_STATUS}"
+
 done
 
 echo ""

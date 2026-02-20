@@ -380,8 +380,10 @@ def parse_arguments() -> argparse.Namespace:
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
-            "hpc-train",
-            "hpc-train-natural",
+            "hpc-train-cgan",
+            "hpc-train-diff",
+            "hpc-train-natural-cgan",
+            "hpc-train-natural-diff",
         ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
     )

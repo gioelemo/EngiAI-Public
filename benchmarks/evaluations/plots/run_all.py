@@ -247,7 +247,9 @@ def _generate_plots_for_problem(  # noqa: PLR0913
         print("Generating HPC training evaluation plots...")
         print("-" * 40)
         if problem_design is not None and not problem_design.empty:
-            plot_hpc_training_main(problem_design, output_dir)
+            plot_hpc_training_main(
+                problem_design, output_dir, prompt_style=prompt_style
+            )
         else:
             print("  ⚠️  No design data — run extract_data.py first.")
         # Also generate tool usage plots (useful for HPC workflow analysis)
@@ -283,8 +285,10 @@ def _parse_args():
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
-            "hpc-train",
-            "hpc-train-natural",
+            "hpc-train-cgan",
+            "hpc-train-diff",
+            "hpc-train-natural-cgan",
+            "hpc-train-natural-diff",
         ],
         help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",
     )

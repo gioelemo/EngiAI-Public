@@ -6,15 +6,17 @@ Each prompt instructs the agent to train a generative model on the Euler HPC
 cluster, then evaluate it using the standard EngiOpt evaluation script.
 
 The prompts form a grid of 10 seeds for a single algorithm (fixed at 100 epochs
-to match the official baselines). The algorithm is selected via `--algorithm`.
+to match the official baselines). The algorithm is encoded in the prompt style:
+
+  hpc-train-cgan / hpc-train-natural-cgan     -> cgan_cnn_2d
+  hpc-train-diff / hpc-train-natural-diff      -> diffusion_2d_cond
 
   Seeds:      1..10
   Epochs:     100 (fixed — matches official baselines)
-  Algorithms: cgan_cnn_2d OR diffusion_2d_cond (selected via --algorithm)
 
 Usage:
-    python benchmarks/problems/hpc_train_beams2d/generate_prompts.py \
-        --style hpc-train --algorithm cgan_cnn_2d
+    python benchmarks/problems/hpc_train_beams2d/generate_prompts.py --style hpc-train-cgan
+    python benchmarks/problems/hpc_train_beams2d/generate_prompts.py --style hpc-train-diff
 """
 
 import argparse
@@ -28,36 +30,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # ---------------------------------------------------------------------------
-# Prompt style configuration
-# ---------------------------------------------------------------------------
-
-PROMPT_STYLES: dict[str, dict] = {
-    "hpc-train": {
-        "description": "HPC training workflow: train model, then evaluate with EngiOpt metrics",
-        "optimal_tool_calls": [
-            {"name": "generate_training_command", "count": 1},
-            {"name": "submit_slurm_job", "count": 1},
-            {"name": "monitor_job_until_complete", "count": 1},
-            {"name": "evaluate_model", "count": 1},
-        ],
-        "optimal_call_count": 4,
-        "success_criteria": "hpc_workflow_completion",
-    },
-    "hpc-train-natural": {
-        "description": "Natural language HPC training — no tool names or explicit steps",
-        "optimal_tool_calls": [
-            {"name": "generate_training_command", "count": 1},
-            {"name": "submit_slurm_job", "count": 1},
-            {"name": "monitor_job_until_complete", "count": 1},
-            {"name": "evaluate_model", "count": 1},
-        ],
-        "optimal_call_count": 4,
-        "success_criteria": "hpc_workflow_completion",
-    },
-}
-
-# ---------------------------------------------------------------------------
-# Training configurations (seed x algorithm, fixed epochs=100)
+# Algorithm constants
 # ---------------------------------------------------------------------------
 
 ALGORITHMS = ["cgan_cnn_2d", "diffusion_2d_cond"]
@@ -67,8 +40,63 @@ ALGORITHM_DISPLAY_NAMES: dict[str, str] = {
     "diffusion_2d_cond": "conditional diffusion 2D",
 }
 
+ALGO_SHORT: dict[str, str] = {"cgan_cnn_2d": "cgan", "diffusion_2d_cond": "diff"}
+
 SEEDS = list(range(1, 11))  # 1..10
 EPOCHS = 100  # Fixed — matches official baselines
+
+# ---------------------------------------------------------------------------
+# Prompt style configuration
+#
+# Algorithm-specific styles ensure the full pipeline (prompts, Weave traces,
+# extraction, plots) stays separate per algorithm without overwriting.
+# ---------------------------------------------------------------------------
+
+_BASE_TOOL_CALLS = [
+    {"name": "generate_training_command", "count": 1},
+    {"name": "submit_slurm_job", "count": 1},
+    {"name": "monitor_job_until_complete", "count": 1},
+    {"name": "evaluate_model", "count": 1},
+]
+
+PROMPT_STYLES: dict[str, dict] = {
+    "hpc-train-cgan": {
+        "description": "HPC training workflow: train cGAN, evaluate with EngiOpt metrics",
+        "algorithm": "cgan_cnn_2d",
+        "natural": False,
+        "optimal_tool_calls": _BASE_TOOL_CALLS,
+        "optimal_call_count": 4,
+        "success_criteria": "hpc_workflow_completion",
+    },
+    "hpc-train-diff": {
+        "description": "HPC training workflow: train diffusion, evaluate with EngiOpt metrics",
+        "algorithm": "diffusion_2d_cond",
+        "natural": False,
+        "optimal_tool_calls": _BASE_TOOL_CALLS,
+        "optimal_call_count": 4,
+        "success_criteria": "hpc_workflow_completion",
+    },
+    "hpc-train-natural-cgan": {
+        "description": "Natural language HPC training (cGAN) — no tool names or explicit steps",
+        "algorithm": "cgan_cnn_2d",
+        "natural": True,
+        "optimal_tool_calls": _BASE_TOOL_CALLS,
+        "optimal_call_count": 4,
+        "success_criteria": "hpc_workflow_completion",
+    },
+    "hpc-train-natural-diff": {
+        "description": "Natural language HPC training (diffusion) — no tool names or explicit steps",
+        "algorithm": "diffusion_2d_cond",
+        "natural": True,
+        "optimal_tool_calls": _BASE_TOOL_CALLS,
+        "optimal_call_count": 4,
+        "success_criteria": "hpc_workflow_completion",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Training configurations (seed x algorithm, fixed epochs=100)
+# ---------------------------------------------------------------------------
 
 
 class TrainingConfig(TypedDict):
@@ -83,7 +111,6 @@ def get_training_configs(algorithm: str) -> list[TrainingConfig]:
 
 
 # Default configs used by plotting and other importers.
-# When the prompt generator runs, it filters to a single algorithm via --algorithm.
 TRAINING_CONFIGS: list[TrainingConfig] = get_training_configs(ALGORITHMS[0])
 
 
@@ -144,21 +171,22 @@ def _build_natural_prompt(seed: int, epochs: int, algorithm: str) -> str:
 
 
 def create_hpc_train_prompts(
-    style: str = "hpc-train",
-    algorithm: str = "cgan_cnn_2d",
+    style: str = "hpc-train-cgan",
     seed: int | None = None,  # noqa: ARG001 — kept for CLI compat
     samples: int | None = None,  # noqa: ARG001 — kept for CLI compat
 ) -> list[dict]:
-    """Return the list of HPC training evaluation prompts for one algorithm."""
+    """Return the list of HPC training evaluation prompts.
+
+    The algorithm is determined by the style (e.g. hpc-train-cgan -> cgan_cnn_2d).
+    """
     if style not in PROMPT_STYLES:
         raise ValueError(
             f"Unknown prompt style '{style}'. Available: {list(PROMPT_STYLES.keys())}"
         )
-    if algorithm not in ALGORITHMS:
-        raise ValueError(f"Unknown algorithm '{algorithm}'. Available: {ALGORITHMS}")
 
     style_config = PROMPT_STYLES[style]
-    is_natural = style == "hpc-train-natural"
+    algorithm = style_config["algorithm"]
+    is_natural = style_config["natural"]
     configs = get_training_configs(algorithm)
     prompts = []
 
@@ -216,16 +244,9 @@ def main() -> None:
     parser.add_argument(
         "--style",
         type=str,
-        default="hpc-train",
+        default="hpc-train-cgan",
         choices=list(PROMPT_STYLES.keys()),
-        help="Prompt style to generate (default: hpc-train)",
-    )
-    parser.add_argument(
-        "--algorithm",
-        type=str,
-        default="cgan_cnn_2d",
-        choices=ALGORITHMS,
-        help="Algorithm to generate prompts for (default: cgan_cnn_2d)",
+        help="Prompt style (encodes algorithm). Default: hpc-train-cgan",
     )
     parser.add_argument(
         "--seed",
@@ -248,19 +269,20 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    style_config = PROMPT_STYLES[args.style]
+    algorithm = style_config["algorithm"]
+
     print("=" * 60)
     print("HPC_TRAIN_BEAMS2D PROMPT GENERATION")
     print("=" * 60)
     print()
     print(f"Style:     {args.style}")
-    print(f"Algorithm: {args.algorithm}")
+    print(f"Algorithm: {algorithm}")
     print(f"Seeds:     {SEEDS}")
     print(f"Epochs:    {EPOCHS} (fixed)")
     print()
 
-    prompts = create_hpc_train_prompts(
-        style=args.style, algorithm=args.algorithm, seed=args.seed
-    )
+    prompts = create_hpc_train_prompts(style=args.style, seed=args.seed)
     n = len(prompts)
 
     output_dir = Path(__file__).parent / "data" / "generated"

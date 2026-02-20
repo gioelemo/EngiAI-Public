@@ -31,6 +31,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from benchmarks.evaluations.plots.utils import (  # noqa: E402
     COLOR_PALETTE,
+    FULL_WIDTH,
     PLOT_STYLE,
     get_problem_prompt_output_dir,
     save_figure,
@@ -38,8 +39,9 @@ from benchmarks.evaluations.plots.utils import (  # noqa: E402
 )
 from benchmarks.problems.hpc_train_beams2d.generate_prompts import (  # noqa: E402
     ALGORITHMS,
+    PROMPT_STYLES,
     SEEDS,
-    TRAINING_CONFIGS,
+    get_training_configs,
 )
 
 # ── Step labels (display-friendly) ────────────────────────────────────────────
@@ -57,21 +59,35 @@ STEP_SHORT_LABELS = {
     "evaluate_model": "Evaluate",
 }
 
-# ── Dynamic config mappings (derived from TRAINING_CONFIGS) ───────────────────
+# ── Config mapping helpers ────────────────────────────────────────────────────
 _ALGO_SHORT: dict[str, str] = {"cgan_cnn_2d": "cGAN", "diffusion_2d_cond": "Diff"}
 
-# Config labels: since each run is single-algorithm, just show "seed N"
-_CONFIG_LABELS: dict[int, str] = {
-    i: f"seed {c['seed']}" for i, c in enumerate(TRAINING_CONFIGS)
-}
 
-# Map example_id -> full training config dict
-_EXAMPLE_ID_TO_CONFIG: dict[int, dict] = dict(enumerate(TRAINING_CONFIGS))
+def _build_config_mappings(
+    algorithm: str = "cgan_cnn_2d",
+) -> tuple[dict[int, str], dict[int, dict], dict[int, int]]:
+    """Build example_id -> config mappings for the given algorithm.
 
-# Map example_id -> actual training seed
-_EXAMPLE_ID_TO_TRAINING_SEED: dict[int, int] = {
-    i: c["seed"] for i, c in enumerate(TRAINING_CONFIGS)
-}
+    Returns (config_labels, example_id_to_config, example_id_to_seed).
+    """
+    configs = get_training_configs(algorithm)
+    config_labels = {i: f"seed {c['seed']}" for i, c in enumerate(configs)}
+    example_id_to_config = dict(enumerate(configs))
+    example_id_to_seed = {i: c["seed"] for i, c in enumerate(configs)}
+    return config_labels, example_id_to_config, example_id_to_seed
+
+
+def _algorithm_from_style(prompt_style: str | None) -> str:
+    """Look up the algorithm encoded in a prompt style, defaulting to cgan."""
+    if prompt_style and prompt_style in PROMPT_STYLES:
+        return PROMPT_STYLES[prompt_style]["algorithm"]
+    return ALGORITHMS[0]
+
+
+# Default mappings (cgan) — used when no prompt_style is specified
+_CONFIG_LABELS, _EXAMPLE_ID_TO_CONFIG, _EXAMPLE_ID_TO_TRAINING_SEED = (
+    _build_config_mappings()
+)
 
 
 def _short_model(model_id: str) -> str:
@@ -183,7 +199,9 @@ def plot_workflow_score_bars(
     n_models = len(models)
     n_configs = len(configs)
 
-    fig, ax = plt.subplots(figsize=PLOT_STYLE["figsize_full_width"])
+    # Scale width with number of groups
+    fig_w = max(FULL_WIDTH, 0.55 * n_configs)
+    fig, ax = plt.subplots(figsize=(fig_w, 3.0))
 
     bar_width = 0.7 / max(n_models, 1)
     x = np.arange(n_configs)
@@ -210,22 +228,26 @@ def plot_workflow_score_bars(
             color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
             alpha=0.85,
         )
-        # Add value labels on bars
-        _min_label = 0.02
-        for bar, val in zip(bars, means, strict=False):
-            if val > _min_label:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 0.01,
-                    f"{val:.2f}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=PLOT_STYLE["font_sizes"]["annotation"],
-                )
+        # Add value labels on bars (skip when too many models → bars too narrow)
+        _max_models_for_labels = 3
+        if n_models <= _max_models_for_labels:
+            _min_label = 0.02
+            for bar, val in zip(bars, means, strict=False):
+                if val > _min_label:
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + 0.01,
+                        f"{val:.2f}",
+                        ha="center",
+                        va="bottom",
+                        fontsize=PLOT_STYLE["font_sizes"]["annotation"],
+                    )
 
-    config_labels = [_CONFIG_LABELS.get(c, f"Config {c}") for c in configs]
+    # Short labels: just seed number
+    config_labels = [str(_EXAMPLE_ID_TO_TRAINING_SEED.get(c, c)) for c in configs]
     ax.set_xticks(x)
     ax.set_xticklabels(config_labels)
+    ax.set_xlabel("Seed")
     ax.set_ylabel("HPC Workflow Score")
     ax.set_ylim(0, 1.05)
     ax.legend(loc="upper right", framealpha=0.9)
@@ -344,9 +366,10 @@ def plot_evaluation_metrics(
     n_rows = (len(available) + n_cols - 1) // n_cols
     n_configs = len(configs)
 
-    fig, axes = plt.subplots(
-        n_rows, n_cols, figsize=PLOT_STYLE["figsize_full_width_tall"], squeeze=False
-    )
+    # Scale width with number of groups
+    fig_w = max(FULL_WIDTH, 0.55 * n_configs * n_cols / 3)
+    fig_h = max(4.0, 2.2 * n_rows)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_w, fig_h), squeeze=False)
 
     for idx, metric in enumerate(available):
         ax = axes[idx // n_cols, idx % n_cols]
@@ -375,12 +398,14 @@ def plot_evaluation_metrics(
                 alpha=PLOT_STYLE["alpha"],
             )
 
-        config_labels = [_CONFIG_LABELS.get(c, f"Config {c}") for c in configs]
+        # Short labels: just seed number
+        config_labels = [str(_EXAMPLE_ID_TO_TRAINING_SEED.get(c, c)) for c in configs]
         ax.set_xticks(x)
         ax.set_xticklabels(
             config_labels,
             fontsize=font_sizes["tick_label"],
         )
+        ax.set_xlabel("Seed", fontsize=font_sizes["axes_label"])
         ax.set_ylabel(EVAL_METRIC_LABELS.get(metric, metric))
         ax.grid(True, axis="y", alpha=0.3)
 
@@ -430,15 +455,20 @@ def _load_baseline_csvs(baseline_dir: Path) -> pd.DataFrame | None:
     return pd.concat(dfs, ignore_index=True) if dfs else None
 
 
-def _extract_agent_metrics(df: pd.DataFrame) -> pd.DataFrame | None:
+def _extract_agent_metrics(
+    df: pd.DataFrame,
+    example_id_to_config: dict[int, dict] | None = None,
+) -> pd.DataFrame | None:
     """Extract per-config agent metrics from the eval_* columns.
 
-    Uses TRAINING_CONFIGS to resolve (seed, epochs, algorithm) from example_id.
+    Uses example_id_to_config to resolve (seed, epochs, algorithm) from example_id.
+    Falls back to the module-level default mappings (cgan) if not provided.
     """
+    eid_map = example_id_to_config or _EXAMPLE_ID_TO_CONFIG
     rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
         eid = row.get("example_id", 0)
-        cfg = _EXAMPLE_ID_TO_CONFIG.get(eid, {})
+        cfg = eid_map.get(eid, {})
         entry: dict[str, Any] = {
             "seed": cfg.get("seed", eid),
             "epochs": cfg.get("epochs", 0),
@@ -505,10 +535,11 @@ def _plot_baseline_group(  # noqa: PLR0913
     filename: str,
     output_dir: Path | None,
 ) -> None:
-    """Plot a 1x3 baseline comparison panel for the given metrics.
+    """Plot a 1xN baseline comparison panel for the given metrics.
 
     Filters agent results to configs of the given algorithm and groups
     by seed for a fair side-by-side comparison against the official baseline.
+    Figure width scales with the number of groups and models for readability.
     """
     font_sizes = PLOT_STYLE["font_sizes"]
     algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
@@ -535,10 +566,12 @@ def _plot_baseline_group(  # noqa: PLR0913
     n_bars = len(models) + 1  # +1 for baseline
     bar_w = 0.7 / max(n_bars, 1)
     n_groups = len(all_seeds) + 1  # +1 for average group
+    n_panels = len(metrics)
 
-    fig, axes = plt.subplots(
-        1, len(metrics), figsize=PLOT_STYLE["figsize_full_width"], squeeze=False
-    )
+    # Scale figure width with data: ~0.55" per group per panel, min = FULL_WIDTH
+    fig_w = max(FULL_WIDTH, 0.55 * n_groups * n_panels)
+    fig_h = 3.2  # slightly taller than default to fit rotated labels
+    fig, axes = plt.subplots(1, n_panels, figsize=(fig_w, fig_h), squeeze=False)
 
     for col_idx, metric in enumerate(metrics):
         ax = axes[0, col_idx]
@@ -584,11 +617,11 @@ def _plot_baseline_group(  # noqa: PLR0913
         # Vertical separator line before Avg group
         ax.axvline(x=len(all_seeds) - 0.5, color="grey", linewidth=0.5, linestyle="--")
 
-        group_labels = [f"seed {s}" for s in all_seeds] + ["Avg"]
+        # Short labels: just seed number + "Avg"
+        group_labels = [str(s) for s in all_seeds] + ["Avg"]
         ax.set_xticks(x)
-        ax.set_xticklabels(
-            group_labels, fontsize=font_sizes["tick_label"], rotation=30, ha="right"
-        )
+        ax.set_xticklabels(group_labels, fontsize=font_sizes["tick_label"])
+        ax.set_xlabel("Seed", fontsize=font_sizes["axes_label"])
         ax.set_ylabel(EVAL_METRIC_LABELS.get(f"eval_{metric}", metric))
         # Use log scale for DPP (values span many orders of magnitude)
         if metric == "DPP":
@@ -607,12 +640,16 @@ def plot_baseline_comparison(
     df: pd.DataFrame,
     output_dir: Path | None = None,
     baseline_dir: Path | None = None,
+    prompt_style: str | None = None,
 ) -> None:
     """Side-by-side grouped bars: agent-trained model vs official baseline.
 
     Produces per-algorithm figures to fit publication column width:
       - baseline_comparison_quality_{algo}.png  (IOG, COG, FOG)
       - baseline_comparison_stats_{algo}.png    (MMD, DPP, viol)
+
+    When prompt_style is given, only the algorithm encoded in that style is
+    plotted and the correct example_id -> config mapping is used.
     """
     setup_style()
     df = _prepare_data(df)
@@ -623,7 +660,11 @@ def plot_baseline_comparison(
         print(f"  No baseline CSVs found in {bdir}, skipping baseline comparison")
         return
 
-    agent_metrics = _extract_agent_metrics(df)
+    # Build config mappings for the correct algorithm
+    algorithm = _algorithm_from_style(prompt_style)
+    _, eid_to_config, _ = _build_config_mappings(algorithm)
+
+    agent_metrics = _extract_agent_metrics(df, example_id_to_config=eid_to_config)
     if agent_metrics is None:
         print(
             "  No agent evaluation metrics found in data, skipping baseline comparison"
@@ -645,8 +686,11 @@ def plot_baseline_comparison(
     quality = [m for m in ["IOG", "COG", "FOG"] if m in available]
     stats = [m for m in ["MMD", "DPP", "viol"] if m in available]
 
-    # Generate per-algorithm comparison plots
-    for algo in _BASELINE_ALGORITHMS:
+    # When prompt_style is given, only plot the matching algorithm;
+    # otherwise iterate over all baseline algorithms.
+    algos_to_plot = [algorithm] if prompt_style else _BASELINE_ALGORITHMS
+
+    for algo in algos_to_plot:
         algo_tag = _ALGO_SHORT.get(algo, algo[:4]).lower()
         if quality:
             _plot_baseline_group(
@@ -671,12 +715,18 @@ def plot_baseline_comparison(
 # ── Main entrypoint ──────────────────────────────────────────────────────────
 
 
-def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
+def main(
+    df: pd.DataFrame,
+    output_dir: Path | None = None,
+    prompt_style: str | None = None,
+) -> None:
     """Generate all HPC training evaluation plots.
 
     Args:
         df: Design-level DataFrame from extract_data.py (with HPC workflow fields).
         output_dir: Directory to save figures.
+        prompt_style: Prompt style (e.g. "hpc-train-cgan") — used to resolve
+            the correct algorithm for config mappings and baseline comparison.
     """
     if df is None or df.empty:
         print("  No data for HPC training plots")
@@ -697,7 +747,7 @@ def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
     plot_evaluation_metrics(df, output_dir=output_dir)
 
     print("\n[5-6/6] Baseline comparison (quality + stats)...")
-    plot_baseline_comparison(df, output_dir=output_dir)
+    plot_baseline_comparison(df, output_dir=output_dir, prompt_style=prompt_style)
 
 
 if __name__ == "__main__":
