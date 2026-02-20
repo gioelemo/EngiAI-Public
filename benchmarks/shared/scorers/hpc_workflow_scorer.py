@@ -159,15 +159,12 @@ def score_hpc_workflow(
     eval_metrics = _extract_evaluation_metrics(messages)
 
     # Evaluation score: did the script run and produce metrics?
-    eval_metrics_score = min(1.0, len(eval_metrics) / 3) if eval_metrics else 0.0
+    eval_metrics_score = min(1.0, len(eval_metrics) / 6) if eval_metrics else 0.0
 
     # --- Composite score ---
-    # Weighted: workflow completion (70%) + evaluation quality (15%) + efficiency (15%)
-    hpc_workflow_score = (
-        0.70 * step_completion_rate
-        + 0.15 * eval_metrics_score
-        + 0.15 * 1.0  # Tool efficiency scored by tool_use_scorer separately
-    )
+    # Weighted: workflow completion (85%) + evaluation quality (15%)
+    # Tool efficiency is scored separately by tool_use_scorer.
+    hpc_workflow_score = 0.85 * step_completion_rate + 0.15 * eval_metrics_score
 
     logger.info(
         "Example %d: step_completion=%d/%d (%.2f), eval_metrics=%d, score=%.3f",

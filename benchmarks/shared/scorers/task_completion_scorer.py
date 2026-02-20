@@ -427,6 +427,39 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     stl_details: dict[str, Any] = {}
     all_stl_details: list[dict[str, Any]] = []  # Accumulates all successful STL calls
 
+    # --- RAG evaluation path: check search + optimize workflow ---
+    is_rag_eval = prompt_style == "rag-eval"
+    if is_rag_eval:
+        tool_calls_info = output.get("tool_calls_info", [])
+        called_tools = {tc.get("name") for tc in tool_calls_info}
+        search_called = "search_documents" in called_tools
+        optimize_called = "optimize_design" in called_tools
+        task_completed = search_called and optimize_called
+        success_rate = 1.0 if task_completed else 0.0
+
+        logger.info(
+            "Example %s (rag-eval): search_documents=%s, optimize_design=%s",
+            example_id,
+            search_called,
+            optimize_called,
+        )
+
+        return {
+            "success_rate": success_rate,
+            "workflow_complete": task_completed,
+            "prompt_style": prompt_style,
+            "success_criteria": "rag_parameter_accuracy",
+            "rag_search_called": search_called,
+            "rag_optimize_called": optimize_called,
+            # Zero-out inapplicable fields
+            "render_called": False,
+            "render_success": False,
+            "stl_called": False,
+            "stl_success": False,
+            "clarification_called": False,
+            "example_id": example_id,
+        }
+
     # --- HPC training path: check workflow steps instead of STL/render tools ---
     if is_hpc_train:
         expected_steps = metadata.get("expected_workflow_steps", HPC_WORKFLOW_STEPS)
