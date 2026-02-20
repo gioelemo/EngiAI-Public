@@ -5,10 +5,11 @@ These prompts are handcrafted and do NOT sample from a HuggingFace dataset.
 Each prompt instructs the agent to train a cGAN model on the Euler HPC cluster,
 then evaluate it using the standard EngiOpt evaluation script.
 
-The 3 prompts vary seed and epochs to test different training configurations:
-  Prompt 0: seed=1, epochs=20  (~10-20min training)
-  Prompt 1: seed=2, epochs=50  (~30-60min training)
-  Prompt 2: seed=3, epochs=100 (~1-2h training)
+The 18 prompts form a full factorial grid (3 seeds x 3 epoch counts x 2
+algorithms) to isolate the effect of each dimension on agent performance:
+  Seeds:      1, 2, 3
+  Epochs:     20 (~10-20min), 50 (~30-60min), 100 (~1-2h)
+  Algorithms: cgan_cnn_2d, diffusion_2d_cond
 
 Usage:
     python benchmarks/problems/hpc_train_beams2d/generate_prompts.py --style hpc-train
@@ -53,25 +54,34 @@ PROMPT_STYLES: dict[str, dict] = {
 }
 
 # ---------------------------------------------------------------------------
-# Training configurations (seed x epochs)
+# Training configurations (seed x epochs x algorithm)
 # ---------------------------------------------------------------------------
 
+ALGORITHMS = ["cgan_cnn_2d", "diffusion_2d_cond"]
+
+ALGORITHM_DISPLAY_NAMES: dict[str, str] = {
+    "cgan_cnn_2d": "cGAN CNN 2D",
+    "diffusion_2d_cond": "conditional diffusion 2D",
+}
+
 TRAINING_CONFIGS = [
-    {"seed": 1, "epochs": 20},
-    {"seed": 2, "epochs": 50},
-    {"seed": 3, "epochs": 100},
+    {"seed": seed, "epochs": epochs, "algorithm": algo}
+    for seed in [1, 2, 3]
+    for epochs in [20, 50, 100]
+    for algo in ALGORITHMS
 ]
 
 
-def _build_prompt(seed: int, epochs: int) -> str:
+def _build_prompt(seed: int, epochs: int, algorithm: str) -> str:
     """Build the explicit step-by-step prompt (hpc-train style)."""
+    display_name = ALGORITHM_DISPLAY_NAMES.get(algorithm, algorithm)
     return (
-        f"Train a cGAN CNN 2D generative model for the Beams2D topology optimization "
+        f"Train a {display_name} generative model for the Beams2D topology optimization "
         f"problem on the Euler HPC cluster, then evaluate it against the dataset "
         f"baseline using the standard EngiOpt evaluation script.\n\n"
         f"Step 1: Generate Training Script\n"
         f"   - Use the generate_training_command tool with:\n"
-        f"     algorithm: cgan_cnn_2d\n"
+        f"     algorithm: {algorithm}\n"
         f"     problem_id: beams2d\n"
         f"     epochs: {epochs}\n"
         f"     seed: {seed}\n\n"
@@ -84,7 +94,7 @@ def _build_prompt(seed: int, epochs: int) -> str:
         f"   - Use the evaluate_model tool to evaluate the trained model\n"
         f"     against the dataset baseline:\n"
         f"     problem_id: beams2d\n"
-        f"     algorithm: cgan_cnn_2d\n"
+        f"     algorithm: {algorithm}\n"
         f"     seed: {seed}\n"
         f"     n_samples: 50\n"
         f"   - This downloads the model from WandB, generates designs, and\n"
@@ -94,14 +104,15 @@ def _build_prompt(seed: int, epochs: int) -> str:
     )
 
 
-def _build_natural_prompt(seed: int, epochs: int) -> str:
+def _build_natural_prompt(seed: int, epochs: int, algorithm: str) -> str:
     """Build a natural-language prompt (hpc-train-natural style).
 
     No tool names, no step numbers, no monitoring/evaluation parameters.
     The agent must infer the full workflow from context.
     """
+    display_name = ALGORITHM_DISPLAY_NAMES.get(algorithm, algorithm)
     return (
-        f"Train a cGAN CNN 2D model for the Beams2D topology optimization problem "
+        f"Train a {display_name} model for the Beams2D topology optimization problem "
         f"on the Euler HPC cluster with seed {seed} and {epochs} epochs. "
         f"Use the available tools to generate the SLURM training script -- do not "
         f"write or modify any scripts manually. "
@@ -118,11 +129,11 @@ def _build_natural_prompt(seed: int, epochs: int) -> str:
 
 HPC_TRAIN_PROMPTS: list[dict] = [
     {
-        "prompt": _build_prompt(cfg["seed"], cfg["epochs"]),
+        "prompt": _build_prompt(cfg["seed"], cfg["epochs"], cfg["algorithm"]),
         "conditions": {
             "seed": cfg["seed"],
             "epochs": cfg["epochs"],
-            "algorithm": "cgan_cnn_2d",
+            "algorithm": cfg["algorithm"],
             "problem_id": "beams2d",
         },
         "metadata": {
@@ -130,7 +141,7 @@ HPC_TRAIN_PROMPTS: list[dict] = [
             "training_config": {
                 "seed": cfg["seed"],
                 "epochs": cfg["epochs"],
-                "algorithm": "cgan_cnn_2d",
+                "algorithm": cfg["algorithm"],
                 "problem_id": "beams2d",
             },
             "expected_workflow_steps": [
@@ -169,7 +180,9 @@ def create_hpc_train_prompts(
     for i, raw in enumerate(HPC_TRAIN_PROMPTS):
         if is_natural:
             cfg = raw["conditions"]
-            prompt_text = _build_natural_prompt(cfg["seed"], cfg["epochs"])
+            prompt_text = _build_natural_prompt(
+                cfg["seed"], cfg["epochs"], cfg["algorithm"]
+            )
         else:
             prompt_text = raw["prompt"]
 
@@ -251,7 +264,9 @@ def main() -> None:
     print(f"Generated {n} prompt(s):")
     for i, p in enumerate(prompts):
         cfg = p["conditions"]
-        print(f"  Prompt {i}: seed={cfg['seed']}, epochs={cfg['epochs']}")
+        print(
+            f"  Prompt {i}: seed={cfg['seed']}, epochs={cfg['epochs']}, algo={cfg['algorithm']}"
+        )
     print(f"\nSaved to: {output_file}")
     print()
     print("Done!")

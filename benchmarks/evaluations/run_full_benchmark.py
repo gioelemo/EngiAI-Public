@@ -120,8 +120,15 @@ def run_agent_evaluation(  # noqa: PLR0913
     prompt_style: str = "full",
     scorers: str = "all",
     mmore_enabled: bool = False,
+    use_run_flag: bool = False,
 ) -> int:
-    """Run agent evaluation for a specific seed."""
+    """Run agent evaluation for a specific seed or run.
+
+    Args:
+        use_run_flag: If True, pass ``seed`` as ``--run`` instead of ``--seed``.
+            Use for problems with fixed prompts (HPC, RAG) where the seed is
+            only a run identifier, not an optimization seed.
+    """
     cmd = [
         str(CONDA_PYTHON),
         str(PROJECT_ROOT / "benchmarks" / "evaluations" / "evaluate_agent.py"),
@@ -129,7 +136,7 @@ def run_agent_evaluation(  # noqa: PLR0913
         problem,
         "--samples",
         str(samples),
-        "--seed",
+        "--run" if use_run_flag else "--seed",
         str(seed),
         "--prompt-style",
         prompt_style,
@@ -284,15 +291,22 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     results: dict[str, dict[int, str]] = {"cgan": {}, "agent": {}}
     failed_seeds: dict[str, list[int]] = {"cgan": [], "agent": []}
 
+    # Problems without a HuggingFace dataset (RAG, HPC) have fixed prompts.
+    # Use --run instead of --seed so Weave traces say "run_N" (repeated eval)
+    # instead of "seed_N" (different dataset sample), and no "Use seed=N"
+    # instruction is appended to the prompt.
+    use_run_flag = not problem_config.dataset_name
+    iter_label = "RUN" if use_run_flag else "SEED"
+
     for seed in args.seeds:
         print()
         print("#" * 60)
-        print(f"# SEED {seed}")
+        print(f"# {iter_label} {seed}")
         print("#" * 60)
 
         # Step 1: Generate prompts (needed for agent evaluation)
         if run_agent and not args.skip_prompt_generation:
-            print(f"\n[Seed {seed}] Generating prompts...")
+            print(f"\n[{iter_label.title()} {seed}] Generating prompts...")
             ret = generate_prompts(
                 args.problem,
                 args.samples,
@@ -300,7 +314,9 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 args.prompt_style,
             )
             if ret != 0:
-                print(f"Warning: Prompt generation failed for seed {seed}")
+                print(
+                    f"Warning: Prompt generation failed for {iter_label.lower()} {seed}"
+                )
 
         # Step 2: Run CGAN evaluation
         if run_cgan:
@@ -320,7 +336,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
 
         # Step 3: Run agent evaluation
         if run_agent:
-            print(f"\n[Seed {seed}] Running agent evaluation...")
+            print(f"\n[{iter_label.title()} {seed}] Running agent evaluation...")
             ret = run_agent_evaluation(
                 args.problem,
                 args.samples,
@@ -329,6 +345,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 args.prompt_style,
                 args.scorers,
                 args.mmore_enabled,
+                use_run_flag=use_run_flag,
             )
             if ret == 0:
                 results["agent"][seed] = "success"

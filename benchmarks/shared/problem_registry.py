@@ -265,7 +265,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
                 "efficiency_ratio": 1.0,
             },
         },
-        prompt_file_template="hpc_train_beams2d_prompts_3_samples_{split}_{style}.json",
+        prompt_file_template="hpc_train_beams2d_prompts_18_samples_{split}_{style}.json",
     ),
 }
 

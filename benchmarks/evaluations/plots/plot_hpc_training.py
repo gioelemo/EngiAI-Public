@@ -36,6 +36,9 @@ from benchmarks.evaluations.plots.utils import (  # noqa: E402
     save_figure,
     setup_style,
 )
+from benchmarks.problems.hpc_train_beams2d.generate_prompts import (  # noqa: E402
+    TRAINING_CONFIGS,
+)
 
 # ── Step labels (display-friendly) ────────────────────────────────────────────
 WORKFLOW_STEPS = [
@@ -52,15 +55,22 @@ STEP_SHORT_LABELS = {
     "evaluate_model": "Evaluate",
 }
 
-# Config labels from example_id
-_CONFIG_LABELS = {
-    0: "seed=1, ep=20",
-    1: "seed=2, ep=50",
-    2: "seed=3, ep=100",
+# ── Dynamic config mappings (derived from TRAINING_CONFIGS) ───────────────────
+_ALGO_SHORT: dict[str, str] = {"cgan_cnn_2d": "cGAN", "diffusion_2d_cond": "Diff"}
+
+# Config labels from example_id (e.g. "s1 e20 cGAN")
+_CONFIG_LABELS: dict[int, str] = {
+    i: f"s{c['seed']} e{c['epochs']} {_ALGO_SHORT.get(c['algorithm'], c['algorithm'][:4])}"
+    for i, c in enumerate(TRAINING_CONFIGS)
 }
 
-# Map example_id → actual training seed (must match TRAINING_CONFIGS in generate_prompts)
-_EXAMPLE_ID_TO_TRAINING_SEED = {0: 1, 1: 2, 2: 3}
+# Map example_id → full training config dict
+_EXAMPLE_ID_TO_CONFIG: dict[int, dict] = dict(enumerate(TRAINING_CONFIGS))
+
+# Map example_id → actual training seed
+_EXAMPLE_ID_TO_TRAINING_SEED: dict[int, int] = {
+    i: c["seed"] for i, c in enumerate(TRAINING_CONFIGS)
+}
 
 
 def _short_model(model_id: str) -> str:
@@ -394,10 +404,10 @@ _BASELINE_DIR = (
 # Metrics to compare (column names in the CSV files)
 _COMPARE_METRICS = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
 
-# Training seeds for which an official baseline exists (100-epoch model only).
-# The agent configs vary epochs (20, 50, 100) so only the 100-epoch config
-# (training seed 3) has a matching official baseline for fair comparison.
-_BASELINE_SEEDS = {3}
+# All seeds have official baselines (cgan_cnn_2d at this epoch count).
+_BASELINE_EPOCHS = 100
+_BASELINE_ALGORITHM = "cgan_cnn_2d"
+_BASELINE_SEEDS = {1, 2, 3}
 
 
 def _load_baseline_csvs(baseline_dir: Path) -> pd.DataFrame | None:
@@ -419,20 +429,26 @@ def _load_baseline_csvs(baseline_dir: Path) -> pd.DataFrame | None:
 
 
 def _extract_agent_metrics(df: pd.DataFrame) -> pd.DataFrame | None:
-    """Extract per-seed agent metrics from the eval_* columns."""
+    """Extract per-config agent metrics from the eval_* columns.
+
+    Uses TRAINING_CONFIGS to resolve (seed, epochs, algorithm) from example_id.
+    """
     rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
         eid = row.get("example_id", 0)
-        # Map example_id to the actual training seed so it aligns with baseline CSVs
+        cfg = _EXAMPLE_ID_TO_CONFIG.get(eid, {})
         entry: dict[str, Any] = {
-            "seed": _EXAMPLE_ID_TO_TRAINING_SEED.get(eid, eid),
+            "seed": cfg.get("seed", eid),
+            "epochs": cfg.get("epochs", 0),
+            "algorithm": cfg.get("algorithm", "unknown"),
+            "example_id": eid,
             "model": row.get("model_short", row.get("model_id", "unknown")),
         }
         for m in _COMPARE_METRICS:
             val = row.get(f"eval_{m}")
             if val is not None and not (isinstance(val, float) and np.isnan(val)):
                 entry[m] = float(val)
-        _min_fields = 2  # seed + model; need at least one metric beyond these
+        _min_fields = 5  # seed + epochs + algorithm + example_id + model
         if len(entry) > _min_fields:
             rows.append(entry)
     return pd.DataFrame(rows) if rows else None
@@ -478,10 +494,26 @@ def _plot_baseline_group(
     filename: str,
     output_dir: Path | None,
 ) -> None:
-    """Plot a 1x3 baseline comparison panel for the given metrics."""
+    """Plot a 1x3 baseline comparison panel for the given metrics.
+
+    Filters agent results to 100-epoch cgan_cnn_2d configs (comparable to
+    the baseline) and groups by seed for a fair side-by-side comparison.
+    """
     font_sizes = PLOT_STYLE["font_sizes"]
-    models = sorted(agent_metrics["model"].unique().tolist())
-    all_seeds = sorted(agent_metrics["seed"].unique().tolist())
+
+    # Filter agent data to comparable configs (100 epochs, cgan_cnn_2d)
+    comparable = agent_metrics
+    if "epochs" in comparable.columns:
+        comparable = comparable[comparable["epochs"] == _BASELINE_EPOCHS]
+    if "algorithm" in comparable.columns:
+        comparable = comparable[comparable["algorithm"] == _BASELINE_ALGORITHM]
+
+    if comparable.empty:
+        print("  No 100-epoch cgan_cnn_2d agent data for baseline comparison")
+        return
+
+    models = sorted(comparable["model"].unique().tolist())
+    all_seeds = sorted(comparable["seed"].unique().tolist())
     n_bars = len(models) + 1  # +1 for baseline
     bar_w = 0.7 / max(n_bars, 1)
 
@@ -494,7 +526,7 @@ def _plot_baseline_group(
         x = np.arange(len(all_seeds))
 
         for i, model in enumerate(models):
-            model_df = agent_metrics[agent_metrics["model"] == model]
+            model_df = comparable[comparable["model"] == model]
             vals = [_get_seed_val(model_df, s, metric) for s in all_seeds]
             offset = (i - (n_bars - 1) / 2) * bar_w
             ax.bar(
@@ -522,8 +554,7 @@ def _plot_baseline_group(
             hatch="//",
         )
 
-        seed_label_map = {1: "seed=1, ep=20", 2: "seed=2, ep=50", 3: "seed=3, ep=100"}
-        seed_labels = [seed_label_map.get(s, f"seed {s}") for s in all_seeds]
+        seed_labels = [f"seed {s}" for s in all_seeds]
         ax.set_xticks(x)
         ax.set_xticklabels(
             seed_labels, fontsize=font_sizes["tick_label"], rotation=30, ha="right"

@@ -10,20 +10,25 @@
 #
 # Pipeline per (style, model):
 #   1. Generate prompts (once per style)
-#   2. Run agent evaluation via evaluate_agent.py
+#   2. Run agent evaluation via evaluate_agent.py (repeated RUNS for variance)
 #   3. Extract data from Weave via extract_data.py
 #   4. Compute HPC metrics via compute_hpc_metrics.py
 #   5. Generate plots via run_all.py
+#
+# Note: HPC prompts are a fixed 3×3×2 grid (seeds 1/2/3 × epochs 20/50/100 ×
+# algorithms cgan_cnn_2d/diffusion_2d_cond = 18 prompts). Multiple RUNS give
+# statistical variance from LLM non-determinism, not different prompts.
+# run_full_benchmark.py auto-detects this and passes --run instead of --seed
+# to evaluate_agent.py, so Weave traces are named "run_N" (not "seed_N").
 
 set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
 MODELS=(
     "openai:gpt-5-mini"
-    "google_genai:gemini-3-flash-preview"
 )
-SEEDS="1 2 3"
-SAMPLES=3
+RUNS="1"
+SAMPLES=2
 PROBLEM="hpc_train_beams2d"
 RAG_STATUS="no_rag"
 # ─────────────────────────────────────────────────────────────────────────────
@@ -41,7 +46,7 @@ echo "HPC Training Benchmark Suite"
 echo "  Problem:       ${PROBLEM}"
 echo "  Models:        ${MODELS[*]}"
 echo "  Prompt styles: ${PROMPT_STYLES[*]}"
-echo "  Seeds:         ${SEEDS}"
+echo "  Runs:          ${RUNS}"
 echo "  Samples:       ${SAMPLES}"
 echo "  RAG status:    ${RAG_STATUS}"
 echo "============================================================"
@@ -66,10 +71,11 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
         echo "  Model: ${MODEL}  |  Style: ${STYLE}"
         echo "------------------------------------------------------------"
 
-        # Step 2: Run agent evaluation
+        # Step 2: Run agent evaluation (--seeds passed to run_full_benchmark.py
+        # which auto-converts to --run for HPC problems)
         python benchmarks/evaluations/run_full_benchmark.py \
             --problem "${PROBLEM}" \
-            --seeds ${SEEDS} \
+            --seeds ${RUNS} \
             --samples "${SAMPLES}" \
             --prompt-style "${STYLE}" \
             --model "${MODEL}" \

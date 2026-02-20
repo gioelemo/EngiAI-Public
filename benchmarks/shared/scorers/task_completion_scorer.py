@@ -471,7 +471,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
             for tc in tool_calls_info:
                 if tc.get("name") == "execute_cli_command":
                     cmd = tc.get("args", {}).get("command", "")
-                    if "evaluate_" in cmd and "engiopt" in cmd:
+                    if "engiopt." in cmd and ".evaluate_" in cmd:
                         called_tools.add("evaluate_model")
                         break
         steps_completed = {step: step in called_tools for step in expected_steps}
