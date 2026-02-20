@@ -260,14 +260,6 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     print("\n[1] Loading agent evaluation CSVs...")
     agent_csvs = find_eval_csvs(search_dir)
 
-    # Fallback: evaluate_model saves CSVs to benchmarks/evaluations/results/
-    if not agent_csvs:
-        flat_results = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
-        if flat_results.exists():
-            agent_csvs = find_eval_csvs(flat_results)
-            if agent_csvs:
-                print(f"  Found {len(agent_csvs)} CSV(s) in {flat_results}")
-
     if not agent_csvs:
         print("  No agent evaluation CSVs found.")
         print(f"  Searched: {search_dir}")
