@@ -431,8 +431,7 @@ _BASELINE_DIR = (
 # Metrics to compare (column names in the CSV files)
 _COMPARE_METRICS = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
 
-# Baselines exist for these algorithms at 100 epochs.
-_BASELINE_EPOCHS = 100
+# Baselines exist for these algorithms across all configured seeds.
 _BASELINE_ALGORITHMS = ALGORITHMS
 _BASELINE_SEEDS = set(SEEDS)
 
