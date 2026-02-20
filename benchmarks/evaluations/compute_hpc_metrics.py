@@ -46,14 +46,15 @@ BASELINE_DIR = (
 
 
 def find_eval_csvs(search_dir: Path) -> list[Path]:
-    """Find all evaluate_cgan_2d.py CSV outputs in a directory tree.
+    """Find all evaluation CSV outputs in a directory tree.
 
-    Looks for files matching the pattern: *_metrics.csv or cgan_2d_*_metrics.csv
+    Looks for files matching common patterns from evaluate_{algorithm}.py.
     """
     patterns = [
         "evaluate_*_metrics.csv",
         "hpc_train_beams2d_seed*_metrics.csv",
-        "cgan_2d_*_metrics.csv",
+        "cgan_cnn_2d_*_metrics.csv",
+        "diffusion_2d_cond_*_metrics.csv",
         "seed*_metrics.csv",
     ]
 

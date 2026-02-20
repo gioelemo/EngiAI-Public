@@ -418,15 +418,15 @@ _BASELINE_DIR = (
 # Metrics to compare (column names in the CSV files)
 _COMPARE_METRICS = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
 
-# All seeds have official baselines (cgan_cnn_2d at this epoch count).
+# Baselines exist for these algorithms at 100 epochs, seeds 1-3.
 _BASELINE_EPOCHS = 100
-_BASELINE_ALGORITHM = "cgan_cnn_2d"
+_BASELINE_ALGORITHMS = ["cgan_cnn_2d", "diffusion_2d_cond"]
 _BASELINE_SEEDS = {1, 2, 3}
 
 
 def _load_baseline_csvs(baseline_dir: Path) -> pd.DataFrame | None:
     """Load all baseline metric CSVs from the given directory."""
-    patterns = ["seed*_metrics.csv", "cgan_*_metrics.csv"]
+    patterns = ["cgan_*_metrics.csv", "diffusion_*_metrics.csv"]
     found: list[Path] = []
     for pattern in patterns:
         found.extend(baseline_dir.rglob(pattern))
@@ -469,27 +469,35 @@ def _extract_agent_metrics(df: pd.DataFrame) -> pd.DataFrame | None:
 
 
 def _extract_baseline_metrics(baseline_df: pd.DataFrame) -> pd.DataFrame:
-    """Extract per-seed baseline metrics from CSV data."""
+    """Extract per-(seed, algorithm) baseline metrics from CSV data."""
     rows: list[dict[str, Any]] = []
-    seeds = (
-        sorted(baseline_df["seed"].unique()) if "seed" in baseline_df.columns else [0]
-    )
-    for seed in seeds:
-        seed_df = (
-            baseline_df[baseline_df["seed"] == seed]
-            if "seed" in baseline_df.columns
-            else baseline_df
-        )
-        entry: dict[str, Any] = {"seed": int(seed)}
-        for m in _COMPARE_METRICS:
-            col = (
-                m
-                if m in seed_df.columns
-                else (m.lower() if m.lower() in seed_df.columns else None)
-            )
-            if col and not seed_df[col].dropna().empty:
-                entry[m] = float(seed_df[col].mean())
-        rows.append(entry)
+
+    # Group by (model_id, seed) to keep algorithms separate
+    has_model = "model_id" in baseline_df.columns
+    has_seed = "seed" in baseline_df.columns
+    algorithms = sorted(baseline_df["model_id"].unique()) if has_model else ["unknown"]
+    seeds = sorted(baseline_df["seed"].unique()) if has_seed else [0]
+
+    for algo in algorithms:
+        for seed in seeds:
+            subset = baseline_df
+            if has_model:
+                subset = subset[subset["model_id"] == algo]
+            if has_seed:
+                subset = subset[subset["seed"] == seed]
+            if subset.empty:
+                continue
+
+            entry: dict[str, Any] = {"seed": int(seed), "algorithm": algo}
+            for m in _COMPARE_METRICS:
+                col = (
+                    m
+                    if m in subset.columns
+                    else (m.lower() if m.lower() in subset.columns else None)
+                )
+                if col and not subset[col].dropna().empty:
+                    entry[m] = float(subset[col].mean())
+            rows.append(entry)
     return pd.DataFrame(rows)
 
 
@@ -501,29 +509,40 @@ def _get_seed_val(frame: pd.DataFrame, seed: int, metric: str) -> float:
     return float(row[metric].iloc[0])
 
 
-def _plot_baseline_group(
+def _plot_baseline_group(  # noqa: PLR0913
     metrics: list[str],
     agent_metrics: pd.DataFrame,
     baseline_metrics: pd.DataFrame,
+    algorithm: str,
     filename: str,
     output_dir: Path | None,
 ) -> None:
     """Plot a 1x3 baseline comparison panel for the given metrics.
 
-    Filters agent results to 100-epoch cgan_cnn_2d configs (comparable to
-    the baseline) and groups by seed for a fair side-by-side comparison.
+    Filters agent results to 100-epoch configs of the given algorithm
+    and groups by seed for a fair side-by-side comparison against the
+    matching official baseline.
     """
     font_sizes = PLOT_STYLE["font_sizes"]
+    algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
 
-    # Filter agent data to comparable configs (100 epochs, cgan_cnn_2d)
+    # Filter agent data to comparable configs (100 epochs, matching algorithm)
     comparable = agent_metrics
     if "epochs" in comparable.columns:
         comparable = comparable[comparable["epochs"] == _BASELINE_EPOCHS]
     if "algorithm" in comparable.columns:
-        comparable = comparable[comparable["algorithm"] == _BASELINE_ALGORITHM]
+        comparable = comparable[comparable["algorithm"] == algorithm]
 
     if comparable.empty:
-        print("  No 100-epoch cgan_cnn_2d agent data for baseline comparison")
+        print(f"  No 100-epoch {algo_short} agent data for baseline comparison")
+        return
+
+    # Filter baseline to matching algorithm
+    algo_baseline = baseline_metrics
+    if "algorithm" in algo_baseline.columns:
+        algo_baseline = algo_baseline[algo_baseline["algorithm"] == algorithm]
+    if algo_baseline.empty:
+        print(f"  No {algo_short} baseline data found")
         return
 
     models = sorted(comparable["model"].unique().tolist())
@@ -554,7 +573,7 @@ def _plot_baseline_group(
 
         # Baseline bar (only for seeds with a matching official model)
         b_vals = [
-            _get_seed_val(baseline_metrics, s, metric) if s in _BASELINE_SEEDS else 0.0
+            _get_seed_val(algo_baseline, s, metric) if s in _BASELINE_SEEDS else 0.0
             for s in all_seeds
         ]
         b_offset = (len(models) - (n_bars - 1) / 2) * bar_w
@@ -562,7 +581,7 @@ def _plot_baseline_group(
             x + b_offset,
             b_vals,
             bar_w * 0.9,
-            label="Baseline (100 ep)",
+            label=f"Baseline ({algo_short})",
             color=COLOR_PALETTE[len(models) % len(COLOR_PALETTE)],
             alpha=0.50,
             hatch="//",
@@ -578,6 +597,7 @@ def _plot_baseline_group(
         if col_idx == 0:
             ax.legend(fontsize=font_sizes["legend"], loc="upper right")
 
+    fig.suptitle(f"Agent vs Baseline — {algo_short}", fontsize=font_sizes["title"])
     fig.tight_layout()
     save_figure(fig, filename, output_dir)
     plt.close(fig)
@@ -590,9 +610,9 @@ def plot_baseline_comparison(
 ) -> None:
     """Side-by-side grouped bars: agent-trained model vs official baseline.
 
-    Produces two separate figures to fit publication column width:
-      - baseline_comparison_quality.png  (IOG, COG, FOG)
-      - baseline_comparison_stats.png    (MMD, DPP, viol)
+    Produces per-algorithm figures to fit publication column width:
+      - baseline_comparison_quality_{algo}.png  (IOG, COG, FOG)
+      - baseline_comparison_stats_{algo}.png    (MMD, DPP, viol)
     """
     setup_style()
     df = _prepare_data(df)
@@ -625,22 +645,27 @@ def plot_baseline_comparison(
     quality = [m for m in ["IOG", "COG", "FOG"] if m in available]
     stats = [m for m in ["MMD", "DPP", "viol"] if m in available]
 
-    if quality:
-        _plot_baseline_group(
-            quality,
-            agent_metrics,
-            baseline_metrics,
-            "baseline_comparison_quality.png",
-            output_dir,
-        )
-    if stats:
-        _plot_baseline_group(
-            stats,
-            agent_metrics,
-            baseline_metrics,
-            "baseline_comparison_stats.png",
-            output_dir,
-        )
+    # Generate per-algorithm comparison plots
+    for algo in _BASELINE_ALGORITHMS:
+        algo_tag = _ALGO_SHORT.get(algo, algo[:4]).lower()
+        if quality:
+            _plot_baseline_group(
+                quality,
+                agent_metrics,
+                baseline_metrics,
+                algo,
+                f"baseline_comparison_quality_{algo_tag}.png",
+                output_dir,
+            )
+        if stats:
+            _plot_baseline_group(
+                stats,
+                agent_metrics,
+                baseline_metrics,
+                algo,
+                f"baseline_comparison_stats_{algo_tag}.png",
+                output_dir,
+            )
 
 
 # ── Main entrypoint ──────────────────────────────────────────────────────────

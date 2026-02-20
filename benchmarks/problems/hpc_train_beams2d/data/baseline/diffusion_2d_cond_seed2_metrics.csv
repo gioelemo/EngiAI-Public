@@ -1,0 +1,2 @@
+iog,cog,fog,mmd,dpp,viol,seed,problem_id,model_id,n_samples,sigma
+288408228.0897451,279434580.597128,1.031421444691594,0.18113418581952487,7.828817018172309e-22,0.98,2,beams2d,diffusion_2d_cond,50,10.0
