@@ -594,7 +594,9 @@ def _plot_baseline_metric(  # noqa: PLR0913
 
     # Baseline bar
     b_vals = [
-        _get_seed_val(algo_baseline, s, metric) if s in _BASELINE_SEEDS else float("nan")
+        _get_seed_val(algo_baseline, s, metric)
+        if s in _BASELINE_SEEDS
+        else float("nan")
         for s in all_seeds
     ]
     b_avg = float(np.nanmean(b_vals)) if not all(np.isnan(b_vals)) else 0.0
