@@ -95,10 +95,11 @@ def _extract_evaluation_metrics(messages: list) -> dict[str, float]:
             if metric_name in content and metric_name not in metrics:
                 # Try to extract numeric value after metric name
                 # Patterns: "IOG: 0.123", "IOG=0.123", "'IOG': 0.123"
+                _NUM = r"-?[0-9]+\.?[0-9]*(?:[eE][+-]?[0-9]+)?"
                 patterns = [
-                    rf"{metric_name}\s*[:=]\s*([0-9]+\.?[0-9]*(?:e[+-]?[0-9]+)?)",
-                    rf"'{metric_name}'\s*:\s*([0-9]+\.?[0-9]*(?:e[+-]?[0-9]+)?)",
-                    rf'"{metric_name}"\s*:\s*([0-9]+\.?[0-9]*(?:e[+-]?[0-9]+)?)',
+                    rf"{metric_name}\s*[:=]\s*({_NUM})",
+                    rf"'{metric_name}'\s*:\s*({_NUM})",
+                    rf'"{metric_name}"\s*:\s*({_NUM})',
                 ]
                 for pattern in patterns:
                     match = re.search(pattern, content)
