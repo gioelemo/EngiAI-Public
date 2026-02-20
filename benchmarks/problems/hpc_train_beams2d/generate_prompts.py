@@ -19,6 +19,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -64,7 +65,14 @@ ALGORITHM_DISPLAY_NAMES: dict[str, str] = {
     "diffusion_2d_cond": "conditional diffusion 2D",
 }
 
-TRAINING_CONFIGS = [
+
+class TrainingConfig(TypedDict):
+    seed: int
+    epochs: int
+    algorithm: str
+
+
+TRAINING_CONFIGS: list[TrainingConfig] = [
     {"seed": seed, "epochs": epochs, "algorithm": algo}
     for seed in [1, 2, 3]
     for epochs in [20, 50, 100]

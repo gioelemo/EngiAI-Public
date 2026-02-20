@@ -15,7 +15,7 @@
 #   4. Compute HPC metrics via compute_hpc_metrics.py
 #   5. Generate plots via run_all.py
 #
-# Note: HPC prompts are a fixed 3×3×2 grid (seeds 1/2/3 × epochs 20/50/100 ×
+# Note: HPC prompts are a fixed 3x3x2 grid (seeds 1/2/3 x epochs 20/50/100 x
 # algorithms cgan_cnn_2d/diffusion_2d_cond = 18 prompts). Multiple RUNS give
 # statistical variance from LLM non-determinism, not different prompts.
 # run_full_benchmark.py auto-detects this and passes --run instead of --seed
@@ -28,7 +28,7 @@ MODELS=(
     "openai:gpt-5-mini"
 )
 RUNS="1"
-SAMPLES=2
+SAMPLES=18
 PROBLEM="hpc_train_beams2d"
 RAG_STATUS="no_rag"
 # ─────────────────────────────────────────────────────────────────────────────
