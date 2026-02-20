@@ -103,9 +103,11 @@ def _build_natural_prompt(seed: int, epochs: int) -> str:
     return (
         f"Train a cGAN CNN 2D model for the Beams2D topology optimization problem "
         f"on the Euler HPC cluster with seed {seed} and {epochs} epochs. "
-        f"You should be able to generate the SLURM training script automatically. "
-        f"Submit the job, wait for it to finish, then evaluate the trained model "
-        f"against the dataset and report the metrics.\n\n"
+        f"Use the available tools to generate the SLURM training script -- do not "
+        f"write or modify any scripts manually. "
+        f"Submit the job and wait for it to finish. Then use the model evaluation "
+        f"tool to evaluate the trained model against the dataset -- it will "
+        f"download the model from WandB automatically. Report the metrics.\n\n"
         f"Do not ask for clarification."
     )
 

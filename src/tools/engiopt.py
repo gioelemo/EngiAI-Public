@@ -1913,6 +1913,12 @@ def evaluate_model(  # noqa: PLR0913
     if wandb_entity:
         cmd.extend(["--wandb-entity", wandb_entity])
 
+    # EngiOpt's evaluation script writes intermediate results into
+    # outputs/eval_{algorithm}_{problem_id}_seed{seed}/ — create it upfront
+    # so the subprocess doesn't fail with "non-existent directory".
+    eval_output_dir = Path(f"outputs/eval_{algorithm}_{problem_id}_seed{seed}")
+    eval_output_dir.mkdir(parents=True, exist_ok=True)
+
     try:
         result = subprocess.run(
             cmd,
