@@ -154,7 +154,20 @@ def _extract_optimal_sequence(
         logger.debug("Using default optimal sequence due to Weave references")
         return default_sequence, default_count
 
-    return optimal_sequence, int(optimal_call_count)
+    # Derive call count from the sequence to guarantee consistency.
+    # The metadata field ``optimal_call_count`` is informational; if it
+    # disagrees with the sequence built from ``optimal_tool_calls``, the
+    # sequence is authoritative (it drives the multiset intersection).
+    sequence_len = len(optimal_sequence)
+    metadata_count = int(optimal_call_count)
+    if metadata_count != sequence_len:
+        logger.warning(
+            "optimal_call_count (%d) != len(optimal_sequence) (%d); "
+            "using sequence length as authoritative",
+            metadata_count,
+            sequence_len,
+        )
+    return optimal_sequence, sequence_len
 
 
 def _rebuild_optimal_tool_calls(optimal_sequence: list[str]) -> list[dict[str, Any]]:
@@ -194,7 +207,7 @@ def score_tool_use(
 ) -> dict[str, Any]:
     """Score the efficiency of tool usage compared to optimal.
 
-    This scorer computes efficiency ratio (optimal_calls / actual_calls).
+    Efficiency ratio = correctly_matched_calls / max(optimal_calls, actual_calls).
     Tool call ordering is NOT scored as multiple valid orderings exist.
 
     Args:

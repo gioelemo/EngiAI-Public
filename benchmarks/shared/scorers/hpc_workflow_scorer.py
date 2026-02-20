@@ -52,12 +52,25 @@ def _check_training_config(
                 )
             except (ValueError, TypeError):
                 epochs_match = False
-            algo_match = cfg.get("algorithm", "cgan_cnn_2d") == training_config.get(
-                "algorithm", "cgan_cnn_2d"
-            )
-            problem_id_match = cfg.get("problem_id", "beams2d") == training_config.get(
-                "problem_id", "beams2d"
-            )
+            # Validate algorithm/problem_id only when the expected config
+            # explicitly specifies them.  Agent-side defaults mirror the
+            # actual tool defaults (cgan_cnn_2d / beams2d).  If the expected
+            # config omits the field, skip that check ("don't care").
+            if "algorithm" in training_config:
+                algo_match = (
+                    cfg.get("algorithm", "cgan_cnn_2d")
+                    == training_config["algorithm"]
+                )
+            else:
+                algo_match = True
+
+            if "problem_id" in training_config:
+                problem_id_match = (
+                    cfg.get("problem_id", "beams2d")
+                    == training_config["problem_id"]
+                )
+            else:
+                problem_id_match = True
             if seed_match and epochs_match and algo_match and problem_id_match:
                 return True
     return False
@@ -147,25 +160,18 @@ def score_hpc_workflow(
     training_config = metadata.get("training_config", {})
 
     # --- Step completion scoring ---
+    # Derive from WORKFLOW_STEPS constant to keep the single source of truth.
     steps_completed: dict[str, bool] = {}
-
-    # 1. generate_training_command called (config correctness scored separately)
-    steps_completed["generate_training_command"] = _check_tool_called(
-        tool_calls_info, "generate_training_command"
-    )
-
-    # 2. submit_slurm_job called
-    steps_completed["submit_slurm_job"] = _check_tool_called(
-        tool_calls_info, "submit_slurm_job"
-    )
-
-    # 3. monitor_job_until_complete called
-    steps_completed["monitor_job_until_complete"] = _check_tool_called(
-        tool_calls_info, "monitor_job_until_complete"
-    )
-
-    # 4. evaluate_model via dedicated tool or CLI fallback
-    steps_completed["evaluate_model"] = _check_evaluate_model(tool_calls_info, messages)
+    for step_name in WORKFLOW_STEPS:
+        if step_name == "evaluate_model":
+            # evaluate_model has a CLI fallback (execute_cli_command with engiopt)
+            steps_completed[step_name] = _check_evaluate_model(
+                tool_calls_info, messages
+            )
+        else:
+            steps_completed[step_name] = _check_tool_called(
+                tool_calls_info, step_name
+            )
 
     completed_count = sum(1 for v in steps_completed.values() if v)
     total_steps = len(steps_completed)

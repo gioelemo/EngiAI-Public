@@ -136,7 +136,7 @@ def compute_global_averages(
         if values:
             global_avg[f"avg_{metric}"] = float(np.mean(values))
             if len(values) > 1:
-                global_avg[f"std_{metric}"] = float(np.std(values))
+                global_avg[f"std_{metric}"] = float(np.std(values, ddof=1))
 
     return global_avg
 

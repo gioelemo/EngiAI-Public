@@ -47,6 +47,7 @@ HPC_WORKFLOW_OUTPUT_FIELDS = [
     "eval_DPP",
     "eval_viol",
     "training_config_correct",
+    "config_score",
 ]
 
 

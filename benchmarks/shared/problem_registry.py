@@ -253,14 +253,15 @@ PROBLEMS: dict[str, ProblemConfig] = {
                 aliases=["model_algorithm"],
             ),
         ],
+        # Note: task_completion (success_rate) is excluded from the combined
+        # score because hpc_workflow_score already embeds step_completion_rate
+        # at 70% weight internally — including success_rate separately would
+        # double-count step completion.  success_rate is still computed and
+        # available in the extracted data as a standalone binary metric.
         score_categories={
             "workflow_completion": {
-                "weight": 0.60,
-                "step_completion_rate": 1.0,
-            },
-            "task_completion": {
-                "weight": 0.20,
-                "success_rate": 1.0,
+                "weight": 0.80,
+                "hpc_workflow_score": 1.0,
             },
             "tool_efficiency": {
                 "weight": 0.20,
