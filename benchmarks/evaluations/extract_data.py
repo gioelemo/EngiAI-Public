@@ -172,29 +172,16 @@ def _compute_combined_overall_score(  # noqa: PLR0912
     Returns:
         Combined weighted score [0.0, 1.0], or None if insufficient data
     """
-    # Derive category weights from problem registry
-    # Fallback to beams2d if problem_type not provided or not found
+    # Derive category weights from the problem registry (single source of truth).
+    # Falls back to beams2d from the registry itself — no hardcoded copies.
     try:
-        if problem_type:
-            problem_config = get_problem_config(problem_type)
-            weights = {
-                category: category_cfg["weight"]
-                for category, category_cfg in problem_config.score_categories.items()
-            }
-        else:
-            # Fallback weights (beams2d)
-            weights = {
-                "design_quality": 0.65,
-                "tool_efficiency": 0.20,
-                "task_completion": 0.15,
-            }
+        problem_config = get_problem_config(problem_type or "beams2d")
     except (ValueError, KeyError):
-        # If problem config not found or malformed, use beams2d fallback
-        weights = {
-            "design_quality": 0.65,
-            "tool_efficiency": 0.20,
-            "task_completion": 0.15,
-        }
+        problem_config = get_problem_config("beams2d")
+    weights = {
+        category: category_cfg["weight"]
+        for category, category_cfg in problem_config.score_categories.items()
+    }
 
     category_scores = {}
 

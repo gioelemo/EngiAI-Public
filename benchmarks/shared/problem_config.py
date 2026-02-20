@@ -138,28 +138,10 @@ class ProblemConfig:
     conditions: list[ConditionConfig] = field(default_factory=list)
     """List of conditions/constraints to check"""
 
-    score_categories: dict[str, dict[str, float]] = field(
-        default_factory=lambda: {
-            "design_quality": {
-                "weight": 0.65,  # Merged with printability (0.50 + 0.15)
-                "iou": 0.31,
-                "pixel_accuracy": 0.19,
-                "constraint_match": 0.12,
-                "objective_match": 0.15,
-                "connectivity": 0.12,
-                "watertightness": 0.11,
-            },
-            "tool_efficiency": {
-                "weight": 0.20,
-                "efficiency_ratio": 1.0,  # Tool ordering not scored
-            },
-            "task_completion": {
-                "weight": 0.15,
-                "success_rate": 1.0,
-            },
-        }
-    )
-    """Hierarchical score configuration with category weights and metric weights within categories"""
+    score_categories: dict[str, dict[str, float]] = field(default_factory=dict)
+    """Hierarchical score configuration with category weights and metric weights
+    within categories.  Must be set explicitly in the problem registry — there is
+    no default to avoid silently inheriting another problem's weights."""
 
     primary_scorer: str = "output_quality"
     """Primary scorer type for this problem.
@@ -195,8 +177,11 @@ class ProblemConfig:
                         f"got {metric_sum}. Weights: {metric_weights}"
                     )
 
-        # Validate category weights sum to 1.0
-        if not (WEIGHT_SUM_MIN <= category_weights_sum <= WEIGHT_SUM_MAX):
+        # Validate category weights sum to 1.0 (skip when empty — allows
+        # lightweight ProblemConfig construction in tests/utilities).
+        if self.score_categories and not (
+            WEIGHT_SUM_MIN <= category_weights_sum <= WEIGHT_SUM_MAX
+        ):
             raise ValueError(
                 f"Category weights should sum to ~1.0, got {category_weights_sum}. "
                 f"Categories: {list(self.score_categories.keys())}"

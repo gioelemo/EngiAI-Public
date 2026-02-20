@@ -15,6 +15,13 @@ import logging
 import re
 from typing import Any
 
+from benchmarks.shared.scorers.hpc_workflow_scorer import (
+    WORKFLOW_STEPS as HPC_WORKFLOW_STEPS,
+)
+from benchmarks.shared.scorers.hpc_workflow_scorer import (
+    _check_evaluate_model as _hpc_check_evaluate_model,
+)
+
 logger = logging.getLogger(__name__)
 
 # Tool names to check for task completion
@@ -24,14 +31,6 @@ CLARIFICATION_TOOL_NAME = "ask_human_for_clarification"
 
 # Expected number of STL exports for workflow-multi-export
 MULTI_EXPORT_COUNT = 2
-
-# Default expected workflow steps for HPC training prompts
-HPC_WORKFLOW_STEPS = [
-    "generate_training_command",
-    "submit_slurm_job",
-    "monitor_job_until_complete",
-    "evaluate_model",
-]
 
 
 def _parse_tool_result(content: str, example_id: int) -> dict[str, Any] | None:
@@ -463,18 +462,18 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     # --- HPC training path: check workflow steps instead of STL/render tools ---
     if is_hpc_train:
         expected_steps = metadata.get("expected_workflow_steps", HPC_WORKFLOW_STEPS)
-        # Use tool_calls_info (same source as hpc_workflow_scorer) for consistency
+        # Reuse hpc_workflow_scorer helpers (single source of truth)
         tool_calls_info = output.get("tool_calls_info", [])
-        called_tools = {tc.get("name") for tc in tool_calls_info}
-        # CLI fallback for evaluate_model (matches hpc_workflow_scorer logic)
-        if "evaluate_model" not in called_tools:
-            for tc in tool_calls_info:
-                if tc.get("name") == "execute_cli_command":
-                    cmd = tc.get("args", {}).get("command", "")
-                    if "engiopt." in cmd and ".evaluate_" in cmd:
-                        called_tools.add("evaluate_model")
-                        break
-        steps_completed = {step: step in called_tools for step in expected_steps}
+        steps_completed: dict[str, bool] = {}
+        for step_name in expected_steps:
+            if step_name == "evaluate_model":
+                steps_completed[step_name] = _hpc_check_evaluate_model(
+                    tool_calls_info, messages
+                )
+            else:
+                steps_completed[step_name] = any(
+                    tc.get("name") == step_name for tc in tool_calls_info
+                )
         completed_count = sum(steps_completed.values())
         total_steps = len(expected_steps)
         task_completed = completed_count == total_steps
