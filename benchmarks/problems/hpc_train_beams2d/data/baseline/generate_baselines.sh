@@ -6,8 +6,8 @@
 # comparison plots.
 #
 # Algorithms:
-#   - cgan_cnn_2d:       official 100-epoch cGAN model (baselines for seeds 1-3)
-#   - diffusion_2d_cond: official 100-epoch diffusion model (baselines for seeds 1-3)
+#   - cgan_cnn_2d:       official 100-epoch cGAN model (baselines for seeds 1-10)
+#   - diffusion_2d_cond: official 100-epoch diffusion model (baselines for seeds 1-10)
 #
 # Note: diffusion artifacts live under the "engibench" WandB entity and need
 # --wandb-entity engibench to resolve correctly.
@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
 # ── Configuration ────────────────────────────────────────────────────────────
-SEEDS=(1 2 3)
+SEEDS=(1 2 3 4 5 6 7 8 9 10)
 ALGORITHMS=("cgan_cnn_2d" "diffusion_2d_cond")
 PROBLEM_ID="beams2d"
 N_SAMPLES=50

@@ -1,18 +1,20 @@
 """
-Generate HPC cGAN training evaluation prompts for the hpc_train_beams2d problem.
+Generate HPC training evaluation prompts for the hpc_train_beams2d problem.
 
 These prompts are handcrafted and do NOT sample from a HuggingFace dataset.
-Each prompt instructs the agent to train a cGAN model on the Euler HPC cluster,
-then evaluate it using the standard EngiOpt evaluation script.
+Each prompt instructs the agent to train a generative model on the Euler HPC
+cluster, then evaluate it using the standard EngiOpt evaluation script.
 
-The 18 prompts form a full factorial grid (3 seeds x 3 epoch counts x 2
-algorithms) to isolate the effect of each dimension on agent performance:
-  Seeds:      1, 2, 3
-  Epochs:     20 (~10-20min), 50 (~30-60min), 100 (~1-2h)
-  Algorithms: cgan_cnn_2d, diffusion_2d_cond
+The prompts form a grid of 10 seeds for a single algorithm (fixed at 100 epochs
+to match the official baselines). The algorithm is selected via `--algorithm`.
+
+  Seeds:      1..10
+  Epochs:     100 (fixed — matches official baselines)
+  Algorithms: cgan_cnn_2d OR diffusion_2d_cond (selected via --algorithm)
 
 Usage:
-    python benchmarks/problems/hpc_train_beams2d/generate_prompts.py --style hpc-train
+    python benchmarks/problems/hpc_train_beams2d/generate_prompts.py \
+        --style hpc-train --algorithm cgan_cnn_2d
 """
 
 import argparse
@@ -31,7 +33,7 @@ sys.path.insert(0, str(project_root))
 
 PROMPT_STYLES: dict[str, dict] = {
     "hpc-train": {
-        "description": "HPC training workflow: train cGAN, then evaluate with EngiOpt metrics",
+        "description": "HPC training workflow: train model, then evaluate with EngiOpt metrics",
         "optimal_tool_calls": [
             {"name": "generate_training_command", "count": 1},
             {"name": "submit_slurm_job", "count": 1},
@@ -55,7 +57,7 @@ PROMPT_STYLES: dict[str, dict] = {
 }
 
 # ---------------------------------------------------------------------------
-# Training configurations (seed x epochs x algorithm)
+# Training configurations (seed x algorithm, fixed epochs=100)
 # ---------------------------------------------------------------------------
 
 ALGORITHMS = ["cgan_cnn_2d", "diffusion_2d_cond"]
@@ -65,6 +67,9 @@ ALGORITHM_DISPLAY_NAMES: dict[str, str] = {
     "diffusion_2d_cond": "conditional diffusion 2D",
 }
 
+SEEDS = list(range(1, 11))  # 1..10
+EPOCHS = 100  # Fixed — matches official baselines
+
 
 class TrainingConfig(TypedDict):
     seed: int
@@ -72,12 +77,14 @@ class TrainingConfig(TypedDict):
     algorithm: str
 
 
-TRAINING_CONFIGS: list[TrainingConfig] = [
-    {"seed": seed, "epochs": epochs, "algorithm": algo}
-    for seed in [1, 2, 3]
-    for epochs in [20, 50, 100]
-    for algo in ALGORITHMS
-]
+def get_training_configs(algorithm: str) -> list[TrainingConfig]:
+    """Build training configs for the given algorithm (10 seeds, fixed epochs)."""
+    return [{"seed": seed, "epochs": EPOCHS, "algorithm": algorithm} for seed in SEEDS]
+
+
+# Default configs used by plotting and other importers.
+# When the prompt generator runs, it filters to a single algorithm via --algorithm.
+TRAINING_CONFIGS: list[TrainingConfig] = get_training_configs(ALGORITHMS[0])
 
 
 def _build_prompt(seed: int, epochs: int, algorithm: str) -> str:
@@ -132,82 +139,68 @@ def _build_natural_prompt(seed: int, epochs: int, algorithm: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Handcrafted prompts
-# ---------------------------------------------------------------------------
-
-HPC_TRAIN_PROMPTS: list[dict] = [
-    {
-        "prompt": _build_prompt(cfg["seed"], cfg["epochs"], cfg["algorithm"]),
-        "conditions": {
-            "seed": cfg["seed"],
-            "epochs": cfg["epochs"],
-            "algorithm": cfg["algorithm"],
-            "problem_id": "beams2d",
-        },
-        "metadata": {
-            "problem_type": "hpc_train_beams2d",
-            "training_config": {
-                "seed": cfg["seed"],
-                "epochs": cfg["epochs"],
-                "algorithm": cfg["algorithm"],
-                "problem_id": "beams2d",
-            },
-            "expected_workflow_steps": [
-                "generate_training_command",
-                "submit_slurm_job",
-                "monitor_job_until_complete",
-                "evaluate_model",
-            ],
-        },
-        "target": {},
-    }
-    for cfg in TRAINING_CONFIGS
-]
-
-
-# ---------------------------------------------------------------------------
 # Prompt generation
 # ---------------------------------------------------------------------------
 
 
 def create_hpc_train_prompts(
     style: str = "hpc-train",
+    algorithm: str = "cgan_cnn_2d",
     seed: int | None = None,  # noqa: ARG001 — kept for CLI compat
     samples: int | None = None,  # noqa: ARG001 — kept for CLI compat
 ) -> list[dict]:
-    """Return the list of HPC training evaluation prompts."""
+    """Return the list of HPC training evaluation prompts for one algorithm."""
     if style not in PROMPT_STYLES:
         raise ValueError(
             f"Unknown prompt style '{style}'. Available: {list(PROMPT_STYLES.keys())}"
         )
+    if algorithm not in ALGORITHMS:
+        raise ValueError(f"Unknown algorithm '{algorithm}'. Available: {ALGORITHMS}")
 
     style_config = PROMPT_STYLES[style]
     is_natural = style == "hpc-train-natural"
+    configs = get_training_configs(algorithm)
     prompts = []
 
-    for i, raw in enumerate(HPC_TRAIN_PROMPTS):
+    for i, cfg in enumerate(configs):
         if is_natural:
-            cfg = raw["conditions"]
             prompt_text = _build_natural_prompt(
                 cfg["seed"], cfg["epochs"], cfg["algorithm"]
             )
         else:
-            prompt_text = raw["prompt"]
+            prompt_text = _build_prompt(cfg["seed"], cfg["epochs"], cfg["algorithm"])
 
         prompts.append(
             {
                 "prompt": prompt_text,
                 "prompt_style": style,
-                "conditions": raw["conditions"],
+                "conditions": {
+                    "seed": cfg["seed"],
+                    "epochs": cfg["epochs"],
+                    "algorithm": cfg["algorithm"],
+                    "problem_id": "beams2d",
+                },
                 "metadata": {
-                    **raw["metadata"],
+                    "problem_type": "hpc_train_beams2d",
+                    "training_config": {
+                        "seed": cfg["seed"],
+                        "epochs": cfg["epochs"],
+                        "algorithm": cfg["algorithm"],
+                        "problem_id": "beams2d",
+                    },
                     "prompt_style": style,
                     "prompt_style_description": style_config["description"],
                     "success_criteria": style_config["success_criteria"],
+                    "expected_workflow_steps": [
+                        "generate_training_command",
+                        "submit_slurm_job",
+                        "monitor_job_until_complete",
+                        "evaluate_model",
+                    ],
                 },
                 "optimal_tool_calls": style_config["optimal_tool_calls"],
                 "optimal_call_count": style_config["optimal_call_count"],
-                "target": raw["target"],
+                "target": {},
                 "example_id": i,
                 "dataset_split": "test",
             }
@@ -226,6 +219,13 @@ def main() -> None:
         default="hpc-train",
         choices=list(PROMPT_STYLES.keys()),
         help="Prompt style to generate (default: hpc-train)",
+    )
+    parser.add_argument(
+        "--algorithm",
+        type=str,
+        default="cgan_cnn_2d",
+        choices=ALGORITHMS,
+        help="Algorithm to generate prompts for (default: cgan_cnn_2d)",
     )
     parser.add_argument(
         "--seed",
@@ -252,11 +252,15 @@ def main() -> None:
     print("HPC_TRAIN_BEAMS2D PROMPT GENERATION")
     print("=" * 60)
     print()
-    print(f"Style:  {args.style}")
-    print(f"Seed:   {args.seed} (ignored — prompts are fixed)")
+    print(f"Style:     {args.style}")
+    print(f"Algorithm: {args.algorithm}")
+    print(f"Seeds:     {SEEDS}")
+    print(f"Epochs:    {EPOCHS} (fixed)")
     print()
 
-    prompts = create_hpc_train_prompts(style=args.style, seed=args.seed)
+    prompts = create_hpc_train_prompts(
+        style=args.style, algorithm=args.algorithm, seed=args.seed
+    )
     n = len(prompts)
 
     output_dir = Path(__file__).parent / "data" / "generated"

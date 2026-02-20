@@ -37,6 +37,8 @@ from benchmarks.evaluations.plots.utils import (  # noqa: E402
     setup_style,
 )
 from benchmarks.problems.hpc_train_beams2d.generate_prompts import (  # noqa: E402
+    ALGORITHMS,
+    SEEDS,
     TRAINING_CONFIGS,
 )
 
@@ -58,16 +60,15 @@ STEP_SHORT_LABELS = {
 # ── Dynamic config mappings (derived from TRAINING_CONFIGS) ───────────────────
 _ALGO_SHORT: dict[str, str] = {"cgan_cnn_2d": "cGAN", "diffusion_2d_cond": "Diff"}
 
-# Config labels from example_id (e.g. "s1 e20 cGAN")
+# Config labels: since each run is single-algorithm, just show "seed N"
 _CONFIG_LABELS: dict[int, str] = {
-    i: f"s{c['seed']} e{c['epochs']} {_ALGO_SHORT.get(c['algorithm'], c['algorithm'][:4])}"
-    for i, c in enumerate(TRAINING_CONFIGS)
+    i: f"seed {c['seed']}" for i, c in enumerate(TRAINING_CONFIGS)
 }
 
-# Map example_id → full training config dict
+# Map example_id -> full training config dict
 _EXAMPLE_ID_TO_CONFIG: dict[int, dict] = dict(enumerate(TRAINING_CONFIGS))
 
-# Map example_id → actual training seed
+# Map example_id -> actual training seed
 _EXAMPLE_ID_TO_TRAINING_SEED: dict[int, int] = {
     i: c["seed"] for i, c in enumerate(TRAINING_CONFIGS)
 }
@@ -133,7 +134,7 @@ def plot_step_completion_heatmap(
     fig_height = max(1.8, 0.35 * n_rows + 0.8)
     fig, ax = plt.subplots(figsize=(PLOT_STYLE["figsize_full_width"][0], fig_height))
 
-    # Custom colormap: red (0) → green (1)
+    # Custom colormap: red (0) -> green (1)
     cmap = sns.color_palette(["#d9534f", "#f0ad4e", "#5cb85c"], as_cmap=True)
     sns.heatmap(
         grouped.values,
@@ -169,7 +170,6 @@ def plot_workflow_score_bars(
     """Grouped bar chart: hpc_workflow_score per model, grouped by config.
 
     One group per training config (example_id), bars = models.
-    Figure width scales with the number of configs to keep labels readable.
     """
     setup_style()
     df = _prepare_data(df)
@@ -183,9 +183,7 @@ def plot_workflow_score_bars(
     n_models = len(models)
     n_configs = len(configs)
 
-    # Scale width: ~0.6" per config, min 6.75"
-    fig_w = max(PLOT_STYLE["figsize_full_width"][0], 0.6 * n_configs)
-    fig, ax = plt.subplots(figsize=(fig_w, PLOT_STYLE["figsize_full_width"][1]))
+    fig, ax = plt.subplots(figsize=PLOT_STYLE["figsize_full_width"])
 
     bar_width = 0.7 / max(n_models, 1)
     x = np.arange(n_configs)
@@ -212,24 +210,22 @@ def plot_workflow_score_bars(
             color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
             alpha=0.85,
         )
-        # Add value labels on bars (only when few configs to avoid clutter)
+        # Add value labels on bars
         _min_label = 0.02
-        _max_annotated = 10
-        if n_configs <= _max_annotated:
-            for bar, val in zip(bars, means, strict=False):
-                if val > _min_label:
-                    ax.text(
-                        bar.get_x() + bar.get_width() / 2,
-                        bar.get_height() + 0.01,
-                        f"{val:.2f}",
-                        ha="center",
-                        va="bottom",
-                        fontsize=PLOT_STYLE["font_sizes"]["annotation"],
-                    )
+        for bar, val in zip(bars, means, strict=False):
+            if val > _min_label:
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.01,
+                    f"{val:.2f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=PLOT_STYLE["font_sizes"]["annotation"],
+                )
 
     config_labels = [_CONFIG_LABELS.get(c, f"Config {c}") for c in configs]
     ax.set_xticks(x)
-    ax.set_xticklabels(config_labels, rotation=45, ha="right")
+    ax.set_xticklabels(config_labels)
     ax.set_ylabel("HPC Workflow Score")
     ax.set_ylim(0, 1.05)
     ax.legend(loc="upper right", framealpha=0.9)
@@ -330,8 +326,7 @@ def plot_evaluation_metrics(
     """Grouped bar chart of EngiOpt evaluation metrics per model x config.
 
     Shows IOG, COG, FOG, MMD, DPP, violation rate extracted from
-    evaluate_cgan_2d.py output.  Uses a 2x3 grid, scaling width with
-    the number of configs to keep labels readable.
+    the evaluation output. Uses a 2x3 grid.
     """
     setup_style()
     df = _prepare_data(df)
@@ -349,14 +344,9 @@ def plot_evaluation_metrics(
     n_rows = (len(available) + n_cols - 1) // n_cols
     n_configs = len(configs)
 
-    # Scale width: ~0.5" per config per column, min full width
-    _extra_height_threshold = 6  # add extra height when configs exceed this
-    base_w = PLOT_STYLE["figsize_full_width_tall"][0]
-    fig_w = max(base_w, 0.5 * n_configs * n_cols / n_cols + 1.5)
-    fig_h = PLOT_STYLE["figsize_full_width_tall"][1] + (
-        0.5 if n_configs > _extra_height_threshold else 0
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=PLOT_STYLE["figsize_full_width_tall"], squeeze=False
     )
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_w, fig_h), squeeze=False)
 
     for idx, metric in enumerate(available):
         ax = axes[idx // n_cols, idx % n_cols]
@@ -390,8 +380,6 @@ def plot_evaluation_metrics(
         ax.set_xticklabels(
             config_labels,
             fontsize=font_sizes["tick_label"],
-            rotation=45,
-            ha="right",
         )
         ax.set_ylabel(EVAL_METRIC_LABELS.get(metric, metric))
         ax.grid(True, axis="y", alpha=0.3)
@@ -418,10 +406,10 @@ _BASELINE_DIR = (
 # Metrics to compare (column names in the CSV files)
 _COMPARE_METRICS = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
 
-# Baselines exist for these algorithms at 100 epochs, seeds 1-3.
+# Baselines exist for these algorithms at 100 epochs.
 _BASELINE_EPOCHS = 100
-_BASELINE_ALGORITHMS = ["cgan_cnn_2d", "diffusion_2d_cond"]
-_BASELINE_SEEDS = {1, 2, 3}
+_BASELINE_ALGORITHMS = ALGORITHMS
+_BASELINE_SEEDS = set(SEEDS)
 
 
 def _load_baseline_csvs(baseline_dir: Path) -> pd.DataFrame | None:
@@ -519,22 +507,19 @@ def _plot_baseline_group(  # noqa: PLR0913
 ) -> None:
     """Plot a 1x3 baseline comparison panel for the given metrics.
 
-    Filters agent results to 100-epoch configs of the given algorithm
-    and groups by seed for a fair side-by-side comparison against the
-    matching official baseline.
+    Filters agent results to configs of the given algorithm and groups
+    by seed for a fair side-by-side comparison against the official baseline.
     """
     font_sizes = PLOT_STYLE["font_sizes"]
     algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
 
-    # Filter agent data to comparable configs (100 epochs, matching algorithm)
+    # Filter agent data to matching algorithm
     comparable = agent_metrics
-    if "epochs" in comparable.columns:
-        comparable = comparable[comparable["epochs"] == _BASELINE_EPOCHS]
     if "algorithm" in comparable.columns:
         comparable = comparable[comparable["algorithm"] == algorithm]
 
     if comparable.empty:
-        print(f"  No 100-epoch {algo_short} agent data for baseline comparison")
+        print(f"  No {algo_short} agent data for baseline comparison")
         return
 
     # Filter baseline to matching algorithm
