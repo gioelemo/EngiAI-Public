@@ -155,6 +155,10 @@ def score_hpc_workflow(
     total_steps = len(steps_completed)
     step_completion_rate = completed_count / total_steps if total_steps > 0 else 0.0
 
+    # --- Training config correctness ---
+    training_config_correct = _check_training_config(tool_calls_info, training_config)
+    config_score = 1.0 if training_config_correct else 0.0
+
     # --- Evaluation metrics extraction (for analysis) ---
     eval_metrics = _extract_evaluation_metrics(messages)
 
@@ -162,16 +166,20 @@ def score_hpc_workflow(
     eval_metrics_score = min(1.0, len(eval_metrics) / 6) if eval_metrics else 0.0
 
     # --- Composite score ---
-    # Weighted: workflow completion (85%) + evaluation quality (15%)
+    # Weighted: step completion (70%) + config correctness (15%) + eval metrics (15%)
     # Tool efficiency is scored separately by tool_use_scorer.
-    hpc_workflow_score = 0.85 * step_completion_rate + 0.15 * eval_metrics_score
+    hpc_workflow_score = (
+        0.70 * step_completion_rate + 0.15 * config_score + 0.15 * eval_metrics_score
+    )
 
     logger.info(
-        "Example %d: step_completion=%d/%d (%.2f), eval_metrics=%d, score=%.3f",
+        "Example %d: step_completion=%d/%d (%.2f), config_correct=%s, "
+        "eval_metrics=%d, score=%.3f",
         example_id,
         completed_count,
         total_steps,
         step_completion_rate,
+        training_config_correct,
         len(eval_metrics),
         hpc_workflow_score,
     )
@@ -184,14 +192,13 @@ def score_hpc_workflow(
         "steps_completed_count": completed_count,
         "steps_total": total_steps,
         **{f"step_{k}": v for k, v in steps_completed.items()},
+        # Training config correctness
+        "training_config_correct": training_config_correct,
+        "config_score": config_score,
         # Evaluation metrics (from EngiOpt evaluation script output)
         "eval_metrics": eval_metrics,
         "eval_metrics_count": len(eval_metrics),
         "eval_metrics_score": eval_metrics_score,
         **{f"eval_{k}": v for k, v in eval_metrics.items()},
-        # Metadata
-        "training_config_correct": _check_training_config(
-            tool_calls_info, training_config
-        ),
         "example_id": example_id,
     }
