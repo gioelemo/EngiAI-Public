@@ -534,6 +534,7 @@ def _plot_baseline_group(  # noqa: PLR0913
     all_seeds = sorted(comparable["seed"].unique().tolist())
     n_bars = len(models) + 1  # +1 for baseline
     bar_w = 0.7 / max(n_bars, 1)
+    n_groups = len(all_seeds) + 1  # +1 for average group
 
     fig, axes = plt.subplots(
         1, len(metrics), figsize=PLOT_STYLE["figsize_full_width"], squeeze=False
@@ -541,11 +542,15 @@ def _plot_baseline_group(  # noqa: PLR0913
 
     for col_idx, metric in enumerate(metrics):
         ax = axes[0, col_idx]
-        x = np.arange(len(all_seeds))
+        x = np.arange(n_groups)
 
         for i, model in enumerate(models):
             model_df = comparable[comparable["model"] == model]
             vals = [_get_seed_val(model_df, s, metric) for s in all_seeds]
+            avg = float(
+                np.mean([v for v in vals if v > 0]) if any(v > 0 for v in vals) else 0.0
+            )
+            vals.append(avg)
             offset = (i - (n_bars - 1) / 2) * bar_w
             ax.bar(
                 x + offset,
@@ -561,6 +566,10 @@ def _plot_baseline_group(  # noqa: PLR0913
             _get_seed_val(algo_baseline, s, metric) if s in _BASELINE_SEEDS else 0.0
             for s in all_seeds
         ]
+        b_avg = float(
+            np.mean([v for v in b_vals if v > 0]) if any(v > 0 for v in b_vals) else 0.0
+        )
+        b_vals.append(b_avg)
         b_offset = (len(models) - (n_bars - 1) / 2) * bar_w
         ax.bar(
             x + b_offset,
@@ -572,17 +581,20 @@ def _plot_baseline_group(  # noqa: PLR0913
             hatch="//",
         )
 
-        seed_labels = [f"seed {s}" for s in all_seeds]
+        # Vertical separator line before Avg group
+        ax.axvline(x=len(all_seeds) - 0.5, color="grey", linewidth=0.5, linestyle="--")
+
+        group_labels = [f"seed {s}" for s in all_seeds] + ["Avg"]
         ax.set_xticks(x)
         ax.set_xticklabels(
-            seed_labels, fontsize=font_sizes["tick_label"], rotation=30, ha="right"
+            group_labels, fontsize=font_sizes["tick_label"], rotation=30, ha="right"
         )
         ax.set_ylabel(EVAL_METRIC_LABELS.get(f"eval_{metric}", metric))
         ax.grid(True, axis="y", alpha=0.3)
         if col_idx == 0:
             ax.legend(fontsize=font_sizes["legend"], loc="upper right")
 
-    fig.suptitle(f"Agent vs Baseline — {algo_short}", fontsize=font_sizes["title"])
+    fig.suptitle(f"Agent vs Baseline — {algo_short}", fontsize=font_sizes["axes_title"])
     fig.tight_layout()
     save_figure(fig, filename, output_dir)
     plt.close(fig)

@@ -28,10 +28,10 @@ MODELS=(
     "openai:gpt-5-mini"
 )
 RUNS="1"
-SAMPLES=10
+SAMPLES=2
 PROBLEM="hpc_train_beams2d"
 RAG_STATUS="no_rag"
-ALGORITHMS=("cgan_cnn_2d" "diffusion_2d_cond")
+ALGORITHMS=("cgan_cnn_2d")
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Prompt styles from CLI args
