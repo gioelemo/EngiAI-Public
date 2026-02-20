@@ -76,9 +76,7 @@ class TestCheckTrainingConfig:
         tc_info = [
             {
                 "name": "generate_training_command",
-                "args": {
-                    "cfg": {"seed": 2, "epochs": 50, "algorithm": "cgan_cnn_2d"}
-                },
+                "args": {"cfg": {"seed": 2, "epochs": 50, "algorithm": "cgan_cnn_2d"}},
             }
         ]
         config = {"seed": 2, "epochs": 50, "algorithm": "cgan_cnn_2d"}
@@ -438,7 +436,11 @@ class TestScoreHpcWorkflow:
     def test_cli_fallback_for_evaluate(self):
         """evaluate_model via CLI fallback counts as step completion."""
         output = _make_output_with_config(
-            ["generate_training_command", "submit_slurm_job", "monitor_job_until_complete"],
+            [
+                "generate_training_command",
+                "submit_slurm_job",
+                "monitor_job_until_complete",
+            ],
             {"seed": 1, "epochs": 20, "algorithm": "cgan_cnn_2d"},
         )
         # Add CLI fallback for evaluate_model
