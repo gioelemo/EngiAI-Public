@@ -299,6 +299,7 @@ def create_rag_prompts(
                 "conditions": raw["conditions"],
                 "metadata": {
                     **raw["metadata"],
+                    "problem_type": "rag_beams2d",
                     "prompt_style": style,
                     "prompt_style_description": style_config["description"],
                     "success_criteria": style_config["success_criteria"],

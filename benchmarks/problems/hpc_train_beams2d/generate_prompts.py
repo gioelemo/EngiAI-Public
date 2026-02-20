@@ -126,6 +126,7 @@ HPC_TRAIN_PROMPTS: list[dict] = [
             "problem_id": "beams2d",
         },
         "metadata": {
+            "problem_type": "hpc_train_beams2d",
             "training_config": {
                 "seed": cfg["seed"],
                 "epochs": cfg["epochs"],
