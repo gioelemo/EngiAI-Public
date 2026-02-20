@@ -199,6 +199,8 @@ max-args = 5
 "scripts/**/*" = ["T20", "N999"]
 # Prompt generation uses keyword-only args with sensible defaults, 6 params is reasonable
 "benchmarks/shared/prompt_generation.py" = ["PLR0913"]
+# Plot scripts use sys.path guard before benchmarks.* imports for standalone execution
+"benchmarks/evaluations/plots/*.py" = ["E402"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "services"]
@@ -254,14 +256,12 @@ exclude = [
   "docs",
   "services/prusa_mcp_server/prusa-mcp",
   "benchmarks/shared/metrics.py",
-  "benchmarks/evaluations/plots",
 ]
 [[tool.mypy.overrides]]
 module = [
   "arxiv",
   "bs4",
   "beautifulsoup4",
-  "benchmarks.evaluations.plots.*",
   "benchmarks.shared.metrics",
   "cryptography.*",
   "datasets",

@@ -26,10 +26,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
-from benchmarks.evaluations.plots.utils import (  # noqa: E402
+from benchmarks.evaluations.plots.utils import (
     COLOR_PALETTE,
     FULL_WIDTH,
     PLOT_STYLE,
@@ -37,10 +38,11 @@ from benchmarks.evaluations.plots.utils import (  # noqa: E402
     save_figure,
     setup_style,
 )
-from benchmarks.problems.hpc_train_beams2d.generate_prompts import (  # noqa: E402
+from benchmarks.problems.hpc_train_beams2d.generate_prompts import (
     ALGORITHMS,
     PROMPT_STYLES,
     SEEDS,
+    TrainingConfig,
     get_training_configs,
 )
 
@@ -65,7 +67,7 @@ _ALGO_SHORT: dict[str, str] = {"cgan_cnn_2d": "cGAN", "diffusion_2d_cond": "Diff
 
 def _build_config_mappings(
     algorithm: str = "cgan_cnn_2d",
-) -> tuple[dict[int, str], dict[int, dict], dict[int, int]]:
+) -> tuple[dict[int, str], dict[int, TrainingConfig], dict[int, int]]:
     """Build example_id -> config mappings for the given algorithm.
 
     Returns (config_labels, example_id_to_config, example_id_to_seed).
@@ -425,7 +427,11 @@ def plot_evaluation_metrics(
 
 # Baseline CSV directory
 _BASELINE_DIR = (
-    PROJECT_ROOT / "benchmarks" / "problems" / "hpc_train_beams2d" / "data" / "baseline"
+    Path(__file__).parent.parent.parent
+    / "problems"
+    / "hpc_train_beams2d"
+    / "data"
+    / "baseline"
 )
 
 # Metrics to compare (column names in the CSV files)
@@ -456,14 +462,15 @@ def _load_baseline_csvs(baseline_dir: Path) -> pd.DataFrame | None:
 
 def _extract_agent_metrics(
     df: pd.DataFrame,
-    example_id_to_config: dict[int, dict] | None = None,
+    example_id_to_config: dict[int, TrainingConfig] | None = None,
 ) -> pd.DataFrame | None:
     """Extract per-config agent metrics from the eval_* columns.
 
     Uses example_id_to_config to resolve (seed, epochs, algorithm) from example_id.
     Falls back to the module-level default mappings (cgan) if not provided.
     """
-    eid_map = example_id_to_config or _EXAMPLE_ID_TO_CONFIG
+    src = example_id_to_config or _EXAMPLE_ID_TO_CONFIG
+    eid_map: dict[int, dict[str, Any]] = {k: dict(v) for k, v in src.items()}
     rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
         eid = row.get("example_id", 0)

@@ -26,17 +26,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
-from benchmarks.evaluations.plots.utils import (  # noqa: E402
+from benchmarks.evaluations.plots.utils import (
     COLOR_PALETTE,
     PLOT_STYLE,
     get_problem_prompt_output_dir,
     save_figure,
     setup_style,
 )
-from benchmarks.shared.scorers.rag_scorer import (  # noqa: E402
+from benchmarks.shared.scorers.rag_scorer import (
     COMPONENT_WEIGHTS_DOUBLE,
     COMPONENT_WEIGHTS_RMIN,
     COMPONENT_WEIGHTS_SINGLE,
@@ -313,10 +314,10 @@ def plot_rag_score_components(
                     mask = sub_eid["model_short"] == m
                     v = sub_eid.loc[mask, f"_wt_{col}"].mean() if mask.any() else 0.0
                     vals.append(0.0 if np.isnan(v) else float(v))
-                vals = np.array(vals)
+                bar_vals = np.array(vals)
                 ax.bar(
                     x + offset,
-                    vals,
+                    bar_vals,
                     bar_width,
                     bottom=bottoms,
                     color=_COMPONENT_COLORS.get(key, COLOR_PALETTE[0]),
@@ -324,7 +325,7 @@ def plot_rag_score_components(
                     edgecolor="white",
                     linewidth=0.5,
                 )
-                bottoms += vals
+                bottoms += bar_vals
 
         # P0/P1 sub-labels under each bar
         xaxis_tr = ax.get_xaxis_transform()
@@ -999,9 +1000,12 @@ def main(df: pd.DataFrame, output_dir: Path | None = None) -> None:
 
 if __name__ == "__main__":
     import argparse
-    from pathlib import Path
 
-    from utils import filter_by_problem, get_combined_design_df, load_data
+    from benchmarks.evaluations.plots.utils import (
+        filter_by_problem,
+        get_combined_design_df,
+        load_data,
+    )
 
     parser = argparse.ArgumentParser(description="Generate RAG evaluation plots")
     parser.add_argument("--problem", default="rag_beams2d")

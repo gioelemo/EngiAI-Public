@@ -20,21 +20,29 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
-from generate_summary_table import create_summary_table  # noqa: E402
-from plot_combined_overall_score import plot_combined_overall_score  # noqa: E402
-from plot_design_quality import plot_design_quality  # noqa: E402
-from plot_dpp_vs_fog import plot_dpp_vs_fog  # noqa: E402
-from plot_dpp_vs_mmd import plot_dpp_vs_mmd  # noqa: E402
-from plot_hpc_training import main as plot_hpc_training_main  # noqa: E402
-from plot_iou_vs_objective import plot_iou_vs_objective  # noqa: E402
-from plot_metrics_comparison import plot_metrics_comparison  # noqa: E402
-from plot_rag_evaluation import main as plot_rag_evaluation_main  # noqa: E402
-from plot_tool_heatmap_counts import plot_tool_heatmap_counts  # noqa: E402
-from plot_tool_usage import (  # noqa: E402
+from benchmarks.evaluations.plots.generate_summary_table import create_summary_table
+from benchmarks.evaluations.plots.plot_combined_overall_score import (
+    plot_combined_overall_score,
+)
+from benchmarks.evaluations.plots.plot_design_quality import plot_design_quality
+from benchmarks.evaluations.plots.plot_dpp_vs_fog import plot_dpp_vs_fog
+from benchmarks.evaluations.plots.plot_dpp_vs_mmd import plot_dpp_vs_mmd
+from benchmarks.evaluations.plots.plot_hpc_training import (
+    main as plot_hpc_training_main,
+)
+from benchmarks.evaluations.plots.plot_iou_vs_objective import plot_iou_vs_objective
+from benchmarks.evaluations.plots.plot_metrics_comparison import plot_metrics_comparison
+from benchmarks.evaluations.plots.plot_rag_evaluation import (
+    main as plot_rag_evaluation_main,
+)
+from benchmarks.evaluations.plots.plot_tool_heatmap_counts import (
+    plot_tool_heatmap_counts,
+)
+from benchmarks.evaluations.plots.plot_tool_usage import (
     plot_performance_distribution_by_tool_count,
     plot_tool_heatmap_by_model,
     plot_tool_heatmap_with_std,
@@ -43,9 +51,7 @@ from plot_tool_usage import (  # noqa: E402
     plot_tool_usage_frequency,
     plot_tool_usage_vs_performance,
 )
-
-from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
-from utils import (  # noqa: E402
+from benchmarks.evaluations.plots.utils import (
     filter_by_problem,
     filter_by_prompt_style,
     filter_by_rag_status,
@@ -55,6 +61,7 @@ from utils import (  # noqa: E402
     get_problem_prompt_output_dir,
     load_data,
 )
+from benchmarks.shared.problem_registry import PROBLEMS
 
 
 def _generate_global_plots(combined_global, output_dir, problem: str | None = None):

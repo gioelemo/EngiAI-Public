@@ -11,10 +11,17 @@ This shows the full weighted overall score across all three categories:
 For individual category scores, see plot_design_quality.py.
 """
 
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from utils import (
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from benchmarks.evaluations.plots.utils import (
     PLOT_STYLE,
     get_combined_design_df,
     load_data,

@@ -6,9 +6,20 @@ Creates summary statistics table in CSV and LaTeX formats.
 Shows mean ± std for DPP, MMD, FOG, RVC.
 """
 
+import sys
+from pathlib import Path
+
 import pandas as pd
 
-from utils import get_combined_global_df, get_output_dir, load_data
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from benchmarks.evaluations.plots.utils import (
+    get_combined_global_df,
+    get_output_dir,
+    load_data,
+)
 
 
 def create_summary_table(combined_df, output_dir=None):

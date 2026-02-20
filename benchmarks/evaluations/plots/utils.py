@@ -11,18 +11,20 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-from benchmarks.evaluations.extract_data import HPC_WORKFLOW_OUTPUT_FIELDS  # noqa: E402
-from benchmarks.shared.problem_registry import PROBLEMS as _PROBLEMS  # noqa: E402
-from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS  # noqa: E402
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from benchmarks.evaluations.extract_data import HPC_WORKFLOW_OUTPUT_FIELDS
+from benchmarks.shared.problem_registry import PROBLEMS as _PROBLEMS
+from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS
 
 # Constants
 DEFAULT_N_SAMPLES = 10
@@ -318,7 +320,7 @@ COLOR_PALETTE = [
 MARKER_PALETTE = ["o", "s", "^", "D", "v", "p", "*", "h"]
 
 # Plot style configuration for publication
-PLOT_STYLE = {
+PLOT_STYLE: dict[str, Any] = {
     # Figure sizes for 2-column format
     "figsize_single_col": (COLUMN_WIDTH, 2.4),
     "figsize_single_col_tall": (COLUMN_WIDTH, 3.0),
