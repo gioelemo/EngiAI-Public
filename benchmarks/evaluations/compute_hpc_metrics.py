@@ -202,7 +202,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         "--prompt-style",
         type=str,
         default="hpc-train",
-        choices=["hpc-train"],
+        choices=["hpc-train", "hpc-train-natural"],
         help="Prompt style used (default: hpc-train)",
     )
     parser.add_argument(

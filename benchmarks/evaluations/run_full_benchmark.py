@@ -185,6 +185,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             "workflow-multi-export",
             "rag-eval",
             "hpc-train",
+            "hpc-train-natural",
         ],
         help="Prompt style for agent evaluation (default: full)",
     )

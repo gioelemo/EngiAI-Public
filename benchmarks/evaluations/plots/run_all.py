@@ -284,6 +284,7 @@ def _parse_args():
             "workflow-multi-export",
             "rag-eval",
             "hpc-train",
+            "hpc-train-natural",
         ],
         help="Generate plots only for a specific prompt style (saves to figures/{problem}/{style}/)",
     )

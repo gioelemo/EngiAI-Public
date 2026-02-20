@@ -900,6 +900,7 @@ def main():
             "workflow-multi-export",
             "rag-eval",
             "hpc-train",
+            "hpc-train-natural",
         ],
         help="Prompt style used (default: full)",
     )
