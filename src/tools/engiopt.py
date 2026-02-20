@@ -1938,16 +1938,27 @@ def evaluate_model(  # noqa: PLR0913
         # Parse metrics from the output CSV
         metrics = _parse_eval_csv(output_csv)
 
+        if not metrics:
+            return {
+                "success": False,
+                "metrics": {},
+                "output_csv": output_csv,
+                "stdout": result.stdout,
+                "error": (
+                    f"Evaluation script ran but produced no metrics. "
+                    f"CSV '{output_csv}' is missing or empty."
+                ),
+            }
+
         message_parts = [
             f"✅ Evaluation complete for {algorithm} ({problem_id}, seed={seed})",
             f"   Samples: {n_samples}, Sigma: {sigma}",
             f"   Results saved to: {output_csv}",
+            "\n   Metrics:",
         ]
-        if metrics:
-            message_parts.append("\n   Metrics:")
-            for k, v in metrics.items():
-                if isinstance(v, float):
-                    message_parts.append(f"     {k}: {v:.6g}")
+        for k, v in metrics.items():
+            if isinstance(v, float):
+                message_parts.append(f"     {k}: {v:.6g}")
 
         return {
             "success": True,
