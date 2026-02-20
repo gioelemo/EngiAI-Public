@@ -548,14 +548,32 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0915
         result["response_length"] = score_output.get("response_length")
         result["model_latency"] = score_output.get("model_latency")
 
-        # Extract problem_type early to use for weight derivation
+        # Determine problem_type for weight derivation.
+        # Try output_quality first (standard workflows), then example metadata
+        # (RAG/HPC where output_quality is empty).
         problem_type = None
         if isinstance(output_quality, dict):
             problem_type = output_quality.get("problem_type")
+        if problem_type is None:
+            try:
+                ex_meta = example.get("metadata", {}) if hasattr(example, "get") else {}
+                problem_type = (ex_meta or {}).get("problem_type")
+            except (AttributeError, TypeError, KeyError):
+                pass
+
+        # For RAG and HPC problems, the primary scorer output lives under a
+        # different Weave key (rag_evaluation / hpc_workflow) instead of
+        # output_quality.  Merge it so _compute_combined_overall_score can
+        # find domain-specific score fields (rag_benefit_score, hpc_workflow_score).
+        primary_scorer_output = dict(output_quality) if output_quality else {}
+        if isinstance(rag_evaluation, dict) and rag_evaluation:
+            primary_scorer_output.update(rag_evaluation)
+        if isinstance(hpc_workflow, dict) and hpc_workflow:
+            primary_scorer_output.update(hpc_workflow)
 
         # Extract all metrics from scorers (pass problem_type for weight derivation)
         metrics = _extract_metrics_from_scorers(
-            output_quality, task_completion, tool_use, problem_type
+            primary_scorer_output, task_completion, tool_use, problem_type
         )
         result.update(metrics)
 
