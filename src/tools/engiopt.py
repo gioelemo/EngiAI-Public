@@ -1671,7 +1671,7 @@ def _build_slurm_script(
     # Get logs directory from settings
     logs_dir = get_setting_from_db("slurm_logs_dir", "$SCRATCH/logs")
 
-    if os.getenv("SKIP_SLURM_EMAIL"):
+    if os.getenv("SKIP_SLURM_EMAIL", "false").lower() == "true":
         mail_lines = "# Mail notifications disabled (SKIP_SLURM_EMAIL)"
     else:
         mail_lines = (
