@@ -55,9 +55,9 @@ def _check_training_config(
             algo_match = cfg.get("algorithm", "cgan_cnn_2d") == training_config.get(
                 "algorithm", "cgan_cnn_2d"
             )
-            problem_id_match = cfg.get(
+            problem_id_match = cfg.get("problem_id", "beams2d") == training_config.get(
                 "problem_id", "beams2d"
-            ) == training_config.get("problem_id", "beams2d")
+            )
             if seed_match and epochs_match and algo_match and problem_id_match:
                 return True
     return False
@@ -192,7 +192,9 @@ def score_hpc_workflow(
     w_eval = 0.15 if steps_completed["evaluate_model"] else 0.0
     w_step = 1.0 - w_config - w_eval  # absorbs unused secondary weights
     hpc_workflow_score = (
-        w_step * step_completion_rate + w_config * config_score + w_eval * eval_metrics_score
+        w_step * step_completion_rate
+        + w_config * config_score
+        + w_eval * eval_metrics_score
     )
 
     logger.info(
