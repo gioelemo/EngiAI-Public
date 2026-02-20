@@ -218,9 +218,7 @@ def plot_workflow_score_bars(
                 else model_df
             )
             means.append(
-                subset["hpc_workflow_score"].mean()
-                if len(subset) > 0
-                else float("nan")
+                subset["hpc_workflow_score"].mean() if len(subset) > 0 else float("nan")
             )
 
         offset = (i - (n_models - 1) / 2) * bar_width
@@ -390,9 +388,7 @@ def plot_evaluation_metrics(
                     if "example_id" in model_df.columns
                     else model_df
                 )
-                vals.append(
-                    subset[metric].mean() if len(subset) > 0 else float("nan")
-                )
+                vals.append(subset[metric].mean() if len(subset) > 0 else float("nan"))
 
             offset = (i - (n_models - 1) / 2) * bar_width
             ax.bar(

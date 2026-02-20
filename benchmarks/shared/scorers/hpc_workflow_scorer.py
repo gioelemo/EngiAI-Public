@@ -58,16 +58,14 @@ def _check_training_config(
             # config omits the field, skip that check ("don't care").
             if "algorithm" in training_config:
                 algo_match = (
-                    cfg.get("algorithm", "cgan_cnn_2d")
-                    == training_config["algorithm"]
+                    cfg.get("algorithm", "cgan_cnn_2d") == training_config["algorithm"]
                 )
             else:
                 algo_match = True
 
             if "problem_id" in training_config:
                 problem_id_match = (
-                    cfg.get("problem_id", "beams2d")
-                    == training_config["problem_id"]
+                    cfg.get("problem_id", "beams2d") == training_config["problem_id"]
                 )
             else:
                 problem_id_match = True
@@ -169,9 +167,7 @@ def score_hpc_workflow(
                 tool_calls_info, messages
             )
         else:
-            steps_completed[step_name] = _check_tool_called(
-                tool_calls_info, step_name
-            )
+            steps_completed[step_name] = _check_tool_called(tool_calls_info, step_name)
 
     completed_count = sum(1 for v in steps_completed.values() if v)
     total_steps = len(steps_completed)
