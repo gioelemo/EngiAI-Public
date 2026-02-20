@@ -188,7 +188,11 @@ def _compute_combined_overall_score(  # noqa: PLR0912
 
     category_scores = {}
 
-    # 1. Design Quality (from output_quality scorer)
+    # 1. Design Quality / domain-specific primary score
+    #    - Workflow (beams2d): output_quality_scorer → "design_quality_score"
+    #    - RAG (rag_beams2d): rag_scorer → "rag_benefit_score"  (category: rag_accuracy)
+    #    - HPC (hpc_train_beams2d): hpc_workflow_scorer → "hpc_workflow_score"
+    #      (category: workflow_completion)
     if isinstance(output_quality, dict):
         dq_score = output_quality.get("design_quality_score")
         if dq_score is not None:
@@ -203,12 +207,20 @@ def _compute_combined_overall_score(  # noqa: PLR0912
             # so the combined score stays comparable across models.
             category_scores["design_quality"] = 1.0
 
+        # RAG evaluation: rag_benefit_score maps to "rag_accuracy" category
+        rag_score = output_quality.get("rag_benefit_score")
+        if rag_score is not None:
+            category_scores["rag_accuracy"] = float(rag_score)
+
+        # HPC evaluation: hpc_workflow_score maps to "workflow_completion" category
+        hpc_score = output_quality.get("hpc_workflow_score")
+        if hpc_score is not None:
+            category_scores["workflow_completion"] = float(hpc_score)
+
     # 2. Tool Efficiency (from tool_use scorer)
     if isinstance(tool_use, dict):
         efficiency_ratio = tool_use.get("efficiency_ratio")
         if efficiency_ratio is not None:
-            # Use efficiency_ratio directly (100% weight)
-            # Tool ordering is not scored as multiple valid orderings exist
             category_scores["tool_efficiency"] = float(efficiency_ratio)
 
     # 3. Task Completion (from task_completion scorer)
@@ -217,13 +229,11 @@ def _compute_combined_overall_score(  # noqa: PLR0912
         if success_rate is not None:
             category_scores["task_completion"] = float(success_rate)
 
-    # Note: Printability is now part of design_quality category
-
     # If no categories available, return None
     if not category_scores:
         return None
 
-    # Compute weighted sum using fixed category weights.
+    # Compute weighted sum using category weights from the problem registry.
     # Missing categories contribute zero and do not cause renormalization.
     total_score = 0.0
     for category_name, weight in weights.items():

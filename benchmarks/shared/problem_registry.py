@@ -253,16 +253,15 @@ PROBLEMS: dict[str, ProblemConfig] = {
         ],
         score_categories={
             "workflow_completion": {
-                "weight": 0.50,
+                "weight": 0.60,
                 "step_completion_rate": 1.0,
             },
-            "design_quality": {
-                "weight": 0.35,
-                "designs_generated": 0.30,
-                "simulations_completed": 0.70,
+            "task_completion": {
+                "weight": 0.20,
+                "success_rate": 1.0,
             },
             "tool_efficiency": {
-                "weight": 0.15,
+                "weight": 0.20,
                 "efficiency_ratio": 1.0,
             },
         },
