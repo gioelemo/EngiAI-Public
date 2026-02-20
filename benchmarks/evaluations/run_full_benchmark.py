@@ -97,17 +97,17 @@ def run_cgan_evaluation(
         str(CONDA_PYTHON),
         "-m",
         "engiopt.cgan_cnn_2d.evaluate_cgan_cnn_2d",
-        "--problem_id",
+        "--problem-id",
         problem,
         "--seed",
         str(seed),
         "--n-samples",
         str(samples),
-        "--output_csv",
+        "--output-csv",
         str(output_csv),
     ]
     if wandb_entity:
-        cmd.extend(["--wandb_entity", wandb_entity])
+        cmd.extend(["--wandb-entity", wandb_entity])
 
     return run_command(cmd, cwd=ENGIOPT_ROOT)
 
