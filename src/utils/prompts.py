@@ -2,8 +2,27 @@
 Prompt templates for different agents.
 """
 
+import os
+import re
+
 from config import config
 from src.tools.problems import SUPPORTED_PROBLEMS
+
+
+def _is_eval_mode() -> bool:
+    """Check if running in evaluation/benchmark mode (suppresses UI-only sections)."""
+    return os.getenv("EVAL_MODE", "false").lower() == "true"
+
+
+# Regex to strip the "## Suggested Next Prompts" section from agent prompts.
+# Matches from the heading to the end of the string (it's always the last section).
+_SUGGESTED_PROMPTS_RE = re.compile(r"\n*## Suggested Next Prompts.*", re.DOTALL)
+
+
+def strip_suggested_prompts(prompt: str) -> str:
+    """Remove the suggested-prompts section from a system prompt."""
+    return _SUGGESTED_PROMPTS_RE.sub("", prompt)
+
 
 # ============================================================================
 # Dynamic Documentation Generators
@@ -321,6 +340,11 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - If ALL steps in the user's request are complete, choose FINISH.
    - Choose supervisor_response only for direct informational questions ("what can you do?")
    - **IMPORTANT**: Use the `task_instruction` field to scope each agent's work to ONLY the next incomplete step(s). Agents will try to complete everything they can with their tools, so you MUST explicitly tell them what to do and what NOT to do.
+
+9. **Clarification** (CRITICAL):
+   - NEVER instruct an agent to ask for clarification on parameters that are already specified in the user's message (e.g., volfrac, rmin, force distribution, threshold, scale, extrusion).
+   - NEVER instruct an agent to ask about internal tool defaults (mesh resolution, boundary conditions, material parameters, solver settings, convergence tolerance, element size, etc.) — these are handled automatically by the tools.
+   - Only the delegated agent decides if clarification is needed, based on its own system prompt rules. Your task_instruction should describe WHAT to do, not WHETHER to ask the user first.
 
 Select the agent that best matches the NEXT INCOMPLETE step and explain your reasoning briefly."""
 

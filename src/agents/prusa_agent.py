@@ -22,7 +22,11 @@ from config import config
 from prusa_mcp_server.client import PrusaMCPClient
 from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
-from src.utils.prompts import PRUSA_AGENT_SYSTEM_PROMPT
+from src.utils.prompts import (
+    PRUSA_AGENT_SYSTEM_PROMPT,
+    _is_eval_mode,
+    strip_suggested_prompts,
+)
 
 # Try to import nest_asyncio for better async compatibility
 try:
@@ -217,9 +221,10 @@ class PrusaAgent:
         Returns:
             Updated state with LLM response
         """
-        messages: list[AnyMessage] = [
-            SystemMessage(content=PRUSA_AGENT_SYSTEM_PROMPT)
-        ] + state["messages"]
+        prompt = PRUSA_AGENT_SYSTEM_PROMPT
+        if _is_eval_mode():
+            prompt = strip_suggested_prompts(prompt)
+        messages: list[AnyMessage] = [SystemMessage(content=prompt)] + state["messages"]
 
         # Count LLM calls, but reset on new user messages
         # Check if the last message is from user (new turn)

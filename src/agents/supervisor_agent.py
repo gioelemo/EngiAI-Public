@@ -30,6 +30,8 @@ from src.models.state import MessagesState
 from src.utils.prompts import (
     SUPERVISOR_AGENT_SYSTEM_PROMPT,
     SUPERVISOR_CAPABILITIES_PROMPT,
+    _is_eval_mode,
+    strip_suggested_prompts,
 )
 
 logger = logging.getLogger(__name__)
@@ -231,8 +233,11 @@ class SupervisorAgent:
     def _supervisor_response_node(self, state: SupervisorState):
         """Supervisor responds directly to informational questions."""
 
+        cap_prompt = SUPERVISOR_CAPABILITIES_PROMPT
+        if _is_eval_mode():
+            cap_prompt = strip_suggested_prompts(cap_prompt)
         messages = [
-            {"role": "system", "content": SUPERVISOR_CAPABILITIES_PROMPT},
+            {"role": "system", "content": cap_prompt},
             *state["messages"],
         ]
         response = self.llm.invoke(messages)

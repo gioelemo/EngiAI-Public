@@ -39,6 +39,8 @@ logging.getLogger("langchain_core.callbacks.manager").setLevel(logging.ERROR)
 
 # Set SKIP_MCP to avoid Prusa MCP server connection issues during evaluation
 os.environ["SKIP_MCP"] = "true"
+# Suppress UI-only prompt sections (suggested_prompts) during evaluation
+os.environ["EVAL_MODE"] = "true"
 
 # Note: SKIP_MMORE is now controlled by the --mmore / --no-mmore CLI flag
 
