@@ -69,9 +69,10 @@ def _check_evaluate_model(
         if name == "evaluate_model":
             return True
         # Fallback: CLI execution of the evaluation script
+        # Matches: python -m engiopt.cgan_cnn_2d.evaluate_cgan_cnn_2d ...
         if name == "execute_cli_command":
             command = tc.get("args", {}).get("command", "")
-            if "evaluate_" in command and "engiopt" in command:
+            if "engiopt." in command and ".evaluate_" in command:
                 return True
 
     return False
@@ -95,11 +96,11 @@ def _extract_evaluation_metrics(messages: list) -> dict[str, float]:
             if metric_name in content and metric_name not in metrics:
                 # Try to extract numeric value after metric name
                 # Patterns: "IOG: 0.123", "IOG=0.123", "'IOG': 0.123"
-                _NUM = r"-?[0-9]+\.?[0-9]*(?:[eE][+-]?[0-9]+)?"
+                num_pat = r"-?[0-9]+\.?[0-9]*(?:[eE][+-]?[0-9]+)?"
                 patterns = [
-                    rf"{metric_name}\s*[:=]\s*({_NUM})",
-                    rf"'{metric_name}'\s*:\s*({_NUM})",
-                    rf'"{metric_name}"\s*:\s*({_NUM})',
+                    rf"{metric_name}\s*[:=]\s*({num_pat})",
+                    rf"'{metric_name}'\s*:\s*({num_pat})",
+                    rf'"{metric_name}"\s*:\s*({num_pat})',
                 ]
                 for pattern in patterns:
                     match = re.search(pattern, content)
