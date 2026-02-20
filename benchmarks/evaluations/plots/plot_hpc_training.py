@@ -590,6 +590,9 @@ def _plot_baseline_group(  # noqa: PLR0913
             group_labels, fontsize=font_sizes["tick_label"], rotation=30, ha="right"
         )
         ax.set_ylabel(EVAL_METRIC_LABELS.get(f"eval_{metric}", metric))
+        # Use log scale for DPP (values span many orders of magnitude)
+        if metric == "DPP":
+            ax.set_yscale("log")
         ax.grid(True, axis="y", alpha=0.3)
         if col_idx == 0:
             ax.legend(fontsize=font_sizes["legend"], loc="upper right")
