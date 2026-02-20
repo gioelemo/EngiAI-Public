@@ -260,8 +260,11 @@ def prepare_evaluation_dataset(
     for i, prompt_data in enumerate(prompts[:sample_size]):
         prompt = prompt_data["prompt"]
 
-        # Add seed instruction if provided
-        if seed is not None:
+        # Add seed instruction if provided.
+        # Skip for HPC problems — training seeds are already embedded in the
+        # prompt text and appending a global seed creates contradictions.
+        problem_type = eval_metadata.get("problem_type", "")
+        if seed is not None and not problem_type.startswith("hpc_train"):
             prompt = f"{prompt}\n\nIMPORTANT: Use seed={seed} when calling tools."
 
         eval_dataset.append(
