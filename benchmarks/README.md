@@ -61,10 +61,6 @@ benchmarks/
         │                   └── comparisons/          # Design comparison images
         │                       ├── seed_1/
         │                       └── seed_2/
-        └── baselines/         # Baseline method results (CSV format)
-            └── cgan_cnn_2d/
-                └── {problem}/
-                    └── output_quality_global_metrics.csv
 ```
 
 ## Quick Start
@@ -241,11 +237,6 @@ python benchmarks/evaluations/run_full_benchmark.py \
   --model gpt-4o \
   --seeds 1 2 3 4 5 6 7 8 9 10 \
   --samples 50
-
-# Compare results
-python benchmarks/evaluations/compare_results.py \
-  --problem beams2d \
-  --model gpt-4o
 ```
 
 Results are automatically organized by model in `results/models/{model}/{problem}/{prompt_style}/{rag_status}/` for easy comparison.
@@ -267,7 +258,7 @@ All problems use the output quality scorer (`score_output_quality`) which evalua
 
 The scorer is configuration-driven via `benchmarks.shared.problem_registry`.
 
-See [problems/beams2d/SCORING_METRICS.md](problems/beams2d/SCORING_METRICS.md) for detailed metric definitions.
+Metric definitions are configured per problem in `shared/problem_registry.py`.
 
 ### Task Completion Scorer
 

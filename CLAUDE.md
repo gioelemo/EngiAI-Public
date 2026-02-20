@@ -150,7 +150,7 @@ python benchmarks/evaluations/evaluate_agent.py \
 # Full benchmark with multiple seeds
 python benchmarks/evaluations/run_full_benchmark.py \
     --problem beams2d --samples 10 --seeds 1 2 3 \
-    --prompt-style workflow-random --agent-only
+    --prompt-style workflow-random
 ```
 
 **Validation Metrics:**
