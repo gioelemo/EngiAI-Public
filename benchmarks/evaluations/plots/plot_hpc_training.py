@@ -527,19 +527,17 @@ def _get_seed_val(frame: pd.DataFrame, seed: int, metric: str) -> float:
     return float(row[metric].iloc[0])
 
 
-def _plot_baseline_group(  # noqa: PLR0913
-    metrics: list[str],
+def _plot_baseline_metric(  # noqa: PLR0913
+    metric: str,
     agent_metrics: pd.DataFrame,
     baseline_metrics: pd.DataFrame,
     algorithm: str,
     filename: str,
     output_dir: Path | None,
 ) -> None:
-    """Plot a 1xN baseline comparison panel for the given metrics.
+    """Plot a single-metric baseline comparison figure.
 
-    Filters agent results to configs of the given algorithm and groups
-    by seed for a fair side-by-side comparison against the official baseline.
-    Figure width scales with the number of groups and models for readability.
+    One figure per metric with grouped bars (models + baseline) per seed + Avg.
     """
     font_sizes = PLOT_STYLE["font_sizes"]
     algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
@@ -550,7 +548,7 @@ def _plot_baseline_group(  # noqa: PLR0913
         comparable = comparable[comparable["algorithm"] == algorithm]
 
     if comparable.empty:
-        print(f"  No {algo_short} agent data for baseline comparison")
+        print(f"  No {algo_short} agent data for {metric}")
         return
 
     # Filter baseline to matching algorithm
@@ -558,7 +556,7 @@ def _plot_baseline_group(  # noqa: PLR0913
     if "algorithm" in algo_baseline.columns:
         algo_baseline = algo_baseline[algo_baseline["algorithm"] == algorithm]
     if algo_baseline.empty:
-        print(f"  No {algo_short} baseline data found")
+        print(f"  No {algo_short} baseline data for {metric}")
         return
 
     models = sorted(comparable["model"].unique().tolist())
@@ -566,71 +564,65 @@ def _plot_baseline_group(  # noqa: PLR0913
     n_bars = len(models) + 1  # +1 for baseline
     bar_w = 0.7 / max(n_bars, 1)
     n_groups = len(all_seeds) + 1  # +1 for average group
-    n_panels = len(metrics)
 
-    # Scale figure width with data: ~0.55" per group per panel, min = FULL_WIDTH
-    fig_w = max(FULL_WIDTH, 0.55 * n_groups * n_panels)
-    fig_h = 3.2  # slightly taller than default to fit rotated labels
-    fig, axes = plt.subplots(1, n_panels, figsize=(fig_w, fig_h), squeeze=False)
+    # Scale figure width with number of groups
+    fig_w = max(FULL_WIDTH, 0.45 * n_groups)
+    fig, ax = plt.subplots(figsize=(fig_w, 2.8))
 
-    for col_idx, metric in enumerate(metrics):
-        ax = axes[0, col_idx]
-        x = np.arange(n_groups)
+    x = np.arange(n_groups)
 
-        for i, model in enumerate(models):
-            model_df = comparable[comparable["model"] == model]
-            vals = [_get_seed_val(model_df, s, metric) for s in all_seeds]
-            avg = float(
-                np.mean([v for v in vals if v > 0]) if any(v > 0 for v in vals) else 0.0
-            )
-            vals.append(avg)
-            offset = (i - (n_bars - 1) / 2) * bar_w
-            ax.bar(
-                x + offset,
-                vals,
-                bar_w * 0.9,
-                label=model,
-                color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
-                alpha=PLOT_STYLE["alpha"],
-            )
-
-        # Baseline bar (only for seeds with a matching official model)
-        b_vals = [
-            _get_seed_val(algo_baseline, s, metric) if s in _BASELINE_SEEDS else 0.0
-            for s in all_seeds
-        ]
-        b_avg = float(
-            np.mean([v for v in b_vals if v > 0]) if any(v > 0 for v in b_vals) else 0.0
+    for i, model in enumerate(models):
+        model_df = comparable[comparable["model"] == model]
+        vals = [_get_seed_val(model_df, s, metric) for s in all_seeds]
+        avg = float(
+            np.mean([v for v in vals if v > 0]) if any(v > 0 for v in vals) else 0.0
         )
-        b_vals.append(b_avg)
-        b_offset = (len(models) - (n_bars - 1) / 2) * bar_w
+        vals.append(avg)
+        offset = (i - (n_bars - 1) / 2) * bar_w
         ax.bar(
-            x + b_offset,
-            b_vals,
+            x + offset,
+            vals,
             bar_w * 0.9,
-            label=f"Baseline ({algo_short})",
-            color=COLOR_PALETTE[len(models) % len(COLOR_PALETTE)],
-            alpha=0.50,
-            hatch="//",
+            label=model,
+            color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
+            alpha=PLOT_STYLE["alpha"],
         )
 
-        # Vertical separator line before Avg group
-        ax.axvline(x=len(all_seeds) - 0.5, color="grey", linewidth=0.5, linestyle="--")
+    # Baseline bar
+    b_vals = [
+        _get_seed_val(algo_baseline, s, metric) if s in _BASELINE_SEEDS else 0.0
+        for s in all_seeds
+    ]
+    b_avg = float(
+        np.mean([v for v in b_vals if v > 0]) if any(v > 0 for v in b_vals) else 0.0
+    )
+    b_vals.append(b_avg)
+    b_offset = (len(models) - (n_bars - 1) / 2) * bar_w
+    ax.bar(
+        x + b_offset,
+        b_vals,
+        bar_w * 0.9,
+        label=f"Baseline ({algo_short})",
+        color=COLOR_PALETTE[len(models) % len(COLOR_PALETTE)],
+        alpha=0.50,
+        hatch="//",
+    )
 
-        # Short labels: just seed number + "Avg"
-        group_labels = [str(s) for s in all_seeds] + ["Avg"]
-        ax.set_xticks(x)
-        ax.set_xticklabels(group_labels, fontsize=font_sizes["tick_label"])
-        ax.set_xlabel("Seed", fontsize=font_sizes["axes_label"])
-        ax.set_ylabel(EVAL_METRIC_LABELS.get(f"eval_{metric}", metric))
-        # Use log scale for DPP (values span many orders of magnitude)
-        if metric == "DPP":
-            ax.set_yscale("log")
-        ax.grid(True, axis="y", alpha=0.3)
-        if col_idx == 0:
-            ax.legend(fontsize=font_sizes["legend"], loc="upper right")
+    # Vertical separator line before Avg group
+    ax.axvline(x=len(all_seeds) - 0.5, color="grey", linewidth=0.5, linestyle="--")
 
-    fig.suptitle(f"Agent vs Baseline — {algo_short}", fontsize=font_sizes["axes_title"])
+    # Short labels: just seed number + "Avg"
+    group_labels = [str(s) for s in all_seeds] + ["Avg"]
+    ax.set_xticks(x)
+    ax.set_xticklabels(group_labels, fontsize=font_sizes["tick_label"])
+    ax.set_xlabel("Seed", fontsize=font_sizes["axes_label"])
+    ax.set_ylabel(EVAL_METRIC_LABELS.get(f"eval_{metric}", metric))
+    # Use log scale for DPP (values span many orders of magnitude)
+    if metric == "DPP":
+        ax.set_yscale("log")
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.legend(fontsize=font_sizes["legend"], loc="upper right")
+
     fig.tight_layout()
     save_figure(fig, filename, output_dir)
     plt.close(fig)
@@ -642,11 +634,10 @@ def plot_baseline_comparison(
     baseline_dir: Path | None = None,
     prompt_style: str | None = None,
 ) -> None:
-    """Side-by-side grouped bars: agent-trained model vs official baseline.
+    """One figure per metric: agent-trained model vs official baseline.
 
-    Produces per-algorithm figures to fit publication column width:
-      - baseline_comparison_quality_{algo}.png  (IOG, COG, FOG)
-      - baseline_comparison_stats_{algo}.png    (MMD, DPP, viol)
+    Produces per-(algorithm, metric) figures:
+      - baseline_{metric}_{algo}.png  (e.g. baseline_IOG_cgan.png)
 
     When prompt_style is given, only the algorithm encoded in that style is
     plotted and the correct example_id -> config mapping is used.
@@ -682,32 +673,19 @@ def plot_baseline_comparison(
         print("  No overlapping metrics between agent and baseline, skipping")
         return
 
-    # Split into quality metrics (IOG, COG, FOG) and statistical metrics (MMD, DPP, viol)
-    quality = [m for m in ["IOG", "COG", "FOG"] if m in available]
-    stats = [m for m in ["MMD", "DPP", "viol"] if m in available]
-
     # When prompt_style is given, only plot the matching algorithm;
     # otherwise iterate over all baseline algorithms.
     algos_to_plot = [algorithm] if prompt_style else _BASELINE_ALGORITHMS
 
     for algo in algos_to_plot:
         algo_tag = _ALGO_SHORT.get(algo, algo[:4]).lower()
-        if quality:
-            _plot_baseline_group(
-                quality,
+        for metric in available:
+            _plot_baseline_metric(
+                metric,
                 agent_metrics,
                 baseline_metrics,
                 algo,
-                f"baseline_comparison_quality_{algo_tag}.png",
-                output_dir,
-            )
-        if stats:
-            _plot_baseline_group(
-                stats,
-                agent_metrics,
-                baseline_metrics,
-                algo,
-                f"baseline_comparison_stats_{algo_tag}.png",
+                f"baseline_{metric}_{algo_tag}.png",
                 output_dir,
             )
 
@@ -734,19 +712,19 @@ def main(
 
     print(f"  HPC training data: {len(df)} rows")
 
-    print("\n[1/6] Step completion heatmap...")
+    print("\n[1/5] Step completion heatmap...")
     plot_step_completion_heatmap(df, output_dir=output_dir)
 
-    print("\n[2/6] Workflow score bars...")
+    print("\n[2/5] Workflow score bars...")
     plot_workflow_score_bars(df, output_dir=output_dir)
 
-    print("\n[3/6] Step completion rate...")
+    print("\n[3/5] Step completion rate...")
     plot_step_completion_rate(df, output_dir=output_dir)
 
-    print("\n[4/6] Evaluation metrics...")
+    print("\n[4/5] Evaluation metrics...")
     plot_evaluation_metrics(df, output_dir=output_dir)
 
-    print("\n[5-6/6] Baseline comparison (quality + stats)...")
+    print("\n[5/5] Baseline comparison (one figure per metric)...")
     plot_baseline_comparison(df, output_dir=output_dir, prompt_style=prompt_style)
 
 

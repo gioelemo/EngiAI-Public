@@ -25,10 +25,12 @@ set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
 MODELS=(
-    "openai:gpt-5-mini"
+    google_genai:gemini-3-flash-preview
+    # "openai:gpt-4.1-mini",
+    # "openai:gpt-5-mini",
 )
 RUNS="1"
-SAMPLES=10
+SAMPLES=2
 PROBLEM="hpc_train_beams2d"
 RAG_STATUS="no_rag"
 # ─────────────────────────────────────────────────────────────────────────────
