@@ -55,7 +55,10 @@ def _check_training_config(
             algo_match = cfg.get("algorithm", "cgan_cnn_2d") == training_config.get(
                 "algorithm", "cgan_cnn_2d"
             )
-            if seed_match and epochs_match and algo_match:
+            problem_id_match = cfg.get(
+                "problem_id", "beams2d"
+            ) == training_config.get("problem_id", "beams2d")
+            if seed_match and epochs_match and algo_match and problem_id_match:
                 return True
     return False
 
@@ -179,10 +182,17 @@ def score_hpc_workflow(
     eval_metrics_score = min(1.0, len(eval_metrics) / 6) if eval_metrics else 0.0
 
     # --- Composite score ---
-    # Weighted: step completion (70%) + config correctness (15%) + eval metrics (15%)
+    # Base weights: step completion (70%) + config correctness (15%) + eval metrics (15%)
+    # Config/eval weights only apply when their corresponding step was called.
+    # When a step is missing, its secondary weight is redistributed to
+    # step_completion to avoid double-penalization (the missing step is
+    # already penalised in step_completion_rate).
     # Tool efficiency is scored separately by tool_use_scorer.
+    w_config = 0.15 if steps_completed["generate_training_command"] else 0.0
+    w_eval = 0.15 if steps_completed["evaluate_model"] else 0.0
+    w_step = 1.0 - w_config - w_eval  # absorbs unused secondary weights
     hpc_workflow_score = (
-        0.70 * step_completion_rate + 0.15 * config_score + 0.15 * eval_metrics_score
+        w_step * step_completion_rate + w_config * config_score + w_eval * eval_metrics_score
     )
 
     logger.info(

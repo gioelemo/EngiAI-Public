@@ -458,6 +458,113 @@ class TestScoreHpcWorkflow:
         assert result["step_completion_rate"] == 1.0
 
     @pytest.mark.unit
+    def test_missing_generate_no_double_penalization(self):
+        """Skipping generate_training_command should not double-penalize.
+
+        The missing step is already penalized in step_completion_rate.
+        Config weight (15%) should be redistributed to step_completion.
+        """
+        output = _make_output(
+            ["submit_slurm_job", "monitor_job_until_complete", "evaluate_model"]
+        )
+        result = score_hpc_workflow(output, {}, _BASE_METADATA)
+
+        assert result["step_completion_rate"] == pytest.approx(0.75)
+        assert result["config_score"] == 0.0
+        # Without fix: 0.70*0.75 + 0.15*0 + 0.15*0 = 0.525
+        # With fix: w_step=0.85, w_config=0, w_eval=0.15
+        #   0.85*0.75 + 0.0*0 + 0.15*0 = 0.6375
+        assert result["hpc_workflow_score"] == pytest.approx(0.6375)
+
+    @pytest.mark.unit
+    def test_missing_evaluate_no_double_penalization(self):
+        """Skipping evaluate_model should not double-penalize.
+
+        Eval metrics weight (15%) is redistributed to step_completion.
+        """
+        output = _make_output_with_config(
+            [
+                "generate_training_command",
+                "submit_slurm_job",
+                "monitor_job_until_complete",
+            ],
+            {"seed": 1, "epochs": 20, "algorithm": "cgan_cnn_2d"},
+        )
+        result = score_hpc_workflow(output, {}, _BASE_METADATA)
+
+        assert result["step_completion_rate"] == pytest.approx(0.75)
+        assert result["config_score"] == 1.0
+        assert result["eval_metrics_score"] == 0.0
+        # w_step=0.85, w_config=0.15, w_eval=0
+        # 0.85*0.75 + 0.15*1.0 + 0 = 0.6375 + 0.15 = 0.7875
+        assert result["hpc_workflow_score"] == pytest.approx(0.7875)
+
+    @pytest.mark.unit
+    def test_wrong_problem_id_penalized(self):
+        """Agent passing wrong problem_id should fail config check."""
+        metadata = {
+            "example_id": 0,
+            "training_config": {
+                "seed": 1,
+                "epochs": 20,
+                "algorithm": "cgan_cnn_2d",
+                "problem_id": "beams2d",
+            },
+        }
+        tc_info = [
+            {
+                "name": "generate_training_command",
+                "args": {
+                    "seed": 1,
+                    "epochs": 20,
+                    "algorithm": "cgan_cnn_2d",
+                    "problem_id": "thermoelastic2d",
+                },
+            }
+        ]
+        assert _check_training_config(tc_info, metadata["training_config"]) is False
+
+    @pytest.mark.unit
+    def test_problem_id_defaults_to_beams2d(self):
+        """Omitting problem_id on both sides defaults to beams2d (match)."""
+        tc_info = [
+            {
+                "name": "generate_training_command",
+                "args": {"seed": 1, "epochs": 20, "algorithm": "cgan_cnn_2d"},
+            }
+        ]
+        config = {"seed": 1, "epochs": 20, "algorithm": "cgan_cnn_2d"}
+        assert _check_training_config(tc_info, config) is True
+
+    @pytest.mark.unit
+    def test_diffusion_algorithm_missing_fails(self):
+        """Diffusion prompt: agent omitting algorithm defaults to cgan → mismatch."""
+        tc_info = [
+            {
+                "name": "generate_training_command",
+                "args": {"seed": 1, "epochs": 100},
+            }
+        ]
+        config = {"seed": 1, "epochs": 100, "algorithm": "diffusion_2d_cond"}
+        assert _check_training_config(tc_info, config) is False
+
+    @pytest.mark.unit
+    def test_diffusion_algorithm_correct(self):
+        """Diffusion prompt: agent passes correct algorithm → match."""
+        tc_info = [
+            {
+                "name": "generate_training_command",
+                "args": {
+                    "seed": 1,
+                    "epochs": 100,
+                    "algorithm": "diffusion_2d_cond",
+                },
+            }
+        ]
+        config = {"seed": 1, "epochs": 100, "algorithm": "diffusion_2d_cond"}
+        assert _check_training_config(tc_info, config) is True
+
+    @pytest.mark.unit
     def test_return_dict_structure(self):
         """Verify all expected keys are present in the result."""
         output = _make_output([])
