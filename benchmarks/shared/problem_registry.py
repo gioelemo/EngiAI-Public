@@ -231,7 +231,7 @@ PROBLEMS: dict[str, ProblemConfig] = {
         dataset_name="",  # Handcrafted prompts — no HuggingFace sampling
         design_field="optimal_design",
         tool_name="generate_training_command",  # Informational only; objectives=[] so objective_extractor is unused
-        objectives=[],  # Design quality scored offline via compare_hpc_designs.py
+        objectives=[],  # Design quality scored offline via compute_hpc_metrics.py
         primary_scorer="hpc_workflow",
         conditions=[
             ConditionConfig(

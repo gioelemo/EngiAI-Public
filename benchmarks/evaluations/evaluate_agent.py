@@ -568,7 +568,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Disable SLURM email notifications for HPC training benchmarks to avoid spam
     os.environ["SKIP_SLURM_EMAIL"] = (
-        "true" if args.problem == "hpc_train_beams2d" else ""
+        "true" if args.problem == "hpc_train_beams2d" else "false"
     )
 
     # Get problem configuration
@@ -791,9 +791,9 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
             f" --problem {args.problem} --prompt-style {args.prompt_style}"
             f" --rag-status {rag_dir}"
         )
-        print("  2. Run compare_hpc_designs.py to compute design quality vs EngiBench:")
+        print("  2. Run compute_hpc_metrics.py to compute design quality vs EngiBench:")
         print(
-            f"     python benchmarks/evaluations/compare_hpc_designs.py"
+            f"     python benchmarks/evaluations/compute_hpc_metrics.py"
             f" --problem {args.problem}"
         )
         print()

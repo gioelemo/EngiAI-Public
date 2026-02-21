@@ -41,7 +41,7 @@ def _get_problem_examples_text() -> str:
 
 
 def _build_engineering_agent_prompt() -> str:
-    """Build the engineering agent system prompt dynamically from problem registry."""
+    """Build the engineering agent system prompt dynamically from supported problems."""
     problems_list = _get_problem_examples_text()
 
     return f"""You are an engineering assistant specialized in structural design and optimization.
@@ -900,8 +900,7 @@ Guidelines:
 2. **Cite sources explicitly**: Always include file IDs and relevance scores in your response
 3. **Be precise**: Engineering work requires accuracy - cite specific sections
 4. **Acknowledge limitations**: If information isn't in the documents, say so clearly
-{upload_section}
-{tools_section}
+{upload_section}{tools_section}
 
 Remember: Call search_documents FIRST, but once you have the answer, stop and respond immediately.
 

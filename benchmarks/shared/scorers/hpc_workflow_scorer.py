@@ -1,6 +1,6 @@
 """HPC workflow scorer for hpc_train_beams2d evaluations.
 
-Scores the agent's ability to orchestrate end-to-end cGAN training on HPC:
+Scores the agent's ability to orchestrate end-to-end generative model training on HPC:
 1. generate_training_command — correct seed/epochs/algorithm
 2. submit_slurm_job — job submitted to Euler
 3. monitor_job_until_complete — job monitored to completion
@@ -142,7 +142,7 @@ def score_hpc_workflow(
     target: dict[str, Any],  # noqa: ARG001
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    """Score HPC cGAN training workflow execution.
+    """Score HPC training workflow execution.
 
     Args:
         output: Agent output with tool_calls_info, messages, response
