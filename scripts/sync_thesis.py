@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+"""Sync figures, tables, and prompts from engineer-assistant to the thesis submodule.
+
+Usage:
+    python scripts/sync_thesis.py --all
+    python scripts/sync_thesis.py --figures --tables
+    python scripts/sync_thesis.py --prompts --dry-run
+    python scripts/sync_thesis.py --all --auto-commit
+"""
+
+import argparse
+import hashlib
+import importlib
+import json
+import logging
+import re
+import shutil
+import subprocess
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+
+import yaml
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CONFIG = PROJECT_ROOT / "sync_config.yaml"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s: %(message)s",
+)
+log = logging.getLogger("sync_thesis")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    h.update(path.read_bytes())
+    return h.hexdigest()
+
+
+def _copy_if_changed(src: Path, dst: Path, *, dry_run: bool) -> str | None:
+    """Copy *src* to *dst* if content differs.  Returns action taken or None."""
+    if not src.exists():
+        log.warning("Source not found: %s", src)
+        return None
+
+    if dst.exists() and _sha256(src) == _sha256(dst):
+        return None  # unchanged
+
+    action = "would copy" if dry_run else "copied"
+    if not dry_run:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+    return action
+
+
+def _submodule_is_clean(thesis_path: Path) -> bool:
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=thesis_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() == ""
+
+
+# ---------------------------------------------------------------------------
+# Config loader
+# ---------------------------------------------------------------------------
+
+
+def load_config(config_path: Path) -> dict:
+    with config_path.open() as f:
+        cfg = yaml.safe_load(f)
+    return cfg
+
+
+# ---------------------------------------------------------------------------
+# Figure sync
+# ---------------------------------------------------------------------------
+
+
+def sync_figures(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
+    actions: list[dict] = []
+    fig_cfg = cfg.get("figures", {})
+    primary = fig_cfg.get("primary_source", "")
+
+    # Mappings relative to primary_source
+    for mapping in fig_cfg.get("mappings", []):
+        src_dir = PROJECT_ROOT / primary / mapping["source"]
+        dst_dir = thesis_root / mapping["target"]
+        extensions = set(mapping.get("extensions", [".pdf"]))
+
+        if not src_dir.is_dir():
+            log.warning("Figure source dir not found: %s", src_dir)
+            continue
+
+        for f in sorted(src_dir.iterdir()):
+            if f.suffix.lower() not in extensions:
+                continue
+            dst = dst_dir / f.name
+            result = _copy_if_changed(f, dst, dry_run=dry_run)
+            if result:
+                actions.append(
+                    {
+                        "source": str(f.relative_to(PROJECT_ROOT)),
+                        "target": str(dst.relative_to(thesis_root)),
+                        "action": result,
+                    }
+                )
+
+    # Extra sources (absolute paths relative to PROJECT_ROOT)
+    for extra in fig_cfg.get("extra_sources", []):
+        src_dir = PROJECT_ROOT / extra["source"]
+        dst_dir = thesis_root / extra["target"]
+        extensions = set(extra.get("extensions", [".pdf"]))
+        recursive = extra.get("recursive", False)
+
+        if not src_dir.is_dir():
+            log.warning("Extra figure source dir not found: %s", src_dir)
+            continue
+
+        pattern = src_dir.rglob("*") if recursive else src_dir.iterdir()
+        for f in sorted(pattern):
+            if not f.is_file() or f.suffix.lower() not in extensions:
+                continue
+            rel = f.relative_to(src_dir)
+            dst = dst_dir / rel
+            result = _copy_if_changed(f, dst, dry_run=dry_run)
+            if result:
+                actions.append(
+                    {
+                        "source": str(f.relative_to(PROJECT_ROOT)),
+                        "target": str(dst.relative_to(thesis_root)),
+                        "action": result,
+                    }
+                )
+
+    return actions
+
+
+# ---------------------------------------------------------------------------
+# Table sync
+# ---------------------------------------------------------------------------
+
+
+def sync_tables(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
+    actions: list[dict] = []
+    tbl_cfg = cfg.get("tables", {})
+
+    # Static file copies
+    for mapping in tbl_cfg.get("mappings", []):
+        src = PROJECT_ROOT / mapping["source"]
+        dst = thesis_root / mapping["target"]
+        result = _copy_if_changed(src, dst, dry_run=dry_run)
+        if result:
+            actions.append(
+                {
+                    "source": str(src.relative_to(PROJECT_ROOT)),
+                    "target": str(dst.relative_to(thesis_root)),
+                    "action": result,
+                }
+            )
+
+    # Generator commands
+    for gen in tbl_cfg.get("generators", []):
+        dst = thesis_root / gen["target"]
+        cmd = gen["command"].replace("{target}", str(dst))
+        if dry_run:
+            log.info("Would run: %s", cmd)
+            actions.append(
+                {
+                    "source": cmd,
+                    "target": str(dst.relative_to(thesis_root)),
+                    "action": "would generate",
+                }
+            )
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            log.info("Running: %s", cmd)
+            gen_result = subprocess.run(
+                cmd,
+                shell=True,
+                cwd=PROJECT_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if gen_result.returncode != 0:
+                log.warning("Generator failed: %s\n%s", cmd, gen_result.stderr)
+            else:
+                actions.append(
+                    {
+                        "source": cmd,
+                        "target": str(dst.relative_to(thesis_root)),
+                        "action": "generated",
+                    }
+                )
+
+    return actions
+
+
+# ---------------------------------------------------------------------------
+# Prompt extraction
+# ---------------------------------------------------------------------------
+
+# Maps config label key -> label suffix used in appendix.tex
+_LABEL_MAP = {
+    "supervisor": "supervisorsysprompt",
+    "engineer": "engineersysprompt",
+    "search": "searchsysprompt",
+    "rag": "ragsysprompt",
+    "arxiv": "arxivsysprompt",
+    "hpc": "hpcsysprompt",
+    "cli": "clisysprompt",
+    "prusa": "prusasysprompt",
+}
+
+
+def _extract_prompt(attr_name: str) -> str | None:
+    """Extract a prompt string from src.utils.prompts by attribute or function name."""
+    try:
+        # Ensure project root is on sys.path for imports
+        root_str = str(PROJECT_ROOT)
+        if root_str not in sys.path:
+            sys.path.insert(0, root_str)
+
+        mod = importlib.import_module("src.utils.prompts")
+
+        obj = getattr(mod, attr_name, None)
+        if obj is None:
+            log.warning("Attribute %r not found in src.utils.prompts", attr_name)
+            return None
+
+        if callable(obj):
+            # Try calling with no args first, fall back to common kwargs
+            try:
+                return str(obj())
+            except TypeError:
+                try:
+                    return str(obj(read_only=False))
+                except TypeError:
+                    log.warning("Cannot call %s() — unknown signature", attr_name)
+                    return None
+        return str(obj)
+    except Exception:
+        log.exception("Failed to import src.utils.prompts")
+        return None
+
+
+def _extract_prompt_regex(attr_name: str) -> str | None:
+    """Fallback: regex-extract a string constant from prompts.py."""
+    prompts_file = PROJECT_ROOT / "src" / "utils" / "prompts.py"
+    if not prompts_file.exists():
+        return None
+
+    content = prompts_file.read_text()
+    # Match: ATTR_NAME = """..."""  or  ATTR_NAME = "..."
+    pattern = rf'{re.escape(attr_name)}\s*=\s*(?:f?"""(.*?)"""|f?"(.*?)")'
+    m = re.search(pattern, content, re.DOTALL)
+    if m:
+        return m.group(1) or m.group(2)
+    return None
+
+
+def _replace_verbatim_after_label(tex: str, label_suffix: str, new_content: str) -> str:
+    """Replace the verbatim block content following \\label{subsubsec:<label_suffix>}."""
+    # Find the label
+    label_pattern = re.escape(f"\\label{{subsubsec:{label_suffix}}}")
+    label_match = re.search(label_pattern, tex)
+    if not label_match:
+        log.warning("Label subsubsec:%s not found in appendix.tex", label_suffix)
+        return tex
+
+    # Find the next \begin{verbatim}...\end{verbatim} after the label
+    search_start = label_match.end()
+    verbatim_pattern = re.compile(
+        r"(\\begin\{verbatim\}\n)(.*?)(\n\\end\{verbatim\})", re.DOTALL
+    )
+    vm = verbatim_pattern.search(tex, search_start)
+    if not vm:
+        log.warning("No verbatim block found after label subsubsec:%s", label_suffix)
+        return tex
+
+    # Replace the content between \begin{verbatim}\n and \n\end{verbatim}
+    return tex[: vm.start(2)] + new_content + tex[vm.end(2) :]
+
+
+def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
+    actions: list[dict] = []
+    prompt_cfg = cfg.get("prompts", {})
+    target_file = prompt_cfg.get("target_file", "appendix.tex")
+    appendix_path = thesis_root / target_file
+
+    if not appendix_path.exists():
+        log.warning("Appendix file not found: %s", appendix_path)
+        return actions
+
+    tex = appendix_path.read_text()
+    original_tex = tex
+
+    # Agent system prompts
+    agent_prompts = prompt_cfg.get("agent_prompts", {})
+    for agent_key, attr_name in agent_prompts.items():
+        label_suffix = _LABEL_MAP.get(agent_key)
+        if not label_suffix:
+            log.warning("Unknown agent key %r — add it to _LABEL_MAP", agent_key)
+            continue
+
+        prompt_text = _extract_prompt(attr_name)
+        if prompt_text is None:
+            prompt_text = _extract_prompt_regex(attr_name)
+        if prompt_text is None:
+            log.warning("Could not extract prompt for %s (%s)", agent_key, attr_name)
+            continue
+
+        # Strip the "Suggested Next Prompts" section if present
+        prompt_text = re.sub(
+            r"\n*## Suggested Next Prompts.*", "", prompt_text, flags=re.DOTALL
+        )
+
+        old_tex = tex
+        tex = _replace_verbatim_after_label(tex, label_suffix, prompt_text)
+        if tex != old_tex:
+            action = "would replace" if dry_run else "replaced"
+            actions.append(
+                {
+                    "source": f"src/utils/prompts.py:{attr_name}",
+                    "target": f"{target_file} (subsubsec:{label_suffix})",
+                    "action": action,
+                }
+            )
+
+    # Write back if changed
+    if tex != original_tex and not dry_run:
+        appendix_path.write_text(tex)
+
+    return actions
+
+
+# ---------------------------------------------------------------------------
+# Manifest
+# ---------------------------------------------------------------------------
+
+
+def write_manifest(thesis_root: Path, all_actions: list[dict]) -> None:
+    manifest = {
+        "last_sync": datetime.now(tz=UTC).isoformat(),
+        "synced_files": [a for a in all_actions if "would" not in a.get("action", "")],
+    }
+    manifest_path = thesis_root / ".sync_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Auto-commit
+# ---------------------------------------------------------------------------
+
+
+def auto_commit(thesis_root: Path) -> None:
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    subprocess.run(["git", "add", "-A"], cwd=thesis_root, check=True)
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=thesis_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if not status.stdout.strip():
+        log.info("Nothing to commit in thesis submodule.")
+        return
+
+    subprocess.run(
+        ["git", "commit", "-m", f"sync: update from engineer-assistant ({ts})"],
+        cwd=thesis_root,
+        check=True,
+    )
+    log.info("Committed changes in thesis submodule.")
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Sync content from engineer-assistant to the thesis submodule.",
+    )
+    parser.add_argument("--figures", action="store_true", help="Sync figures")
+    parser.add_argument("--tables", action="store_true", help="Sync tables")
+    parser.add_argument("--prompts", action="store_true", help="Sync prompts")
+    parser.add_argument("--all", action="store_true", help="Sync everything")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without making changes"
+    )
+    parser.add_argument(
+        "--auto-commit",
+        action="store_true",
+        help="Commit in thesis submodule after sync",
+    )
+    parser.add_argument(
+        "--config", type=Path, default=DEFAULT_CONFIG, help="Config file path"
+    )
+    parser.add_argument("--verbose", action="store_true", help="Verbose output")
+    args = parser.parse_args()
+
+    if args.verbose:
+        log.setLevel(logging.DEBUG)
+
+    if not any([args.figures, args.tables, args.prompts, args.all]):
+        parser.error("Specify at least one of: --figures, --tables, --prompts, --all")
+
+    cfg = load_config(args.config)
+    thesis_root = PROJECT_ROOT / cfg["thesis_submodule_path"]
+
+    if not thesis_root.is_dir():
+        log.error(
+            "Thesis submodule not found at %s. Run: git submodule update --init",
+            thesis_root,
+        )
+        sys.exit(1)
+
+    # Safety check
+    if not args.dry_run and not _submodule_is_clean(thesis_root):
+        log.warning(
+            "Thesis submodule has uncommitted changes. "
+            "Consider committing or stashing them first."
+        )
+
+    do_figures = args.all or args.figures
+    do_tables = args.all or args.tables
+    do_prompts = args.all or args.prompts
+
+    all_actions: list[dict] = []
+    prefix = "[DRY RUN] " if args.dry_run else ""
+
+    if do_figures:
+        log.info("%sSyncing figures...", prefix)
+        all_actions.extend(sync_figures(cfg, thesis_root, dry_run=args.dry_run))
+
+    if do_tables:
+        log.info("%sSyncing tables...", prefix)
+        all_actions.extend(sync_tables(cfg, thesis_root, dry_run=args.dry_run))
+
+    if do_prompts:
+        log.info("%sSyncing prompts...", prefix)
+        all_actions.extend(sync_prompts(cfg, thesis_root, dry_run=args.dry_run))
+
+    # Summary
+    if all_actions:
+        print(f"\n{'=' * 60}")
+        print(f"{prefix}Sync summary: {len(all_actions)} action(s)")
+        print(f"{'=' * 60}")
+        for a in all_actions:
+            print(f"  {a['action']:>15}  {a['source']}")
+            print(f"{'':>15}  -> {a['target']}")
+    else:
+        print(f"\n{prefix}Nothing to sync — everything is up to date.")
+
+    # Manifest & auto-commit
+    if not args.dry_run and all_actions:
+        write_manifest(thesis_root, all_actions)
+        if args.auto_commit:
+            auto_commit(thesis_root)
+
+
+if __name__ == "__main__":
+    main()

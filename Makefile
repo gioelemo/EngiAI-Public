@@ -1,4 +1,4 @@
-.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean mmore-eval-up mmore-eval-down mmore-eval-rebuild mmore-eval-logs mmore-eval-status mmore-eval-run
+.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean mmore-eval-up mmore-eval-down mmore-eval-rebuild mmore-eval-logs mmore-eval-status mmore-eval-run sync-thesis sync-thesis-figures sync-thesis-tables sync-thesis-prompts sync-thesis-dry-run sync-thesis-commit
 
 help:  ## Show this help message
 	@echo "Available commands:"
@@ -133,3 +133,22 @@ install-docs:  ## Install documentation dependencies
 
 check-all: lint test  ## Run all checks (lint + test)
 	@echo "\n✓ All checks passed!"
+
+# Thesis sync targets
+sync-thesis:  ## Sync all content (figures, tables, prompts) to thesis submodule
+	python scripts/sync_thesis.py --all
+
+sync-thesis-figures:  ## Sync only figures to thesis submodule
+	python scripts/sync_thesis.py --figures
+
+sync-thesis-tables:  ## Sync only tables to thesis submodule
+	python scripts/sync_thesis.py --tables
+
+sync-thesis-prompts:  ## Sync only prompts to thesis submodule
+	python scripts/sync_thesis.py --prompts
+
+sync-thesis-dry-run:  ## Preview what would be synced (no changes)
+	python scripts/sync_thesis.py --all --dry-run
+
+sync-thesis-commit:  ## Sync all content and auto-commit in thesis submodule
+	python scripts/sync_thesis.py --all --auto-commit

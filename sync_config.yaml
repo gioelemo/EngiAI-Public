@@ -1,0 +1,84 @@
+# Thesis sync configuration
+# Maps source paths in engineer-assistant to target paths in the thesis submodule.
+# Edit target paths here when you reorganize your thesis LaTeX structure.
+
+thesis_submodule_path: thesis
+
+# ---------------------------------------------------------------------------
+# Figures
+# ---------------------------------------------------------------------------
+figures:
+  # Point this to the latest/best evaluation figures directory.
+  # Change after producing a new set of figures.
+  primary_source: benchmarks/evaluations/plots/figures_full_evaluation_v1
+
+  # Each mapping copies files from primary_source/<source> to thesis/<target>.
+  mappings:
+    - source: "beams2d/full/no_rag"
+      target: "figures/benchmark/full"
+      extensions: [".pdf"]
+    - source: "beams2d/natural/no_rag"
+      target: "figures/benchmark/natural"
+      extensions: [".pdf"]
+    - source: "beams2d/workflow-random/no_rag"
+      target: "figures/benchmark/workflow-random"
+      extensions: [".pdf"]
+    - source: "beams2d/workflow-distractor/no_rag"
+      target: "figures/benchmark/workflow-distractor"
+      extensions: [".pdf"]
+    - source: "beams2d/workflow-derived-params/no_rag"
+      target: "figures/benchmark/workflow-derived-params"
+      extensions: [".pdf"]
+    - source: "beams2d/workflow-conditional/no_rag"
+      target: "figures/benchmark/workflow-conditional"
+      extensions: [".pdf"]
+    - source: "beams2d/workflow-multi-export/no_rag"
+      target: "figures/benchmark/workflow-multi-export"
+      extensions: [".pdf"]
+    - source: "rag_beams2d/rag-eval"
+      target: "figures/benchmark/rag"
+      extensions: [".pdf"]
+
+  # Additional figure sources outside the primary directory.
+  extra_sources: []
+    # Example:
+    # - source: "benchmarks/evaluations/results/models/openai_gpt-4o/beams2d/full/no_rag/comparisons"
+    #   target: "figures/comparisons/gpt4o-full"
+    #   extensions: [".png"]
+    #   recursive: true
+
+# ---------------------------------------------------------------------------
+# LaTeX tables
+# ---------------------------------------------------------------------------
+tables:
+  # Copy pre-generated .tex/.csv table files.
+  mappings: []
+    # Example:
+    # - source: "benchmarks/evaluations/plots/figures_full_evaluation_v1/beams2d/full/no_rag/summary_statistics.tex"
+    #   target: "tables/summary_full.tex"
+
+  # Run commands that produce .tex files.  {target} is replaced with the
+  # absolute path inside the thesis submodule.
+  generators: []
+    # Example:
+    # - command: "python benchmarks/evaluations/generate_latex_table.py --output {target}"
+    #   target: "tables/workflow_results.tex"
+
+# ---------------------------------------------------------------------------
+# Prompts  (overwrites TODO placeholders inside appendix.tex)
+# ---------------------------------------------------------------------------
+prompts:
+  target_file: "appendix.tex"
+
+  # Agent system prompts.
+  # Keys = label suffix in appendix.tex (e.g. "supervisor" -> \label{subsubsec:supervisorsysprompt})
+  # Values = attribute or function name in src/utils/prompts.py
+  agent_prompts:
+    supervisor: "SUPERVISOR_AGENT_SYSTEM_PROMPT"
+    engineer: "_build_engineering_agent_prompt"
+    search: "SEARCH_AGENT_SYSTEM_PROMPT"
+    rag: "build_rag_agent_prompt"
+    arxiv: "ARXIV_AGENT_SYSTEM_PROMPT"
+    hpc: "get_hpc_agent_system_prompt"
+    cli: "CLI_AGENT_SYSTEM_PROMPT"
+    prusa: "PRUSA_AGENT_SYSTEM_PROMPT"

@@ -250,3 +250,6 @@ papers/2508.00831v2.pdf
 papers/s00158-010-0594-7.pdf
 papers/2505.02438v1.pdf
 benchmarks/artifacts/*
+
+# Thesis sync manifest (auto-generated)
+thesis/.sync_manifest.json
