@@ -11,7 +11,7 @@ import os
 from src.agents.base_agent import BaseAgent
 from src.tools import MMOREClient
 from src.tools.rag_tools import create_rag_tools
-from src.utils.prompts import RAG_AGENT_SYSTEM_PROMPT
+from src.utils.prompts import build_rag_agent_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -73,4 +73,4 @@ class RAGAgent(BaseAgent):
         Returns:
             System prompt string
         """
-        return RAG_AGENT_SYSTEM_PROMPT
+        return build_rag_agent_prompt(read_only=self.rag_read_only)

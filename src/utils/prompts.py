@@ -100,6 +100,7 @@ the tool call (no `suggested_prompts` block and no additional user-facing text).
 - **download_wandb_model**: Download pre-trained model checkpoints from W&B
 - **load_wandb_model**: Load model checkpoints for inference
 - **sample_designs_from_model**: Generate designs from loaded models
+- **evaluate_model**: Evaluate a loaded model's performance on the dataset
 - **generate_training_command**: Generate SLURM scripts to train new models on HPC
 
 ### Post-Processing
@@ -854,8 +855,32 @@ Suggestion 3 text here
 Remember: Always check if session is valid before making API requests. If authentication fails, prompt user to login with `connect_login`!
 """
 
-# RAG agent system prompt
-RAG_AGENT_SYSTEM_PROMPT = """You are a specialized document assistant for engineering research, powered by MMORE.
+# RAG agent system prompt — built dynamically based on read_only mode
+_RAG_TOOLS_FULL = """Available tools:
+- **search_documents**: Search through all uploaded documents
+- **add_document**: Upload a local file to the knowledge base
+- **add_url_to_knowledge_base**: Download and add web content (GitHub docs, HTML pages, markdown files)
+- **list_documents**: Show all documents in the knowledge base
+- **delete_document**: Remove a document by its file ID"""
+
+_RAG_TOOLS_READ_ONLY = """Available tools:
+- **search_documents**: Search through all indexed documents
+- **list_documents**: Show all documents in the knowledge base"""
+
+_RAG_UPLOAD_SECTION = """
+When users upload documents or URLs:
+- Confirm successful processing with MMORE
+- Explain that MMORE will extract multimodal content (text, images, tables)
+- Suggest 2-3 initial questions they could ask about the document
+"""
+
+
+def build_rag_agent_prompt(*, read_only: bool = False) -> str:
+    """Build the RAG agent system prompt, adjusting tools for read_only mode."""
+    tools_section = _RAG_TOOLS_READ_ONLY if read_only else _RAG_TOOLS_FULL
+    upload_section = "" if read_only else _RAG_UPLOAD_SECTION
+
+    return f"""You are a specialized document assistant for engineering research, powered by MMORE.
 
 MMORE (Massive Multimodal Open RAG & Extraction) provides advanced capabilities for
 processing technical documents including PDFs, images, tables, and complex layouts.
@@ -875,18 +900,8 @@ Guidelines:
 2. **Cite sources explicitly**: Always include file IDs and relevance scores in your response
 3. **Be precise**: Engineering work requires accuracy - cite specific sections
 4. **Acknowledge limitations**: If information isn't in the documents, say so clearly
-
-When users upload documents or URLs:
-- Confirm successful processing with MMORE
-- Explain that MMORE will extract multimodal content (text, images, tables)
-- Suggest 2-3 initial questions they could ask about the document
-
-Available tools:
-- **search_documents**: Search through all uploaded documents (use this for every question!)
-- **add_document**: Upload a local file to the knowledge base
-- **add_url_to_knowledge_base**: Download and add web content (GitHub docs, HTML pages, markdown files)
-- **list_documents**: Show all documents in the knowledge base
-- **delete_document**: Remove a document by its file ID
+{upload_section}
+{tools_section}
 
 Remember: Call search_documents FIRST, but once you have the answer, stop and respond immediately.
 
@@ -916,6 +931,5 @@ Suggestion 3 text here
 
 **Context-specific examples:**
 - After answering question → "Search for related topics", "Get more details on [topic]", "Find practical examples"
-- After adding document → "Summarize main topics", "Search for key concepts", "List all documents"
-- After listing documents → "Search across all documents", "Ask about specific document", "Delete unused documents"
+- After listing documents → "Search across all documents", "Ask about specific document"
 """
