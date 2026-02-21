@@ -17,7 +17,6 @@ import re
 import shutil
 import subprocess
 import sys
-import textwrap
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -211,32 +210,23 @@ def sync_tables(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
 # Prompt extraction
 # ---------------------------------------------------------------------------
 
-# Maximum characters per line inside \small\begin{verbatim} in the promptbox.
-# A4 (170mm text width) with tcolorbox padding ≈ 76 monospace chars at \small.
-_VERBATIM_LINE_WIDTH = 72
+# Unicode chars that break pdflatex lstlisting/verbatim -> ASCII replacements
+_UNICODE_REPLACEMENTS: list[tuple[str, str]] = [
+    ("\u2192", "->"),  # → rightwards arrow
+    ("\u2014", "--"),  # — em dash
+    ("\u26A0\uFE0F", "[!]"),  # ⚠️  warning sign + variation selector
+    ("\u26A0", "[!]"),  # ⚠  warning sign (without VS16)
+    ("\uFE0F", ""),  # variation selector-16 (strip)
+    ("\u00B0", "deg"),  # ° degree sign
+    ("\u03BC", "u"),  # μ micro sign
+]
 
 
-def _wrap_verbatim_lines(text: str, width: int = _VERBATIM_LINE_WIDTH) -> str:
-    """Wrap long lines so they fit inside a LaTeX verbatim block."""
-    wrapped: list[str] = []
-    for line in text.split("\n"):
-        if len(line) <= width:
-            wrapped.append(line)
-        else:
-            stripped = line.lstrip()
-            indent = line[: len(line) - len(stripped)]
-            subsequent = indent + "  "
-            wrapped.append(
-                textwrap.fill(
-                    stripped,
-                    width=width,
-                    initial_indent=indent,
-                    subsequent_indent=subsequent,
-                    break_long_words=True,
-                    break_on_hyphens=False,
-                )
-            )
-    return "\n".join(wrapped)
+def _sanitize_for_latex(text: str) -> str:
+    """Replace unicode characters that break pdflatex verbatim."""
+    for char, replacement in _UNICODE_REPLACEMENTS:
+        text = text.replace(char, replacement)
+    return text
 
 
 # Maps config label key -> label suffix used in appendix.tex (agent prompts)
@@ -301,44 +291,39 @@ def _extract_prompt_regex(attr_name: str) -> str | None:
     return None
 
 
-def _replace_verbatim_after_label(tex: str, label_suffix: str, new_content: str) -> str:
-    """Replace the verbatim block content following \\label{subsubsec:<label_suffix>}."""
-    # Find the label
+_LISTING_PATTERN = re.compile(
+    r"(\\begin\{lstlisting\}\[style=prompt\]\n)(.*?)(\n\\end\{lstlisting\})",
+    re.DOTALL,
+)
+
+
+def _replace_listing_after_label(tex: str, label_suffix: str, new_content: str) -> str:
+    """Replace lstlisting content following \\label{subsubsec:<label_suffix>}."""
     label_pattern = re.escape(f"\\label{{subsubsec:{label_suffix}}}")
     label_match = re.search(label_pattern, tex)
     if not label_match:
         log.warning("Label subsubsec:%s not found in appendix.tex", label_suffix)
         return tex
 
-    # Find the next \begin{verbatim}...\end{verbatim} after the label
-    search_start = label_match.end()
-    verbatim_pattern = re.compile(
-        r"(\\begin\{verbatim\}\n)(.*?)(\n\\end\{verbatim\})", re.DOTALL
-    )
-    vm = verbatim_pattern.search(tex, search_start)
+    vm = _LISTING_PATTERN.search(tex, label_match.end())
     if not vm:
-        log.warning("No verbatim block found after label subsubsec:%s", label_suffix)
+        log.warning("No lstlisting block found after label subsubsec:%s", label_suffix)
         return tex
 
-    # Replace the content between \begin{verbatim}\n and \n\end{verbatim}
     return tex[: vm.start(2)] + new_content + tex[vm.end(2) :]
 
 
-def _replace_verbatim_after_textsc(tex: str, textsc_label: str, new_content: str) -> str:
-    """Replace verbatim block content after \\textsc{<label>} in a promptbox."""
+def _replace_listing_after_textsc(tex: str, textsc_label: str, new_content: str) -> str:
+    """Replace lstlisting content after \\textsc{<label>} in a promptbox."""
     pattern = re.escape(f"\\textsc{{{textsc_label}}}")
     label_match = re.search(pattern, tex)
     if not label_match:
         log.warning("\\textsc{%s} not found in appendix.tex", textsc_label)
         return tex
 
-    search_start = label_match.end()
-    verbatim_pattern = re.compile(
-        r"(\\begin\{verbatim\}\n)(.*?)(\n\\end\{verbatim\})", re.DOTALL
-    )
-    vm = verbatim_pattern.search(tex, search_start)
+    vm = _LISTING_PATTERN.search(tex, label_match.end())
     if not vm:
-        log.warning("No verbatim block found after \\textsc{%s}", textsc_label)
+        log.warning("No lstlisting block found after \\textsc{%s}", textsc_label)
         return tex
 
     return tex[: vm.start(2)] + new_content + tex[vm.end(2) :]
@@ -462,10 +447,10 @@ def _sync_agent_prompts(
         prompt_text = re.sub(
             r"\n*## Suggested Next Prompts.*", "", prompt_text, flags=re.DOTALL
         )
-        prompt_text = _wrap_verbatim_lines(prompt_text)
+        prompt_text = _sanitize_for_latex(prompt_text)
 
         old_tex = tex
-        tex = _replace_verbatim_after_label(tex, label_suffix, prompt_text)
+        tex = _replace_listing_after_label(tex, label_suffix, prompt_text)
         if tex != old_tex:
             actions.append(
                 {
@@ -494,9 +479,9 @@ def _sync_workflow_prompts(
         text = workflow_texts.get(style)
         if text is None:
             continue
-        wrapped = _wrap_verbatim_lines(text)
+        wrapped = _sanitize_for_latex(text)
         old_tex = tex
-        tex = _replace_verbatim_after_textsc(tex, label, wrapped)
+        tex = _replace_listing_after_textsc(tex, label, wrapped)
         if tex != old_tex:
             actions.append(
                 {
@@ -525,9 +510,9 @@ def _sync_benchmark_prompts(
     for i, (label, text) in enumerate(
         zip(_BENCHMARK_PROMPT_LABELS, prompt_texts, strict=False)
     ):
-        wrapped = _wrap_verbatim_lines(text)
+        wrapped = _sanitize_for_latex(text)
         old_tex = tex
-        tex = _replace_verbatim_after_textsc(tex, label, wrapped)
+        tex = _replace_listing_after_textsc(tex, label, wrapped)
         if tex != old_tex:
             actions.append(
                 {
