@@ -82,3 +82,8 @@ prompts:
     hpc: "get_hpc_agent_system_prompt"
     cli: "CLI_AGENT_SYSTEM_PROMPT"
     prusa: "PRUSA_AGENT_SYSTEM_PROMPT"
+
+  # Benchmark prompts (P0-P3 RAG evaluation prompt examples).
+  # Extracted from benchmarks/problems/rag_beams2d/generate_prompts.py:RAG_PROMPTS
+  benchmark_prompts:
+    source: "benchmarks/problems/rag_beams2d/generate_prompts.py"

@@ -210,7 +210,7 @@ def sync_tables(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
 # Prompt extraction
 # ---------------------------------------------------------------------------
 
-# Maps config label key -> label suffix used in appendix.tex
+# Maps config label key -> label suffix used in appendix.tex (agent prompts)
 _LABEL_MAP = {
     "supervisor": "supervisorsysprompt",
     "engineer": "engineersysprompt",
@@ -295,6 +295,53 @@ def _replace_verbatim_after_label(tex: str, label_suffix: str, new_content: str)
     return tex[: vm.start(2)] + new_content + tex[vm.end(2) :]
 
 
+def _replace_verbatim_after_textsc(tex: str, textsc_label: str, new_content: str) -> str:
+    """Replace verbatim block content after \\textsc{<label>} in a promptbox."""
+    pattern = re.escape(f"\\textsc{{{textsc_label}}}")
+    label_match = re.search(pattern, tex)
+    if not label_match:
+        log.warning("\\textsc{%s} not found in appendix.tex", textsc_label)
+        return tex
+
+    search_start = label_match.end()
+    verbatim_pattern = re.compile(
+        r"(\\begin\{verbatim\}\n)(.*?)(\n\\end\{verbatim\})", re.DOTALL
+    )
+    vm = verbatim_pattern.search(tex, search_start)
+    if not vm:
+        log.warning("No verbatim block found after \\textsc{%s}", textsc_label)
+        return tex
+
+    return tex[: vm.start(2)] + new_content + tex[vm.end(2) :]
+
+
+def _extract_benchmark_prompts() -> list[str] | None:
+    """Extract RAG_PROMPTS prompt texts from the rag_beams2d generate_prompts module."""
+    try:
+        root_str = str(PROJECT_ROOT)
+        if root_str not in sys.path:
+            sys.path.insert(0, root_str)
+
+        logging.getLogger("config").setLevel(logging.WARNING)
+
+        mod = importlib.import_module(
+            "benchmarks.problems.rag_beams2d.generate_prompts"
+        )
+        rag_prompts = getattr(mod, "RAG_PROMPTS", None)
+        if rag_prompts is None:
+            log.warning("RAG_PROMPTS not found in generate_prompts module")
+            return None
+        return [p["prompt"] for p in rag_prompts]
+    except Exception:
+        log.exception("Failed to import rag_beams2d generate_prompts")
+        return None
+
+
+# Maps P0-P3 index -> \textsc{} label used in appendix.tex
+# Note: P0 is written as "PO" (letter O) in the thesis
+_BENCHMARK_PROMPT_LABELS = ["PO", "P1", "P2", "P3"]
+
+
 def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
     actions: list[dict] = []
     prompt_cfg = cfg.get("prompts", {})
@@ -339,6 +386,28 @@ def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
                     "action": action,
                 }
             )
+
+    # Benchmark prompts (P0-P3)
+    benchmark_cfg = prompt_cfg.get("benchmark_prompts", {})
+    if benchmark_cfg:
+        prompt_texts = _extract_benchmark_prompts()
+        if prompt_texts is None:
+            log.warning("Could not extract benchmark prompts — skipping P0-P3")
+        else:
+            for i, (label, text) in enumerate(
+                zip(_BENCHMARK_PROMPT_LABELS, prompt_texts, strict=False)
+            ):
+                old_tex = tex
+                tex = _replace_verbatim_after_textsc(tex, label, text)
+                if tex != old_tex:
+                    action = "would replace" if dry_run else "replaced"
+                    actions.append(
+                        {
+                            "source": f"{benchmark_cfg.get('source', 'rag_beams2d')}:P{i}",
+                            "target": f"{target_file} (\\textsc{{{label}}})",
+                            "action": action,
+                        }
+                    )
 
     # Write back if changed
     if tex != original_tex and not dry_run:
