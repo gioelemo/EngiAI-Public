@@ -86,6 +86,7 @@ class SupervisorAgent:
         model_name: str | None = None,
         temperature: float | None = None,
         seed: int | None = None,
+        rag_read_only: bool = False,
     ):
         """Initialize the supervisor agent.
 
@@ -93,6 +94,7 @@ class SupervisorAgent:
             model_name: Name of the LLM model to use (defaults to config.llm_model)
             temperature: Model temperature (defaults to config.llm_temperature)
             seed: Random seed for model (defaults to config.llm_seed)
+            rag_read_only: If True, sub-agents only get read-only RAG tools (search, list).
         """
         self.model_name = model_name or config.llm_model
         self.temperature = (
@@ -123,7 +125,10 @@ class SupervisorAgent:
         )
         # Initialize RAG agent with MMORE
         self.rag_agent = RAGAgent(
-            model_name=self.model_name, temperature=self.temperature, seed=self.seed
+            model_name=self.model_name,
+            temperature=self.temperature,
+            seed=self.seed,
+            rag_read_only=rag_read_only,
         )
         # Initialize ArXiv agent with MMORE
         self.arxiv_agent = ArXivAgent(
@@ -157,9 +162,13 @@ class SupervisorAgent:
             prompt += (
                 "\n\nIMPORTANT: ArXiv search is currently unavailable. "
                 "Do NOT route to arxiv_agent under any circumstances. "
-                "If the user asks about a paper or document AND then wants to perform a design task, "
-                "route to engineering_agent (it has both document search and optimization tools). "
-                "If the user only wants document Q&A with no follow-up action, route to rag_agent."
+                "For any paper or document lookup, route to rag_agent first. "
+                "After rag_agent returns the information, route to engineering_agent "
+                "for any follow-up design or optimization tasks. "
+                "Keep task_instruction for rag_agent concise: just state which "
+                "parameter values to find and from which papers. Do NOT ask for "
+                "full citations, DOIs, authors, or extensive quotes — just the "
+                "numeric values needed for the next step."
             )
         return prompt
 

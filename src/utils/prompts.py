@@ -40,25 +40,9 @@ def _get_problem_examples_text() -> str:
     return ", ".join(f"'{p}'" for p in problems[:-1]) + f", or '{problems[-1]}'"
 
 
-def _get_rag_tool_usage_text() -> str:
-    if config.mmore_enabled:
-        return """### Knowledge Base Tools (RAG)
-- **search_documents**: Search uploaded documents for engineering knowledge, reference material, or design guidelines
-- **list_documents**: List all documents currently in the knowledge base
-- **add_document**: Add a local file (PDF, Office, image) to the knowledge base
-- **add_url_to_knowledge_base**: Download and index web content or documentation
-- **delete_document**: Remove a document from the knowledge base
-
-Use **search_documents** to look up reference material, design guidelines, or prior results before or during design tasks. This is especially useful when the user has uploaded papers or documentation.
-"""
-    else:
-        return ""
-
-
 def _build_engineering_agent_prompt() -> str:
     """Build the engineering agent system prompt dynamically from problem registry."""
     problems_list = _get_problem_examples_text()
-    rag_tool_usage = _get_rag_tool_usage_text()
 
     return f"""You are an engineering assistant specialized in structural design and optimization.
 
@@ -123,8 +107,6 @@ the tool call (no `suggested_prompts` block and no additional user-facing text).
 
 ### Clarification
 - **ask_human_for_clarification**: Ask the user for missing or ambiguous design parameters before proceeding
-
-{rag_tool_usage}
 
 ## Problem-Specific Configs
 
@@ -225,9 +207,8 @@ AGENT_CAPABILITIES = """## Available Agents
   - Pre-trained models (GANs, Diffusion) that generate designs without optimization
   - Model training script generation for HPC
 - **Post-processing:** STL export, visualization, rendering
-- **Document search (when available):** Can search uploaded documents (e.g., papers) to look up parameters before optimizing
 
-**Use for:** design optimization, topology optimization, generating designs from ML models, physics simulations, STL conversion, training script generation. Also use when the task requires BOTH looking up information from a paper/document AND performing a design optimization (e.g., "find the volfrac from the paper, then optimize the design").
+**Use for:** design optimization, topology optimization, generating designs from ML models, physics simulations, STL conversion, training script generation. Does NOT have document search — use rag_agent first to look up parameters, then route to engineering_agent for the design task.
 
 ### hpc_agent
 **Capabilities:**
@@ -320,11 +301,12 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - Actually performing HPC operations → hpc_agent
    - Generating SLURM scripts → engineering_agent
 
-5. **Documents**:
-   - Pure questions about uploaded docs or documentation (no follow-up action) → rag_agent
-   - "Find X in the paper, then optimize/generate a design" (combined lookup + action) → engineering_agent
+5. **Documents and Papers**:
+   - Questions about uploaded docs, papers, or documentation → rag_agent
+   - "Find X in the paper" or "search the paper for Y" → rag_agent (searches the indexed knowledge base)
+   - "Find X in the paper, then optimize a design" → rag_agent FIRST (to find X), then engineering_agent (to optimize)
    - Finding new papers on ArXiv → arxiv_agent
-   - Web research → search_agent
+   - General web research (not about indexed documents) → search_agent
 
 6. **3D Printing**:
    - STL generation from designs → engineering_agent
@@ -882,19 +864,17 @@ Your role is to help users understand and extract information from technical doc
 research papers, and engineering specifications they have uploaded.
 
 CRITICAL RULES:
-1. **ALWAYS use the search_documents tool FIRST**: For EVERY question, you MUST call search_documents before answering
+1. **ALWAYS use search_documents FIRST**: You MUST call search_documents before answering any question
 2. **NEVER answer from your training data**: All answers must be based ONLY on documents retrieved via search_documents
 3. **Always cite sources**: Include document file IDs and relevance scores from the search results
 4. **If no documents found**: Tell the user no relevant documents were found
+5. **Be efficient**: Once you have found the requested information, STOP searching and return your answer immediately. Do NOT make redundant searches for the same information. Typically 1-3 searches are sufficient.
 
 Guidelines:
-1. **First call search_documents**: Use the search tool for every user question - even questions about MMORE, file formats, or system capabilities
-2. **Base answers ONLY on search results**: Do not use your general knowledge - only use what search_documents returns
-3. **Cite sources explicitly**: Always include file IDs and relevance scores in your response
-4. **Be precise**: Engineering work requires accuracy - cite specific sections
-5. **Ask for clarification**: If a question is ambiguous, call search_documents first, then ask for clarification if needed
-6. **Acknowledge limitations**: If information isn't in the documents, say so clearly
-7. **Leverage multimodal content**: MMORE extracts text, images, and tables - mention when visual content is relevant
+1. **Base answers ONLY on search results**: Do not use your general knowledge
+2. **Cite sources explicitly**: Always include file IDs and relevance scores in your response
+3. **Be precise**: Engineering work requires accuracy - cite specific sections
+4. **Acknowledge limitations**: If information isn't in the documents, say so clearly
 
 When users upload documents or URLs:
 - Confirm successful processing with MMORE
@@ -908,7 +888,7 @@ Available tools:
 - **list_documents**: Show all documents in the knowledge base
 - **delete_document**: Remove a document by its file ID
 
-Remember: ALWAYS call search_documents FIRST for every question, even if you think you know the answer from your training!
+Remember: Call search_documents FIRST, but once you have the answer, stop and respond immediately.
 
 ---
 

@@ -25,6 +25,7 @@ class RAGAgent(BaseAgent):
         temperature: float | None = None,
         mmore_url: str | None = None,
         seed: int | None = None,
+        rag_read_only: bool = False,
     ):
         """Initialize the RAG agent with MMORE client.
 
@@ -33,7 +34,11 @@ class RAGAgent(BaseAgent):
             temperature: Model temperature (defaults to config.llm_temperature)
             mmore_url: URL of MMORE service (defaults to MMORE_RAG_URL env var)
             seed: Random seed for model (defaults to config.llm_seed)
+            rag_read_only: If True, only expose read-only RAG tools (search, list).
         """
+        # Store before super().__init__() so _create_tools() can use it
+        self.rag_read_only = rag_read_only
+
         # Check if MMORE should be skipped (e.g., during benchmarks)
         skip_mmore = os.getenv("SKIP_MMORE", "false").lower() == "true"
 
@@ -60,7 +65,7 @@ class RAGAgent(BaseAgent):
         if self.mmore_client is None:
             return []
 
-        return create_rag_tools(self.mmore_client)
+        return create_rag_tools(self.mmore_client, read_only=self.rag_read_only)
 
     def _get_system_prompt(self) -> str:
         """Get the system prompt for the RAG agent.

@@ -20,15 +20,23 @@ from src.tools.web_crawler import WebCrawler
 logger = logging.getLogger(__name__)
 
 
-def create_rag_tools(mmore_client: MMOREClient) -> list:
+def create_rag_tools(mmore_client: MMOREClient, *, read_only: bool = False) -> list:
     """Create RAG tools bound to the given MMOREClient.
 
     Args:
         mmore_client: Initialized MMOREClient instance.
+        read_only: If True, only return read tools (search_documents, list_documents).
+            Useful for evaluations where documents are pre-indexed and the agent
+            should only query, not add/delete/download.
 
     Returns:
-        List of LangChain tools for document search, add, list, delete, and URL ingestion.
+        List of LangChain tools for document operations.
     """
+    if read_only:
+        return [
+            _create_search_tool(mmore_client),
+            _create_list_documents_tool(mmore_client),
+        ]
     return [
         _create_search_tool(mmore_client),
         _create_add_document_tool(mmore_client),

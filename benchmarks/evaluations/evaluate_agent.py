@@ -113,6 +113,7 @@ class EngineeringAgent(weave.Model):
     temperature: float = 0.7
     llm_seed: int | None = None
     problem_type: str = "beams2d"
+    rag_read_only: bool = False
 
     @weave.op()
     def predict(self, prompt: str) -> dict[str, Any]:
@@ -137,6 +138,7 @@ class EngineeringAgent(weave.Model):
                 model_name=self.model_name,
                 temperature=self.temperature,
                 seed=self.llm_seed,
+                rag_read_only=self.rag_read_only,
             )
 
             # Convert prompt to message format
@@ -728,6 +730,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         temperature=temperature,
         llm_seed=llm_seed,
         problem_type=args.problem,
+        rag_read_only=args.problem == "rag_beams2d",
     )
     print()
 
