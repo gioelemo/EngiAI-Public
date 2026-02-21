@@ -25,38 +25,57 @@ setup_style()
 # Create figure with appropriate size for conference paper (full width)
 fig, ax = plt.subplots(1, 1, figsize=PLOT_STYLE["figsize_full_width_tall"])
 ax.set_xlim(0, 10)
-ax.set_ylim(0, 10)
+ax.set_ylim(2.2, 9.6)
 ax.axis("off")
 
-# Color scheme (using same palette as plots for consistency)
-color_user = "#E8F4F8"  # Light blue
+# Color scheme — all from COLOR_PALETTE (Okabe-Ito) for consistency with benchmark plots
+color_user = COLOR_PALETTE[4]  # Sky blue
 color_supervisor = COLOR_PALETTE[1]  # Orange
 color_agent = COLOR_PALETTE[0]  # Blue
-color_tool = COLOR_PALETTE[2]  # Green
-color_external = "#F0F0F0"  # Light gray
+color_external = COLOR_PALETTE[2]  # Green
+
+# Shared style constants from PLOT_STYLE
+box_alpha = 0.4  # lighter fills for text readability
+box_linewidth = 1.0  # matches lines.linewidth in setup_style
+arrow_linewidth = 1.0
+arrow_alpha = 0.7
 
 # Font sizes (using utils style)
 font_sizes = PLOT_STYLE["font_sizes"]
-title_size = font_sizes["axes_title"] + 1
 label_size = font_sizes["axes_label"]
 small_size = font_sizes["tick_label"]
+
+# ============================================================================
+# Uniform vertical layout — all boxes same height, equal gaps between layers
+# ============================================================================
+box_h = 0.7
+top_y = 9.0  # top of User box
+bot_y = 3.2  # bottom of Tools box
+n_layers = 4
+layer_gap = (top_y - bot_y - n_layers * box_h) / (n_layers - 1)
+
+user_y = top_y - box_h
+supervisor_y = user_y - layer_gap - box_h
+agent_y = supervisor_y - layer_gap - box_h
+tools_y = agent_y - layer_gap - box_h
 
 # ============================================================================
 # Layer 1: User
 # ============================================================================
 user_box = FancyBboxPatch(
-    (3.5, 8.5),
+    (3.5, user_y),
     3,
-    0.8,
+    box_h,
     boxstyle="round,pad=0.05",
     edgecolor="black",
     facecolor=color_user,
-    linewidth=1.5,
+    linewidth=box_linewidth,
+    alpha=box_alpha,
 )
 ax.add_patch(user_box)
 ax.text(
     5,
-    8.9,
+    user_y + box_h / 2,
     r"\textbf{User}",
     fontsize=label_size,
     ha="center",
@@ -64,79 +83,76 @@ ax.text(
 )
 
 # Arrow from user to supervisor
+arrow_mid = (user_y + supervisor_y + box_h) / 2
 arrow_user = FancyArrowPatch(
-    (5.3, 8.5),
-    (5.3, 7.8),
+    (5.3, user_y),
+    (5.3, supervisor_y + box_h),
     arrowstyle="->",
     mutation_scale=15,
-    linewidth=1.5,
+    linewidth=arrow_linewidth,
     color="black",
+    alpha=arrow_alpha,
 )
 ax.add_patch(arrow_user)
-ax.text(5.8, 8.15, r"\textit{Query}", fontsize=small_size, va="center")
+ax.text(5.5, arrow_mid, r"\textbf{Query}", fontsize=small_size, va="center", ha="left")
+
+# Arrow from supervisor back to user (response)
+arrow_response = FancyArrowPatch(
+    (4.7, supervisor_y + box_h),
+    (4.7, user_y),
+    arrowstyle="->",
+    mutation_scale=15,
+    linewidth=arrow_linewidth,
+    color="black",
+    alpha=arrow_alpha,
+)
+ax.add_patch(arrow_response)
+ax.text(4.5, arrow_mid, r"\textbf{Response}", fontsize=small_size, va="center", ha="right")
 
 # ============================================================================
 # Layer 2: Supervisor Agent (LLM)
 # ============================================================================
 supervisor_box = FancyBboxPatch(
-    (0.5, 6.8),
+    (0.5, supervisor_y),
     9,
-    1.0,
+    box_h,
     boxstyle="round,pad=0.05",
     edgecolor="black",
     facecolor=color_supervisor,
-    linewidth=1.5,
-    alpha=0.7,
+    linewidth=box_linewidth,
+    alpha=box_alpha,
 )
 ax.add_patch(supervisor_box)
 ax.text(
     5,
-    7.3,
+    supervisor_y + box_h / 2,
     r"\textbf{Supervisor Agent (LLM)}",
     fontsize=label_size,
     ha="center",
     va="center",
 )
 
-# Arrow from supervisor back to user (response)
-arrow_response = FancyArrowPatch(
-    (4.7, 7.8),
-    (4.7, 8.5),
-    arrowstyle="->",
-    mutation_scale=15,
-    linewidth=1.5,
-    color="black",
-)
-ax.add_patch(arrow_response)
-ax.text(4.0, 8.15, r"\textit{Response}", fontsize=small_size, va="center", ha="right")
-
 # ============================================================================
-# Layer 3: Specialized Agents
+# Layer 3: Specialized Agents (name only — no tool sublabels)
 # ============================================================================
-agent_y = 4.5
-agent_height = 1.2
-agent_width = 1.0  # Reduced to fit 7 agents with proper spacing
-# Calculate spacing to distribute evenly under supervisor (0.5 to 9.5)
-# Total agent width: 7 * 1.0 = 7.0, available space: 9, gaps: 6
-agent_spacing = (9 - 7 * agent_width) / 6  # ~0.333
+agent_height = box_h
+agent_width = 1.15
+n_agents = 7
+agent_spacing = (9 - n_agents * agent_width) / (n_agents - 1)
 
 agents = [
-    {"name": "Engineering", "x": 0.5, "tools": ["EngiBench", "EngiOpt"]},
-    {"name": "RAG", "x": 0.5 + 1 * (agent_width + agent_spacing), "tools": ["MMORE"]},
-    {
-        "name": "Search",
-        "x": 0.5 + 2 * (agent_width + agent_spacing),
-        "tools": ["Tavily"],
-    },
-    {
-        "name": "ArXiv",
-        "x": 0.5 + 3 * (agent_width + agent_spacing),
-        "tools": ["ArXiv API"],
-    },
-    {"name": "HPC", "x": 0.5 + 4 * (agent_width + agent_spacing), "tools": ["SLURM"]},
-    {"name": "CLI", "x": 0.5 + 5 * (agent_width + agent_spacing), "tools": ["Shell"]},
-    {"name": "Prusa", "x": 0.5 + 6 * (agent_width + agent_spacing), "tools": ["MCP"]},
+    {"name": "Engineering"},
+    {"name": "RAG"},
+    {"name": "Search"},
+    {"name": "ArXiv"},
+    {"name": "HPC"},
+    {"name": "CLI"},
+    {"name": "Prusa"},
 ]
+
+# Compute x positions
+for i, agent in enumerate(agents):
+    agent["x"] = 0.5 + i * (agent_width + agent_spacing)
 
 # Draw agents
 for agent in agents:
@@ -147,204 +163,112 @@ for agent in agents:
         boxstyle="round,pad=0.05",
         edgecolor="black",
         facecolor=color_agent,
-        linewidth=1,
-        alpha=0.7,
+        linewidth=box_linewidth,
+        alpha=box_alpha,
     )
     ax.add_patch(agent_box)
 
-    # Agent name
+    # Agent name — centered in box
     ax.text(
         agent["x"] + agent_width / 2,
-        agent_y + agent_height - 0.3,
+        agent_y + agent_height / 2,
         r"\textbf{" + agent["name"] + "}",
         fontsize=small_size,
         ha="center",
         va="center",
     )
 
-    # Tools (smaller text)
-    for i, tool in enumerate(agent["tools"]):
-        ax.text(
-            agent["x"] + agent_width / 2,
-            agent_y + agent_height - 0.6 - i * 0.25,
-            tool,
-            fontsize=small_size - 1,
-            ha="center",
-            va="center",
-            style="italic",
-        )
-
-    # Arrow from supervisor to agent
-    supervisor_x = agent["x"] + agent_width / 2
+    # Bidirectional arrow from supervisor to agent
+    cx = agent["x"] + agent_width / 2
     arrow_super = FancyArrowPatch(
-        (supervisor_x, 6.8),
-        (supervisor_x, agent_y + agent_height),
+        (cx, supervisor_y),
+        (cx, agent_y + agent_height),
         arrowstyle="<->",
         mutation_scale=12,
-        linewidth=1,
+        linewidth=arrow_linewidth,
         color="black",
-        alpha=0.6,
+        alpha=arrow_alpha,
     )
     ax.add_patch(arrow_super)
 
 # ============================================================================
-# Layer 4: External Services / Tools
+# Layer 4: External Services / Tools (single source of truth for tool names)
 # ============================================================================
-tools_y = 2.5
-tools_height = 0.8
-tools_width = 1.2  # Reduced to fit 6 tools without overlapping
+tools_height = box_h  # same as specialization boxes
+tools_width = agent_width  # same as specialization boxes
 
-# Position tools to align with their corresponding agents
+# Each tool is positioned to align under its corresponding agent(s).
+# "links" maps each tool to the agent indices that connect to it.
 tools = [
-    {
-        "name": "EngiBench\nLibrary",
-        "x": 0.5 + agent_width / 2 - tools_width / 2,
-    },  # Under Engineering
-    {
-        "name": "MMORE\nRAG Service",
-        "x": agents[1]["x"] + agent_width / 2 - tools_width / 2,
-    },  # Under RAG
-    {
-        "name": "Web\nAPIs",
-        "x": (agents[2]["x"] + agents[3]["x"] + agent_width) / 2 - tools_width / 2,
-    },  # Between Search & ArXiv
-    {
-        "name": "HPC\nCluster",
-        "x": agents[4]["x"] + agent_width / 2 - tools_width / 2,
-    },  # Under HPC
-    {
-        "name": "Local\nShell",
-        "x": agents[5]["x"] + agent_width / 2 - tools_width / 2,
-    },  # Under CLI
-    {
-        "name": "Prusa\nMCP",
-        "x": agents[6]["x"] + agent_width / 2 - tools_width / 2,
-    },  # Under Prusa
+    {"name": "EngiBench\n+EngiOpt", "align": [0], "links": [0]},
+    {"name": "MMORE\nRAG", "align": [1], "links": [1]},
+    {"name": "Web\nAPIs", "align": [2, 3], "links": [2, 3]},  # shared by Search & ArXiv
+    {"name": "HPC\nCluster", "align": [4], "links": [4]},
+    {"name": "Local\nShell", "align": [5], "links": [5]},
+    {"name": "Prusa\nMCP", "align": [6], "links": [6]},
 ]
 
+# Compute x position: center tool under the midpoint of its aligned agents
+for tool in tools:
+    xs = [agents[i]["x"] + agent_width / 2 for i in tool["align"]]
+    tool["x"] = sum(xs) / len(xs) - tools_width / 2
+
+# Draw tool boxes and connecting arrows
 for tool in tools:
     tool_box = FancyBboxPatch(
         (tool["x"], tools_y),
         tools_width,
         tools_height,
         boxstyle="round,pad=0.05",
-        edgecolor="gray",
+        edgecolor="black",
         facecolor=color_external,
-        linewidth=1,
-        linestyle="--",
+        linewidth=box_linewidth,
+        alpha=box_alpha,
     )
     ax.add_patch(tool_box)
 
+    # Bold text, same style as agent boxes
+    # Wrap each line in \textbf{}
+    bold_name = "\n".join(r"\textbf{" + line + "}" for line in tool["name"].split("\n"))
     ax.text(
         tool["x"] + tools_width / 2,
         tools_y + tools_height / 2,
-        tool["name"],
+        bold_name,
         fontsize=small_size,
         ha="center",
         va="center",
     )
 
-# ============================================================================
-# Connecting arrows from agents to tools
-# ============================================================================
-# Engineering -> EngiBench
-tool_0_x = tools[0]["x"] + tools_width / 2
-ax.annotate(
-    "",
-    xy=(tool_0_x, tools_y + tools_height),
-    xytext=(agents[0]["x"] + agent_width / 2, agent_y),
-    arrowprops={"arrowstyle": "->", "lw": 0.8, "color": "black", "alpha": 0.6},
-)
-
-# RAG -> MMORE
-tool_1_x = tools[1]["x"] + tools_width / 2
-ax.annotate(
-    "",
-    xy=(tool_1_x, tools_y + tools_height),
-    xytext=(agents[1]["x"] + agent_width / 2, agent_y),
-    arrowprops={"arrowstyle": "->", "lw": 0.8, "color": "black", "alpha": 0.6},
-)
-
-# Search/ArXiv -> Web APIs
-tool_2_x = tools[2]["x"] + tools_width / 2
-ax.annotate(
-    "",
-    xy=(tool_2_x, tools_y + tools_height),
-    xytext=(agents[2]["x"] + agent_width / 2, agent_y),
-    arrowprops={"arrowstyle": "->", "lw": 0.8, "color": "black", "alpha": 0.6},
-)
-ax.annotate(
-    "",
-    xy=(tool_2_x, tools_y + tools_height),
-    xytext=(agents[3]["x"] + agent_width / 2, agent_y),
-    arrowprops={"arrowstyle": "->", "lw": 0.8, "color": "black", "alpha": 0.6},
-)
-
-# HPC -> HPC Cluster
-tool_3_x = tools[3]["x"] + tools_width / 2
-ax.annotate(
-    "",
-    xy=(tool_3_x, tools_y + tools_height),
-    xytext=(agents[4]["x"] + agent_width / 2, agent_y),
-    arrowprops={"arrowstyle": "->", "lw": 0.8, "color": "black", "alpha": 0.6},
-)
-
-# CLI -> Local Shell
-tool_4_x = tools[4]["x"] + tools_width / 2
-ax.annotate(
-    "",
-    xy=(tool_4_x, tools_y + tools_height),
-    xytext=(agents[5]["x"] + agent_width / 2, agent_y),
-    arrowprops={"arrowstyle": "->", "lw": 0.8, "color": "black", "alpha": 0.6},
-)
-
-# Prusa -> Prusa MCP
-tool_5_x = tools[5]["x"] + tools_width / 2
-ax.annotate(
-    "",
-    xy=(tool_5_x, tools_y + tools_height),
-    xytext=(agents[6]["x"] + agent_width / 2, agent_y),
-    arrowprops={"arrowstyle": "->", "lw": 0.8, "color": "black", "alpha": 0.6},
-)
+    # Arrows from each linked agent down to this tool
+    tool_cx = tool["x"] + tools_width / 2
+    for idx in tool["links"]:
+        agent_cx = agents[idx]["x"] + agent_width / 2
+        ax.annotate(
+            "",
+            xy=(tool_cx, tools_y + tools_height),
+            xytext=(agent_cx, agent_y),
+            arrowprops={"arrowstyle": "->", "lw": arrow_linewidth, "color": "black", "alpha": arrow_alpha},
+        )
 
 # ============================================================================
 # Layer labels (on the left side)
 # ============================================================================
+layer_label_size = label_size  # 8pt — larger than small_size for readability
 ax.text(
-    -0.3,
-    8.9,
-    r"\textit{Interface}",
-    fontsize=small_size,
-    ha="right",
-    va="center",
-    color="black",
+    -0.3, user_y + box_h / 2, r"\textbf{Interface}",
+    fontsize=layer_label_size, ha="right", va="center", color="black",
 )
 ax.text(
-    -0.3,
-    7.2,
-    r"\textit{Orchestration}",
-    fontsize=small_size,
-    ha="right",
-    va="center",
-    color="black",
+    -0.3, supervisor_y + box_h / 2, r"\textbf{Orchestration}",
+    fontsize=layer_label_size, ha="right", va="center", color="black",
 )
 ax.text(
-    -0.3,
-    agent_y + agent_height / 2,
-    r"\textit{Specialization}",
-    fontsize=small_size,
-    ha="right",
-    va="center",
-    color="black",
+    -0.3, agent_y + box_h / 2, r"\textbf{Specialization}",
+    fontsize=layer_label_size, ha="right", va="center", color="black",
 )
 ax.text(
-    -0.3,
-    tools_y + tools_height / 2,
-    r"\textit{Execution}",
-    fontsize=small_size,
-    ha="right",
-    va="center",
-    color="black",
+    -0.3, tools_y + box_h / 2, r"\textbf{Execution}",
+    fontsize=layer_label_size, ha="right", va="center", color="black",
 )
 
 # ============================================================================
@@ -354,17 +278,20 @@ legend_elements = [
     mpatches.Patch(
         facecolor=color_supervisor,
         edgecolor="black",
-        label="Supervisor (Orchestration)",
-        alpha=0.7,
+        label=r"\textbf{Supervisor (Orchestration)}",
+        alpha=box_alpha,
     ),
     mpatches.Patch(
-        facecolor=color_agent, edgecolor="black", label="Domain Agent (LLM)", alpha=0.7
+        facecolor=color_agent,
+        edgecolor="black",
+        label=r"\textbf{Domain Agent (LLM)}",
+        alpha=box_alpha,
     ),
     mpatches.Patch(
         facecolor=color_external,
-        edgecolor="gray",
-        label="External Service/Tool",
-        linestyle="--",
+        edgecolor="black",
+        label=r"\textbf{External Service/Tool}",
+        alpha=box_alpha,
     ),
 ]
 
@@ -373,8 +300,8 @@ legend = ax.legend(
     loc="lower center",
     ncol=3,
     frameon=True,
-    fontsize=small_size,
-    bbox_to_anchor=(0.5, -0.05),
+    fontsize=label_size,
+    bbox_to_anchor=(0.5, -0.02),
 )
 legend.get_frame().set_linewidth(0.5)
 
@@ -394,7 +321,7 @@ output_pdf = output_dir / "architecture_simplified.pdf"
 fig.savefig(output_png, dpi=PLOT_STYLE["dpi"], bbox_inches="tight", facecolor="white")
 fig.savefig(output_pdf, bbox_inches="tight", facecolor="white")
 
-print("✅ Simplified architecture diagram saved:")
+print("Simplified architecture diagram saved:")
 print(f"   PNG: {output_png}")
 print(f"   PDF: {output_pdf}")
 

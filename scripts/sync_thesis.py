@@ -121,6 +121,7 @@ def sync_figures(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
         dst_dir = thesis_root / extra["target"]
         extensions = set(extra.get("extensions", [".pdf"]))
         recursive = extra.get("recursive", False)
+        whitelist = set(extra.get("files", []))  # optional filename whitelist
 
         if not src_dir.is_dir():
             log.warning("Extra figure source dir not found: %s", src_dir)
@@ -129,6 +130,8 @@ def sync_figures(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
         pattern = src_dir.rglob("*") if recursive else src_dir.iterdir()
         for f in sorted(pattern):
             if not f.is_file() or f.suffix.lower() not in extensions:
+                continue
+            if whitelist and f.name not in whitelist:
                 continue
             rel = f.relative_to(src_dir)
             dst = dst_dir / rel

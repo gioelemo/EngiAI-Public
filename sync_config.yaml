@@ -8,44 +8,19 @@ thesis_submodule_path: thesis
 # Figures
 # ---------------------------------------------------------------------------
 figures:
-  # Point this to the latest/best evaluation figures directory.
-  # Change after producing a new set of figures.
+  # Primary source is unused for now (benchmark figures not yet needed).
   primary_source: benchmarks/evaluations/plots/figures_full_evaluation_v1
+  mappings: []
 
-  # Each mapping copies files from primary_source/<source> to thesis/<target>.
-  mappings:
-    - source: "beams2d/full/no_rag"
-      target: "figures/benchmark/full"
+  # Architecture diagrams from assets/ -> thesis/figures/
+  extra_sources:
+    - source: "assets"
+      target: "figures"
       extensions: [".pdf"]
-    - source: "beams2d/natural/no_rag"
-      target: "figures/benchmark/natural"
-      extensions: [".pdf"]
-    - source: "beams2d/workflow-random/no_rag"
-      target: "figures/benchmark/workflow-random"
-      extensions: [".pdf"]
-    - source: "beams2d/workflow-distractor/no_rag"
-      target: "figures/benchmark/workflow-distractor"
-      extensions: [".pdf"]
-    - source: "beams2d/workflow-derived-params/no_rag"
-      target: "figures/benchmark/workflow-derived-params"
-      extensions: [".pdf"]
-    - source: "beams2d/workflow-conditional/no_rag"
-      target: "figures/benchmark/workflow-conditional"
-      extensions: [".pdf"]
-    - source: "beams2d/workflow-multi-export/no_rag"
-      target: "figures/benchmark/workflow-multi-export"
-      extensions: [".pdf"]
-    - source: "rag_beams2d/rag-eval"
-      target: "figures/benchmark/rag"
-      extensions: [".pdf"]
-
-  # Additional figure sources outside the primary directory.
-  extra_sources: []
-    # Example:
-    # - source: "benchmarks/evaluations/results/models/openai_gpt-4o/beams2d/full/no_rag/comparisons"
-    #   target: "figures/comparisons/gpt4o-full"
-    #   extensions: [".png"]
-    #   recursive: true
+      # Only sync these specific files:
+      files:
+        - "architecture_simplified.pdf"
+        - "deployment_infrastructure.pdf"
 
 # ---------------------------------------------------------------------------
 # LaTeX tables
