@@ -21,6 +21,7 @@ figures:
       files:
         - "architecture_simplified.pdf"
         - "deployment_infrastructure.pdf"
+        - "design_process.pdf"
 
 # ---------------------------------------------------------------------------
 # LaTeX tables
