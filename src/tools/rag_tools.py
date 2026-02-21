@@ -1,8 +1,8 @@
 """
-Shared RAG tool factory for MMORE-powered document retrieval.
+RAG tool factory for MMORE-powered document retrieval.
 
 Creates LangChain tools bound to a given MMOREClient instance.
-Used by both RAGAgent and EngineeringAgent.
+Used by RAGAgent.
 """
 
 import logging
