@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import textwrap
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -210,6 +211,34 @@ def sync_tables(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
 # Prompt extraction
 # ---------------------------------------------------------------------------
 
+# Maximum characters per line inside \small\begin{verbatim} in the promptbox.
+# A4 (170mm text width) with tcolorbox padding ≈ 76 monospace chars at \small.
+_VERBATIM_LINE_WIDTH = 72
+
+
+def _wrap_verbatim_lines(text: str, width: int = _VERBATIM_LINE_WIDTH) -> str:
+    """Wrap long lines so they fit inside a LaTeX verbatim block."""
+    wrapped: list[str] = []
+    for line in text.split("\n"):
+        if len(line) <= width:
+            wrapped.append(line)
+        else:
+            stripped = line.lstrip()
+            indent = line[: len(line) - len(stripped)]
+            subsequent = indent + "  "
+            wrapped.append(
+                textwrap.fill(
+                    stripped,
+                    width=width,
+                    initial_indent=indent,
+                    subsequent_indent=subsequent,
+                    break_long_words=True,
+                    break_on_hyphens=False,
+                )
+            )
+    return "\n".join(wrapped)
+
+
 # Maps config label key -> label suffix used in appendix.tex (agent prompts)
 _LABEL_MAP = {
     "supervisor": "supervisorsysprompt",
@@ -374,6 +403,7 @@ def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
         prompt_text = re.sub(
             r"\n*## Suggested Next Prompts.*", "", prompt_text, flags=re.DOTALL
         )
+        prompt_text = _wrap_verbatim_lines(prompt_text)
 
         old_tex = tex
         tex = _replace_verbatim_after_label(tex, label_suffix, prompt_text)
@@ -397,8 +427,9 @@ def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
             for i, (label, text) in enumerate(
                 zip(_BENCHMARK_PROMPT_LABELS, prompt_texts, strict=False)
             ):
+                wrapped = _wrap_verbatim_lines(text)
                 old_tex = tex
-                tex = _replace_verbatim_after_textsc(tex, label, text)
+                tex = _replace_verbatim_after_textsc(tex, label, wrapped)
                 if tex != old_tex:
                     action = "would replace" if dry_run else "replaced"
                     actions.append(
