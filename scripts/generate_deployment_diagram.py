@@ -22,317 +22,269 @@ from utils import COLOR_PALETTE, PLOT_STYLE, setup_style  # noqa: E402
 # Setup publication style
 setup_style()
 
-# Create figure (full width for deployment diagram)
+# Create figure with appropriate size for conference paper (full width)
 fig, ax = plt.subplots(1, 1, figsize=PLOT_STYLE["figsize_full_width_tall"])
 ax.set_xlim(0, 10)
-ax.set_ylim(0, 10)
+ax.set_ylim(2.2, 9.6)
 ax.axis("off")
 
-# Color scheme
+# Color scheme — all from COLOR_PALETTE (Okabe-Ito) for consistency with benchmark plots
+color_user = COLOR_PALETTE[4]       # Sky blue
 color_container = COLOR_PALETTE[0]  # Blue
-color_db = COLOR_PALETTE[2]  # Green
-color_external = "#F0F0F0"  # Light gray
-color_network = "#FFF8DC"  # Cornsilk (light yellow)
+color_db = COLOR_PALETTE[2]         # Green
+color_external = COLOR_PALETTE[3]   # Pink
+color_network = COLOR_PALETTE[1]    # Orange (network boundary)
 
-# Font sizes
+# Shared style constants (matching architecture diagram)
+box_alpha = 0.4
+box_linewidth = 1.0
+arrow_linewidth = 1.0
+arrow_alpha = 0.7
+
+# Font sizes (using utils style)
 font_sizes = PLOT_STYLE["font_sizes"]
-title_size = font_sizes["axes_title"] + 1
 label_size = font_sizes["axes_label"]
 small_size = font_sizes["tick_label"]
 
 # ============================================================================
-# Docker Network Box (full width)
+# Uniform vertical layout — all boxes same height, equal gaps between layers
 # ============================================================================
+box_h = 0.7
+top_y = 9.0    # top of User Browser box
+bot_y = 3.2    # bottom of External Services box
+n_layers = 4
+layer_gap = (top_y - bot_y - n_layers * box_h) / (n_layers - 1)
+
+user_y = top_y - box_h
+chatbot_y = user_y - layer_gap - box_h
+services_y = chatbot_y - layer_gap - box_h
+external_y = services_y - layer_gap - box_h
+
+# ============================================================================
+# Docker Network boundary (encompasses chatbot + services layers)
+# ============================================================================
+network_pad_bot = 0.45
+network_pad_top = 0.45
+network_bot = services_y - network_pad_bot
+network_top = chatbot_y + box_h + network_pad_top
 network_box = Rectangle(
-    (0.2, 3.5),
-    9.6,
-    5.0,
-    edgecolor=COLOR_PALETTE[1],
+    (0.3, network_bot),
+    9.4,
+    network_top - network_bot,
+    edgecolor=color_network,
     facecolor=color_network,
-    linewidth=2,
-    linestyle="--",
-    alpha=0.3,
+    linewidth=box_linewidth,
+    alpha=0.1,
 )
 ax.add_patch(network_box)
 ax.text(
-    0.4,
-    8.1,
-    r"\textit{Docker Network: engineer-assistant}",
-    fontsize=small_size,
-    color=COLOR_PALETTE[1],
-    fontweight="bold",
+    0.5,
+    (chatbot_y + box_h + network_top) / 2,
+    r"\textbf{Docker Network}",
+    fontsize=label_size,
+    color="black",
+    ha="left",
+    va="center",
 )
 
 # ============================================================================
-# User Browser (outside Docker)
+# Layer 1: User Browser
 # ============================================================================
 browser_box = FancyBboxPatch(
-    (3.5, 8.8),
+    (3.5, user_y),
     3,
-    0.7,
+    box_h,
     boxstyle="round,pad=0.05",
     edgecolor="black",
-    facecolor="#E8F4F8",
-    linewidth=1.0,
+    facecolor=color_user,
+    linewidth=box_linewidth,
+    alpha=box_alpha,
 )
 ax.add_patch(browser_box)
 ax.text(
     5,
-    9.15,
+    user_y + box_h / 2,
     r"\textbf{User Browser}",
     fontsize=label_size,
     ha="center",
     va="center",
 )
 
-# Arrow to Streamlit container
+# Arrow from browser to chatbot
 arrow_browser = FancyArrowPatch(
-    (5, 8.8),
-    (5, 7.7),
+    (5, user_y),
+    (5, chatbot_y + box_h),
     arrowstyle="<->",
     mutation_scale=15,
-    linewidth=1.0,
+    linewidth=arrow_linewidth,
     color="black",
+    alpha=arrow_alpha,
 )
 ax.add_patch(arrow_browser)
 
 # ============================================================================
-# Container 1: Streamlit Chatbot
+# Layer 2: Chatbot Container (full width, like supervisor in architecture)
 # ============================================================================
 chatbot_box = FancyBboxPatch(
-    (2.8, 6.5),
-    4.4,
-    1.2,
+    (0.5, chatbot_y),
+    9,
+    box_h,
     boxstyle="round,pad=0.05",
     edgecolor="black",
     facecolor=color_container,
-    linewidth=1.0,
-    alpha=0.6,
+    linewidth=box_linewidth,
+    alpha=box_alpha,
 )
 ax.add_patch(chatbot_box)
-
-# Container name
 ax.text(
     5,
-    7.4,
-    r"\textbf{engineer-assistant-chatbot}",
+    chatbot_y + box_h / 2 + 0.1,
+    r"\textbf{Chatbot + Multi-Agent System}",
     fontsize=label_size,
     ha="center",
     va="center",
 )
-
-# Container details
 ax.text(
     5,
-    7.1,
-    r"Streamlit UI + Multi-Agent System",
+    chatbot_y + box_h / 2 - 0.15,
+    r"\texttt{engineer-assistant-chatbot}",
     fontsize=small_size,
     ha="center",
     va="center",
-    style="italic",
 )
-
 
 # ============================================================================
-# Container 2: PostgreSQL Database
+# Layer 3: Service Containers
 # ============================================================================
-postgres_box = FancyBboxPatch(
-    (0.5, 4.0),
-    2.6,
-    1.0,
-    boxstyle="round,pad=0.05",
-    edgecolor="black",
-    facecolor=color_db,
-    linewidth=1.0,
-    alpha=0.4,
-)
-ax.add_patch(postgres_box)
+svc_width = 2.6
+svc_height = box_h
 
-ax.text(
-    1.8,
-    4.7,
-    r"\textbf{postgres}",
-    fontsize=label_size,
-    ha="center",
-    va="center",
-)
+services = [
+    {"name": "PostgreSQL", "container": "postgres", "x": 0.5, "color": color_db},
+    {"name": "Prusa MCP", "container": "prusa-mcp-server", "x": 3.7, "color": color_container},
+    {"name": "MMORE RAG", "container": "mmore-rag-service", "x": 6.9, "color": color_container},
+]
 
-ax.text(
-    1.8,
-    4.4,
-    r"PostgreSQL 15",
-    fontsize=small_size,
-    ha="center",
-    va="center",
-    style="italic",
-)
+for svc in services:
+    svc_box = FancyBboxPatch(
+        (svc["x"], services_y),
+        svc_width,
+        svc_height,
+        boxstyle="round,pad=0.05",
+        edgecolor="black",
+        facecolor=svc["color"],
+        linewidth=box_linewidth,
+        alpha=box_alpha,
+    )
+    ax.add_patch(svc_box)
+    ax.text(
+        svc["x"] + svc_width / 2,
+        services_y + svc_height / 2 + 0.1,
+        r"\textbf{" + svc["name"] + "}",
+        fontsize=label_size,
+        ha="center",
+        va="center",
+    )
+    ax.text(
+        svc["x"] + svc_width / 2,
+        services_y + svc_height / 2 - 0.15,
+        r"\texttt{" + svc["container"] + "}",
+        fontsize=small_size,
+        ha="center",
+        va="center",
+    )
 
-
-# Arrow from chatbot to postgres
-arrow_db = FancyArrowPatch(
-    (3.8, 6.5),
-    (2.5, 5.0),
-    arrowstyle="<->",
-    mutation_scale=12,
-    linewidth=1.0,
-    color="black",
-)
-ax.add_patch(arrow_db)
-
-# ============================================================================
-# Container 3: Prusa MCP Server (Optional)
-# ============================================================================
-prusa_box = FancyBboxPatch(
-    (3.7, 4.0),
-    2.6,
-    1.0,
-    boxstyle="round,pad=0.05",
-    edgecolor="black",
-    facecolor=color_container,
-    linewidth=1.0,
-    alpha=0.4,
-)
-ax.add_patch(prusa_box)
-
-ax.text(
-    5.0,
-    4.7,
-    r"\textbf{prusa-mcp-server}",
-    fontsize=label_size,
-    ha="center",
-    va="center",
-)
-
-ax.text(
-    5.0,
-    4.4,
-    r"MCP Tools (Optional)",
-    fontsize=small_size,
-    ha="center",
-    va="center",
-    style="italic",
-)
-
-
-# Arrow from chatbot to prusa
-arrow_prusa = FancyArrowPatch(
-    (5.0, 6.5),
-    (5.0, 5.0),
-    arrowstyle="<->",
-    mutation_scale=12,
-    linewidth=1.0,
-    color="black",
-)
-ax.add_patch(arrow_prusa)
+# Bidirectional arrows from chatbot to each service
+for svc in services:
+    cx = svc["x"] + svc_width / 2
+    arrow = FancyArrowPatch(
+        (cx, chatbot_y),
+        (cx, services_y + svc_height),
+        arrowstyle="<->",
+        mutation_scale=12,
+        linewidth=arrow_linewidth,
+        color="black",
+        alpha=arrow_alpha,
+    )
+    ax.add_patch(arrow)
 
 # ============================================================================
-# Container 4: MMORE RAG Service (inside Docker)
+# Layer 4: External Services (outside Docker network)
 # ============================================================================
-mmore_box = FancyBboxPatch(
-    (6.9, 4.0),
-    2.6,
-    1.0,
-    boxstyle="round,pad=0.05",
-    edgecolor="black",
-    facecolor=color_container,
-    linewidth=1.0,
-    alpha=0.4,
-)
-ax.add_patch(mmore_box)
-
-ax.text(
-    8.2,
-    4.7,
-    r"\textbf{mmore-rag-service}",
-    fontsize=label_size,
-    ha="center",
-    va="center",
-)
-
-ax.text(
-    8.2,
-    4.4,
-    r"Multimodal RAG",
-    fontsize=small_size,
-    ha="center",
-    va="center",
-    style="italic",
-)
-
-# Arrow from chatbot to MMORE
-arrow_mmore = FancyArrowPatch(
-    (6.4, 6.5),
-    (7.5, 5.0),
-    arrowstyle="<->",
-    mutation_scale=12,
-    linewidth=1.0,
-    color="black",
-)
-ax.add_patch(arrow_mmore)
-
-# ============================================================================
-# External Services (outside Docker network)
-# ============================================================================
-
-# Unified External Services (APIs + HPC) - moved up closer to legend
 external_box = FancyBboxPatch(
-    (2.5, 0.9),
-    5.0,
-    0.8,
+    (0.5, external_y),
+    9,
+    box_h,
     boxstyle="round,pad=0.05",
-    edgecolor="gray",
+    edgecolor="black",
     facecolor=color_external,
-    linewidth=1.0,
-    linestyle="--",
+    linewidth=box_linewidth,
+    alpha=box_alpha,
 )
 ax.add_patch(external_box)
-
 ax.text(
-    5.0,
-    1.5,
+    5,
+    external_y + box_h / 2,
     r"\textbf{External Services}",
     fontsize=label_size,
     ha="center",
     va="center",
 )
 
-ax.text(
-    5.0,
-    1,
-    r"OpenAI, Tavily, ArXiv, HPC Cluster",
-    fontsize=small_size - 1,
-    ha="center",
-    va="center",
-    style="italic",
-)
-
-# Arrow to External Services - routed to avoid containers
-# Use a curved arrow from bottom of chatbot
+# Arrow from Docker network to external services
 arrow_external = FancyArrowPatch(
-    (4.2, 6.5),
-    (4.5, 1.7),
-    arrowstyle="->",
+    (5, network_bot),
+    (5, external_y + box_h),
+    arrowstyle="<->",
     mutation_scale=12,
-    linewidth=1.0,
+    linewidth=arrow_linewidth,
     color="black",
-    connectionstyle="arc3,rad=0.8",
+    alpha=arrow_alpha,
 )
 ax.add_patch(arrow_external)
 
+# ============================================================================
+# Layer labels (on the left side, matching architecture diagram)
+# ============================================================================
+layer_label_size = label_size
+ax.text(
+    -0.3, user_y + box_h / 2, r"\textbf{Interface}",
+    fontsize=layer_label_size, ha="right", va="center", color="black",
+)
+ax.text(
+    -0.3, chatbot_y + box_h / 2, r"\textbf{Application}",
+    fontsize=layer_label_size, ha="right", va="center", color="black",
+)
+ax.text(
+    -0.3, services_y + box_h / 2, r"\textbf{Services}",
+    fontsize=layer_label_size, ha="right", va="center", color="black",
+)
+ax.text(
+    -0.3, external_y + box_h / 2, r"\textbf{External}",
+    fontsize=layer_label_size, ha="right", va="center", color="black",
+)
 
 # ============================================================================
-# Legend
+# Legend at bottom
 # ============================================================================
 legend_elements = [
     mpatches.Patch(
-        facecolor=color_container, edgecolor="black", label="Container", alpha=0.7
+        facecolor=color_container,
+        edgecolor="black",
+        label=r"\textbf{Container}",
+        alpha=box_alpha,
     ),
-    mpatches.Patch(facecolor=color_db, edgecolor="black", label="Database", alpha=0.7),
+    mpatches.Patch(
+        facecolor=color_db,
+        edgecolor="black",
+        label=r"\textbf{Database}",
+        alpha=box_alpha,
+    ),
     mpatches.Patch(
         facecolor=color_external,
-        edgecolor="gray",
-        label="External Service",
-        linestyle="--",
+        edgecolor="black",
+        label=r"\textbf{External Service}",
+        alpha=box_alpha,
     ),
 ]
 
@@ -341,8 +293,8 @@ legend = ax.legend(
     loc="lower center",
     ncol=3,
     frameon=True,
-    fontsize=small_size,
-    bbox_to_anchor=(0.5, -0.05),
+    fontsize=label_size,
+    bbox_to_anchor=(0.5, -0.02),
 )
 legend.get_frame().set_linewidth(0.5)
 
@@ -362,7 +314,7 @@ output_pdf = output_dir / "deployment_infrastructure.pdf"
 fig.savefig(output_png, dpi=PLOT_STYLE["dpi"], bbox_inches="tight", facecolor="white")
 fig.savefig(output_pdf, bbox_inches="tight", facecolor="white")
 
-print("✅ Deployment infrastructure diagram saved:")
+print("Deployment infrastructure diagram saved:")
 print(f"   PNG: {output_png}")
 print(f"   PDF: {output_pdf}")
 
