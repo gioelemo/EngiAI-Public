@@ -308,13 +308,13 @@ output_dir = Path(__file__).parent.parent / "assets"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Save both PNG and PDF
-output_png = output_dir / "deployment_infrastructure.png"
-output_pdf = output_dir / "deployment_infrastructure.pdf"
+output_png = output_dir / "deployment_simplified.png"
+output_pdf = output_dir / "deployment_simplified.pdf"
 
 fig.savefig(output_png, dpi=PLOT_STYLE["dpi"], bbox_inches="tight", facecolor="white")
 fig.savefig(output_pdf, bbox_inches="tight", facecolor="white")
 
-print("Deployment infrastructure diagram saved:")
+print("Deployment simplified diagram saved:")
 print(f"   PNG: {output_png}")
 print(f"   PDF: {output_pdf}")
 

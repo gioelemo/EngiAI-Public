@@ -225,12 +225,15 @@ benchmarks/problems/*/data/generated/
 
 # All env vars should go in root .env (already gitignored above)
 *.zip
-assets/docker_mcp_architecture.pdf
-assets/docker_mcp_architecture_old.pdf
-assets/workflow_example.png
-assets/agent_architecture.png
-assets/docker_mcp_architecture.png
-assets/docker_mcp_architecture_old.png
+# Generated diagram assets (re-created by scripts/generate_*_diagram.py)
+assets/architecture_simplified.pdf
+assets/architecture_simplified.png
+assets/deployment_simplified.pdf
+assets/deployment_simplified.png
+assets/deployment_full.pdf
+assets/deployment_full.png
+assets/design_process.pdf
+assets/design_process.png
 
 # Node.js / Custom Components
 node_modules/
@@ -238,14 +241,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 src/ui/components/*/frontend/build/
-assets/architecture_simplified.pdf
-assets/deployment_infrastructure.pdf
-assets/architecture_simplified.png
-assets/design_process.png
-assets/design_process.pdf
-assets/deployment_infrastructure.png
-assets/deployment_infrastructure.pdf
-assets/architecture_simplified.png
 papers/2508.00831v2.pdf
 papers/s00158-010-0594-7.pdf
 papers/2505.02438v1.pdf

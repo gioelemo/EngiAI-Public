@@ -20,7 +20,7 @@ figures:
       # Only sync these specific files:
       files:
         - "architecture_simplified.pdf"
-        - "deployment_infrastructure.pdf"
+        - "deployment_simplified.pdf"
         - "design_process.pdf"
 
 # ---------------------------------------------------------------------------

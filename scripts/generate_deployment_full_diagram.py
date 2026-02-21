@@ -699,12 +699,12 @@ for i, symbol_item in enumerate(symbol_items):
 assets_dir = Path("assets")
 assets_dir.mkdir(parents=True, exist_ok=True)
 
-output_path = assets_dir / "docker_mcp_architecture.png"
+output_path = assets_dir / "deployment_full.png"
 plt.tight_layout()
 plt.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
-print(f"[OK] Docker MCP architecture diagram saved to: {output_path}")
+print(f"[OK] Deployment full diagram saved to: {output_path}")
 
 # Also save as PDF for better quality
-output_path_pdf = assets_dir / "docker_mcp_architecture.pdf"
+output_path_pdf = assets_dir / "deployment_full.pdf"
 plt.savefig(output_path_pdf, format="pdf", bbox_inches="tight", facecolor="white")
-print(f"[OK] Docker MCP architecture diagram (PDF) saved to: {output_path_pdf}")
+print(f"[OK] Deployment full diagram (PDF) saved to: {output_path_pdf}")
