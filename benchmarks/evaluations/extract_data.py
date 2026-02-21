@@ -27,11 +27,43 @@ logger = logging.getLogger(__name__)
 # Constants
 REF_EXTRA_MIN_LENGTH = 3
 
+# HPC workflow scorer output fields to extract
+HPC_WORKFLOW_OUTPUT_FIELDS = [
+    "hpc_workflow_score",
+    "step_completion_rate",
+    "steps_completed_count",
+    "steps_total",
+    "step_generate_training_command",
+    "step_submit_slurm_job",
+    "step_monitor_job_until_complete",
+    "step_evaluate_model",
+    "eval_metrics",
+    "eval_metrics_count",
+    "eval_metrics_score",
+    "eval_IOG",
+    "eval_COG",
+    "eval_FOG",
+    "eval_MMD",
+    "eval_DPP",
+    "eval_viol",
+    "training_config_correct",
+    "config_score",
+]
+
 
 def _extract_metadata_from_example(
     example,
 ) -> tuple[int | None, int | None, str | None]:
-    """Extract example_id, seed, and problem_id from example object.
+    """Extract example_id, seed, and problem_id from a Weave example object.
+
+    Weave returns different object types depending on the SDK version and how
+    the evaluation was stored (plain dict, WeaveDict with ``__getitem__``,
+    ObjectRef with ``_val``/``_extra`` internals, or plain-attribute objects).
+    The multiple fallback paths below cover all observed variants so that
+    extraction works across Weave versions without requiring a specific API.
+
+    Precedence for **seed**: ``metadata.run_id`` > ``metadata.seed`` >
+    dataset-name suffix (``_seed_N``).
 
     Returns:
         Tuple of (example_id, seed, problem_id)
@@ -140,33 +172,24 @@ def _compute_combined_overall_score(  # noqa: PLR0912
     Returns:
         Combined weighted score [0.0, 1.0], or None if insufficient data
     """
-    # Derive category weights from problem registry
-    # Fallback to beams2d if problem_type not provided or not found
+    # Derive category weights from the problem registry (single source of truth).
+    # Falls back to beams2d from the registry itself — no hardcoded copies.
     try:
-        if problem_type:
-            problem_config = get_problem_config(problem_type)
-            weights = {
-                category: category_cfg["weight"]
-                for category, category_cfg in problem_config.score_categories.items()
-            }
-        else:
-            # Fallback weights (beams2d)
-            weights = {
-                "design_quality": 0.65,
-                "tool_efficiency": 0.20,
-                "task_completion": 0.15,
-            }
+        problem_config = get_problem_config(problem_type or "beams2d")
     except (ValueError, KeyError):
-        # If problem config not found or malformed, use beams2d fallback
-        weights = {
-            "design_quality": 0.65,
-            "tool_efficiency": 0.20,
-            "task_completion": 0.15,
-        }
+        problem_config = get_problem_config("beams2d")
+    weights = {
+        category: category_cfg["weight"]
+        for category, category_cfg in problem_config.score_categories.items()
+    }
 
     category_scores = {}
 
-    # 1. Design Quality (from output_quality scorer)
+    # 1. Design Quality / domain-specific primary score
+    #    - Workflow (beams2d): output_quality_scorer → "design_quality_score"
+    #    - RAG (rag_beams2d): rag_scorer → "rag_benefit_score"  (category: rag_accuracy)
+    #    - HPC (hpc_train_beams2d): hpc_workflow_scorer → "hpc_workflow_score"
+    #      (category: workflow_completion)
     if isinstance(output_quality, dict):
         dq_score = output_quality.get("design_quality_score")
         if dq_score is not None:
@@ -181,12 +204,20 @@ def _compute_combined_overall_score(  # noqa: PLR0912
             # so the combined score stays comparable across models.
             category_scores["design_quality"] = 1.0
 
+        # RAG evaluation: rag_benefit_score maps to "rag_accuracy" category
+        rag_score = output_quality.get("rag_benefit_score")
+        if rag_score is not None:
+            category_scores["rag_accuracy"] = float(rag_score)
+
+        # HPC evaluation: hpc_workflow_score maps to "workflow_completion" category
+        hpc_score = output_quality.get("hpc_workflow_score")
+        if hpc_score is not None:
+            category_scores["workflow_completion"] = float(hpc_score)
+
     # 2. Tool Efficiency (from tool_use scorer)
     if isinstance(tool_use, dict):
         efficiency_ratio = tool_use.get("efficiency_ratio")
         if efficiency_ratio is not None:
-            # Use efficiency_ratio directly (100% weight)
-            # Tool ordering is not scored as multiple valid orderings exist
             category_scores["tool_efficiency"] = float(efficiency_ratio)
 
     # 3. Task Completion (from task_completion scorer)
@@ -195,13 +226,11 @@ def _compute_combined_overall_score(  # noqa: PLR0912
         if success_rate is not None:
             category_scores["task_completion"] = float(success_rate)
 
-    # Note: Printability is now part of design_quality category
-
     # If no categories available, return None
     if not category_scores:
         return None
 
-    # Compute weighted sum using fixed category weights.
+    # Compute weighted sum using category weights from the problem registry.
     # Missing categories contribute zero and do not cause renormalization.
     total_score = 0.0
     for category_name, weight in weights.items():
@@ -380,6 +409,18 @@ def _extract_metrics_from_scorers(
             }
         )
 
+        # Extract HPC training workflow step completion metrics (hpc-train prompts)
+        result.update(
+            {
+                k: v
+                for k, v in task_completion.items()
+                if k.startswith("hpc_step_") and isinstance(v, (int, float, bool))
+            }
+        )
+        for field in ("hpc_steps_completed", "hpc_steps_total"):
+            if field in task_completion:
+                result[field] = task_completion[field]
+
     # Compute true weighted overall score combining all three scorers
     # Use problem_type to derive weights from registry
     result["combined_overall_score"] = _compute_combined_overall_score(
@@ -420,7 +461,7 @@ def _prompt_style_matches(example, prompt_style_filter: str | None) -> bool:
         return prompt_style == prompt_style_filter
 
 
-def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912
+def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0915
     score_call,
     model_filter: str | None,
     seen_models: set,
@@ -465,12 +506,14 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912
         task_completion = scores.get("task_completion", {})
         tool_use = scores.get("tool_use", {})
         rag_evaluation = scores.get("rag_evaluation", {})
+        hpc_workflow = scores.get("hpc_workflow", {})
 
         if (
             not output_quality
             and not task_completion
             and not tool_use
             and not rag_evaluation
+            and not hpc_workflow
         ):
             return None
 
@@ -502,14 +545,32 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912
         result["response_length"] = score_output.get("response_length")
         result["model_latency"] = score_output.get("model_latency")
 
-        # Extract problem_type early to use for weight derivation
+        # Determine problem_type for weight derivation.
+        # Try output_quality first (standard workflows), then example metadata
+        # (RAG/HPC where output_quality is empty).
         problem_type = None
         if isinstance(output_quality, dict):
             problem_type = output_quality.get("problem_type")
+        if problem_type is None:
+            try:
+                ex_meta = example.get("metadata", {}) if hasattr(example, "get") else {}
+                problem_type = (ex_meta or {}).get("problem_type")
+            except (AttributeError, TypeError, KeyError):
+                pass
+
+        # For RAG and HPC problems, the primary scorer output lives under a
+        # different Weave key (rag_evaluation / hpc_workflow) instead of
+        # output_quality.  Merge it so _compute_combined_overall_score can
+        # find domain-specific score fields (rag_benefit_score, hpc_workflow_score).
+        primary_scorer_output = dict(output_quality) if output_quality else {}
+        if isinstance(rag_evaluation, dict) and rag_evaluation:
+            primary_scorer_output.update(rag_evaluation)
+        if isinstance(hpc_workflow, dict) and hpc_workflow:
+            primary_scorer_output.update(hpc_workflow)
 
         # Extract all metrics from scorers (pass problem_type for weight derivation)
         metrics = _extract_metrics_from_scorers(
-            output_quality, task_completion, tool_use, problem_type
+            primary_scorer_output, task_completion, tool_use, problem_type
         )
         result.update(metrics)
 
@@ -518,6 +579,12 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912
             for field in RAG_OUTPUT_FIELDS:
                 if field in rag_evaluation:
                     result[field] = rag_evaluation[field]
+
+        # Extract HPC workflow metrics (hpc_train_beams2d problems)
+        if isinstance(hpc_workflow, dict) and hpc_workflow:
+            for field in HPC_WORKFLOW_OUTPUT_FIELDS:
+                if field in hpc_workflow:
+                    result[field] = hpc_workflow[field]
 
         # Extract complete data from output_quality scorer for global metrics
         if isinstance(output_quality, dict):
@@ -857,6 +924,10 @@ def main():
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
+            "hpc-train-cgan",
+            "hpc-train-diff",
+            "hpc-train-natural-cgan",
+            "hpc-train-natural-diff",
         ],
         help="Prompt style used (default: full)",
     )

@@ -6,6 +6,7 @@ This scorer checks task completion based on prompt style:
 - Workflow-derived-params: STL export with params computed from optimization inputs
 - Workflow-conditional: STL export with params resolved from compliance-based branching
 - Workflow-multi-export: Two STL exports with different params, validated in order
+- HPC training (hpc-train): all expected workflow steps called
 """
 
 import ast
@@ -13,6 +14,13 @@ import json
 import logging
 import re
 from typing import Any
+
+from benchmarks.shared.scorers.hpc_workflow_scorer import (
+    WORKFLOW_STEPS as HPC_WORKFLOW_STEPS,
+)
+from benchmarks.shared.scorers.hpc_workflow_scorer import (
+    _check_evaluate_model as _hpc_check_evaluate_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -384,6 +392,7 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     is_workflow_distractor = prompt_style == "workflow-distractor"
     is_workflow_conditional = prompt_style == "workflow-conditional"
     is_workflow_multi_export = prompt_style == "workflow-multi-export"
+    is_hpc_train = prompt_style.startswith("hpc-train") if prompt_style else False
     is_clarification = metadata.get("success_criteria") == "clarification_requested"
     success_criteria = "stl_export" if is_workflow else "render_design"
     if (
@@ -416,6 +425,85 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
     stl_error = None
     stl_details: dict[str, Any] = {}
     all_stl_details: list[dict[str, Any]] = []  # Accumulates all successful STL calls
+
+    # --- RAG evaluation path: check search + optimize workflow ---
+    is_rag_eval = prompt_style == "rag-eval"
+    if is_rag_eval:
+        tool_calls_info = output.get("tool_calls_info", [])
+        called_tools = {tc.get("name") for tc in tool_calls_info}
+        search_called = "search_documents" in called_tools
+        optimize_called = "optimize_design" in called_tools
+        task_completed = search_called and optimize_called
+        success_rate = 1.0 if task_completed else 0.0
+
+        logger.info(
+            "Example %s (rag-eval): search_documents=%s, optimize_design=%s",
+            example_id,
+            search_called,
+            optimize_called,
+        )
+
+        return {
+            "success_rate": success_rate,
+            "workflow_complete": task_completed,
+            "prompt_style": prompt_style,
+            "success_criteria": "rag_parameter_accuracy",
+            "rag_search_called": search_called,
+            "rag_optimize_called": optimize_called,
+            # Zero-out inapplicable fields
+            "render_called": False,
+            "render_success": False,
+            "stl_called": False,
+            "stl_success": False,
+            "clarification_called": False,
+            "example_id": example_id,
+        }
+
+    # --- HPC training path: check workflow steps instead of STL/render tools ---
+    if is_hpc_train:
+        expected_steps = metadata.get("expected_workflow_steps", HPC_WORKFLOW_STEPS)
+        # Reuse hpc_workflow_scorer helpers (single source of truth)
+        tool_calls_info = output.get("tool_calls_info", [])
+        steps_completed: dict[str, bool] = {}
+        for step_name in expected_steps:
+            if step_name == "evaluate_model":
+                steps_completed[step_name] = _hpc_check_evaluate_model(
+                    tool_calls_info, messages
+                )
+            else:
+                steps_completed[step_name] = any(
+                    tc.get("name") == step_name for tc in tool_calls_info
+                )
+        completed_count = sum(steps_completed.values())
+        total_steps = len(expected_steps)
+        task_completed = completed_count == total_steps
+        success_rate = 1.0 if task_completed else 0.0
+
+        logger.info(
+            "Example %s (hpc-train): %d/%d workflow steps completed",
+            example_id,
+            completed_count,
+            total_steps,
+        )
+
+        return {
+            "success_rate": success_rate,
+            "workflow_complete": task_completed,
+            "prompt_style": prompt_style,
+            "success_criteria": "hpc_workflow_steps",
+            "hpc_steps_completed": completed_count,
+            "hpc_steps_total": total_steps,
+            **{f"hpc_step_{k}": v for k, v in steps_completed.items()},
+            # Zero-out inapplicable fields so Weave doesn't show misleading data
+            "render_called": False,
+            "render_success": False,
+            "stl_called": False,
+            "stl_success": False,
+            "clarification_called": False,
+            # Omit stl_param_validation_score entirely — extract_data guards
+            # with `is not None`, so absence is cleaner than None for type safety.
+            "example_id": example_id,
+        }
 
     # Iterate through messages looking for tool results
     for msg in messages:

@@ -1,22 +1,18 @@
 #!/usr/bin/env python
-"""Run full benchmark evaluation for both agent and CGAN baselines.
+"""Run agent benchmark evaluation across multiple seeds.
 
-This script provides a unified way to run evaluations for both the engineering
-agent and the CGAN CNN 2D baseline, ensuring they use identical samples from
-the dataset for fair comparison.
+This script wraps evaluate_agent.py to run evaluations across multiple seeds
+with optional prompt generation.
 
 Usage:
-    # Run both agent and CGAN for seeds 1-5
+    # Run agent for seeds 1-5
     python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 4 5 --samples 10
 
-    # Run only CGAN baseline
-    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 --samples 10 --cgan-only
-
-    # Run only agent evaluation
-    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 --samples 10 --agent-only
-
-    # Specify custom model for agent
+    # Specify custom model
     python benchmarks/evaluations/run_full_benchmark.py --seeds 1 --samples 10 --model gpt-4o
+
+    # Skip prompt generation (use existing prompts)
+    python benchmarks/evaluations/run_full_benchmark.py --seeds 1 2 3 --samples 10 --skip-prompt-generation
 """
 
 from __future__ import annotations
@@ -33,19 +29,14 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from config import config  # noqa: E402
 
-# Paths configuration (PROJECT_ROOT already defined above)
-ENGIOPT_ROOT = Path.home() / "EngiOpt"
+# Paths configuration
 CONDA_PYTHON = (
     Path.home() / "miniforge3" / "envs" / "engineer-assistant" / "bin" / "python"
 )
 
-# Default output directory for all benchmark results
-# Structure:
-#   results/baselines/{baseline_type}/{problem}/                          - for baselines
-#   results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/    - for LLM agents
-#   where rag_status is "rag" (--mmore) or "no_rag" (default)
+# Default output directory for benchmark results
+# Structure: results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/
 RESULTS_DIR = PROJECT_ROOT / "benchmarks" / "evaluations" / "results"
-BASELINES_DIR = RESULTS_DIR / "baselines"
 MODELS_DIR = RESULTS_DIR / "models"
 
 
@@ -85,33 +76,6 @@ def generate_prompts(
     return run_command(cmd, cwd=PROJECT_ROOT)
 
 
-def run_cgan_evaluation(
-    problem: str,
-    samples: int,
-    seed: int,
-    output_csv: Path,
-    wandb_entity: str | None = None,
-) -> int:
-    """Run CGAN CNN 2D evaluation for a specific seed."""
-    cmd = [
-        str(CONDA_PYTHON),
-        "-m",
-        "engiopt.cgan_cnn_2d.evaluate_cgan_cnn_2d",
-        "--problem_id",
-        problem,
-        "--seed",
-        str(seed),
-        "--n-samples",
-        str(samples),
-        "--output_csv",
-        str(output_csv),
-    ]
-    if wandb_entity:
-        cmd.extend(["--wandb_entity", wandb_entity])
-
-    return run_command(cmd, cwd=ENGIOPT_ROOT)
-
-
 def run_agent_evaluation(  # noqa: PLR0913
     problem: str,
     samples: int,
@@ -120,8 +84,15 @@ def run_agent_evaluation(  # noqa: PLR0913
     prompt_style: str = "full",
     scorers: str = "all",
     mmore_enabled: bool = False,
+    use_run_flag: bool = False,
 ) -> int:
-    """Run agent evaluation for a specific seed."""
+    """Run agent evaluation for a specific seed or run.
+
+    Args:
+        use_run_flag: If True, pass ``seed`` as ``--run`` instead of ``--seed``.
+            Use for problems with fixed prompts (HPC, RAG) where the seed is
+            only a run identifier, not an optimization seed.
+    """
     cmd = [
         str(CONDA_PYTHON),
         str(PROJECT_ROOT / "benchmarks" / "evaluations" / "evaluate_agent.py"),
@@ -129,7 +100,7 @@ def run_agent_evaluation(  # noqa: PLR0913
         problem,
         "--samples",
         str(samples),
-        "--seed",
+        "--run" if use_run_flag else "--seed",
         str(seed),
         "--prompt-style",
         prompt_style,
@@ -146,9 +117,9 @@ def run_agent_evaluation(  # noqa: PLR0913
     return run_command(cmd, cwd=PROJECT_ROOT, env=env)
 
 
-def main() -> None:  # noqa: PLR0912, PLR0915
+def main() -> None:  # noqa: PLR0915
     parser = argparse.ArgumentParser(
-        description="Run full benchmark evaluation for agent and CGAN baselines"
+        description="Run agent benchmark evaluation across multiple seeds"
     )
     parser.add_argument(
         "--problem",
@@ -184,6 +155,10 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
+            "hpc-train-cgan",
+            "hpc-train-diff",
+            "hpc-train-natural-cgan",
+            "hpc-train-natural-diff",
         ],
         help="Prompt style for agent evaluation (default: full)",
     )
@@ -201,12 +176,6 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         help="Scorer set for agent evaluation (default: all)",
     )
     parser.add_argument(
-        "--wandb-entity",
-        type=str,
-        default="engibench",
-        help="Wandb entity for CGAN model artifacts (default: engibench)",
-    )
-    parser.add_argument(
         "--mmore",
         dest="mmore_enabled",
         action="store_true",
@@ -220,77 +189,48 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         help="Disable MMORE RAG system (default)",
     )
     parser.add_argument(
-        "--cgan-only",
-        action="store_true",
-        help="Run only CGAN evaluation",
-    )
-    parser.add_argument(
-        "--agent-only",
-        action="store_true",
-        help="Run only agent evaluation",
-    )
-    parser.add_argument(
         "--skip-prompt-generation",
         action="store_true",
         help="Skip prompt generation (use existing prompts)",
     )
     args = parser.parse_args()
 
-    # Validate arguments
-    if args.cgan_only and args.agent_only:
-        print("Error: Cannot specify both --cgan-only and --agent-only")
-        sys.exit(1)
-
-    run_cgan = not args.agent_only
-    run_agent = not args.cgan_only
-
-    # CGAN baseline is not applicable for problems without a HuggingFace dataset
-    # (e.g. rag_beams2d uses handcrafted prompts with no ground-truth designs)
+    # Problems without a HuggingFace dataset (RAG, HPC) have fixed prompts.
+    # Use --run instead of --seed so Weave traces say "run_N" (repeated eval)
+    # instead of "seed_N" (different dataset sample), and no "Use seed=N"
+    # instruction is appended to the prompt.
     problem_config = PROBLEMS[args.problem]
-    if run_cgan and not problem_config.dataset_name:
-        if args.cgan_only:
-            print(
-                f"Error: CGAN evaluation is not applicable for '{args.problem}' "
-                f"(no dataset configured)"
-            )
-            sys.exit(1)
-        run_cgan = False
+    use_run_flag = not problem_config.dataset_name
+    iter_label = "RUN" if use_run_flag else "SEED"
 
-    # Setup output directories
-    # CGAN: results/baselines/cgan_cnn_2d/{problem}/
-    cgan_results_dir = BASELINES_DIR / "cgan_cnn_2d" / args.problem
-    cgan_results_dir.mkdir(parents=True, exist_ok=True)
-    cgan_output_csv = cgan_results_dir / "output_quality_global_metrics.csv"
+    model_name = args.model or config.llm_model
 
     print("=" * 60)
-    print("FULL BENCHMARK EVALUATION")
+    print("AGENT BENCHMARK EVALUATION")
     print("=" * 60)
     print()
     print(f"Problem: {args.problem}")
     print(f"Seeds: {args.seeds}")
     print(f"Samples per seed: {args.samples}")
     print(f"Prompt style: {args.prompt_style}")
-    if run_agent:
-        print(f"Agent model: {args.model or config.llm_model}")
-        print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
-        print(f"Scorers: {args.scorers}")
-    if run_cgan:
-        print(f"CGAN results: {cgan_output_csv}")
+    print(f"Model: {model_name}")
+    print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
+    print(f"Scorers: {args.scorers}")
     print()
 
     # Track results
-    results: dict[str, dict[int, str]] = {"cgan": {}, "agent": {}}
-    failed_seeds: dict[str, list[int]] = {"cgan": [], "agent": []}
+    results: dict[int, str] = {}
+    failed_seeds: list[int] = []
 
     for seed in args.seeds:
         print()
         print("#" * 60)
-        print(f"# SEED {seed}")
+        print(f"# {iter_label} {seed}")
         print("#" * 60)
 
-        # Step 1: Generate prompts (needed for agent evaluation)
-        if run_agent and not args.skip_prompt_generation:
-            print(f"\n[Seed {seed}] Generating prompts...")
+        # Step 1: Generate prompts
+        if not args.skip_prompt_generation:
+            print(f"\n[{iter_label.title()} {seed}] Generating prompts...")
             ret = generate_prompts(
                 args.problem,
                 args.samples,
@@ -298,41 +238,27 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 args.prompt_style,
             )
             if ret != 0:
-                print(f"Warning: Prompt generation failed for seed {seed}")
+                print(
+                    f"Warning: Prompt generation failed for {iter_label.lower()} {seed}"
+                )
 
-        # Step 2: Run CGAN evaluation
-        if run_cgan:
-            print(f"\n[Seed {seed}] Running CGAN evaluation...")
-            ret = run_cgan_evaluation(
-                args.problem,
-                args.samples,
-                seed,
-                cgan_output_csv,
-                args.wandb_entity,
-            )
-            if ret == 0:
-                results["cgan"][seed] = "success"
-            else:
-                results["cgan"][seed] = "failed"
-                failed_seeds["cgan"].append(seed)
-
-        # Step 3: Run agent evaluation
-        if run_agent:
-            print(f"\n[Seed {seed}] Running agent evaluation...")
-            ret = run_agent_evaluation(
-                args.problem,
-                args.samples,
-                seed,
-                args.model,
-                args.prompt_style,
-                args.scorers,
-                args.mmore_enabled,
-            )
-            if ret == 0:
-                results["agent"][seed] = "success"
-            else:
-                results["agent"][seed] = "failed"
-                failed_seeds["agent"].append(seed)
+        # Step 2: Run agent evaluation
+        print(f"\n[{iter_label.title()} {seed}] Running agent evaluation...")
+        ret = run_agent_evaluation(
+            args.problem,
+            args.samples,
+            seed,
+            args.model,
+            args.prompt_style,
+            args.scorers,
+            args.mmore_enabled,
+            use_run_flag=use_run_flag,
+        )
+        if ret == 0:
+            results[seed] = "success"
+        else:
+            results[seed] = "failed"
+            failed_seeds.append(seed)
 
     # Print summary
     print()
@@ -341,26 +267,16 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     print("=" * 60)
     print()
 
-    if run_cgan:
-        cgan_success = len([s for s in results["cgan"].values() if s == "success"])
-        print(f"CGAN evaluations: {cgan_success}/{len(args.seeds)} successful")
-        if failed_seeds["cgan"]:
-            print(f"  Failed seeds: {failed_seeds['cgan']}")
-        print(f"  Results saved to: {cgan_output_csv}")
-
-    if run_agent:
-        agent_success = len([s for s in results["agent"].values() if s == "success"])
-        print(f"Agent evaluations: {agent_success}/{len(args.seeds)} successful")
-        if failed_seeds["agent"]:
-            print(f"  Failed seeds: {failed_seeds['agent']}")
-        # Get actual model name (from args or config)
-        model_name = args.model if args.model is not None else config.llm_model
-        model_safe = model_name.replace("/", "_").replace(":", "_")
-        rag_dir = "rag" if args.mmore_enabled else "no_rag"
-        agent_results_dir = (
-            MODELS_DIR / model_safe / args.problem / args.prompt_style / rag_dir
-        )
-        print(f"  Results saved to: {agent_results_dir}")
+    success_count = len([s for s in results.values() if s == "success"])
+    print(f"Agent evaluations: {success_count}/{len(args.seeds)} successful")
+    if failed_seeds:
+        print(f"  Failed seeds: {failed_seeds}")
+    model_safe = model_name.replace("/", "_").replace(":", "_")
+    rag_dir = "rag" if args.mmore_enabled else "no_rag"
+    agent_results_dir = (
+        MODELS_DIR / model_safe / args.problem / args.prompt_style / rag_dir
+    )
+    print(f"  Results saved to: {agent_results_dir}")
 
     print()
     print("Evaluation complete!")

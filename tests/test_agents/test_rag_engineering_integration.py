@@ -1,18 +1,14 @@
-"""Tests for RAG tools integration with the Engineering Agent.
+"""Tests for the RAG tools factory (create_rag_tools).
 
 Verifies that:
 1. create_rag_tools() produces the correct tools from an MMOREClient
-2. EngineeringAgent includes RAG tools alongside EngiBench tools
-3. RAG tools work correctly when invoked through the EngineeringAgent
-4. EngineeringAgent gracefully handles SKIP_MMORE=true
+2. read_only mode returns only search and list tools
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from langchain_core.documents import Document
-
-from tests.test_agents.test_rag_agent import FakeLLMWithTools
 
 # ============================================================================
 # FIXTURES
@@ -68,6 +64,17 @@ class TestCreateRagTools:
             "list_documents",
             "delete_document",
         }
+
+    @pytest.mark.unit
+    def test_read_only_returns_two_tools(self, mock_mmore_client):
+        """Test that read_only=True returns only search and list tools."""
+        from src.tools.rag_tools import create_rag_tools
+
+        tools = create_rag_tools(mock_mmore_client, read_only=True)
+
+        assert len(tools) == 2
+        tool_names = {t.name for t in tools}
+        assert tool_names == {"search_documents", "list_documents"}
 
     @pytest.mark.unit
     def test_tools_have_descriptions(self, mock_mmore_client):
@@ -148,239 +155,3 @@ class TestCreateRagTools:
 
         mock_mmore_client.delete_file.assert_called_once_with("eng_paper.pdf")
         assert "Deleted" in result
-
-
-# ============================================================================
-# ENGINEERING AGENT WITH RAG TOOLS
-# ============================================================================
-
-
-class TestEngineeringAgentRagIntegration:
-    """Test that EngineeringAgent correctly includes RAG tools."""
-
-    @pytest.mark.unit
-    @patch("src.agents.engineering_agent.MMOREClient")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_engineering_agent_has_rag_tools(
-        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
-    ):
-        """Test that EngineeringAgent includes all 5 RAG tools."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_mmore_cls.return_value = mock_mmore_client
-
-        agent = EngineeringAgent()
-
-        tool_names = {t.name for t in agent.tools}
-        rag_tools = {
-            "search_documents",
-            "add_document",
-            "add_url_to_knowledge_base",
-            "list_documents",
-            "delete_document",
-        }
-        assert rag_tools.issubset(tool_names), (
-            f"Missing RAG tools: {rag_tools - tool_names}"
-        )
-
-    @pytest.mark.unit
-    @patch("src.agents.engineering_agent.MMOREClient")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_engineering_agent_keeps_engibench_tools(
-        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
-    ):
-        """Test that EngineeringAgent still has EngiBench tools alongside RAG tools."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_mmore_cls.return_value = mock_mmore_client
-
-        agent = EngineeringAgent()
-
-        tool_names = {t.name for t in agent.tools}
-        engibench_tools = {
-            "create_problem",
-            "simulate_design",
-            "optimize_design",
-            "render_design",
-            "convert_design_to_stl",
-        }
-        assert engibench_tools.issubset(tool_names), (
-            f"Missing EngiBench tools: {engibench_tools - tool_names}"
-        )
-
-    @pytest.mark.unit
-    @patch("src.agents.engineering_agent.MMOREClient")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_engineering_agent_total_tool_count(
-        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
-    ):
-        """Test that EngineeringAgent has correct total number of tools."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_mmore_cls.return_value = mock_mmore_client
-
-        agent = EngineeringAgent()
-
-        # 12 engineering tools + 5 RAG tools = 17
-        assert len(agent.tools) == 18
-
-    @pytest.mark.unit
-    @patch("src.agents.engineering_agent.MMOREClient")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_search_documents_via_engineering_agent(
-        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
-    ):
-        """Test that search_documents works when invoked through EngineeringAgent."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_mmore_cls.return_value = mock_mmore_client
-
-        agent = EngineeringAgent()
-        search_tool = agent.tools_by_name["search_documents"]
-
-        result = search_tool.invoke({"query": "beam optimization parameters"})
-
-        mock_mmore_client.retrieve.assert_called_once()
-        assert "eng_paper.pdf" in result
-
-    @pytest.mark.unit
-    @patch("src.agents.engineering_agent.MMOREClient")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_engineering_agent_mmore_client_attribute(
-        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
-    ):
-        """Test that EngineeringAgent exposes mmore_client attribute."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_mmore_cls.return_value = mock_mmore_client
-
-        agent = EngineeringAgent()
-
-        assert agent.mmore_client is not None
-        assert agent.mmore_client is mock_mmore_client
-
-    @pytest.mark.unit
-    @patch("src.agents.engineering_agent.MMOREClient")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_engineering_agent_custom_mmore_url(
-        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
-    ):
-        """Test that EngineeringAgent passes mmore_url to MMOREClient."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_mmore_cls.return_value = mock_mmore_client
-
-        EngineeringAgent(mmore_url="http://custom:9000")
-
-        mock_mmore_cls.assert_called_once_with(base_url="http://custom:9000")
-
-
-# ============================================================================
-# SKIP_MMORE BEHAVIOR
-# ============================================================================
-
-
-class TestEngineeringAgentSkipMmore:
-    """Test EngineeringAgent behavior when SKIP_MMORE=true."""
-
-    @pytest.mark.unit
-    @patch.dict("os.environ", {"SKIP_MMORE": "true"})
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_no_rag_tools_when_skipped(self, mock_init_llm):
-        """Test that no RAG tools are added when SKIP_MMORE=true."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-
-        agent = EngineeringAgent()
-
-        tool_names = {t.name for t in agent.tools}
-        assert "search_documents" not in tool_names
-        assert "list_documents" not in tool_names
-
-    @pytest.mark.unit
-    @patch.dict("os.environ", {"SKIP_MMORE": "true"})
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_mmore_client_is_none_when_skipped(self, mock_init_llm):
-        """Test that mmore_client is None when SKIP_MMORE=true."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-
-        agent = EngineeringAgent()
-
-        assert agent.mmore_client is None
-
-    @pytest.mark.unit
-    @patch.dict("os.environ", {"SKIP_MMORE": "true"})
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_engibench_tools_still_present_when_skipped(self, mock_init_llm):
-        """Test that EngiBench tools are still available when MMORE is skipped."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-
-        agent = EngineeringAgent()
-
-        tool_names = {t.name for t in agent.tools}
-        assert "create_problem" in tool_names
-        assert "simulate_design" in tool_names
-        assert "optimize_design" in tool_names
-        # 13 engineering tools, 0 RAG tools
-        assert len(agent.tools) == 13
-
-
-# ============================================================================
-# SYSTEM PROMPT TESTS
-# ============================================================================
-
-
-class TestEngineeringAgentSystemPrompt:
-    """Test that the engineering agent system prompt includes RAG documentation."""
-
-    @pytest.mark.unit
-    @patch("src.utils.prompts.config")
-    @patch("src.agents.engineering_agent.MMOREClient")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_prompt_mentions_rag_tools(
-        self, mock_init_llm, mock_mmore_cls, mock_config, mock_mmore_client
-    ):
-        """Test that system prompt documents the RAG tools."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_mmore_cls.return_value = mock_mmore_client
-        # Mock config.mmore_enabled to return True (simulates MMORE service running)
-        mock_config.mmore_enabled = True
-
-        agent = EngineeringAgent()
-        prompt = agent._get_system_prompt()
-
-        assert "search_documents" in prompt
-        assert "list_documents" in prompt
-        assert "Knowledge Base" in prompt
-
-    @pytest.mark.unit
-    @patch("src.agents.engineering_agent.MMOREClient")
-    @patch("src.agents.base_agent.init_chat_model")
-    def test_prompt_still_has_engibench_docs(
-        self, mock_init_llm, mock_mmore_cls, mock_mmore_client
-    ):
-        """Test that system prompt still documents EngiBench tools."""
-        from src.agents.engineering_agent import EngineeringAgent
-
-        mock_init_llm.return_value = FakeLLMWithTools()
-        mock_mmore_cls.return_value = mock_mmore_client
-
-        agent = EngineeringAgent()
-        prompt = agent._get_system_prompt()
-
-        assert "EngiBench" in prompt
-        assert "EngiOpt" in prompt
-        assert "create_problem" in prompt

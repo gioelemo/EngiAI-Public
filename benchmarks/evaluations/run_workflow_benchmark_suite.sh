@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Run full benchmark suite for multiple models and prompt styles.
+# Run workflow benchmark suite for multiple models and prompt styles.
 #
 # Usage:
-#   ./benchmarks/evaluations/run_benchmark_suite.sh workflow-random
-#   ./benchmarks/evaluations/run_benchmark_suite.sh natural workflow-random workflow-conditional
-#   ./benchmarks/evaluations/run_benchmark_suite.sh full natural workflow workflow-random
+#   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh workflow-random
+#   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh natural workflow-random workflow-conditional
+#   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh full natural workflow workflow-random
 #
 # Prompt styles are passed as positional arguments.
 # Models, seeds, and samples are configured below.
@@ -32,7 +32,7 @@ fi
 PROMPT_STYLES=("$@")
 
 echo "============================================================"
-echo "Benchmark Suite"
+echo "Workflow Benchmark Suite"
 echo "  Problem:       ${PROBLEM}"
 echo "  Models:        ${MODELS[*]}"
 echo "  Prompt styles: ${PROMPT_STYLES[*]}"
@@ -69,7 +69,6 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
             --samples "${SAMPLES}" \
             --prompt-style "${STYLE}" \
             --model "${MODEL}" \
-            --agent-only \
             ${EXTRA_ARGS}
 
         # Step 2: Extract design data from Weave to JSON

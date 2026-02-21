@@ -32,7 +32,7 @@ python compute_global_metrics.py --problem beams2d
 Or use the complete pipeline:
 
 ```bash
-python run_full_benchmark.py --problem beams2d --samples 5 --seeds 1 --agent-only
+python run_full_benchmark.py --problem beams2d --samples 5 --seeds 1
 ```
 
 ### Compare Multiple Models
@@ -71,9 +71,14 @@ python evaluate_agent.py \
 | `--model` | LLM model name | From config |
 | `--samples` | Number of samples to evaluate | `10` |
 | `--temperature` | Model temperature | From config |
+| `--llm-seed` | LLM random seed for model reproducibility | From config |
 | `--split` | Dataset split (train/val/test) | `test` |
 | `--scorers` | Scorer set (output_quality/all/task_completion/tool_use) | `all` |
-| `--seed` | Random seed for optimization | `None` |
+| `--seed` | Random seed for optimization (also serves as tracking ID) | `None` |
+| `--run` | Run number for repeated evaluations (fixed optimization seed) | `None` |
+| `--prompt-style` | Prompt style (full/natural/workflow/workflow-random/hpc-train-*/rag-eval/...) | `full` |
+| `--mmore` | Enable MMORE RAG system for document retrieval | Disabled |
+| `--no-mmore` | Disable MMORE RAG system (default) | — |
 ## Results Organization
 
 Results are automatically organized by model and problem type:
@@ -92,10 +97,6 @@ results/
 │                       │   ├── comparison_example_0.png
 │                       │   └── ...
 │                       └── seed_2/
-└── baselines/                   # Baseline method results (CSV format)
-    └── cgan_cnn_2d/
-        └── {problem}/
-            └── output_quality_global_metrics.csv
 ```
 
 
@@ -110,7 +111,6 @@ python run_full_benchmark.py \
   --problem beams2d \
   --samples 50 \
   --seeds 1 \
-  --agent-only
 ```
 
 This runs the complete pipeline:
@@ -129,7 +129,6 @@ python run_full_benchmark.py \
   --problem beams2d \
   --samples 50 \
   --seeds 1 2 3 4 5 6 7 8 9 10 \
-  --agent-only
 ```
 
 All seeds are aggregated into single files: `design_data.json` and `global_metrics.json`.
@@ -152,12 +151,6 @@ This creates:
 - Global metrics plots (MMD, DPP, RVC, optimality gaps)
 - Per-design metrics analysis
 - Tool usage statistics
-
-Or compare against baselines:
-
-```bash
-python compare_results.py --problem beams2d --model {your-model}
-```
 
 ### JSON Metrics Format
 
@@ -251,7 +244,7 @@ All problems use the output quality scorer (`score_output_quality`) which provid
 
 The output quality scorer is configuration-driven via `benchmarks.shared.problem_registry`, which defines objectives, constraints, and weights for each problem type.
 
-See [../problems/beams2d/SCORING_METRICS.md](../problems/beams2d/SCORING_METRICS.md) for detailed beams2d metric definitions.
+Metric definitions are configured per problem in `benchmarks/shared/problem_registry.py`.
 
 ### EngiBench Global Metrics
 

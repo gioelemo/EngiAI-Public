@@ -20,6 +20,7 @@ from langgraph.graph import END, START, StateGraph
 from config import config
 from src.checkpoint import get_checkpointer
 from src.models.state import MessagesState
+from src.utils.prompts import _is_eval_mode, strip_suggested_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -114,9 +115,10 @@ class BaseAgent(ABC):
         Returns:
             Updated state with LLM response
         """
-        messages: list[AnyMessage] = [
-            SystemMessage(content=self._get_system_prompt())
-        ] + state["messages"]
+        prompt = self._get_system_prompt()
+        if _is_eval_mode():
+            prompt = strip_suggested_prompts(prompt)
+        messages: list[AnyMessage] = [SystemMessage(content=prompt)] + state["messages"]
 
         return {
             "messages": [self.llm_with_tools.invoke(messages)],

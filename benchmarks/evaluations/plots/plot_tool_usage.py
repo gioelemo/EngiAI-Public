@@ -7,11 +7,18 @@ This script creates plots showing:
 - Correlation between tool usage and performance
 """
 
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from utils import (
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from benchmarks.evaluations.plots.utils import (
     PLOT_STYLE,
     get_combined_design_df,
     get_model_style,
@@ -317,16 +324,17 @@ def plot_tool_usage_vs_performance(tool_data, design_data, output_dir=None):  # 
                 linewidth=0.3,
             )
 
-        # Add trend line
+        # Add trend line (drop rows with missing values first)
+        trend_data = merged[[x_col, y_col]].dropna()
         min_points_for_trend = 2
-        if len(merged) > min_points_for_trend:
-            z = np.polyfit(merged[x_col], merged[y_col], 1)
+        if len(trend_data) > min_points_for_trend:
+            z = np.polyfit(trend_data[x_col], trend_data[y_col], 1)
             p = np.poly1d(z)
-            x_trend = np.linspace(merged[x_col].min(), merged[x_col].max(), 100)
+            x_trend = np.linspace(trend_data[x_col].min(), trend_data[x_col].max(), 100)
             ax.plot(x_trend, p(x_trend), "k--", alpha=0.3, linewidth=0.5)
 
             # Calculate correlation
-            corr = merged[x_col].corr(merged[y_col])
+            corr = trend_data[x_col].corr(trend_data[y_col])
             ax.text(
                 0.05,
                 0.95,

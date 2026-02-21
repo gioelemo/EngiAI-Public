@@ -6,10 +6,17 @@ Compares DPP, MMD, FOG, RVC across models and problems.
 Shows mean ± std for each metric.
 """
 
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
-from utils import (
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from benchmarks.evaluations.plots.utils import (
     PLOT_STYLE,
     get_combined_global_df,
     get_model_style,

@@ -206,8 +206,9 @@ PROBLEMS: dict[str, ProblemConfig] = {
         name="rag_beams2d",
         dataset_name="",  # No HuggingFace dataset — handcrafted prompts only
         design_field="optimal_design",
-        tool_name="optimize_design",
+        tool_name="optimize_design",  # Informational only; objectives=[] so objective_extractor is unused
         objectives=[],  # No ground-truth design comparison
+        primary_scorer="rag_evaluation",
         conditions=[
             ConditionConfig(
                 name="expected_volfrac",
@@ -224,6 +225,50 @@ PROBLEMS: dict[str, ProblemConfig] = {
             },
         },
         prompt_file_template="rag_beams2d_prompts_4_samples_{split}_{style}.json",
+    ),
+    "hpc_train_beams2d": ProblemConfig(
+        name="hpc_train_beams2d",
+        dataset_name="",  # Handcrafted prompts — no HuggingFace sampling
+        design_field="optimal_design",
+        tool_name="generate_training_command",  # Informational only; objectives=[] so objective_extractor is unused
+        objectives=[],  # Design quality scored offline via compute_hpc_metrics.py
+        primary_scorer="hpc_workflow",
+        conditions=[
+            ConditionConfig(
+                name="seed",
+                field_name="seed",
+                constraint_type="none",
+                aliases=["training_seed"],
+            ),
+            ConditionConfig(
+                name="epochs",
+                field_name="epochs",
+                constraint_type="none",
+                aliases=["n_epochs"],
+            ),
+            ConditionConfig(
+                name="algorithm",
+                field_name="algorithm",
+                constraint_type="none",
+                aliases=["model_algorithm"],
+            ),
+        ],
+        # Note: task_completion (success_rate) is excluded from the combined
+        # score because hpc_workflow_score already embeds step_completion_rate
+        # at 70% weight internally — including success_rate separately would
+        # double-count step completion.  success_rate is still computed and
+        # available in the extracted data as a standalone binary metric.
+        score_categories={
+            "workflow_completion": {
+                "weight": 0.80,
+                "hpc_workflow_score": 1.0,
+            },
+            "tool_efficiency": {
+                "weight": 0.20,
+                "efficiency_ratio": 1.0,
+            },
+        },
+        prompt_file_template="hpc_train_beams2d_prompts_10_samples_{split}_{style}.json",
     ),
 }
 

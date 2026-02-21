@@ -39,6 +39,8 @@ logging.getLogger("langchain_core.callbacks.manager").setLevel(logging.ERROR)
 
 # Set SKIP_MCP to avoid Prusa MCP server connection issues during evaluation
 os.environ["SKIP_MCP"] = "true"
+# Suppress UI-only prompt sections (suggested_prompts) during evaluation
+os.environ["EVAL_MODE"] = "true"
 
 # Note: SKIP_MMORE is now controlled by the --mmore / --no-mmore CLI flag
 
@@ -61,6 +63,7 @@ def _get_rag_dir(mmore_enabled: bool) -> str:
 # Import output quality scorers
 from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from benchmarks.shared.scorers import (  # noqa: E402
+    score_hpc_workflow,
     score_output_quality,
     score_rag_evaluation,
     score_task_completion,
@@ -110,6 +113,7 @@ class EngineeringAgent(weave.Model):
     temperature: float = 0.7
     llm_seed: int | None = None
     problem_type: str = "beams2d"
+    rag_read_only: bool = False
 
     @weave.op()
     def predict(self, prompt: str) -> dict[str, Any]:
@@ -134,6 +138,7 @@ class EngineeringAgent(weave.Model):
                 model_name=self.model_name,
                 temperature=self.temperature,
                 seed=self.llm_seed,
+                rag_read_only=self.rag_read_only,
             )
 
             # Convert prompt to message format
@@ -141,10 +146,13 @@ class EngineeringAgent(weave.Model):
             state = {"messages": messages}
 
             # Set recursion_limit to prevent infinite loops (e.g., models repeatedly
-            # calling ask_human_for_clarification without stopping)
+            # calling ask_human_for_clarification without stopping).
+            # HPC training workflows need a higher limit due to multi-agent routing
+            # and long monitoring tool calls.
+            recursion_limit = 200 if self.problem_type == "hpc_train_beams2d" else 50
             config_dict = {
                 "configurable": {"thread_id": thread_id},
-                "recursion_limit": 50,
+                "recursion_limit": recursion_limit,
             }
 
             # Invoke the supervisor agent
@@ -153,6 +161,14 @@ class EngineeringAgent(weave.Model):
             # Extract the final response from messages
             final_message = result["messages"][-1]
             response_content = final_message.content
+            # content can be None, a list of content blocks, or a str; normalise
+            if response_content is None:
+                response_content = ""
+            elif isinstance(response_content, list):
+                response_content = " ".join(
+                    block.get("text", "") if isinstance(block, dict) else str(block)
+                    for block in response_content
+                )
 
             # Debug logging: Extract and log tool calls to see what config is being used
             tool_calls_info = [
@@ -248,8 +264,12 @@ def prepare_evaluation_dataset(
     for i, prompt_data in enumerate(prompts[:sample_size]):
         prompt = prompt_data["prompt"]
 
-        # Add seed instruction if provided
-        if seed is not None:
+        # Add seed instruction for dataset-sampled problems (beams2d, etc.).
+        # Skip for fixed-prompt problems (HPC, RAG) — seeds are either
+        # embedded in the prompt or irrelevant, and appending a global seed
+        # creates contradictions.
+        dataset_name = eval_metadata.get("dataset_name", "")
+        if seed is not None and dataset_name:
             prompt = f"{prompt}\n\nIMPORTANT: Use seed={seed} when calling tools."
 
         eval_dataset.append(
@@ -364,6 +384,10 @@ def parse_arguments() -> argparse.Namespace:
             "workflow-conditional",
             "workflow-multi-export",
             "rag-eval",
+            "hpc-train-cgan",
+            "hpc-train-diff",
+            "hpc-train-natural-cgan",
+            "hpc-train-natural-diff",
         ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
     )
@@ -542,6 +566,11 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # via the ArXiv agent as an alternative route.
     os.environ["SKIP_ARXIV"] = "true" if args.problem == "rag_beams2d" else "false"
 
+    # Disable SLURM email notifications for HPC training benchmarks to avoid spam
+    os.environ["SKIP_SLURM_EMAIL"] = (
+        "true" if args.problem == "hpc_train_beams2d" else "false"
+    )
+
     # Get problem configuration
     problem_config = PROBLEM_CONFIGS[args.problem]
     model_name = args.model or config.llm_model
@@ -575,17 +604,29 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         ]
         scorer_types = ["output_quality", "task_completion", "tool_use"]
 
-    # For RAG problems, substitute score_output_quality with score_rag_evaluation.
-    # The RAG scorer replaces design-quality metrics (IoU, pixel accuracy, etc.)
-    # with RAG-specific metrics (parameter accuracy, tool usage, source citation).
-    if args.problem == "rag_beams2d":
+    # Substitute the primary scorer based on problem registry configuration.
+    # Problems with a non-default primary_scorer (e.g., rag_evaluation, hpc_workflow)
+    # replace score_output_quality with their domain-specific scorer.
+    scorer_map = {
+        "output_quality": score_output_quality,
+        "rag_evaluation": score_rag_evaluation,
+        "hpc_workflow": score_hpc_workflow,
+    }
+    problem_reg = PROBLEMS[args.problem]
+    primary_scorer_type = problem_reg.primary_scorer
+    if primary_scorer_type != "output_quality":
+        primary_scorer_func = scorer_map[primary_scorer_type]
         base_scorers = [
-            score_rag_evaluation if s is score_output_quality else s
+            primary_scorer_func if s is score_output_quality else s
             for s in base_scorers
         ]
         scorer_types = [
-            "rag_evaluation" if t == "output_quality" else t for t in scorer_types
+            primary_scorer_type if t == "output_quality" else t for t in scorer_types
         ]
+
+    # HPC training requires WandB for model download after training
+    if args.problem == "hpc_train_beams2d":
+        os.environ["USE_WANDB"] = "True"
 
     # Wrap scorers with evaluation context for better trace naming in Weave UI
     scorers = [
@@ -689,6 +730,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         temperature=temperature,
         llm_seed=llm_seed,
         problem_type=args.problem,
+        rag_read_only=args.problem == "rag_beams2d",
     )
     print()
 
@@ -734,6 +776,30 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
     )
     results_dir.mkdir(parents=True, exist_ok=True)
+
+    # HPC training evaluation — no HuggingFace ground-truth, design quality scored offline.
+    if args.problem == "hpc_train_beams2d":
+        print()
+        print("=" * 60)
+        print("HPC TRAINING EVALUATION RESULTS")
+        print("=" * 60)
+        print()
+        print("Next steps:")
+        print("  1. Run extract_data.py to export per-example HPC workflow metrics:")
+        print(
+            f"     python benchmarks/evaluations/extract_data.py"
+            f" --problem {args.problem} --prompt-style {args.prompt_style}"
+            f" --rag-status {rag_dir}"
+        )
+        print("  2. Run compute_hpc_metrics.py to compute design quality vs EngiBench:")
+        print(
+            f"     python benchmarks/evaluations/compute_hpc_metrics.py"
+            f" --problem {args.problem}"
+        )
+        print()
+        print("Evaluation complete!")
+        print("View detailed results in Weave dashboard")
+        return
 
     # RAG evaluation — no HuggingFace ground-truth designs, so skip global metrics.
     # Per-example results are in Weave; use extract_data.py to export to JSON.

@@ -7,11 +7,18 @@ Key question: Do diverse designs maintain quality?
 - FOG (lower = better quality)
 """
 
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 from scipy import stats
 from scipy.spatial import ConvexHull
 
-from utils import (
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from benchmarks.evaluations.plots.utils import (
     MIN_CORRELATION_SAMPLES,
     PLOT_STYLE,
     get_combined_global_df,

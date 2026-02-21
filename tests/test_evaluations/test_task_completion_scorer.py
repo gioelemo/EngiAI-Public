@@ -1,7 +1,9 @@
-"""Tests for STL parameter validation, conditional resolution, and multi-export validation.
+"""Tests for STL parameter validation, conditional resolution, multi-export validation,
+and HPC/RAG task completion paths.
 
-Tests for the _validate_stl_parameters(), _resolve_conditional_params(), and
-_validate_multi_export_params() functions in benchmarks/shared/scorers/task_completion_scorer.py.
+Tests for the _validate_stl_parameters(), _resolve_conditional_params(),
+_validate_multi_export_params(), and score_task_completion() functions in
+benchmarks/shared/scorers/task_completion_scorer.py.
 """
 
 import sys
@@ -17,6 +19,7 @@ from benchmarks.shared.scorers.task_completion_scorer import (  # noqa: E402
     _resolve_conditional_params,
     _validate_multi_export_params,
     _validate_stl_parameters,
+    score_task_completion,
 )
 
 # ============================================================================
@@ -626,3 +629,207 @@ def test_validate_multi_export_params_swapped_order():
 
     assert score == 0.0
     assert metrics["multi_export_both_valid"] is False
+
+
+# ============================================================================
+# HPC TRAINING TASK COMPLETION TESTS
+# ============================================================================
+
+
+def _make_hpc_output(tool_names):
+    """Build a minimal output dict for HPC task completion scoring."""
+    return {
+        "tool_calls_info": [{"name": n, "args": {}} for n in tool_names],
+        "messages": [],
+        "response": "",
+    }
+
+
+_HPC_METADATA = {
+    "example_id": 0,
+    "prompt_style": "hpc-train-cgan",
+    "expected_workflow_steps": [
+        "generate_training_command",
+        "submit_slurm_job",
+        "monitor_job_until_complete",
+        "evaluate_model",
+    ],
+}
+
+
+@pytest.mark.unit
+def test_hpc_train_all_steps_complete():
+    """HPC: all 4 workflow steps called -> success_rate = 1.0."""
+    output = _make_hpc_output(
+        [
+            "generate_training_command",
+            "submit_slurm_job",
+            "monitor_job_until_complete",
+            "evaluate_model",
+        ]
+    )
+    result = score_task_completion(output, {}, _HPC_METADATA)
+
+    assert result["success_rate"] == 1.0
+    assert result["workflow_complete"] is True
+    assert result["success_criteria"] == "hpc_workflow_steps"
+    assert result["hpc_steps_completed"] == 4
+    assert result["hpc_steps_total"] == 4
+
+
+@pytest.mark.unit
+def test_hpc_train_no_steps():
+    """HPC: no tools called -> success_rate = 0.0."""
+    output = _make_hpc_output([])
+    result = score_task_completion(output, {}, _HPC_METADATA)
+
+    assert result["success_rate"] == 0.0
+    assert result["workflow_complete"] is False
+    assert result["hpc_steps_completed"] == 0
+
+
+@pytest.mark.unit
+def test_hpc_train_partial_steps():
+    """HPC: 2 of 4 steps -> still fails (all required)."""
+    output = _make_hpc_output(["generate_training_command", "submit_slurm_job"])
+    result = score_task_completion(output, {}, _HPC_METADATA)
+
+    assert result["success_rate"] == 0.0
+    assert result["workflow_complete"] is False
+    assert result["hpc_steps_completed"] == 2
+    assert result["hpc_step_generate_training_command"] is True
+    assert result["hpc_step_submit_slurm_job"] is True
+    assert result["hpc_step_monitor_job_until_complete"] is False
+    assert result["hpc_step_evaluate_model"] is False
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "style",
+    [
+        "hpc-train-cgan",
+        "hpc-train-diff",
+        "hpc-train-natural-cgan",
+        "hpc-train-natural-diff",
+    ],
+)
+def test_hpc_train_all_prompt_styles(style):
+    """HPC: all four algorithm-specific prompt styles route to HPC path."""
+    metadata = {**_HPC_METADATA, "prompt_style": style}
+    output = _make_hpc_output(
+        [
+            "generate_training_command",
+            "submit_slurm_job",
+            "monitor_job_until_complete",
+            "evaluate_model",
+        ]
+    )
+    result = score_task_completion(output, {}, metadata)
+
+    assert result["success_rate"] == 1.0
+    assert result["success_criteria"] == "hpc_workflow_steps"
+
+
+@pytest.mark.unit
+def test_hpc_train_cli_fallback_for_evaluate():
+    """HPC: evaluate_model via CLI fallback is accepted."""
+    output = _make_hpc_output(
+        ["generate_training_command", "submit_slurm_job", "monitor_job_until_complete"]
+    )
+    output["tool_calls_info"].append(
+        {
+            "name": "execute_cli_command",
+            "args": {
+                "command": "python -m engiopt.cgan_cnn_2d.evaluate_cgan_cnn_2d --seed 1"
+            },
+        }
+    )
+    result = score_task_completion(output, {}, _HPC_METADATA)
+
+    assert result["success_rate"] == 1.0
+    assert result["hpc_steps_completed"] == 4
+
+
+@pytest.mark.unit
+def test_hpc_train_zeroes_inapplicable_fields():
+    """HPC: render/STL fields are zeroed out."""
+    output = _make_hpc_output([])
+    result = score_task_completion(output, {}, _HPC_METADATA)
+
+    assert result["render_called"] is False
+    assert result["render_success"] is False
+    assert result["stl_called"] is False
+    assert result["stl_success"] is False
+    assert result["clarification_called"] is False
+
+
+# ============================================================================
+# RAG EVALUATION TASK COMPLETION TESTS
+# ============================================================================
+
+
+_RAG_METADATA = {
+    "example_id": 0,
+    "prompt_style": "rag-eval",
+    "success_criteria": "rag_parameter_accuracy",
+}
+
+
+@pytest.mark.unit
+def test_rag_eval_both_tools_called():
+    """RAG: search_documents + optimize_design -> success_rate = 1.0."""
+    output = _make_hpc_output(["search_documents", "optimize_design"])
+    result = score_task_completion(output, {}, _RAG_METADATA)
+
+    assert result["success_rate"] == 1.0
+    assert result["workflow_complete"] is True
+    assert result["success_criteria"] == "rag_parameter_accuracy"
+    assert result["rag_search_called"] is True
+    assert result["rag_optimize_called"] is True
+
+
+@pytest.mark.unit
+def test_rag_eval_only_search():
+    """RAG: only search_documents -> success_rate = 0.0."""
+    output = _make_hpc_output(["search_documents"])
+    result = score_task_completion(output, {}, _RAG_METADATA)
+
+    assert result["success_rate"] == 0.0
+    assert result["workflow_complete"] is False
+    assert result["rag_search_called"] is True
+    assert result["rag_optimize_called"] is False
+
+
+@pytest.mark.unit
+def test_rag_eval_only_optimize():
+    """RAG: only optimize_design -> success_rate = 0.0."""
+    output = _make_hpc_output(["optimize_design"])
+    result = score_task_completion(output, {}, _RAG_METADATA)
+
+    assert result["success_rate"] == 0.0
+    assert result["rag_search_called"] is False
+    assert result["rag_optimize_called"] is True
+
+
+@pytest.mark.unit
+def test_rag_eval_no_tools():
+    """RAG: no tools called -> success_rate = 0.0."""
+    output = _make_hpc_output([])
+    result = score_task_completion(output, {}, _RAG_METADATA)
+
+    assert result["success_rate"] == 0.0
+    assert result["rag_search_called"] is False
+    assert result["rag_optimize_called"] is False
+
+
+@pytest.mark.unit
+def test_rag_eval_zeroes_inapplicable_fields():
+    """RAG: render/STL fields are zeroed out."""
+    output = _make_hpc_output(["search_documents", "optimize_design"])
+    result = score_task_completion(output, {}, _RAG_METADATA)
+
+    assert result["render_called"] is False
+    assert result["render_success"] is False
+    assert result["stl_called"] is False
+    assert result["stl_success"] is False
+    assert result["clarification_called"] is False

@@ -11,17 +11,20 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-from benchmarks.shared.problem_registry import PROBLEMS as _PROBLEMS  # noqa: E402
-from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS  # noqa: E402
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from benchmarks.evaluations.extract_data import HPC_WORKFLOW_OUTPUT_FIELDS
+from benchmarks.shared.problem_registry import PROBLEMS as _PROBLEMS
+from benchmarks.shared.scorers.rag_scorer import RAG_OUTPUT_FIELDS
 
 # Constants
 DEFAULT_N_SAMPLES = 10
@@ -46,12 +49,14 @@ KNOWN_PROMPT_STYLES = [
     "workflow-conditional",
     "workflow-multi-export",
     "rag-eval",
+    "hpc-train-cgan",
+    "hpc-train-diff",
+    "hpc-train-natural-cgan",
+    "hpc-train-natural-diff",
 ]
 
 # Directory structure:
-# results/baselines/{baseline_type}/{problem}/                              - for baselines (CGAN, CNN, etc.)
 # results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/       - for LLM agent models
-BASELINES_DIR = RESULTS_DIR / "baselines"
 MODELS_DIR = RESULTS_DIR / "models"
 
 # Known RAG statuses (order matters: check longer patterns first!)
@@ -59,34 +64,6 @@ KNOWN_RAG_STATUSES = ["no_rag", "rag"]
 
 # Minimum parts when parsing keys like "{model}_{prompt_style}_{problem}_{type}"
 MIN_KEY_PARTS = 3
-
-
-def _discover_baseline_paths() -> dict[str, Path]:
-    """Discover baseline result files from baselines directory.
-
-    Structure: results/baselines/{baseline_type}/{problem}/
-
-    Returns:
-        Dictionary mapping keys to file paths
-    """
-    paths: dict[str, Path] = {}
-    if not BASELINES_DIR.exists():
-        return paths
-
-    for baseline_type_dir in BASELINES_DIR.iterdir():
-        if not baseline_type_dir.is_dir():
-            continue
-
-        baseline_type = baseline_type_dir.name  # e.g., "cgan_cnn_2d"
-
-        for problem in KNOWN_PROBLEMS:
-            global_path = (
-                baseline_type_dir / problem / "output_quality_global_metrics.csv"
-            )
-            if global_path.exists():
-                paths[f"{baseline_type}_{problem}_global"] = global_path
-
-    return paths
 
 
 def _discover_models_dir_paths() -> dict[str, Path]:
@@ -156,21 +133,12 @@ def discover_data_paths() -> dict[str, Path]:
     """Auto-discover available result files in the results directory.
 
     Directory structure:
-        results/baselines/{baseline_type}/{problem}/                          - CSV files
         results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/   - JSON files
 
     Returns:
         Dictionary mapping keys to file paths
     """
-    paths: dict[str, Path] = {}
-
-    # 1. Discover from results/models/
-    paths.update(_discover_models_dir_paths())
-
-    # 2. Discover from results/baselines/
-    paths.update(_discover_baseline_paths())
-
-    return paths
+    return _discover_models_dir_paths()
 
 
 def _get_model_label(model_name: str) -> str:
@@ -313,7 +281,7 @@ COLOR_PALETTE = [
 MARKER_PALETTE = ["o", "s", "^", "D", "v", "p", "*", "h"]
 
 # Plot style configuration for publication
-PLOT_STYLE = {
+PLOT_STYLE: dict[str, Any] = {
     # Figure sizes for 2-column format
     "figsize_single_col": (COLUMN_WIDTH, 2.4),
     "figsize_single_col_tall": (COLUMN_WIDTH, 3.0),
@@ -592,6 +560,11 @@ def _load_design_metrics(path, model, prompt_style="full", rag_status=None):
 
             # Include RAG evaluation fields (rag_beams2d problems)
             row.update({f: design[f] for f in RAG_OUTPUT_FIELDS if f in design})
+
+            # Include HPC workflow fields (hpc_train_beams2d problems)
+            row.update(
+                {f: design[f] for f in HPC_WORKFLOW_OUTPUT_FIELDS if f in design}
+            )
 
             rows.append(row)
 
