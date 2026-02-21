@@ -231,6 +231,9 @@ def _extract_prompt(attr_name: str) -> str | None:
         if root_str not in sys.path:
             sys.path.insert(0, root_str)
 
+        # Suppress noisy config initialization logs during import
+        logging.getLogger("config").setLevel(logging.WARNING)
+
         mod = importlib.import_module("src.utils.prompts")
 
         obj = getattr(mod, attr_name, None)
