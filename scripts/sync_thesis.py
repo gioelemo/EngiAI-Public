@@ -370,23 +370,83 @@ def _extract_benchmark_prompts() -> list[str] | None:
 # Note: P0 is written as "PO" (letter O) in the thesis
 _BENCHMARK_PROMPT_LABELS = ["PO", "P1", "P2", "P3"]
 
+# Maps beams2d prompt style -> \textsc{} label in appendix.tex
+_WORKFLOW_PROMPT_LABELS: dict[str, str] = {
+    "full": "Full",
+    "natural": "Natural",
+    "workflow": "Workflow",
+    "workflow-random": "Workflow-Random",
+    "workflow-derived-params": "Workflow-Derived-Params",
+    "workflow-distractor": "Workflow-Distractor",
+    "workflow-conditional": "Workflow-Conditional",
+    "workflow-multi-export": "Workflow-Multi-Export",
+}
 
-def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
+# Representative parameters for generating example prompts
+_EXAMPLE_PARAMS: dict[str, float] = {
+    "volfrac": 0.4,
+    "forcedist": 0.65,
+    "rmin": 4.0,
+    "compliance": 56.0,
+}
+_EXAMPLE_SEED = 42
+
+
+def _extract_workflow_prompts() -> dict[str, str] | None:
+    """Extract one example prompt per beams2d style using representative params."""
+    try:
+        root_str = str(PROJECT_ROOT)
+        if root_str not in sys.path:
+            sys.path.insert(0, root_str)
+
+        logging.getLogger("config").setLevel(logging.WARNING)
+
+        mod = importlib.import_module(
+            "benchmarks.problems.beams2d.generate_prompts"
+        )
+
+        vf = _EXAMPLE_PARAMS["volfrac"]
+        fd = _EXAMPLE_PARAMS["forcedist"]
+        rm = _EXAMPLE_PARAMS["rmin"]
+        comp = _EXAMPLE_PARAMS["compliance"]
+        seed = _EXAMPLE_SEED
+
+        results: dict[str, str] = {}
+
+        # Simple styles (return str)
+        results["full"] = mod._create_full_prompt(vf, fd, rm)
+        results["natural"] = mod._create_natural_prompt(vf, fd, comp)
+        results["workflow"] = mod._create_workflow_prompt(vf, fd, rm)
+
+        # Complex styles (return tuple[str, dict])
+        results["workflow-random"] = mod._create_workflow_random_prompt(
+            vf, fd, rm, 0, seed
+        )[0]
+        results["workflow-derived-params"] = (
+            mod._create_workflow_derived_params_prompt(vf, fd, rm)[0]
+        )
+        results["workflow-distractor"] = (
+            mod._create_workflow_distractor_prompt(vf, fd, rm, 0, seed)[0]
+        )
+        results["workflow-conditional"] = (
+            mod._create_workflow_conditional_prompt(vf, fd, rm, 0, seed)[0]
+        )
+        results["workflow-multi-export"] = (
+            mod._create_workflow_multi_export_prompt(vf, fd, rm, 0, seed)[0]
+        )
+    except Exception:
+        log.exception("Failed to extract workflow prompts from beams2d")
+        return None
+    else:
+        return results
+
+
+def _sync_agent_prompts(
+    prompt_cfg: dict, target_file: str, tex: str
+) -> tuple[str, list[dict]]:
+    """Replace agent system prompt verbatim blocks.  Returns (updated_tex, actions)."""
     actions: list[dict] = []
-    prompt_cfg = cfg.get("prompts", {})
-    target_file = prompt_cfg.get("target_file", "appendix.tex")
-    appendix_path = thesis_root / target_file
-
-    if not appendix_path.exists():
-        log.warning("Appendix file not found: %s", appendix_path)
-        return actions
-
-    tex = appendix_path.read_text()
-    original_tex = tex
-
-    # Agent system prompts
-    agent_prompts = prompt_cfg.get("agent_prompts", {})
-    for agent_key, attr_name in agent_prompts.items():
+    for agent_key, attr_name in prompt_cfg.get("agent_prompts", {}).items():
         label_suffix = _LABEL_MAP.get(agent_key)
         if not label_suffix:
             log.warning("Unknown agent key %r — add it to _LABEL_MAP", agent_key)
@@ -399,7 +459,6 @@ def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
             log.warning("Could not extract prompt for %s (%s)", agent_key, attr_name)
             continue
 
-        # Strip the "Suggested Next Prompts" section if present
         prompt_text = re.sub(
             r"\n*## Suggested Next Prompts.*", "", prompt_text, flags=re.DOTALL
         )
@@ -408,43 +467,103 @@ def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
         old_tex = tex
         tex = _replace_verbatim_after_label(tex, label_suffix, prompt_text)
         if tex != old_tex:
-            action = "would replace" if dry_run else "replaced"
             actions.append(
                 {
                     "source": f"src/utils/prompts.py:{attr_name}",
                     "target": f"{target_file} (subsubsec:{label_suffix})",
-                    "action": action,
+                    "action": "replaced",
                 }
             )
+    return tex, actions
 
-    # Benchmark prompts (P0-P3)
+
+def _sync_workflow_prompts(
+    prompt_cfg: dict, target_file: str, tex: str
+) -> tuple[str, list[dict]]:
+    """Replace workflow prompt example verbatim blocks.  Returns (updated_tex, actions)."""
+    actions: list[dict] = []
+    if not prompt_cfg.get("workflow_prompts"):
+        return tex, actions
+
+    workflow_texts = _extract_workflow_prompts()
+    if workflow_texts is None:
+        log.warning("Could not extract workflow prompts — skipping")
+        return tex, actions
+
+    for style, label in _WORKFLOW_PROMPT_LABELS.items():
+        text = workflow_texts.get(style)
+        if text is None:
+            continue
+        wrapped = _wrap_verbatim_lines(text)
+        old_tex = tex
+        tex = _replace_verbatim_after_textsc(tex, label, wrapped)
+        if tex != old_tex:
+            actions.append(
+                {
+                    "source": f"beams2d/generate_prompts.py:{style}",
+                    "target": f"{target_file} (\\textsc{{{label}}})",
+                    "action": "replaced",
+                }
+            )
+    return tex, actions
+
+
+def _sync_benchmark_prompts(
+    prompt_cfg: dict, target_file: str, tex: str
+) -> tuple[str, list[dict]]:
+    """Replace P0-P3 RAG benchmark prompt verbatim blocks.  Returns (updated_tex, actions)."""
+    actions: list[dict] = []
     benchmark_cfg = prompt_cfg.get("benchmark_prompts", {})
-    if benchmark_cfg:
-        prompt_texts = _extract_benchmark_prompts()
-        if prompt_texts is None:
-            log.warning("Could not extract benchmark prompts — skipping P0-P3")
-        else:
-            for i, (label, text) in enumerate(
-                zip(_BENCHMARK_PROMPT_LABELS, prompt_texts, strict=False)
-            ):
-                wrapped = _wrap_verbatim_lines(text)
-                old_tex = tex
-                tex = _replace_verbatim_after_textsc(tex, label, wrapped)
-                if tex != old_tex:
-                    action = "would replace" if dry_run else "replaced"
-                    actions.append(
-                        {
-                            "source": f"{benchmark_cfg.get('source', 'rag_beams2d')}:P{i}",
-                            "target": f"{target_file} (\\textsc{{{label}}})",
-                            "action": action,
-                        }
-                    )
+    if not benchmark_cfg:
+        return tex, actions
 
-    # Write back if changed
-    if tex != original_tex and not dry_run:
+    prompt_texts = _extract_benchmark_prompts()
+    if prompt_texts is None:
+        log.warning("Could not extract benchmark prompts — skipping P0-P3")
+        return tex, actions
+
+    for i, (label, text) in enumerate(
+        zip(_BENCHMARK_PROMPT_LABELS, prompt_texts, strict=False)
+    ):
+        wrapped = _wrap_verbatim_lines(text)
+        old_tex = tex
+        tex = _replace_verbatim_after_textsc(tex, label, wrapped)
+        if tex != old_tex:
+            actions.append(
+                {
+                    "source": f"{benchmark_cfg.get('source', 'rag_beams2d')}:P{i}",
+                    "target": f"{target_file} (\\textsc{{{label}}})",
+                    "action": "replaced",
+                }
+            )
+    return tex, actions
+
+
+def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
+    prompt_cfg = cfg.get("prompts", {})
+    target_file = prompt_cfg.get("target_file", "appendix.tex")
+    appendix_path = thesis_root / target_file
+
+    if not appendix_path.exists():
+        log.warning("Appendix file not found: %s", appendix_path)
+        return []
+
+    tex = appendix_path.read_text()
+    original_tex = tex
+
+    tex, agent_actions = _sync_agent_prompts(prompt_cfg, target_file, tex)
+    tex, workflow_actions = _sync_workflow_prompts(prompt_cfg, target_file, tex)
+    tex, bench_actions = _sync_benchmark_prompts(prompt_cfg, target_file, tex)
+    all_actions = agent_actions + workflow_actions + bench_actions
+
+    # In dry-run mode, change "replaced" → "would replace"
+    if dry_run:
+        for a in all_actions:
+            a["action"] = "would replace"
+    elif tex != original_tex:
         appendix_path.write_text(tex)
 
-    return actions
+    return all_actions
 
 
 # ---------------------------------------------------------------------------

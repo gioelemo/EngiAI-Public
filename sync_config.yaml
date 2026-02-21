@@ -83,6 +83,12 @@ prompts:
     cli: "CLI_AGENT_SYSTEM_PROMPT"
     prusa: "PRUSA_AGENT_SYSTEM_PROMPT"
 
+  # Workflow prompt examples (Full, Natural, Workflow, and all complex variants).
+  # Generated from benchmarks/problems/beams2d/generate_prompts.py with
+  # representative params (volfrac=0.4, forcedist=0.65, rmin=4.0, seed=42).
+  workflow_prompts:
+    source: "benchmarks/problems/beams2d/generate_prompts.py"
+
   # Benchmark prompts (P0-P3 RAG evaluation prompt examples).
   # Extracted from benchmarks/problems/rag_beams2d/generate_prompts.py:RAG_PROMPTS
   benchmark_prompts:
