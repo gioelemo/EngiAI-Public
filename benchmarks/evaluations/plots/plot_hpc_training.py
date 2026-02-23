@@ -131,6 +131,10 @@ def plot_step_completion_heatmap(
         print("  No step completion data found, skipping heatmap")
         return
 
+    # Coerce step columns to numeric (they arrive as bool/object from JSON)
+    for col in available_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+
     # Build matrix: rows = (model, config), cols = steps
     group_cols = ["model_short"]
     if "config_label" in df.columns:

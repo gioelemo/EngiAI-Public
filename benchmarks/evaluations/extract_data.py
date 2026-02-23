@@ -37,7 +37,9 @@ HPC_WORKFLOW_OUTPUT_FIELDS = [
     "step_submit_slurm_job",
     "step_monitor_job_until_complete",
     "step_evaluate_model",
-    "eval_metrics",
+    # Note: "eval_metrics" (nested dict) is intentionally excluded — individual
+    # metrics are extracted as flat fields below, and a dict-valued DataFrame
+    # cell would pollute column dtypes.
     "eval_metrics_count",
     "eval_metrics_score",
     "eval_IOG",
@@ -461,12 +463,13 @@ def _prompt_style_matches(example, prompt_style_filter: str | None) -> bool:
         return prompt_style == prompt_style_filter
 
 
-def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0915
+def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915
     score_call,
     model_filter: str | None,
     seen_models: set,
     mmore_filter: bool | None = None,
     prompt_style_filter: str | None = None,
+    problem_type_filter: str | None = None,
 ) -> dict | None:
     """Process a predict_and_score call and extract ALL data for offline processing.
 
@@ -478,6 +481,8 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0915
             is True; if False, only include calls where it is False; None = no filter.
         prompt_style_filter: If set, only include calls where
             example.metadata.prompt_style matches this value; None = no filter.
+        problem_type_filter: If set, only include calls where the resolved
+            problem_type matches this value; None = no filter.
 
     Returns:
         Complete design data dict if successful, None otherwise
@@ -557,6 +562,12 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0915
                 problem_type = (ex_meta or {}).get("problem_type")
             except (AttributeError, TypeError, KeyError):
                 pass
+
+        # Filter by problem_type to avoid cross-contamination when multiple
+        # problems share the same prompt style in a single Weave workspace.
+        # Also excludes records where problem_type is unresolvable.
+        if problem_type_filter and problem_type != problem_type_filter:
+            return None
 
         # For RAG and HPC problems, the primary scorer output lives under a
         # different Weave key (rag_evaluation / hpc_workflow) instead of
@@ -728,6 +739,7 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
     eval_id: str | None = None,
     mmore_filter: bool | None = None,
     prompt_style_filter: str | None = None,
+    problem_type_filter: str | None = None,
 ) -> list[dict]:
     """Extract complete per-design data from Weave evaluations.
 
@@ -743,6 +755,9 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
         prompt_style_filter: If set, only include calls where
             example.metadata.prompt_style matches this value.  Used to separate
             different prompt styles within a single Weave project.
+        problem_type_filter: If set, only include calls where the resolved
+            problem_type matches this value.  Prevents cross-contamination
+            when multiple problems share the same prompt style.
 
     Returns:
         List of dictionaries with complete design data (metrics, arrays, histories) per example
@@ -756,6 +771,10 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
     if prompt_style_filter is not None:
         print(
             f"  Filtering by prompt_style='{prompt_style_filter}' (from example metadata)"
+        )
+    if problem_type_filter is not None:
+        print(
+            f"  Filtering by problem_type='{problem_type_filter}' (from scorer/metadata)"
         )
 
     filter_dict = {
@@ -792,7 +811,12 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
             )
 
         result = _process_score_call_for_complete_data(
-            score_call, model_filter, seen_models, mmore_filter, prompt_style_filter
+            score_call,
+            model_filter,
+            seen_models,
+            mmore_filter,
+            prompt_style_filter,
+            problem_type_filter,
         )
         if result:
             results.append(result)
@@ -917,7 +941,6 @@ def main():
         choices=[
             "full",
             "natural",
-            "workflow",
             "workflow-random",
             "workflow-derived-params",
             "workflow-distractor",
@@ -982,7 +1005,13 @@ def main():
     print(f"  prompt_style_filter='{prompt_style_filter}'")
 
     data = extract_complete_design_data_from_evaluation(
-        project, model, args.limit, resolved_eval_id, mmore_filter, prompt_style_filter
+        project,
+        model,
+        args.limit,
+        resolved_eval_id,
+        mmore_filter,
+        prompt_style_filter,
+        problem_type_filter=args.problem,
     )
 
     if not data:

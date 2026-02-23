@@ -37,6 +37,7 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "reportlab==4.4.5",
     "psycopg2-binary==2.9.11",
+    "pyyaml>=6.0",
     "python-dotenv==1.0.1",
     "requests==2.32.5",
     "scipy",
@@ -110,6 +111,7 @@ exclude = [
     "node_modules",
     "venv",
     "benchmarks/shared/metrics.py",
+    "thesis",
 ]
 
 # Same as Black.
@@ -320,6 +322,7 @@ module = [
   "watchdog",
   "weave",
   "weave.*",
+  "yaml",
 ]
 ignore_missing_imports = true
 

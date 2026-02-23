@@ -85,16 +85,21 @@ for MODEL in "${MODELS[@]}"; do
 
 done
 
-# Step 3: Extract data for both RAG statuses (scans all models)
+# Step 3: Extract data per model and RAG status
 echo ""
 echo "------------------------------------------------------------"
 echo "  Extracting data"
 echo "------------------------------------------------------------"
-for RAG_STATUS in "rag" "no_rag"; do
-    python benchmarks/evaluations/extract_data.py \
-        --problem "${PROBLEM}" \
-        --prompt-style "${STYLE}" \
-        --rag-status "${RAG_STATUS}"
+for MODEL in "${MODELS[@]}"; do
+    for RAG_STATUS in "rag" "no_rag"; do
+        echo "  Extracting: ${MODEL} — ${RAG_STATUS}"
+        python benchmarks/evaluations/extract_data.py \
+            --problem "${PROBLEM}" \
+            --prompt-style "${STYLE}" \
+            --rag-status "${RAG_STATUS}" \
+            --model "${MODEL}" \
+            --limit 2000
+    done
 done
 
 # Step 4: Generate plots (scans all models, both RAG statuses)

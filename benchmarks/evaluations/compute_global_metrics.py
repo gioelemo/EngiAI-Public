@@ -7,7 +7,7 @@ global metrics (MMD, DPP, IOG/COG/FOG, RVC) offline without needing Weave.
 Usage:
     python benchmarks/evaluations/compute_global_metrics.py \\
         --problem beams2d \
-        --prompt-style workflow \
+        --prompt-style workflow-random \
         --rag-status no_rag
 
 The input path is auto-constructed from model/problem/prompt-style/rag-status.
@@ -357,7 +357,6 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         choices=[
             "full",
             "natural",
-            "workflow",
             "workflow-random",
             "workflow-derived-params",
             "workflow-distractor",

@@ -377,7 +377,6 @@ def parse_arguments() -> argparse.Namespace:
         choices=[
             "full",
             "natural",
-            "workflow",
             "workflow-random",
             "workflow-derived-params",
             "workflow-distractor",

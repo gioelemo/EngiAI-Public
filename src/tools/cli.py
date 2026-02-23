@@ -231,11 +231,10 @@ def open_gui_application(
     Just call it directly when the user says "open [app name]". The tool will handle
     finding the application automatically.
 
-    This tool launches GUI applications like PrusaSlicer, Blender, MeshLab, etc.
-    so you can interact with them directly instead of using CLI commands.
+    Supported apps: PrusaSlicer, Terminal, Finder, VSCode.
 
     Args:
-        app_name: Name or path to the application (e.g., "PrusaSlicer", "Blender", "Mail")
+        app_name: Name of the application (e.g., "PrusaSlicer", "Terminal", "Finder")
                   Just use the simple name - the tool will find it automatically
         file_path: Optional file to open with the application
         wait_for_exit: If True, waits for the application to close before returning (default: False)
@@ -245,8 +244,7 @@ def open_gui_application(
 
     Example:
         User says "open PrusaSlicer" → open_gui_application("PrusaSlicer")
-        User says "open Blender" → open_gui_application("Blender")
-        User says "open Mail" → open_gui_application("Mail")
+        User says "open Terminal" → open_gui_application("Terminal")
 
     Note:
         - DO NOT check if the app exists first - just call this tool directly

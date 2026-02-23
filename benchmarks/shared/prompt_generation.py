@@ -47,7 +47,7 @@ def generate_prompts_from_huggingface(
         dataset_split: Dataset split to use ('train', 'val', or 'test')
         include_targets: Whether to include target values
         seed: Random seed for reproducible sampling (default: None for random)
-        prompt_style: Style of prompt to generate (e.g., 'full', 'natural', 'workflow')
+        prompt_style: Style of prompt to generate (e.g., 'full', 'natural', 'workflow-random')
 
     Returns:
         List of prompt dictionaries ready for evaluation

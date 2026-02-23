@@ -7,7 +7,7 @@ into natural language prompts that can be used to evaluate the engineering agent
 Supports multiple prompt styles:
 - full: Exact numerical parameters
 - natural: Natural language descriptions only
-- workflow: Full workflow with export steps
+- workflow-random: Full workflow with randomized STL export parameters
 - workflow-derived-params: Workflow with STL parameters derived from optimization inputs
 - workflow-distractor: Workflow with distractor parameters mixed with real STL params
 - workflow-conditional: Workflow with if/then branching based on simulation results
@@ -95,16 +95,6 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
         ],
         "optimal_call_count": 1,
         "success_criteria": "clarification_requested",
-    },
-    "workflow": {
-        "description": "Full workflow with export steps",
-        "optimal_tool_calls": [
-            {"name": "optimize_design", "count": 1},
-            {"name": "simulate_design", "count": 1},
-            {"name": "convert_design_to_stl", "count": 1},
-        ],
-        "optimal_call_count": 3,
-        "success_criteria": "stl_export",  # Success = STL file generated correctly
     },
     "workflow-random": {
         "description": "Full workflow with random STL parameters",
@@ -222,26 +212,6 @@ def _create_natural_prompt(volfrac: float, forcedist: float, compliance: float) 
         f"- Apply {force_desc}\n"
         f"- The resulting structure should be {stiffness_desc}\n"
         f"Optimize the structure to minimize compliance while respecting the volume constraint."
-    )
-
-
-def _create_workflow_prompt(volfrac: float, forcedist: float, rmin: float) -> str:
-    """Create detailed workflow prompt with export steps."""
-    return (
-        f"Execute a 2D topology optimization and export the resulting geometry "
-        f"as a 3D-printable STL file.\n\n"
-        f"1. Optimization Configuration\n"
-        f"   - Volume Fraction: {volfrac}\n"
-        f"   - Force Distribution: {forcedist}\n"
-        f"   - Filter Radius (rmin): {rmin}\n"
-        f"   - Objective: Minimize compliance\n\n"
-        f"2. Post-processing & Export\n"
-        f"   - Thresholding: Apply a 0.5 density threshold to convert the continuous "
-        f"density map into a binary 'solid vs. void' geometry\n"
-        f"   - Mirror: Mirror the design across the y-axis for symmetry\n"
-        f"   - Extrusion: Extrude the 2D result by 5 units in the Z-axis to create "
-        f"a 3D volume\n"
-        f"   - Export: Save the final geometry as an STL file"
     )
 
 
@@ -809,7 +779,7 @@ def create_prompt_from_conditions(
         example: Single example from the HuggingFace dataset
         include_target: Whether to include target compliance for validation
         prompt_style: Style of prompt to generate ('full', 'natural',
-            'workflow', 'workflow-random', 'workflow-derived-params',
+            'workflow-random', 'workflow-derived-params',
             'workflow-distractor', 'workflow-conditional', 'workflow-multi-export')
         seed: Random seed for reproducible random parameter generation
             (workflow-random, workflow-distractor, workflow-conditional,
@@ -864,8 +834,6 @@ def create_prompt_from_conditions(
         prompt, stl_expected_params = _create_workflow_conditional_prompt(
             volfrac, forcedist, rmin, example.get("example_id", 0), seed
         )
-    elif prompt_style == "workflow":
-        prompt = _create_workflow_prompt(volfrac, forcedist, rmin)
     else:
         prompt = _create_full_prompt(volfrac, forcedist, rmin)
 
