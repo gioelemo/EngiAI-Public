@@ -355,8 +355,7 @@ def _extract_benchmark_prompts() -> list[str] | None:
 
 
 # Maps P0-P3 index -> \textsc{} label used in appendix.tex
-# Note: P0 is written as "PO" (letter O) in the thesis
-_BENCHMARK_PROMPT_LABELS = ["PO", "P1", "P2", "P3"]
+_BENCHMARK_PROMPT_LABELS = ["P0", "P1", "P2", "P3"]
 
 # Maps beams2d prompt style -> \textsc{} label in appendix.tex
 _WORKFLOW_PROMPT_LABELS: dict[str, str] = {
