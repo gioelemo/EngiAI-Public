@@ -98,7 +98,7 @@ for MODEL in "${MODELS[@]}"; do
             --prompt-style "${STYLE}" \
             --rag-status "${RAG_STATUS}" \
             --model "${MODEL}" \
-            --limit 2000
+            --limit 10000
     done
 done
 

@@ -11,7 +11,7 @@ import uuid
 from typing import Annotated, Any, Literal, cast
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -35,6 +35,12 @@ from src.utils.prompts import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Maximum consecutive re-routings to the same agent before the supervisor
+# forces FINISH.  Smaller models often fail to emit FINISH and keep
+# re-routing to the same agent (sometimes with spurious tool calls).
+# The first delegation is always allowed; the counter tracks re-routings.
+_MAX_CONSECUTIVE_SAME_AGENT_REROUTINGS = 3
 
 
 class RouteDecision(BaseModel):
@@ -148,6 +154,11 @@ class SupervisorAgent:
             seed=self.seed,
         )
 
+        # Loop detection state (reset per invoke)
+        self._last_routed_agent: str | None = None
+        self._consecutive_same_agent_count: int = 0
+        self._last_delegation_had_tools: bool = True
+
         # Build the supervisor graph
         self.graph = self._build_graph()
 
@@ -213,10 +224,51 @@ class SupervisorAgent:
             f"[SUPERVISOR ROUTING] Agent: '{next_agent}' | Reasoning: {route_decision.reasoning}"
         )
 
-        # Inject scoped task instruction as a HumanMessage so the delegated
-        # agent's LLM treats it as a new user directive (not just a prior
-        # assistant turn).  This prevents the agent from ignoring the scope
-        # and trying to handle the entire workflow with its own tools.
+        # ── Same-agent loop detection ────────────────────────────────
+        # If the LLM keeps routing to the same agent, it is stuck.
+        # Force FINISH to avoid burning tokens/time.  Common with
+        # smaller models that fail to emit FINISH even when their own
+        # reasoning says "the task is complete."
+        if next_agent not in ("FINISH", "supervisor_response"):
+            if next_agent == self._last_routed_agent:
+                self._consecutive_same_agent_count += 1
+            else:
+                self._consecutive_same_agent_count = 0
+
+            if (
+                self._consecutive_same_agent_count
+                >= _MAX_CONSECUTIVE_SAME_AGENT_REROUTINGS
+            ):
+                logger.warning(
+                    f"[SUPERVISOR] Loop detected: '{next_agent}' re-routed "
+                    f"{self._consecutive_same_agent_count} consecutive times. "
+                    "Forcing FINISH."
+                )
+                self._consecutive_same_agent_count = 0
+                self._last_routed_agent = None
+                return {
+                    "next": "FINISH",
+                    "messages": [
+                        AIMessage(
+                            content=(
+                                "I've completed the task based on the information "
+                                "gathered so far."
+                            )
+                        )
+                    ],
+                }
+
+            self._last_routed_agent = next_agent
+        else:
+            # Routing to FINISH or supervisor_response — reset tracking
+            self._last_routed_agent = None
+            self._consecutive_same_agent_count = 0
+
+        # ── Inject scoped task instruction ───────────────────────────
+        # HumanMessage so the delegated agent's LLM treats it as a new
+        # user directive (not just a prior assistant turn).  This
+        # prevents the agent from ignoring the scope and trying to
+        # handle the entire workflow with its own tools.
         new_messages: list = []
         if route_decision.task_instruction and next_agent not in (
             "FINISH",
@@ -257,61 +309,48 @@ class SupervisorAgent:
         """Delegate to engineering agent."""
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
-        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.engineering_agent.invoke(
             agent_state,
             {"configurable": {"thread_id": f"engineering_{uuid.uuid4().hex[:8]}"}},
         )
-        # Return all new messages to preserve tool call/response chain
-        input_len = len(state["messages"])
-        new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": ""}
+        return self._extract_agent_result(state, result)
 
     def _hpc_node(self, state: SupervisorState):
         """Delegate to HPC agent."""
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
-        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.hpc_agent.invoke(
             agent_state,
             {"configurable": {"thread_id": f"hpc_{uuid.uuid4().hex[:8]}"}},
         )
-        # Return all new messages to preserve tool call/response chain
-        input_len = len(state["messages"])
-        new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": ""}
+        return self._extract_agent_result(state, result)
 
     def _search_node(self, state: SupervisorState):
         """Delegate to search agent."""
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
-        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.search_agent.invoke(
             agent_state,
             {"configurable": {"thread_id": f"search_{uuid.uuid4().hex[:8]}"}},
         )
-        # Return all new messages to preserve tool call/response chain
-        input_len = len(state["messages"])
-        new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": ""}
+        return self._extract_agent_result(state, result)
 
     def _rag_node(self, state: SupervisorState):
         """Delegate to RAG agent for document Q&A."""
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
-        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.rag_agent.invoke(
             agent_state,
             {"configurable": {"thread_id": f"rag_{uuid.uuid4().hex[:8]}"}},
         )
-        # Return all new messages to preserve tool call/response chain
-        input_len = len(state["messages"])
-        new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": ""}
+        return self._extract_agent_result(state, result)
 
     def _arxiv_node(self, state: SupervisorState):
         """Delegate to ArXiv agent for paper search and analysis."""
         if os.getenv("SKIP_ARXIV", "false").lower() == "true":
+            # System bypass, not an idle agent — supervisor should re-route
+            # (typically to rag_agent), so mark as "productive".
+            self._last_delegation_had_tools = True
             return {
                 "messages": [
                     AIMessage(
@@ -325,44 +364,45 @@ class SupervisorAgent:
             }
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
-        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.arxiv_agent.invoke(
             agent_state,
             {"configurable": {"thread_id": f"arxiv_{uuid.uuid4().hex[:8]}"}},
         )
-        # Return all new messages to preserve tool call/response chain
-        input_len = len(state["messages"])
-        new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": ""}
+        return self._extract_agent_result(state, result)
 
     def _prusa_node(self, state: SupervisorState):
         """Delegate to Prusa agent."""
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
-        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.prusa_agent.invoke(
             agent_state,
             {"configurable": {"thread_id": f"prusa_{uuid.uuid4().hex[:8]}"}},
         )
-        # Return all new messages to preserve tool call/response chain
-        input_len = len(state["messages"])
-        new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": ""}
+        return self._extract_agent_result(state, result)
 
     def _cli_node(self, state: SupervisorState):
         """Delegate to CLI agent."""
         logger.info("[SUPERVISOR] _cli_node invoked - delegating to CLI agent")
         agent_state = cast(MessagesState, {"messages": state["messages"]})
-        # Use unique thread_id to avoid checkpoint conflicts between invocations
         result = self.cli_agent.invoke(
             agent_state,
             {"configurable": {"thread_id": f"cli_{uuid.uuid4().hex[:8]}"}},
         )
         logger.info("[SUPERVISOR] CLI agent returned result")
-        # Return all new messages to preserve tool call/response chain
-        input_len = len(state["messages"])
-        new_messages = result["messages"][input_len:]
-        return {"messages": new_messages, "next": ""}
+        return self._extract_agent_result(state, result)
+
+    def _route_after_agent(self, state: SupervisorState) -> str:  # noqa: ARG002
+        """Decide whether to loop back to supervisor or end directly.
+
+        If the agent used tools it was productive, so the supervisor should
+        re-evaluate for potential multi-step continuation.  If the agent
+        produced no tool calls it had nothing left to do — go straight to
+        END instead of making another (wasteful) supervisor LLM call.
+        """
+        if self._last_delegation_had_tools:
+            return "supervisor"
+        logger.info("[SUPERVISOR] Agent produced no tool calls — ending directly.")
+        return END
 
     def _build_graph(self):
         """Build the supervisor workflow graph with agent routing."""
@@ -404,15 +444,25 @@ class SupervisorAgent:
             routing_dict,
         )
 
-        # Agents loop back to supervisor for multi-step workflow support
-        workflow.add_edge("engineering_agent", "supervisor")
-        workflow.add_edge("hpc_agent", "supervisor")
-        workflow.add_edge("search_agent", "supervisor")
-        workflow.add_edge("rag_agent", "supervisor")
-        workflow.add_edge("arxiv_agent", "supervisor")
-        workflow.add_edge("prusa_agent", "supervisor")
-        workflow.add_edge("cli_agent", "supervisor")
-        # Only supervisor_response goes directly to END
+        # Agents loop back to supervisor only if they used tools (productive).
+        # If an agent produced no tool calls it had nothing to do — go
+        # directly to END to avoid wasteful supervisor re-evaluation
+        # (common with smaller models that fail to emit FINISH).
+        agent_nodes = [
+            "engineering_agent",
+            "hpc_agent",
+            "search_agent",
+            "rag_agent",
+            "arxiv_agent",
+            "prusa_agent",
+            "cli_agent",
+        ]
+        after_agent_map = {"supervisor": "supervisor", END: END}
+        for agent_name in agent_nodes:
+            workflow.add_conditional_edges(
+                agent_name, self._route_after_agent, after_agent_map
+            )
+        # supervisor_response always goes directly to END
         workflow.add_edge("supervisor_response", END)
 
         # Compile with persistent checkpointer
@@ -422,6 +472,22 @@ class SupervisorAgent:
             checkpointer=checkpointer,
             interrupt_before=["cli_agent"],
         )
+
+    def _extract_agent_result(
+        self, state: SupervisorState, result: MessagesState
+    ) -> dict:
+        """Extract new messages from an agent result and track tool usage.
+
+        Shared by all agent delegation nodes to avoid duplicated logic.
+        Sets ``_last_delegation_had_tools`` for idle-loop detection in the
+        supervisor node.
+        """
+        input_len = len(state["messages"])
+        new_messages = result["messages"][input_len:]
+        self._last_delegation_had_tools = any(
+            isinstance(m, ToolMessage) for m in new_messages
+        )
+        return {"messages": new_messages, "next": ""}
 
     def invoke(self, state, config):
         """Invoke the supervisor agent.
@@ -433,6 +499,11 @@ class SupervisorAgent:
         Returns:
             Updated state with agent responses
         """
+        # Reset loop detection state for each top-level invocation
+        self._last_routed_agent = None
+        self._consecutive_same_agent_count = 0
+        self._last_delegation_had_tools = True
+
         # If state is None, we're resuming from an interrupt - pass None to graph
         if state is None:
             result = self.graph.invoke(None, config)

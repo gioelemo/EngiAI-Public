@@ -90,7 +90,7 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
             --prompt-style "${STYLE}" \
             --rag-status "${RAG_STATUS}" \
             --model "${MODEL}" \
-            --limit 2000
+            --limit 10000
 
         # Step 4: Compute HPC metrics (agent vs baseline)
         python benchmarks/evaluations/compute_hpc_metrics.py \

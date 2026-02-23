@@ -13,12 +13,12 @@ set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
 MODELS=(
-    "openai:gpt-5-mini"
-    "google_genai:gemini-3-flash-preview"
+    #"openai:gpt-5-mini"
+    #"google_genai:gemini-3-flash-preview"
     "ollama:qwen3:4b-instruct-2507-q8_0"
 )
 SEEDS="1 2 3"
-SAMPLES=5
+SAMPLES=1
 PROBLEM="beams2d"
 RAG_STATUS="no_rag"
 # ─────────────────────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
             --prompt-style "${STYLE}" \
             --rag-status "${RAG_STATUS}" \
             --model "${MODEL}" \
-            --limit 2000
+            --limit 10000
 
         # Step 3: Compute global metrics
         python benchmarks/evaluations/compute_global_metrics.py \
