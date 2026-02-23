@@ -237,7 +237,8 @@ def generate_table(
     lines.append(r"\begin{table*}[ht]")
     lines.append(r"\centering")
     lines.append(
-        r"\caption{Workflow evaluation results (mean $\pm$ std). "
+        r"\caption[Workflow evaluation results.]"
+        r"{Workflow evaluation results (mean $\pm$ std). "
         r"TC = Task Completion rate, CO = Combined Overall score. "
         r"\textbf{Bold} = best model per metric per row.}"
     )
