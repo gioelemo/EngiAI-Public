@@ -76,7 +76,7 @@ python evaluate_agent.py \
 | `--scorers` | Scorer set (output_quality/all/task_completion/tool_use) | `all` |
 | `--seed` | Random seed for optimization (also serves as tracking ID) | `None` |
 | `--run` | Run number for repeated evaluations (fixed optimization seed) | `None` |
-| `--prompt-style` | Prompt style (full/natural/workflow/workflow-random/hpc-train-*/rag-eval/...) | `full` |
+| `--prompt-style` | Prompt style (full/natural/workflow-random/workflow-conditional/hpc-train-*/rag-eval/...) | `full` |
 | `--mmore` | Enable MMORE RAG system for document retrieval | Disabled |
 | `--no-mmore` | Disable MMORE RAG system (default) | — |
 ## Results Organization

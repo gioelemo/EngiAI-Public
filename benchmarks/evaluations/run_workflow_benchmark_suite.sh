@@ -4,7 +4,7 @@
 # Usage:
 #   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh workflow-random
 #   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh natural workflow-random workflow-conditional
-#   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh full natural workflow workflow-random
+#   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh full natural workflow-random workflow-conditional
 #
 # Prompt styles are passed as positional arguments.
 # Models, seeds, and samples are configured below.

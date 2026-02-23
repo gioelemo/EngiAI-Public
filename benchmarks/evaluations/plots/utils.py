@@ -743,7 +743,7 @@ def filter_by_prompt_style(df, prompt_style: str, include_baselines: bool = True
 
     Args:
         df: DataFrame with a 'prompt_style' column
-        prompt_style: Prompt style to filter by (full, natural, workflow)
+        prompt_style: Prompt style to filter by (full, natural, workflow-random, ...)
         include_baselines: If True, include baselines (which have no prompt_style)
 
     Returns:
@@ -794,7 +794,7 @@ def get_prompt_style_output_dir(prompt_style: str):
     """Return output directory for a specific prompt style.
 
     Args:
-        prompt_style: Prompt style (full, natural, workflow)
+        prompt_style: Prompt style (full, natural, workflow-random, ...)
 
     Returns:
         Path to the output directory for this prompt style

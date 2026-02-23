@@ -80,7 +80,6 @@ class ProblemConfig(TypedDict):
 
     dataset_name: str
     prompt_file: str
-    scorers: list[Any]
 
 
 # Problem-specific configurations
@@ -97,7 +96,6 @@ PROBLEM_CONFIGS: dict[str, ProblemConfig] = {
         "prompt_file": problem.prompt_file_template.replace(
             "{problem}", name
         ),  # Replace placeholder
-        "scorers": [score_output_quality],  # All problems use output quality scorer
     }
     for name, problem in PROBLEMS.items()
 }
@@ -249,7 +247,7 @@ def prepare_evaluation_dataset(
             - problem_type: Type of problem being evaluated
             - dataset_name: Name of the HuggingFace dataset for ground truth
             - seed: Optional seed to use for all prompts in this evaluation (optimization seed)
-            - prompt_style: Style of prompt (full, natural, workflow)
+            - prompt_style: Style of prompt (full, natural, workflow-random, ...)
             - mmore_enabled: Whether MMORE RAG system is enabled
             - model_name: LLM model used for evaluation
             - temperature: Model temperature setting
