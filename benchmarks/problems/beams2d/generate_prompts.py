@@ -7,7 +7,7 @@ into natural language prompts that can be used to evaluate the engineering agent
 Supports multiple prompt styles:
 - full: Exact numerical parameters
 - natural: Natural language descriptions only
-- workflow: Full workflow with export steps
+- workflow-random: Full workflow with randomized STL export parameters
 - workflow-derived-params: Workflow with STL parameters derived from optimization inputs
 - workflow-distractor: Workflow with distractor parameters mixed with real STL params
 - workflow-conditional: Workflow with if/then branching based on simulation results

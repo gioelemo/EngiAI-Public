@@ -568,8 +568,12 @@ def write_manifest(thesis_root: Path, all_actions: list[dict]) -> None:
 
 
 def auto_commit(thesis_root: Path) -> None:
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-    subprocess.run(["git", "add", "-A"], cwd=thesis_root, check=True)
+    ts = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M")
+    # Only stage directories the sync pipeline writes to (avoid temp/OS files).
+    for p in ("figures", "tables", "appendices", ".sync_manifest.json"):
+        target = thesis_root / p
+        if target.exists():
+            subprocess.run(["git", "add", str(p)], cwd=thesis_root, check=True)
 
     status = subprocess.run(
         ["git", "status", "--porcelain"],
