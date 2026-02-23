@@ -37,7 +37,9 @@ HPC_WORKFLOW_OUTPUT_FIELDS = [
     "step_submit_slurm_job",
     "step_monitor_job_until_complete",
     "step_evaluate_model",
-    "eval_metrics",
+    # Note: "eval_metrics" (nested dict) is intentionally excluded — individual
+    # metrics are extracted as flat fields below, and a dict-valued DataFrame
+    # cell would pollute column dtypes.
     "eval_metrics_count",
     "eval_metrics_score",
     "eval_IOG",
