@@ -322,6 +322,7 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - BEFORE choosing an agent, carefully scan the ENTIRE message history for tool calls and their results. Identify which steps have ALREADY been completed successfully.
    - NEVER re-route to an agent for a step that is already done. If you see a tool result confirming a step succeeded (e.g., "Job submitted with ID: 12345", "Job has completed!", "Downloaded successfully"), that step is DONE — move on to the NEXT incomplete step.
    - If ALL steps in the user's request are complete, choose FINISH.
+   - NEVER re-delegate to the same agent that just returned with tool results — its work is done. Only re-delegate to the same agent if a DIFFERENT agent provided new information in between (e.g., rag_agent found parameters, now engineering_agent needs them).
    - Choose supervisor_response only for direct informational questions ("what can you do?")
    - **IMPORTANT**: Use the `task_instruction` field to scope each agent's work to ONLY the next incomplete step(s). Agents will try to complete everything they can with their tools, so you MUST explicitly tell them what to do and what NOT to do.
 
