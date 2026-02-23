@@ -217,11 +217,11 @@ def sync_tables(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
 _UNICODE_REPLACEMENTS: list[tuple[str, str]] = [
     ("\u2192", "->"),  # → rightwards arrow
     ("\u2014", "--"),  # — em dash
-    ("\u26A0\uFE0F", "[!]"),  # ⚠️  warning sign + variation selector
-    ("\u26A0", "[!]"),  # ⚠  warning sign (without VS16)
-    ("\uFE0F", ""),  # variation selector-16 (strip)
-    ("\u00B0", "deg"),  # ° degree sign
-    ("\u03BC", "u"),  # μ micro sign
+    ("\u26a0\ufe0f", "[!]"),  # ⚠️  warning sign + variation selector
+    ("\u26a0", "[!]"),  # ⚠  warning sign (without VS16)
+    ("\ufe0f", ""),  # variation selector-16 (strip)
+    ("\u00b0", "deg"),  # ° degree sign
+    ("\u03bc", "u"),  # μ micro sign
 ]
 
 
@@ -389,9 +389,7 @@ def _extract_workflow_prompts() -> dict[str, str] | None:
 
         logging.getLogger("config").setLevel(logging.WARNING)
 
-        mod = importlib.import_module(
-            "benchmarks.problems.beams2d.generate_prompts"
-        )
+        mod = importlib.import_module("benchmarks.problems.beams2d.generate_prompts")
 
         vf = _EXAMPLE_PARAMS["volfrac"]
         fd = _EXAMPLE_PARAMS["forcedist"]
@@ -410,18 +408,18 @@ def _extract_workflow_prompts() -> dict[str, str] | None:
         results["workflow-random"] = mod._create_workflow_random_prompt(
             vf, fd, rm, 0, seed
         )[0]
-        results["workflow-derived-params"] = (
-            mod._create_workflow_derived_params_prompt(vf, fd, rm)[0]
-        )
-        results["workflow-distractor"] = (
-            mod._create_workflow_distractor_prompt(vf, fd, rm, 0, seed)[0]
-        )
-        results["workflow-conditional"] = (
-            mod._create_workflow_conditional_prompt(vf, fd, rm, 0, seed)[0]
-        )
-        results["workflow-multi-export"] = (
-            mod._create_workflow_multi_export_prompt(vf, fd, rm, 0, seed)[0]
-        )
+        results["workflow-derived-params"] = mod._create_workflow_derived_params_prompt(
+            vf, fd, rm
+        )[0]
+        results["workflow-distractor"] = mod._create_workflow_distractor_prompt(
+            vf, fd, rm, 0, seed
+        )[0]
+        results["workflow-conditional"] = mod._create_workflow_conditional_prompt(
+            vf, fd, rm, 0, seed
+        )[0]
+        results["workflow-multi-export"] = mod._create_workflow_multi_export_prompt(
+            vf, fd, rm, 0, seed
+        )[0]
     except Exception:
         log.exception("Failed to extract workflow prompts from beams2d")
         return None

@@ -107,7 +107,9 @@ arrow_response = FancyArrowPatch(
     alpha=arrow_alpha,
 )
 ax.add_patch(arrow_response)
-ax.text(4.5, arrow_mid, r"\textbf{Response}", fontsize=small_size, va="center", ha="right")
+ax.text(
+    4.5, arrow_mid, r"\textbf{Response}", fontsize=small_size, va="center", ha="right"
+)
 
 # ============================================================================
 # Layer 2: Supervisor Agent (LLM)
@@ -247,7 +249,12 @@ for tool in tools:
             "",
             xy=(tool_cx, tools_y + tools_height),
             xytext=(agent_cx, agent_y),
-            arrowprops={"arrowstyle": "->", "lw": arrow_linewidth, "color": "black", "alpha": arrow_alpha},
+            arrowprops={
+                "arrowstyle": "->",
+                "lw": arrow_linewidth,
+                "color": "black",
+                "alpha": arrow_alpha,
+            },
         )
 
 # ============================================================================
@@ -255,20 +262,40 @@ for tool in tools:
 # ============================================================================
 layer_label_size = label_size  # 8pt — larger than small_size for readability
 ax.text(
-    -0.3, user_y + box_h / 2, r"\textbf{Interface}",
-    fontsize=layer_label_size, ha="right", va="center", color="black",
+    -0.3,
+    user_y + box_h / 2,
+    r"\textbf{Interface}",
+    fontsize=layer_label_size,
+    ha="right",
+    va="center",
+    color="black",
 )
 ax.text(
-    -0.3, supervisor_y + box_h / 2, r"\textbf{Orchestration}",
-    fontsize=layer_label_size, ha="right", va="center", color="black",
+    -0.3,
+    supervisor_y + box_h / 2,
+    r"\textbf{Orchestration}",
+    fontsize=layer_label_size,
+    ha="right",
+    va="center",
+    color="black",
 )
 ax.text(
-    -0.3, agent_y + box_h / 2, r"\textbf{Specialization}",
-    fontsize=layer_label_size, ha="right", va="center", color="black",
+    -0.3,
+    agent_y + box_h / 2,
+    r"\textbf{Specialization}",
+    fontsize=layer_label_size,
+    ha="right",
+    va="center",
+    color="black",
 )
 ax.text(
-    -0.3, tools_y + box_h / 2, r"\textbf{Execution}",
-    fontsize=layer_label_size, ha="right", va="center", color="black",
+    -0.3,
+    tools_y + box_h / 2,
+    r"\textbf{Execution}",
+    fontsize=layer_label_size,
+    ha="right",
+    va="center",
+    color="black",
 )
 
 # ============================================================================

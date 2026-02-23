@@ -36,7 +36,7 @@ ax.set_facecolor("white")
 
 # Color scheme — all from COLOR_PALETTE (Okabe-Ito)
 color_center = COLOR_PALETTE[1]  # Orange
-color_stage = COLOR_PALETTE[0]   # Blue
+color_stage = COLOR_PALETTE[0]  # Blue
 
 # Shared style constants (matching architecture/deployment diagrams)
 box_alpha = 0.4
@@ -79,16 +79,20 @@ center_circle = Circle(
 ax.add_patch(center_circle)
 
 ax.text(
-    0, 0.05,
+    0,
+    0.05,
     r"\textbf{Engineering}",
     fontsize=label_size,
-    ha="center", va="center",
+    ha="center",
+    va="center",
 )
 ax.text(
-    0, -0.07,
+    0,
+    -0.07,
     r"\textbf{Design Process}",
     fontsize=label_size,
-    ha="center", va="center",
+    ha="center",
+    va="center",
 )
 
 # ============================================================================
@@ -131,10 +135,12 @@ for angle, stage in zip(angles, stages, strict=True):
 
     bold_stage = "\n".join(r"\textbf{" + line + "}" for line in stage.split("\n"))
     ax.text(
-        x, y,
+        x,
+        y,
         bold_stage,
         fontsize=small_size,
-        ha="center", va="center",
+        ha="center",
+        va="center",
     )
 
 # ============================================================================
@@ -157,12 +163,19 @@ for i in range(n_stages):
     ys = arrow_radius * np.sin(theta)
 
     # Draw arc body (stop before end to leave room for arrowhead)
-    ax.plot(xs[:-3], ys[:-3], "-", color="black",
-            linewidth=arrow_linewidth, alpha=arrow_alpha, solid_capstyle="round")
+    ax.plot(
+        xs[:-3],
+        ys[:-3],
+        "-",
+        color="black",
+        linewidth=arrow_linewidth,
+        alpha=arrow_alpha,
+        solid_capstyle="round",
+    )
 
     # Arrowhead as triangle at the end, oriented along the tangent
-    tang = np.array([-np.sin(a_end), np.cos(a_end)])   # tangent (CCW direction)
-    norm = np.array([np.cos(a_end), np.sin(a_end)])     # outward normal
+    tang = np.array([-np.sin(a_end), np.cos(a_end)])  # tangent (CCW direction)
+    norm = np.array([np.cos(a_end), np.sin(a_end)])  # outward normal
 
     tip = np.array([xs[-1], ys[-1]])
     arrow_len = 0.05

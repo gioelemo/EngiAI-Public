@@ -29,11 +29,11 @@ ax.set_ylim(2.2, 9.6)
 ax.axis("off")
 
 # Color scheme — all from COLOR_PALETTE (Okabe-Ito) for consistency with benchmark plots
-color_user = COLOR_PALETTE[4]       # Sky blue
+color_user = COLOR_PALETTE[4]  # Sky blue
 color_container = COLOR_PALETTE[0]  # Blue
-color_db = COLOR_PALETTE[2]         # Green
-color_external = COLOR_PALETTE[3]   # Pink
-color_network = COLOR_PALETTE[1]    # Orange (network boundary)
+color_db = COLOR_PALETTE[2]  # Green
+color_external = COLOR_PALETTE[3]  # Pink
+color_network = COLOR_PALETTE[1]  # Orange (network boundary)
 
 # Shared style constants (matching architecture diagram)
 box_alpha = 0.4
@@ -50,8 +50,8 @@ small_size = font_sizes["tick_label"]
 # Uniform vertical layout — all boxes same height, equal gaps between layers
 # ============================================================================
 box_h = 0.7
-top_y = 9.0    # top of User Browser box
-bot_y = 3.2    # bottom of External Services box
+top_y = 9.0  # top of User Browser box
+bot_y = 3.2  # bottom of External Services box
 n_layers = 4
 layer_gap = (top_y - bot_y - n_layers * box_h) / (n_layers - 1)
 
@@ -161,8 +161,18 @@ svc_height = box_h
 
 services = [
     {"name": "PostgreSQL", "container": "postgres", "x": 0.5, "color": color_db},
-    {"name": "Prusa MCP", "container": "prusa-mcp-server", "x": 3.7, "color": color_container},
-    {"name": "MMORE RAG", "container": "mmore-rag-service", "x": 6.9, "color": color_container},
+    {
+        "name": "Prusa MCP",
+        "container": "prusa-mcp-server",
+        "x": 3.7,
+        "color": color_container,
+    },
+    {
+        "name": "MMORE RAG",
+        "container": "mmore-rag-service",
+        "x": 6.9,
+        "color": color_container,
+    },
 ]
 
 for svc in services:
@@ -248,20 +258,40 @@ ax.add_patch(arrow_external)
 # ============================================================================
 layer_label_size = label_size
 ax.text(
-    -0.3, user_y + box_h / 2, r"\textbf{Interface}",
-    fontsize=layer_label_size, ha="right", va="center", color="black",
+    -0.3,
+    user_y + box_h / 2,
+    r"\textbf{Interface}",
+    fontsize=layer_label_size,
+    ha="right",
+    va="center",
+    color="black",
 )
 ax.text(
-    -0.3, chatbot_y + box_h / 2, r"\textbf{Application}",
-    fontsize=layer_label_size, ha="right", va="center", color="black",
+    -0.3,
+    chatbot_y + box_h / 2,
+    r"\textbf{Application}",
+    fontsize=layer_label_size,
+    ha="right",
+    va="center",
+    color="black",
 )
 ax.text(
-    -0.3, services_y + box_h / 2, r"\textbf{Services}",
-    fontsize=layer_label_size, ha="right", va="center", color="black",
+    -0.3,
+    services_y + box_h / 2,
+    r"\textbf{Services}",
+    fontsize=layer_label_size,
+    ha="right",
+    va="center",
+    color="black",
 )
 ax.text(
-    -0.3, external_y + box_h / 2, r"\textbf{External}",
-    fontsize=layer_label_size, ha="right", va="center", color="black",
+    -0.3,
+    external_y + box_h / 2,
+    r"\textbf{External}",
+    fontsize=layer_label_size,
+    ha="right",
+    va="center",
+    color="black",
 )
 
 # ============================================================================
