@@ -463,7 +463,7 @@ def _prompt_style_matches(example, prompt_style_filter: str | None) -> bool:
         return prompt_style == prompt_style_filter
 
 
-def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0915
+def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915
     score_call,
     model_filter: str | None,
     seen_models: set,
