@@ -199,10 +199,9 @@ def _create_full_prompt(volfrac: float, forcedist: float, rmin: float) -> str:
     )
 
 
-def _create_natural_prompt(volfrac: float, forcedist: float, compliance: float) -> str:
+def _create_natural_prompt(volfrac: float, forcedist: float) -> str:
     """Create prompt with natural language descriptions only."""
     force_desc = describe_force_distribution(forcedist)
-    stiffness_desc = describe_expected_stiffness(compliance)
     volfrac_desc = describe_volfrac(volfrac)
 
     return (
@@ -210,7 +209,6 @@ def _create_natural_prompt(volfrac: float, forcedist: float, compliance: float) 
         f"Design requirements:\n"
         f"- The design should be {volfrac_desc}\n"
         f"- Apply {force_desc}\n"
-        f"- The resulting structure should be {stiffness_desc}\n"
         f"Optimize the structure to minimize compliance while respecting the volume constraint."
     )
 
@@ -813,7 +811,7 @@ def create_prompt_from_conditions(
     if prompt_style == "full":
         prompt = _create_full_prompt(volfrac, forcedist, rmin)
     elif prompt_style == "natural":
-        prompt = _create_natural_prompt(volfrac, forcedist, compliance)
+        prompt = _create_natural_prompt(volfrac, forcedist)
     elif prompt_style == "workflow-random":
         prompt, stl_expected_params = _create_workflow_random_prompt(
             volfrac, forcedist, rmin, example.get("example_id", 0), seed

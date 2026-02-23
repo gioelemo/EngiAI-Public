@@ -13,12 +13,12 @@ set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
 MODELS=(
-    #"openai:gpt-5-mini"
-    #"google_genai:gemini-3-flash-preview"
+    "openai:gpt-5-mini"
+    "google_genai:gemini-3-flash-preview"
     "ollama:qwen3:4b-instruct-2507-q8_0"
 )
 SEEDS="1 2 3"
-SAMPLES=1
+SAMPLES=5
 PROBLEM="beams2d"
 RAG_STATUS="no_rag"
 # ─────────────────────────────────────────────────────────────────────────────

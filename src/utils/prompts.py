@@ -329,6 +329,7 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - NEVER instruct an agent to ask for clarification on parameters already specified in the user's message.
    - NEVER instruct an agent to ask about internal tool defaults (mesh resolution, boundary conditions, solver settings, etc.) — these are handled automatically.
    - Only the delegated agent decides if clarification is needed. Your task_instruction should describe WHAT to do, not WHETHER to ask the user first.
+   - NEVER fabricate or invent parameter values that the user did not provide. If the user says "lightweight" without a number, do NOT write "volfrac=0.2" in your task_instruction — pass the request as-is and let the agent handle it.
 
 Select the agent that best matches the NEXT INCOMPLETE step and explain your reasoning briefly."""
 
