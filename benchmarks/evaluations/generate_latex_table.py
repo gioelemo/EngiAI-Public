@@ -306,7 +306,16 @@ def main():
         default=None,
         help="Output .tex file (default: print to stdout)",
     )
+    parser.add_argument(
+        "--results-dir",
+        default=None,
+        help="Path to models/ results directory (default: results/models/)",
+    )
     args = parser.parse_args()
+
+    if args.results_dir:
+        global RESULTS_DIR
+        RESULTS_DIR = Path(args.results_dir)
 
     table = generate_table(args.problem, args.rag_status)
 
