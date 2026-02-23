@@ -565,7 +565,8 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0913, P
 
         # Filter by problem_type to avoid cross-contamination when multiple
         # problems share the same prompt style in a single Weave workspace.
-        if problem_type_filter and problem_type and problem_type != problem_type_filter:
+        # Also excludes records where problem_type is unresolvable.
+        if problem_type_filter and problem_type != problem_type_filter:
             return None
 
         # For RAG and HPC problems, the primary scorer output lives under a
