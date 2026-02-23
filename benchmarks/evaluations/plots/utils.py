@@ -42,7 +42,6 @@ KNOWN_PROBLEMS = list(_PROBLEMS.keys())
 KNOWN_PROMPT_STYLES = [
     "full",
     "natural",
-    "workflow",
     "workflow-random",
     "workflow-derived-params",
     "workflow-distractor",

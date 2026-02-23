@@ -148,7 +148,6 @@ def main() -> None:  # noqa: PLR0915
         choices=[
             "full",
             "natural",
-            "workflow",
             "workflow-random",
             "workflow-derived-params",
             "workflow-distractor",

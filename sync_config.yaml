@@ -23,6 +23,42 @@ figures:
         - "deployment_simplified.pdf"
         - "design_process.pdf"
 
+    # RAG evaluation figures (RAG-on vs RAG-off comparison)
+    - source: "benchmarks/evaluations/plots/figures_full_evaluation_v1/rag_beams2d/rag-eval"
+      target: "figures/benchmark/rag"
+      extensions: [".pdf"]
+      files:
+        - "rag_accuracy_comparison.pdf"
+        - "rag_score_combined.pdf"
+        - "rag_score_components_by_prompt.pdf"
+
+    # Workflow tool usage heatmaps (baseline overview + distractor failure mode)
+    - source: "benchmarks/evaluations/plots/figures_full_evaluation_v1/beams2d/workflow-random/no_rag"
+      target: "figures/benchmark/workflow/workflow-random"
+      extensions: [".pdf"]
+      files:
+        - "tool_usage_heatmap_pct.pdf"
+
+    - source: "benchmarks/evaluations/plots/figures_full_evaluation_v1/beams2d/workflow-distractor/no_rag"
+      target: "figures/benchmark/workflow/workflow-distractor"
+      extensions: [".pdf"]
+      files:
+        - "tool_usage_delta_heatmap.pdf"
+
+    # HPC training evaluation figures
+    - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-cgan/no_rag"
+      target: "figures/benchmark/hpc"
+      extensions: [".pdf"]
+      files:
+        - "step_completion_heatmap.pdf"
+        - "evaluation_metrics.pdf"
+        - "baseline_COG_cgan.pdf"
+        - "baseline_IOG_cgan.pdf"
+        - "baseline_FOG_cgan.pdf"
+        - "baseline_MMD_cgan.pdf"
+        - "baseline_DPP_cgan.pdf"
+        - "baseline_viol_cgan.pdf"
+
 # ---------------------------------------------------------------------------
 # LaTeX tables
 # ---------------------------------------------------------------------------
@@ -59,7 +95,7 @@ prompts:
     cli: "CLI_AGENT_SYSTEM_PROMPT"
     prusa: "PRUSA_AGENT_SYSTEM_PROMPT"
 
-  # Workflow prompt examples (Full, Natural, Workflow, and all complex variants).
+  # Workflow prompt examples (Full, Natural, and all workflow variants).
   # Generated from benchmarks/problems/beams2d/generate_prompts.py with
   # representative params (volfrac=0.4, forcedist=0.65, rmin=4.0, seed=42).
   workflow_prompts:

@@ -118,7 +118,6 @@ The beams2d benchmark supports multiple prompt styles for evaluating different a
 
 - **full**: Exact numerical parameters
 - **natural**: Natural language descriptions only
-- **workflow**: Full workflow with STL export (hardcoded parameters)
 - **workflow-random**: Full workflow with randomized STL parameters and validation
 - **workflow-derived-params**: Workflow with STL parameters derived from optimization inputs
 - **workflow-distractor**: Workflow with distractor parameters mixed with real STL params
@@ -126,7 +125,7 @@ The beams2d benchmark supports multiple prompt styles for evaluating different a
 
 #### workflow-random Prompt Style
 
-The `workflow-random` style extends the `workflow` style by randomizing STL export parameters and validating that the agent uses the correct values. This tests the agent's ability to follow precise numerical instructions for 3D printing parameters.
+The `workflow-random` style uses randomized STL export parameters and validating that the agent uses the correct values. This tests the agent's ability to follow precise numerical instructions for 3D printing parameters.
 
 **Randomized Parameters:**
 - `mirror_y`: Boolean (True/False) - whether to mirror along Y-axis

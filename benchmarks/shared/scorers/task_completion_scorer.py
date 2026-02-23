@@ -380,7 +380,6 @@ def score_task_completion(  # noqa: PLR0912, PLR0915 - Complex scoring logic
 
     # Determine success criteria based on prompt style
     is_workflow = prompt_style in [
-        "workflow",
         "workflow-random",
         "workflow-derived-params",
         "workflow-distractor",

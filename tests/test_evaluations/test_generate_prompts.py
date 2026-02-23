@@ -326,32 +326,6 @@ def test_create_prompt_workflow_random_deterministic_with_seed():
 
 
 @pytest.mark.unit
-def test_create_prompt_workflow_style_unchanged():
-    """Test that regular workflow style still works and has no stl_expected_params."""
-    example = {
-        "volfrac": 0.3,
-        "forcedist": 0.5,
-        "rmin": 2.0,
-        "c": 100.0,
-        "optimal_design": np.zeros((10, 10)),
-        "example_id": 0,
-    }
-
-    # Test regular workflow (should not have randomized params)
-    prompt_data = create_prompt_from_conditions(
-        example, include_target=False, prompt_style="workflow", seed=42
-    )
-
-    assert prompt_data["prompt_style"] == "workflow"
-    assert "stl_expected_params" not in prompt_data
-    assert prompt_data["metadata"]["success_criteria"] == "stl_export"
-
-    # Prompt should have hardcoded values
-    assert "0.5 density threshold" in prompt_data["prompt"]
-    assert "5 units in the Z-axis" in prompt_data["prompt"]
-
-
-@pytest.mark.unit
 def test_create_prompt_full_style_unchanged():
     """Test that full style still works and has no stl_expected_params."""
     example = {
@@ -535,7 +509,7 @@ def test_workflow_conditional_no_stl_params_for_other_styles():
         "example_id": 0,
     }
 
-    for style in ["full", "workflow"]:
+    for style in ["full"]:
         prompt_data = create_prompt_from_conditions(
             example, include_target=False, prompt_style=style, seed=42
         )

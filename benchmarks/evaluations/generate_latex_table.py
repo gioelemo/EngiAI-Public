@@ -25,7 +25,6 @@ import numpy as np
 STYLE_ORDER = [
     "full",
     "natural",
-    "workflow",
     "workflow-random",
     "workflow-derived-params",
     "workflow-distractor",
@@ -36,7 +35,6 @@ STYLE_ORDER = [
 STYLE_LABELS = {
     "full": r"\textsc{Full}",
     "natural": r"\textsc{Natural}",
-    "workflow": r"\textsc{Base}",
     "workflow-random": r"\textsc{Random}",
     "workflow-derived-params": r"\textsc{Derived}",
     "workflow-distractor": r"\textsc{Distractor}",
