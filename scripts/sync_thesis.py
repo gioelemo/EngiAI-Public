@@ -361,7 +361,6 @@ _BENCHMARK_PROMPT_LABELS = ["P0", "P1", "P2", "P3"]
 _WORKFLOW_PROMPT_LABELS: dict[str, str] = {
     "full": "Full",
     "natural": "Natural",
-    "workflow": "Workflow",
     "workflow-random": "Workflow-Random",
     "workflow-derived-params": "Workflow-Derived-Params",
     "workflow-distractor": "Workflow-Distractor",
@@ -401,8 +400,6 @@ def _extract_workflow_prompts() -> dict[str, str] | None:
         # Simple styles (return str)
         results["full"] = mod._create_full_prompt(vf, fd, rm)
         results["natural"] = mod._create_natural_prompt(vf, fd, comp)
-        results["workflow"] = mod._create_workflow_prompt(vf, fd, rm)
-
         # Complex styles (return tuple[str, dict])
         results["workflow-random"] = mod._create_workflow_random_prompt(
             vf, fd, rm, 0, seed
