@@ -14,6 +14,7 @@ import importlib
 import json
 import logging
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -188,8 +189,7 @@ def sync_tables(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
             dst.parent.mkdir(parents=True, exist_ok=True)
             log.info("Running: %s", cmd)
             gen_result = subprocess.run(
-                cmd,
-                shell=True,
+                shlex.split(cmd),
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
