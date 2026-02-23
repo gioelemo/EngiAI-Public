@@ -110,7 +110,8 @@ for angle, stage in zip(angles, stages, strict=True):
 
     # For diagonal angles, shift the box center so its inner corner
     # (not the box center) sits on the angle ray from the origin.
-    is_diagonal = abs(cos_a) > 0.1 and abs(sin_a) > 0.1
+    diagonal_threshold = 0.1
+    is_diagonal = abs(cos_a) > diagonal_threshold and abs(sin_a) > diagonal_threshold
     if is_diagonal:
         # Place the nearest corner at distance d_inner along the angle ray
         x = d_inner * cos_a + np.sign(cos_a) * stage_box_w / 2
@@ -151,10 +152,7 @@ gap = 0.08  # radians gap near each label
 
 for i in range(n_stages):
     a_start = angles[i] + gap
-    if i < n_stages - 1:
-        a_end = angles[i + 1] - gap
-    else:
-        a_end = angles[0] + 2 * np.pi - gap
+    a_end = angles[i + 1] - gap if i < n_stages - 1 else angles[0] + 2 * np.pi - gap
 
     # Generate points along the actual circular arc
     n_pts = 50

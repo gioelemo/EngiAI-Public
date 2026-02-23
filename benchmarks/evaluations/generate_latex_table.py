@@ -71,7 +71,7 @@ SCORES = [
 
 
 def _load_scores(
-    problem: str, rag_status: str
+    problem: str, rag_status: str, results_dir: Path | None = None
 ) -> dict[str, dict[str, dict[str, list[float]]]]:
     """Load scores from all design_data.json files.
 
@@ -80,11 +80,12 @@ def _load_scores(
     """
     data: dict[str, dict[str, dict[str, list[float]]]] = {}
 
-    if not RESULTS_DIR.exists():
-        print(f"Results directory not found: {RESULTS_DIR}", file=sys.stderr)
+    root = results_dir if results_dir is not None else RESULTS_DIR
+    if not root.exists():
+        print(f"Results directory not found: {root}", file=sys.stderr)
         return data
 
-    for model_dir in sorted(RESULTS_DIR.iterdir()):
+    for model_dir in sorted(root.iterdir()):
         if not model_dir.is_dir():
             continue
         model_key = model_dir.name
@@ -215,9 +216,11 @@ def _build_data_rows(
     return lines
 
 
-def generate_table(problem: str, rag_status: str) -> str:
+def generate_table(
+    problem: str, rag_status: str, results_dir: Path | None = None
+) -> str:
     """Generate the full LaTeX table string."""
-    data = _load_scores(problem, rag_status)
+    data = _load_scores(problem, rag_status, results_dir)
 
     if not data:
         return "% No data found."
@@ -313,11 +316,9 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.results_dir:
-        global RESULTS_DIR
-        RESULTS_DIR = Path(args.results_dir)
+    results_dir = Path(args.results_dir) if args.results_dir else None
 
-    table = generate_table(args.problem, args.rag_status)
+    table = generate_table(args.problem, args.rag_status, results_dir)
 
     if args.output:
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
