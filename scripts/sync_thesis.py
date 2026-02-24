@@ -373,7 +373,6 @@ _EXAMPLE_PARAMS: dict[str, float] = {
     "volfrac": 0.4,
     "forcedist": 0.65,
     "rmin": 4.0,
-    "compliance": 56.0,
 }
 _EXAMPLE_SEED = 42
 
@@ -392,14 +391,13 @@ def _extract_workflow_prompts() -> dict[str, str] | None:
         vf = _EXAMPLE_PARAMS["volfrac"]
         fd = _EXAMPLE_PARAMS["forcedist"]
         rm = _EXAMPLE_PARAMS["rmin"]
-        comp = _EXAMPLE_PARAMS["compliance"]
         seed = _EXAMPLE_SEED
 
         results: dict[str, str] = {}
 
         # Simple styles (return str)
         results["full"] = mod._create_full_prompt(vf, fd, rm)
-        results["natural"] = mod._create_natural_prompt(vf, fd, comp)
+        results["natural"] = mod._create_natural_prompt(vf, fd)
         # Complex styles (return tuple[str, dict])
         results["workflow-random"] = mod._create_workflow_random_prompt(
             vf, fd, rm, 0, seed
