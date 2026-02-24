@@ -211,7 +211,7 @@ def _create_natural_prompt(volfrac: float, forcedist: float) -> str:
         f"Design requirements:\n"
         f"- The design should be {volfrac_desc}\n"
         f"- Apply {force_desc}\n"
-        f"Optimize the structure to minimize compliance while respecting the volume constraint."
+        f"Optimize the structure and simulate the result to obtain the compliance value."
     )
 
 
