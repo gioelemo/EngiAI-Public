@@ -1879,7 +1879,9 @@ def evaluate_model(  # noqa: PLR0913
     import sys
 
     if output_csv is None:
-        results_dir = Path("benchmarks/evaluations/results")
+        results_dir = Path(
+            os.environ.get("EVAL_RESULTS_DIR", "benchmarks/evaluations/results")
+        )
         results_dir.mkdir(parents=True, exist_ok=True)
         output_csv = str(
             results_dir / f"evaluate_{algorithm}_{problem_id}_seed{seed}_metrics.csv"

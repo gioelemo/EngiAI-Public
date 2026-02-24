@@ -568,6 +568,15 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         "true" if args.problem == "hpc_train_beams2d" else "false"
     )
 
+    # Set results directory for evaluate_model tool so HPC training CSVs
+    # land in the per-model/prompt-style directory instead of the flat results/ root.
+    model_safe_env = (args.model or config.llm_model).replace("/", "_").replace(":", "_")
+    rag_dir_env = _get_rag_dir(args.mmore_enabled)
+    eval_results_dir = str(
+        RESULTS_BASE_DIR / model_safe_env / args.problem / args.prompt_style / rag_dir_env
+    )
+    os.environ["EVAL_RESULTS_DIR"] = eval_results_dir
+
     # Get problem configuration
     problem_config = PROBLEM_CONFIGS[args.problem]
     model_name = args.model or config.llm_model
