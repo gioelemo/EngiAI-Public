@@ -197,7 +197,7 @@ def _create_full_prompt(volfrac: float, forcedist: float, rmin: float) -> str:
         f"- Use a material volume fraction of {volfrac}\n"
         f"- Force distribution parameter: {forcedist}\n"
         f"- Minimum filter radius (rmin): {rmin}\n\n"
-        f"Optimize the structure to minimize compliance while respecting the volume constraint."
+        f"Optimize the structure and simulate the result to obtain the compliance value."
     )
 
 
