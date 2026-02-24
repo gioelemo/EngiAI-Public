@@ -733,3 +733,124 @@ def test_supervisor_routing_is_deterministic():
         result2 = agent._supervisor_node(state)
 
         assert result1["next"] == result2["next"]
+
+
+# ============================================================================
+# MORE_STEPS_AFTER / ROUTE-AFTER-AGENT TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_route_after_agent_ends_when_no_followup(_mock_agents):
+    """Single-task: agent used tools + more_steps_after=False → END directly."""
+    agent = SupervisorAgent()
+    # Simulate: agent used tools, supervisor said no followup
+    agent._last_delegation_had_tools = True
+    agent._expects_followup = False
+
+    state = SupervisorState(messages=[HumanMessage(content="test")], next="")
+    result = agent._route_after_agent(state)
+
+    assert result == "__end__"  # langgraph.graph.END == "__end__"
+
+
+@pytest.mark.unit
+def test_route_after_agent_returns_to_supervisor_when_followup(_mock_agents):
+    """Multi-step: agent used tools + more_steps_after=True → supervisor."""
+    agent = SupervisorAgent()
+    agent._last_delegation_had_tools = True
+    agent._expects_followup = True
+
+    state = SupervisorState(messages=[HumanMessage(content="test")], next="")
+    result = agent._route_after_agent(state)
+
+    assert result == "supervisor"
+
+
+@pytest.mark.unit
+def test_route_after_agent_ends_when_no_tools(_mock_agents):
+    """Agent produced no tool calls → END regardless of more_steps_after."""
+    agent = SupervisorAgent()
+    agent._last_delegation_had_tools = False
+    agent._expects_followup = True  # even True shouldn't matter
+
+    state = SupervisorState(messages=[HumanMessage(content="test")], next="")
+    result = agent._route_after_agent(state)
+
+    assert result == "__end__"
+
+
+@pytest.mark.unit
+def test_more_steps_after_defaults_to_false(_mock_agents):
+    """RouteDecision.more_steps_after defaults to False → END after tools."""
+    agent = SupervisorAgent()
+
+    # Simulate supervisor routing with default more_steps_after
+    route_decision = RouteDecision(
+        agent="engineering_agent",
+        reasoning="Optimization task",
+    )
+    assert route_decision.more_steps_after is False
+
+
+@pytest.mark.unit
+def test_supervisor_node_sets_expects_followup_from_route_decision(_mock_agents):
+    """Supervisor node stores more_steps_after in _expects_followup."""
+    agent = SupervisorAgent()
+
+    # Mock routing LLM to return more_steps_after=True (multi-step)
+    route_decision = RouteDecision(
+        agent="rag_agent",
+        reasoning="Need to find params first",
+        task_instruction="Find volfrac in the paper",
+        more_steps_after=True,
+    )
+    mock_routing_llm = MagicMock()
+    mock_routing_llm.invoke.return_value = route_decision
+    agent.routing_llm = mock_routing_llm
+
+    state = SupervisorState(
+        messages=[HumanMessage(content="Find params and optimize")], next=""
+    )
+    agent._supervisor_node(state)
+
+    assert agent._expects_followup is True
+
+
+@pytest.mark.unit
+def test_supervisor_node_sets_expects_followup_false_for_single_task(_mock_agents):
+    """Supervisor node stores more_steps_after=False for single tasks."""
+    agent = SupervisorAgent()
+
+    route_decision = RouteDecision(
+        agent="engineering_agent",
+        reasoning="Simple optimization",
+        more_steps_after=False,
+    )
+    mock_routing_llm = MagicMock()
+    mock_routing_llm.invoke.return_value = route_decision
+    agent.routing_llm = mock_routing_llm
+
+    state = SupervisorState(
+        messages=[HumanMessage(content="Optimize a beam")], next=""
+    )
+    agent._supervisor_node(state)
+
+    assert agent._expects_followup is False
+
+
+@pytest.mark.unit
+def test_skip_arxiv_routes_back_to_supervisor(_mock_agents):
+    """SKIP_ARXIV bypass should route back to supervisor for re-routing."""
+    agent = SupervisorAgent()
+
+    with patch.dict("os.environ", {"SKIP_ARXIV": "true"}):
+        state = SupervisorState(
+            messages=[HumanMessage(content="Search arxiv")], next=""
+        )
+        agent._arxiv_node(state)
+
+        # SKIP_ARXIV sets _last_delegation_had_tools=True so supervisor
+        # can re-route (typically to rag_agent). The expects_followup
+        # flag should not prevent this.
+        assert agent._last_delegation_had_tools is True

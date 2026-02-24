@@ -325,6 +325,7 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - NEVER re-delegate to the same agent that just returned with tool results — its work is done. Only re-delegate to the same agent if a DIFFERENT agent provided new information in between (e.g., rag_agent found parameters, now engineering_agent needs them).
    - Choose supervisor_response only for direct informational questions ("what can you do?")
    - **IMPORTANT**: Use the `task_instruction` field to scope each agent's work to ONLY the next incomplete step(s). Agents will try to complete everything they can with their tools, so you MUST explicitly tell them what to do and what NOT to do.
+   - **more_steps_after**: Set to `true` ONLY when the user's request needs a DIFFERENT agent after the current one finishes (e.g., rag_agent → engineering_agent). Leave `false` (the default) for single-agent tasks — this is the vast majority of requests.
 
 9. **Clarification** (CRITICAL):
    - NEVER instruct an agent to ask for clarification on parameters already specified in the user's message.

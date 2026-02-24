@@ -70,6 +70,14 @@ class RouteDecision(BaseModel):
             "handled after HPC training completes.' Leave empty for single-step tasks."
         ),
     )
+    more_steps_after: bool = Field(
+        default=False,
+        description=(
+            "True ONLY if the user's request requires a DIFFERENT agent after this "
+            "one completes (e.g. rag_agent finds parameters, then engineering_agent "
+            "optimises). False for single-agent tasks (the vast majority of requests)."
+        ),
+    )
 
 
 class SupervisorState(TypedDict):
@@ -158,6 +166,7 @@ class SupervisorAgent:
         self._last_routed_agent: str | None = None
         self._consecutive_same_agent_count: int = 0
         self._last_delegation_had_tools: bool = True
+        self._expects_followup: bool = False
 
         # Build the supervisor graph
         self.graph = self._build_graph()
@@ -219,9 +228,15 @@ class SupervisorAgent:
         route_decision = cast(RouteDecision, self.routing_llm.invoke(messages))
         next_agent = route_decision.agent
 
+        # Store follow-up flag so _route_after_agent knows whether to
+        # loop back to the supervisor or end directly after delegation.
+        self._expects_followup = route_decision.more_steps_after
+
         # Log the routing decision with reasoning
         logger.info(
-            f"[SUPERVISOR ROUTING] Agent: '{next_agent}' | Reasoning: {route_decision.reasoning}"
+            f"[SUPERVISOR ROUTING] Agent: '{next_agent}' "
+            f"| Reasoning: {route_decision.reasoning} "
+            f"| more_steps_after: {route_decision.more_steps_after}"
         )
 
         # ── Same-agent loop detection ────────────────────────────────
@@ -394,14 +409,25 @@ class SupervisorAgent:
     def _route_after_agent(self, state: SupervisorState) -> str:  # noqa: ARG002
         """Decide whether to loop back to supervisor or end directly.
 
-        If the agent used tools it was productive, so the supervisor should
-        re-evaluate for potential multi-step continuation.  If the agent
-        produced no tool calls it had nothing left to do — go straight to
-        END instead of making another (wasteful) supervisor LLM call.
+        Uses two signals:
+        - ``_last_delegation_had_tools``: whether the agent made any tool calls.
+        - ``_expects_followup``: set from ``RouteDecision.more_steps_after``
+          by the supervisor node before delegation.
+
+        Returns to supervisor only when both conditions hold (agent was
+        productive AND the supervisor indicated more agents are needed).
+        Otherwise ends directly to avoid wasteful LLM re-evaluation.
         """
-        if self._last_delegation_had_tools:
+        if not self._last_delegation_had_tools:
+            logger.info("[SUPERVISOR] Agent produced no tool calls — ending directly.")
+            return END
+        if self._expects_followup:
+            logger.info(
+                "[SUPERVISOR] Agent completed with tools — more steps expected, "
+                "returning to supervisor."
+            )
             return "supervisor"
-        logger.info("[SUPERVISOR] Agent produced no tool calls — ending directly.")
+        logger.info("[SUPERVISOR] Agent completed with tools — task done, ending.")
         return END
 
     def _build_graph(self):
@@ -503,6 +529,7 @@ class SupervisorAgent:
         self._last_routed_agent = None
         self._consecutive_same_agent_count = 0
         self._last_delegation_had_tools = True
+        self._expects_followup = False
 
         # If state is None, we're resuming from an interrupt - pass None to graph
         if state is None:

@@ -13,7 +13,7 @@ set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
 MODELS=(
-    #"openai:gpt-5-mini"
+    "openai:gpt-5-mini"
     "google_genai:gemini-3-flash-preview"
     #"ollama:qwen3:4b-instruct-2507-q8_0"
 )
