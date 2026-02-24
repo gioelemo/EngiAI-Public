@@ -8,8 +8,7 @@ thesis_submodule_path: thesis
 # Figures
 # ---------------------------------------------------------------------------
 figures:
-  # Primary source is unused for now (benchmark figures not yet needed).
-  primary_source: benchmarks/evaluations/plots/figures_full_evaluation_v1
+  primary_source: benchmarks/evaluations/plots/figures
   mappings: []
 
   # Architecture diagrams from assets/ -> thesis/figures/
@@ -17,7 +16,6 @@ figures:
     - source: "assets"
       target: "figures"
       extensions: [".pdf"]
-      # Only sync these specific files:
       files:
         - "architecture_simplified.pdf"
         - "deployment_simplified.pdf"
@@ -32,18 +30,41 @@ figures:
         - "rag_score_combined.pdf"
         - "rag_score_components_by_prompt.pdf"
 
-    # Workflow tool usage heatmaps (baseline overview + distractor failure mode)
-    - source: "benchmarks/evaluations/plots/figures_full_evaluation_v1/beams2d/workflow-random/no_rag"
+    # --- Workflow figures (latest run) ---
+
+    # Full style: CO violin + metrics comparison
+    - source: "benchmarks/evaluations/plots/figures/beams2d/full/no_rag"
+      target: "figures/benchmark/workflow/full"
+      extensions: [".pdf"]
+      files:
+        - "combined_overall_score_distribution.pdf"
+        - "metrics_comparison.pdf"
+        - "design_quality_distribution.pdf"
+
+    # Workflow-random: tool heatmap + performance-by-tools + metrics comparison
+    - source: "benchmarks/evaluations/plots/figures/beams2d/workflow-random/no_rag"
       target: "figures/benchmark/workflow/workflow-random"
       extensions: [".pdf"]
       files:
         - "tool_usage_heatmap_pct.pdf"
+        - "performance_by_tools_overall.pdf"
+        - "metrics_comparison.pdf"
+        - "combined_overall_score_distribution.pdf"
 
-    - source: "benchmarks/evaluations/plots/figures_full_evaluation_v1/beams2d/workflow-distractor/no_rag"
+    # Workflow-distractor: delta heatmap + CO violin
+    - source: "benchmarks/evaluations/plots/figures/beams2d/workflow-distractor/no_rag"
       target: "figures/benchmark/workflow/workflow-distractor"
       extensions: [".pdf"]
       files:
         - "tool_usage_delta_heatmap.pdf"
+        - "combined_overall_score_distribution.pdf"
+
+    # Workflow-conditional: CO violin (shows Qwen degradation)
+    - source: "benchmarks/evaluations/plots/figures/beams2d/workflow-conditional/no_rag"
+      target: "figures/benchmark/workflow/workflow-conditional"
+      extensions: [".pdf"]
+      files:
+        - "combined_overall_score_distribution.pdf"
 
     # HPC training evaluation figures
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-cgan/no_rag"
@@ -71,10 +92,9 @@ tables:
 
   # Run commands that produce .tex files.  {target} is replaced with the
   # absolute path inside the thesis submodule.
-  generators: []
-    # Example:
-    # - command: "python benchmarks/evaluations/generate_latex_table.py --output {target}"
-    #   target: "tables/workflow_results.tex"
+  generators:
+    - command: "python benchmarks/evaluations/generate_latex_table.py --problem beams2d --rag-status no_rag --output {target}"
+      target: "tables/workflow_results.tex"
 
 # ---------------------------------------------------------------------------
 # Prompts  (overwrites TODO placeholders inside appendix.tex)
