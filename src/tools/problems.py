@@ -14,17 +14,13 @@ from engibench.problems.beams2d.v1 import Beams2D  # type: ignore[import-untyped
 from engibench.problems.photonics2d.v0 import (
     Photonics2D,  # type: ignore[import-untyped]
 )
-from engibench.problems.thermoelastic2d.v0 import (
-    ThermoElastic2D,  # type: ignore[import-untyped]
-)
 
 # Type alias for problem IDs - this is the single source of truth for supported problems
-ProblemId = Literal["beams2d", "thermoelastic2d", "photonics2d"]
+ProblemId = Literal["beams2d", "photonics2d"]
 
 # Map problem IDs to their class implementations
 PROBLEM_CLASSES = {
     "beams2d": Beams2D,
-    "thermoelastic2d": ThermoElastic2D,
     "photonics2d": Photonics2D,
 }
 
@@ -38,5 +34,4 @@ __all__ = [
     "Beams2D",
     "Photonics2D",
     "ProblemId",
-    "ThermoElastic2D",
 ]

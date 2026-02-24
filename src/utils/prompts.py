@@ -150,7 +150,6 @@ You have access to two complementary libraries:
 | Problem         | Required Parameters           | Example                                              |
 |-----------------|-------------------------------|------------------------------------------------------|
 | beams2d         | volfrac, rmin, forcedist      | {{"volfrac": 0.238, "rmin": 3.5, "forcedist": 1.0}} |
-| thermoelastic2d | volfrac, weight, rmin         | {{"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}}      |
 | photonics2d     | lambda1, lambda2, blur_radius | {{"lambda1": 0.8, "lambda2": 1.2, "blur_radius": 1}}|
 
 - Show metrics with units and interpret practically ("20% stiffer", "35% less material").
