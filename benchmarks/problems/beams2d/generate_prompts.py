@@ -111,9 +111,10 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
         "description": "Workflow with STL parameters derived from optimization inputs",
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
             {"name": "convert_design_to_stl", "count": 1},
         ],
-        "optimal_call_count": 2,
+        "optimal_call_count": 3,
         "success_criteria": "stl_export_with_params",
         "validate_stl_params": True,
     },
@@ -121,9 +122,10 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
         "description": "Workflow with distractor parameters mixed with real STL params",
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
             {"name": "convert_design_to_stl", "count": 1},
         ],
-        "optimal_call_count": 2,
+        "optimal_call_count": 3,
         "success_criteria": "stl_export_with_params",
         "validate_stl_params": True,
     },
@@ -478,14 +480,16 @@ def _create_workflow_derived_params_prompt(
     stl_params = _compute_derived_stl_params(volfrac, rmin)
 
     prompt = (
-        f"Execute a 2D topology optimization and export the resulting geometry "
-        f"as a 3D-printable STL file.\n\n"
+        f"Execute a 2D topology optimization, simulate the result, and export "
+        f"the geometry as a 3D-printable STL file.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
         f"   - Force Distribution: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
-        f"2. Post-processing & Export\n"
+        f"2. Simulation\n"
+        f"   - After optimization, simulate the design to obtain the compliance value\n\n"
+        f"3. Post-processing & Export\n"
         f"   The STL export parameters must be derived from the optimization inputs:\n"
         f"   - Thresholding: Use the volume fraction value as the density threshold\n"
         f"   - Mirror: Mirror the design across the y-axis only if the volume fraction "
@@ -540,14 +544,16 @@ def _create_workflow_multi_export_prompt(
     )
 
     prompt = (
-        f"Execute a 2D topology optimization and export the resulting geometry "
-        f"as TWO separate 3D-printable STL files with different parameters.\n\n"
+        f"Execute a 2D topology optimization, simulate the result, and export "
+        f"the geometry as TWO separate 3D-printable STL files with different parameters.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
         f"   - Force Distribution: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
-        f"2. Post-processing & Export\n\n"
+        f"2. Simulation\n"
+        f"   - After optimization, simulate the design to obtain the compliance value\n\n"
+        f"3. Post-processing & Export\n\n"
         f"   Export A:\n"
         f"   - Thresholding: Apply a {export_a['threshold']:.2f} density threshold "
         f"to convert the continuous density map into binary geometry\n"
@@ -674,14 +680,16 @@ def _create_workflow_random_prompt(
     )
 
     prompt = (
-        f"Execute a 2D topology optimization and export the resulting geometry "
-        f"as a 3D-printable STL file.\n\n"
+        f"Execute a 2D topology optimization, simulate the result, and export "
+        f"the geometry as a 3D-printable STL file.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
         f"   - Force Distribution: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
-        f"2. Post-processing & Export\n"
+        f"2. Simulation\n"
+        f"   - After optimization, simulate the design to obtain the compliance value\n\n"
+        f"3. Post-processing & Export\n"
         f"   - Thresholding: Apply a {stl_params['threshold']:.2f} density threshold "
         f"to convert the continuous density map into binary geometry\n"
         f"   - Mirror: {mirror_instruction} for the final geometry\n"
@@ -737,14 +745,16 @@ def _create_workflow_distractor_prompt(
     )
 
     prompt = (
-        f"Execute a 2D topology optimization and export the resulting geometry "
-        f"as a 3D-printable STL file.\n\n"
+        f"Execute a 2D topology optimization, simulate the result, and export "
+        f"the geometry as a 3D-printable STL file.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
         f"   - Force Distribution: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
-        f"2. Post-processing & Export\n"
+        f"2. Simulation\n"
+        f"   - After optimization, simulate the design to obtain the compliance value\n\n"
+        f"3. Post-processing & Export\n"
         f"   - Threshold the density field at "
         f"{distractors['distractor_threshold']:.2f} to preview the design "
         f"topology\n"

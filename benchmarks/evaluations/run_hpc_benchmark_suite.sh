@@ -26,7 +26,6 @@ set -euo pipefail
 # ── Configuration ────────────────────────────────────────────────────────────
 MODELS=(
     "google_genai:gemini-3-flash-preview"
-    # "openai:gpt-4.1-mini"
     # "openai:gpt-5-mini"
 )
 RUNS="1"
