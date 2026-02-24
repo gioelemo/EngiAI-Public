@@ -831,9 +831,7 @@ def test_supervisor_node_sets_expects_followup_false_for_single_task(_mock_agent
     mock_routing_llm.invoke.return_value = route_decision
     agent.routing_llm = mock_routing_llm
 
-    state = SupervisorState(
-        messages=[HumanMessage(content="Optimize a beam")], next=""
-    )
+    state = SupervisorState(messages=[HumanMessage(content="Optimize a beam")], next="")
     agent._supervisor_node(state)
 
     assert agent._expects_followup is False
