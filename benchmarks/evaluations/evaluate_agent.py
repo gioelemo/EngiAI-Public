@@ -471,10 +471,12 @@ def get_or_create_dataset(
     """
     try:
         dataset = weave.ref(dataset_name).get()
-        # Check count AND prompt content so stale cached datasets are refreshed
+        # Check prompts AND metadata so stale cached datasets are refreshed
         existing_prompts = [row.get("prompt", "") for row in dataset.rows]
         new_prompts = [row.get("prompt", "") for row in eval_dataset]
-        if existing_prompts == new_prompts:
+        existing_meta = [row.get("metadata", {}) for row in dataset.rows]
+        new_meta = [row.get("metadata", {}) for row in eval_dataset]
+        if existing_prompts == new_prompts and existing_meta == new_meta:
             print(
                 f"📦 Using existing evaluation dataset from Weave ({len(dataset.rows)} samples)"
             )
