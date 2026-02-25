@@ -74,9 +74,9 @@ _COMPONENT_COLORS = {
     "rag_called": COLOR_PALETTE[2],  # green
 }
 _COMPONENT_LABELS = {
-    "eff_volfrac": "Volfrac accuracy",
-    "eff_forcedist": "Forcedist accuracy",
-    "eff_rmin": "Rmin accuracy",
+    "eff_volfrac": r"\texttt{volfrac} accuracy",
+    "eff_forcedist": r"\texttt{forcedist} accuracy",
+    "eff_rmin": r"\texttt{rmin} accuracy",
     "rag_called": "RAG tool called",
 }
 
