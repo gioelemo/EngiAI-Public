@@ -59,8 +59,12 @@ _PROMPT_LABELS = {
 # ── RAG status display labels and styles ───────────────────────────────────────
 _RAG_DISPLAY = {
     "rag": {"label": "RAG on", "hatch": "", "alpha": 0.85},
+    "empty_rag": {"label": "Empty RAG", "hatch": "..", "alpha": 0.70},
     "no_rag": {"label": "RAG off", "hatch": "//", "alpha": 0.55},
 }
+
+# Canonical order for RAG statuses when iterating
+_RAG_STATUS_ORDER = list(_RAG_DISPLAY.keys())
 
 # Colors for stacked bar components
 _COMPONENT_COLORS = {
@@ -111,14 +115,14 @@ def _apply_weights(
     """
     df = df.copy()
     forcedist_mode = (
-        df.get("forcedist_tested", pd.Series(False, index=df.index))
-        .fillna(False)
-        .astype(bool)
+        df["forcedist_tested"].astype(bool)
+        if "forcedist_tested" in df.columns
+        else pd.Series(False, index=df.index, dtype=bool)
     )
     rmin_mode = (
-        df.get("rmin_tested", pd.Series(False, index=df.index))
-        .fillna(False)
-        .astype(bool)
+        df["rmin_tested"].astype(bool)
+        if "rmin_tested" in df.columns
+        else pd.Series(False, index=df.index, dtype=bool)
     )
     ws, wd = mode_weights["single"], mode_weights["double"]
     wr, wt = mode_weights["rmin"], mode_weights["triple"]
@@ -127,7 +131,7 @@ def _apply_weights(
         w[rmin_mode & ~forcedist_mode] = wr.get(col, 0.0)
         w[forcedist_mode & ~rmin_mode] = wd.get(col, 0.0)
         w[forcedist_mode & rmin_mode] = wt.get(col, 0.0)
-        df[f"_wt_{col}"] = df[col].fillna(0.0) * w
+        df[f"_wt_{col}"] = pd.to_numeric(df[col], errors="coerce").fillna(0.0) * w
     return df
 
 
@@ -173,10 +177,11 @@ def plot_rag_benefit_score(
     if n_prompts == 1:
         axes = [axes]
 
-    rag_statuses = ["rag", "no_rag"]
+    rag_statuses = [s for s in _RAG_STATUS_ORDER if s in df["rag_status"].unique()]
     models = sorted(df["model_short"].unique())
     x = np.arange(len(models))
-    width = 0.35
+    n_rs = len(rag_statuses)
+    width = 0.7 / max(n_rs, 1)
 
     for ax, eid in zip(axes, example_ids, strict=False):
         sub = df[df["example_id"] == eid]
@@ -189,7 +194,7 @@ def plot_rag_benefit_score(
                     sub.loc[mask, "rag_benefit_score"].mean() if mask.any() else 0.0
                 )
 
-            offset = (i - 0.5) * width
+            offset = (i - (n_rs - 1) / 2) * width
             bars = ax.bar(
                 x + offset,
                 means,
@@ -279,7 +284,7 @@ def plot_rag_score_components(
     )
 
     fs = PLOT_STYLE["font_sizes"]
-    rag_statuses = ["rag", "no_rag"]
+    rag_statuses = [s for s in _RAG_STATUS_ORDER if s in df["rag_status"].unique()]
     models = sorted(df["model_short"].unique())
     example_ids = sorted(df["example_id"].dropna().unique())
 
@@ -295,12 +300,18 @@ def plot_rag_score_components(
 
     x = np.arange(len(models))
 
+    n_panels = len(rag_statuses)
     fig, axes = plt.subplots(
         1,
-        2,
-        figsize=PLOT_STYLE["figsize_full_width"],
+        n_panels,
+        figsize=(
+            PLOT_STYLE["figsize_full_width"][0],
+            PLOT_STYLE["figsize_full_width"][1],
+        ),
         sharey=True,
     )
+    if n_panels == 1:
+        axes = [axes]
 
     for ax, rs in zip(axes, rag_statuses, strict=False):
         sub = df[df["rag_status"] == rs]
@@ -360,7 +371,7 @@ def plot_rag_score_components(
         for key, label in _COMPONENT_LABELS.items()
         if key in set(present.values())
     ]
-    axes[1].legend(
+    axes[-1].legend(
         handles=component_patches,
         fontsize=fs["legend"],
         loc="upper right",
@@ -528,9 +539,19 @@ def plot_rag_score_components_by_prompt(
     model_hatches = dict(zip(models, ["", "//", "..", "xx", "++", "oo"], strict=False))
     x = np.arange(len(example_ids))
 
+    rag_statuses = [s for s in _RAG_STATUS_ORDER if s in df["rag_status"].unique()]
+    n_panels = len(rag_statuses)
     fig, axes = plt.subplots(
-        1, 2, figsize=PLOT_STYLE["figsize_full_width"], sharey=True
+        1,
+        n_panels,
+        figsize=(
+            PLOT_STYLE["figsize_full_width"][0],
+            PLOT_STYLE["figsize_full_width"][1],
+        ),
+        sharey=True,
     )
+    if n_panels == 1:
+        axes = [axes]
 
     cfg = {
         "models": models,
@@ -543,7 +564,7 @@ def plot_rag_score_components_by_prompt(
         "x": x,
         "fs": fs,
     }
-    for ax, rs in zip(axes, ["rag", "no_rag"], strict=False):
+    for ax, rs in zip(axes, rag_statuses, strict=False):
         _draw_by_prompt_axes(ax, df[df["rag_status"] == rs], {**cfg, "rag_status": rs})
 
     axes[0].set_ylabel("Weighted score contribution", fontsize=fs["axes_label"])
@@ -554,7 +575,7 @@ def plot_rag_score_components_by_prompt(
         for key, label in _COMPONENT_LABELS.items()
         if key in set(present.values())
     ]
-    axes[1].legend(
+    axes[-1].legend(
         handles=component_patches,
         fontsize=fs["legend"],
         loc="upper right",
@@ -569,7 +590,7 @@ def plot_rag_score_components_by_prompt(
 # ── Plot 3: Raw accuracy comparison — ungated accuracy + RAG usage ────────────
 
 
-def plot_rag_accuracy_comparison(
+def plot_rag_accuracy_comparison(  # noqa: PLR0915
     df: pd.DataFrame,
     filename: str = "rag_accuracy_comparison.png",
     output_dir: Path | None = None,
@@ -614,7 +635,7 @@ def plot_rag_accuracy_comparison(
     df = _apply_weights(df, present, raw_weights)
 
     fs = PLOT_STYLE["font_sizes"]
-    rag_statuses = ["rag", "no_rag"]
+    rag_statuses = [s for s in _RAG_STATUS_ORDER if s in df["rag_status"].unique()]
     models = sorted(df["model_short"].unique())
     example_ids = sorted(df["example_id"].dropna().unique())
 
@@ -629,9 +650,18 @@ def plot_rag_accuracy_comparison(
 
     x = np.arange(len(models))
 
+    n_panels = len(rag_statuses)
     fig, axes = plt.subplots(
-        1, 2, figsize=PLOT_STYLE["figsize_full_width"], sharey=True
+        1,
+        n_panels,
+        figsize=(
+            PLOT_STYLE["figsize_full_width"][0],
+            PLOT_STYLE["figsize_full_width"][1],
+        ),
+        sharey=True,
     )
+    if n_panels == 1:
+        axes = [axes]
 
     for ax, rs in zip(axes, rag_statuses, strict=False):
         sub = df[df["rag_status"] == rs]
@@ -691,7 +721,7 @@ def plot_rag_accuracy_comparison(
         for key in present.values()
         if key in _COMPONENT_COLORS
     ]
-    axes[1].legend(
+    axes[-1].legend(
         handles=component_patches,
         fontsize=fs["legend"],
         loc="upper right",
@@ -803,8 +833,9 @@ def plot_rag_score_combined(
     models = sorted(df["model_short"].unique())
     example_ids = sorted(df["example_id"].dropna().unique())
 
-    # Condition order: P0 off, P0 on, P1 off, P1 on
-    conditions = [(eid, rs) for eid in example_ids for rs in ("no_rag", "rag")]
+    # Condition order: P0 off, P0 empty, P0 on, P1 off, P1 empty, P1 on, ...
+    rag_statuses = [s for s in _RAG_STATUS_ORDER if s in df["rag_status"].unique()]
+    conditions = [(eid, rs) for eid in example_ids for rs in rag_statuses]
     n_bars = len(conditions)
     bar_width = 0.18
     offsets = np.linspace(
@@ -818,7 +849,7 @@ def plot_rag_score_combined(
 
     for (eid, rs), offset in zip(conditions, offsets, strict=False):
         sub = df[(df["example_id"] == eid) & (df["rag_status"] == rs)]
-        hatch = "//" if rs == "no_rag" else ""
+        hatch = _RAG_DISPLAY.get(rs, {}).get("hatch", "")
         bottoms = np.zeros(len(models))
         for col, key in present.items():
             vals = []
@@ -843,7 +874,8 @@ def plot_rag_score_combined(
     xaxis_tr = ax.get_xaxis_transform()
     for (eid, rs), offset in zip(conditions, offsets, strict=False):
         plabel = _PROMPT_SHORT_LABELS.get(int(eid), f"P{int(eid)}")
-        rlabel = "on" if rs == "rag" else "off"
+        _rlabel_map = {"rag": "on", "empty_rag": "empty", "no_rag": "off"}
+        rlabel = _rlabel_map.get(rs, rs)
         for xi in x:
             ax.text(
                 xi + offset,

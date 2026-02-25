@@ -83,12 +83,13 @@ def run_agent_evaluation(  # noqa: PLR0913
     model: str | None,
     prompt_style: str = "full",
     scorers: str = "all",
-    mmore_enabled: bool = False,
+    rag_mode: str = "no_rag",
     use_run_flag: bool = False,
 ) -> int:
     """Run agent evaluation for a specific seed or run.
 
     Args:
+        rag_mode: One of "rag", "no_rag", or "empty_rag".
         use_run_flag: If True, pass ``seed`` as ``--run`` instead of ``--seed``.
             Use for problems with fixed prompts (HPC, RAG) where the seed is
             only a run identifier, not an optimization seed.
@@ -109,10 +110,11 @@ def run_agent_evaluation(  # noqa: PLR0913
     ]
     if model is not None:
         cmd.extend(["--model", model])
-    if mmore_enabled:
-        cmd.append("--mmore")
+    _rag_flags = {"rag": "--mmore", "no_rag": "--no-mmore", "empty_rag": "--empty-rag"}
+    cmd.append(_rag_flags.get(rag_mode, "--no-mmore"))
 
     # Set SKIP_MMORE env var to prevent health check warnings when RAG is disabled
+    mmore_enabled = rag_mode in ("rag", "empty_rag")
     env = {"SKIP_MMORE": "false" if mmore_enabled else "true"}
     return run_command(cmd, cwd=PROJECT_ROOT, env=env)
 
@@ -174,19 +176,29 @@ def main() -> None:  # noqa: PLR0915
         choices=["output_quality", "task_completion", "tool_use", "all"],
         help="Scorer set for agent evaluation (default: all)",
     )
-    parser.add_argument(
+    rag_group = parser.add_mutually_exclusive_group()
+    rag_group.add_argument(
         "--mmore",
-        dest="mmore_enabled",
-        action="store_true",
-        default=False,
-        help="Enable MMORE RAG system for document retrieval (default: disabled)",
+        dest="rag_mode",
+        action="store_const",
+        const="rag",
+        help="Enable MMORE RAG system for document retrieval",
     )
-    parser.add_argument(
+    rag_group.add_argument(
         "--no-mmore",
-        dest="mmore_enabled",
-        action="store_false",
+        dest="rag_mode",
+        action="store_const",
+        const="no_rag",
         help="Disable MMORE RAG system (default)",
     )
+    rag_group.add_argument(
+        "--empty-rag",
+        dest="rag_mode",
+        action="store_const",
+        const="empty_rag",
+        help="RAG tools available but index is empty (control condition)",
+    )
+    parser.set_defaults(rag_mode="no_rag")
     parser.add_argument(
         "--skip-prompt-generation",
         action="store_true",
@@ -213,7 +225,8 @@ def main() -> None:  # noqa: PLR0915
     print(f"Samples per seed: {args.samples}")
     print(f"Prompt style: {args.prompt_style}")
     print(f"Model: {model_name}")
-    print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
+    _rag_labels = {"rag": "enabled", "no_rag": "disabled", "empty_rag": "empty index"}
+    print(f"MMORE RAG: {_rag_labels.get(args.rag_mode, args.rag_mode)}")
     print(f"Scorers: {args.scorers}")
     print()
 
@@ -250,7 +263,7 @@ def main() -> None:  # noqa: PLR0915
             args.model,
             args.prompt_style,
             args.scorers,
-            args.mmore_enabled,
+            args.rag_mode,
             use_run_flag=use_run_flag,
         )
         if ret == 0:
@@ -271,7 +284,7 @@ def main() -> None:  # noqa: PLR0915
     if failed_seeds:
         print(f"  Failed seeds: {failed_seeds}")
     model_safe = model_name.replace("/", "_").replace(":", "_")
-    rag_dir = "rag" if args.mmore_enabled else "no_rag"
+    rag_dir = args.rag_mode
     agent_results_dir = (
         MODELS_DIR / model_safe / args.problem / args.prompt_style / rag_dir
     )
