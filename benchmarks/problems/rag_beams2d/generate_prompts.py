@@ -33,10 +33,9 @@ PROMPT_STYLES: dict[str, dict] = {
         "optimal_tool_calls": [
             {"name": "search_documents", "count": 1},
             {"name": "optimize_design", "count": 1},
-            {"name": "simulate_design", "count": 1},
             {"name": "render_design", "count": 1},
         ],
-        "optimal_call_count": 4,
+        "optimal_call_count": 3,
         "success_criteria": "rag_parameter_accuracy",
     },
 }
@@ -263,10 +262,9 @@ RAG_PROMPTS: list[dict] = [
         "optimal_tool_calls": [
             {"name": "search_documents", "count": 2},
             {"name": "optimize_design", "count": 1},
-            {"name": "simulate_design", "count": 1},
             {"name": "render_design", "count": 1},
         ],
-        "optimal_call_count": 5,
+        "optimal_call_count": 4,
         "target": {},
     },
 ]

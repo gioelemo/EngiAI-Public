@@ -576,11 +576,13 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     # Reset MMORE cache to pick up the new env var value
     config.reset_mmore_cache()
 
-    # For RAG evaluation problems disable ArXiv so MMORE is the only document source.
-    # This keeps the RAG-on vs RAG-off comparison clean: the only variable is whether
-    # MMORE (search_documents) is available, not whether the agent can reach the paper
-    # via the ArXiv agent as an alternative route.
-    os.environ["SKIP_ARXIV"] = "true" if args.problem == "rag_beams2d" else "false"
+    # For RAG evaluation problems disable ArXiv and web search so MMORE is the only
+    # document source.  This keeps the RAG-on vs RAG-off comparison clean: the only
+    # variable is whether MMORE (search_documents) is available, not whether the agent
+    # can reach the paper via ArXiv or Tavily as an alternative route.
+    _is_rag_eval = args.problem == "rag_beams2d"
+    os.environ["SKIP_ARXIV"] = "true" if _is_rag_eval else "false"
+    os.environ["SKIP_SEARCH"] = "true" if _is_rag_eval else "false"
 
     # Disable SLURM email notifications for HPC training benchmarks to avoid spam
     os.environ["SKIP_SLURM_EMAIL"] = (
