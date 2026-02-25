@@ -11,6 +11,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
 if _PROJECT_ROOT not in sys.path:
@@ -92,7 +93,7 @@ def plot_design_quality_vs_tools(df, output_dir=None):
     )
 
     # Annotate means
-    for tc, mu in zip(tool_counts, means):
+    for tc, mu in zip(tool_counts, means, strict=True):
         ax.annotate(
             f"{mu:.2f}",
             xy=(tc, mu),
@@ -135,12 +136,15 @@ def plot_co_vs_dq_by_tools(df, output_dir=None):
     """
     setup_style()
 
-    required = {"total_tools", "combined_overall_score", "design_quality_score", "model"}
+    required = {
+        "total_tools",
+        "combined_overall_score",
+        "design_quality_score",
+        "model",
+    }
     if not required.issubset(df.columns):
         print(f"Missing columns: {required - set(df.columns)}")
         return
-
-    import seaborn as sns
 
     plot_df = df.dropna(subset=["total_tools", "combined_overall_score"]).copy()
     dq_df = df.dropna(subset=["total_tools", "design_quality_score"]).copy()
@@ -232,7 +236,7 @@ def plot_co_vs_dq_by_tools(df, output_dir=None):
         label=r"Mean ($\mu$)",
     )
 
-    for tc, mu in zip(tool_counts_dq, means):
+    for tc, mu in zip(tool_counts_dq, means, strict=True):
         ax_dq.annotate(
             f"{mu:.2f}",
             xy=(tc, mu),
@@ -292,15 +296,11 @@ def main():
             problems = rag_subset["problem"].dropna().unique()
             for problem in problems:
                 prob_subset = rag_subset[rag_subset["problem"] == problem]
-                out_dir = (
-                    Path(__file__).parent
-                    / "figures"
-                    / problem
-                    / style
-                    / rag
-                )
+                out_dir = Path(__file__).parent / "figures" / problem / style / rag
                 out_dir.mkdir(parents=True, exist_ok=True)
-                print(f"  Plotting {problem}/{style}/{rag} ({len(prob_subset)} samples)")
+                print(
+                    f"  Plotting {problem}/{style}/{rag} ({len(prob_subset)} samples)"
+                )
                 plot_design_quality_vs_tools(prob_subset, output_dir=out_dir)
                 plot_co_vs_dq_by_tools(prob_subset, output_dir=out_dir)
 
