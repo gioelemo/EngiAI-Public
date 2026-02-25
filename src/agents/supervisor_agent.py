@@ -40,7 +40,10 @@ logger = logging.getLogger(__name__)
 # forces FINISH.  Smaller models often fail to emit FINISH and keep
 # re-routing to the same agent (sometimes with spurious tool calls).
 # The first delegation is always allowed; the counter tracks re-routings.
-_MAX_CONSECUTIVE_SAME_AGENT_REROUTINGS = 3
+# Set to 1: if an agent just completed with tool results, re-routing to
+# the same agent is almost always a mistake (the LLM failed to recognise
+# the step was done).
+_MAX_CONSECUTIVE_SAME_AGENT_REROUTINGS = 1
 
 
 class RouteDecision(BaseModel):
@@ -192,36 +195,17 @@ class SupervisorAgent:
             )
         return prompt
 
-    @staticmethod
-    def _filter_supervisor_instructions(messages: list) -> list:
-        """Remove [SUPERVISOR INSTRUCTION] messages from routing context.
-
-        These scoped sub-task instructions were injected for delegated agents.
-        When the supervisor re-evaluates, it should see the original user
-        request + agent results, not its own prior sub-task scoping.
-        """
-        return [
-            m
-            for m in messages
-            if not (
-                isinstance(m, HumanMessage)
-                and isinstance(m.content, str)
-                and m.content.startswith("[SUPERVISOR INSTRUCTION")
-            )
-        ]
-
     def _supervisor_node(self, state: SupervisorState):
         """Supervisor decides which agent should act next using LLM-based routing.
 
         After each agent completes, the supervisor re-evaluates the full message
         history to decide whether to route to another agent or finish.
+        Prior [SUPERVISOR INSTRUCTION] messages are kept so the routing LLM
+        can see which sub-tasks were already delegated and completed.
         """
-        # Filter out prior [SUPERVISOR INSTRUCTION] messages so the LLM
-        # re-evaluates against the original user request, not scoped sub-tasks.
-        filtered = self._filter_supervisor_instructions(state["messages"])
         messages = [
             {"role": "system", "content": self._build_routing_prompt()},
-            *filtered,
+            *state["messages"],
         ]
 
         # Use structured output to get routing decision from LLM
