@@ -24,10 +24,10 @@ set -euo pipefail
 # ── Configuration ────────────────────────────────────────────────────────────
 MODELS=(
     "openai:gpt-5-mini"
-    #"google_genai:gemini-3-flash-preview"
-    #"ollama:qwen3:4b-instruct-2507-q8_0"
+    "google_genai:gemini-3-flash-preview"
+    "ollama:qwen3:4b-instruct-2507-q8_0"
 )
-RUNS=(1)
+RUNS=(1 2 3)
 PROBLEM="rag_beams2d"
 STYLE="rag-eval"
 MMORE_RAG_URL="${MMORE_RAG_URL:-http://localhost:8001}"
