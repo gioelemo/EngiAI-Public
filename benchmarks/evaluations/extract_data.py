@@ -432,7 +432,7 @@ def _extract_metrics_from_scorers(
     return result
 
 
-def _mmore_matches(
+def _mmore_matches(  # noqa: PLR0911
     example, mmore_filter: bool | None, rag_mode_filter: str | None = None
 ) -> bool:
     """Return False if example metadata contradicts the RAG filter.
@@ -455,7 +455,12 @@ def _mmore_matches(
                 logger.debug("  [rag_mode match] eid=%s rag_mode=%s", eid, rag_mode)
             return match
 
-        # Fallback: boolean mmore_enabled (old runs without rag_mode)
+        # If we're doing 3-state filtering but this run predates rag_mode,
+        # exclude it — old runs can't be reliably classified as rag/empty_rag/no_rag
+        if rag_mode_filter is not None:
+            return False
+
+        # Fallback: boolean mmore_enabled (only when NOT using 3-state filter)
         if mmore_filter is not None:
             mmore_enabled = meta.get("mmore_enabled")
             if mmore_enabled is None:
