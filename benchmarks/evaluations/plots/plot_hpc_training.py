@@ -540,10 +540,14 @@ def plot_evaluation_metrics(
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_w, fig_h), squeeze=False)
 
     ctx = {
-        "df": df, "models": models, "configs": configs,
-        "n_bars": n_bars, "bar_width": bar_width,
+        "df": df,
+        "models": models,
+        "configs": configs,
+        "n_bars": n_bars,
+        "bar_width": bar_width,
         "baseline_metrics": baseline_metrics,
-        "algo_short": algo_short, "eid_to_seed": eid_to_seed,
+        "algo_short": algo_short,
+        "eid_to_seed": eid_to_seed,
     }
     for idx, metric in enumerate(available):
         ax = axes[idx // n_cols, idx % n_cols]
