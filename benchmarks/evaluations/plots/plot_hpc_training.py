@@ -217,7 +217,7 @@ def plot_step_completion_heatmap_avg(
     ]
 
     n_rows = len(row_labels)
-    fig_height = max(2.5, 1.2 * n_rows + 1.0)
+    fig_height = max(1.8, 0.8 * n_rows + 0.8)
     fig, ax = plt.subplots(figsize=(PLOT_STYLE["figsize_full_width"][0], fig_height))
 
     # Display as 0-100% with explicit "%" in cell annotations
@@ -248,7 +248,7 @@ def plot_step_completion_heatmap_avg(
                 ha="center",
                 va="center",
                 color="white",
-                fontsize=14,
+                fontsize=11,
             )
             ax.text(
                 j + 0.5,
@@ -257,7 +257,7 @@ def plot_step_completion_heatmap_avg(
                 ha="center",
                 va="center",
                 color="white",
-                fontsize=9,
+                fontsize=7,
             )
     ax.set_xlabel("")
     ax.set_ylabel("")
@@ -270,7 +270,7 @@ def plot_step_completion_heatmap_avg(
     cax = fig.add_axes([pos.x1 + 0.01, pos.y0, 0.015, pos.height])
     cbar = fig.colorbar(ax.collections[0], cax=cax)
     cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}\\%"))
-    cbar.set_label("Avg completion rate")
+    cbar.set_label("Avg. completion rate")
     save_figure(fig, filename, output_dir)
     plt.close(fig)
 
