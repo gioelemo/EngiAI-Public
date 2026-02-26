@@ -408,15 +408,99 @@ EVAL_METRIC_LABELS = {
 }
 
 
+def _draw_eval_subplot(ax: plt.Axes, metric: str, ctx: dict) -> None:
+    """Draw a single subplot in the evaluation metrics grid."""
+    df = ctx["df"]
+    models = ctx["models"]
+    configs = ctx["configs"]
+    n_bars = ctx["n_bars"]
+    bar_width = ctx["bar_width"]
+    baseline_metrics = ctx["baseline_metrics"]
+    algo_short = ctx["algo_short"]
+    eid_to_seed = ctx["eid_to_seed"]
+    font_sizes = PLOT_STYLE["font_sizes"]
+    x = np.arange(len(configs))
+    base_metric = metric.replace("eval_", "")
+
+    for i, model in enumerate(models):
+        model_df = df[df["model_short"] == model]
+        vals = []
+        for cfg in configs:
+            subset = (
+                model_df[model_df["example_id"] == cfg]
+                if "example_id" in model_df.columns
+                else model_df
+            )
+            vals.append(subset[metric].mean() if len(subset) > 0 else float("nan"))
+
+        offset = (i - (n_bars - 1) / 2) * bar_width
+        ax.bar(
+            x + offset,
+            vals,
+            bar_width * 0.9,
+            label=model,
+            color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
+            alpha=PLOT_STYLE["alpha"],
+        )
+
+    # Baseline bars
+    if baseline_metrics is not None and base_metric in baseline_metrics.columns:
+        b_vals = []
+        for cfg in configs:
+            seed = eid_to_seed.get(cfg, cfg)
+            b_vals.append(_get_seed_val(baseline_metrics, seed, base_metric))
+        b_offset = (len(models) - (n_bars - 1) / 2) * bar_width
+        ax.bar(
+            x + b_offset,
+            b_vals,
+            bar_width * 0.9,
+            label=f"Baseline ({algo_short})",
+            color=COLOR_PALETTE[len(models) % len(COLOR_PALETTE)],
+            alpha=0.50,
+            hatch="//",
+        )
+
+    # Short labels: just seed number
+    config_labels = [str(eid_to_seed.get(c, c)) for c in configs]
+    ax.set_xticks(x)
+    ax.set_xticklabels(config_labels, fontsize=font_sizes["tick_label"])
+    ax.set_xlabel("Seed", fontsize=font_sizes["axes_label"])
+    ax.set_ylabel(EVAL_METRIC_LABELS.get(metric, metric))
+
+    # Use log scale when values span many orders of magnitude
+    all_plotted = [
+        v
+        for model in models
+        for cfg in configs
+        for v in [
+            df[(df["model_short"] == model) & (df["example_id"] == cfg)][metric].mean()
+            if "example_id" in df.columns
+            else df[df["model_short"] == model][metric].mean()
+        ]
+        if not np.isnan(v) and v > 0
+    ]
+    _log_scale_ratio = 1000
+    if (
+        len(all_plotted) > 1
+        and min(all_plotted) > 0
+        and max(all_plotted) / min(all_plotted) > _log_scale_ratio
+    ):
+        ax.set_yscale("log")
+        ax.set_ylim(bottom=min(all_plotted) * 0.3)
+
+    ax.grid(True, axis="y", alpha=0.3)
+
+
 def plot_evaluation_metrics(
     df: pd.DataFrame,
     filename: str = "evaluation_metrics.png",
     output_dir: Path | None = None,
+    prompt_style: str | None = None,
 ) -> None:
     """Grouped bar chart of EngiOpt evaluation metrics per model x config.
 
     Shows IOG, COG, FOG, MMD, DPP, violation rate extracted from
-    the evaluation output. Uses a 2x3 grid.
+    the evaluation output. Uses a 2x3 grid. Includes baselines when available.
     """
     setup_style()
     df = _prepare_data(df)
@@ -426,65 +510,61 @@ def plot_evaluation_metrics(
         print("  No evaluation metrics data found, skipping")
         return
 
+    # Load baseline data
+    algorithm = _algorithm_from_style(prompt_style)
+    algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
+    _, _eid_to_config, eid_to_seed = _build_config_mappings(algorithm)
+    baseline_df = _load_baseline_csvs(_BASELINE_DIR)
+    baseline_metrics = None
+    if baseline_df is not None and not baseline_df.empty:
+        baseline_metrics = _extract_baseline_metrics(baseline_df)
+        if "algorithm" in baseline_metrics.columns:
+            baseline_metrics = baseline_metrics[
+                baseline_metrics["algorithm"] == algorithm
+            ]
+        if baseline_metrics.empty:
+            baseline_metrics = None
+
     models = sorted(df["model_short"].unique())
     configs = sorted(df["example_id"].unique()) if "example_id" in df.columns else [0]
-    font_sizes = PLOT_STYLE["font_sizes"]
 
     n_cols = min(len(available), 3)
     n_rows = (len(available) + n_cols - 1) // n_cols
     n_configs = len(configs)
+    n_bars = len(models) + (1 if baseline_metrics is not None else 0)
+    bar_width = 0.7 / max(n_bars, 1)
 
-    # Scale width with number of groups
+    # Scale width with number of groups; extra height for shared legend
     fig_w = max(FULL_WIDTH, 0.55 * n_configs * n_cols / 3)
-    fig_h = max(4.0, 2.2 * n_rows)
+    fig_h = max(4.5, 2.4 * n_rows + 0.4)
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_w, fig_h), squeeze=False)
 
+    ctx = {
+        "df": df, "models": models, "configs": configs,
+        "n_bars": n_bars, "bar_width": bar_width,
+        "baseline_metrics": baseline_metrics,
+        "algo_short": algo_short, "eid_to_seed": eid_to_seed,
+    }
     for idx, metric in enumerate(available):
         ax = axes[idx // n_cols, idx % n_cols]
-        n_models = len(models)
-        bar_width = 0.7 / max(n_models, 1)
-        x = np.arange(n_configs)
-
-        for i, model in enumerate(models):
-            model_df = df[df["model_short"] == model]
-            vals = []
-            for cfg in configs:
-                subset = (
-                    model_df[model_df["example_id"] == cfg]
-                    if "example_id" in model_df.columns
-                    else model_df
-                )
-                vals.append(subset[metric].mean() if len(subset) > 0 else float("nan"))
-
-            offset = (i - (n_models - 1) / 2) * bar_width
-            ax.bar(
-                x + offset,
-                vals,
-                bar_width * 0.9,
-                label=model,
-                color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
-                alpha=PLOT_STYLE["alpha"],
-            )
-
-        # Short labels: just seed number
-        config_labels = [str(_EXAMPLE_ID_TO_TRAINING_SEED.get(c, c)) for c in configs]
-        ax.set_xticks(x)
-        ax.set_xticklabels(
-            config_labels,
-            fontsize=font_sizes["tick_label"],
-        )
-        ax.set_xlabel("Seed", fontsize=font_sizes["axes_label"])
-        ax.set_ylabel(EVAL_METRIC_LABELS.get(metric, metric))
-        ax.grid(True, axis="y", alpha=0.3)
-
-        if idx == 0:
-            ax.legend(fontsize=font_sizes["legend"], loc="upper right")
+        _draw_eval_subplot(ax, metric, ctx)
 
     # Hide unused subplots
     for idx in range(len(available), n_rows * n_cols):
         axes[idx // n_cols, idx % n_cols].set_visible(False)
 
-    fig.tight_layout()
+    # Leave 5% at bottom for shared legend
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
+
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        fontsize=PLOT_STYLE["font_sizes"]["legend"],
+        loc="lower center",
+        ncol=n_bars,
+        frameon=True,
+    )
     save_figure(fig, filename, output_dir)
     plt.close(fig)
 
@@ -894,7 +974,7 @@ def main(
     plot_step_completion_rate(df, output_dir=output_dir)
 
     print("\n[5/6] Evaluation metrics...")
-    plot_evaluation_metrics(df, output_dir=output_dir)
+    plot_evaluation_metrics(df, output_dir=output_dir, prompt_style=prompt_style)
 
     print("\n[6/6] Baseline comparison (one figure per metric)...")
     plot_baseline_comparison(df, output_dir=output_dir, prompt_style=prompt_style)
