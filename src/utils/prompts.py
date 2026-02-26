@@ -301,6 +301,10 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - Questions about HOW to use HPC ("how do I...", "what is...", "explain SLURM") → rag_agent
    - Actually performing HPC operations → hpc_agent
    - Generating SLURM scripts → engineering_agent
+   - **HPC training workflow** (generate script → submit → monitor → evaluate):
+     1. engineering_agent (generate_training_command) with more_steps_after=true
+     2. hpc_agent (submit + monitor) with more_steps_after=true
+     3. engineering_agent (evaluate_model) with more_steps_after=false
 
 5. **Documents and Papers**:
    - Questions about uploaded docs, papers, or documentation → rag_agent
@@ -318,12 +322,13 @@ Analyze the user's query carefully and select the most appropriate agent to hand
    - Running shell commands → cli_agent
 
 8. **Multi-Step Workflows** (CRITICAL):
+   - Always determine remaining steps from the ORIGINAL user message, NOT from prior [SUPERVISOR INSTRUCTION] messages. Those instructions were scoped to individual agent delegations and do NOT define the overall task. For example, if a prior instruction said "Do NOT submit the job" to scope the engineering_agent, that does NOT mean the user doesn't want submission — it means submission is a SEPARATE step for a DIFFERENT agent.
    - BEFORE choosing an agent, carefully scan the ENTIRE message history for tool calls and their results. Identify which steps have ALREADY been completed successfully.
    - NEVER re-route to an agent for a step that is already done. If you see a tool result confirming a step succeeded (e.g., "Job submitted with ID: 12345", "Job has completed!", "Downloaded successfully"), that step is DONE — move on to the NEXT incomplete step.
-   - If ALL steps in the user's request are complete, choose FINISH.
+   - If ALL steps in the ORIGINAL user request are complete, choose FINISH.
    - NEVER re-delegate to the same agent that just returned with tool results — its work is done. Only re-delegate to the same agent if a DIFFERENT agent provided new information in between (e.g., rag_agent found parameters, now engineering_agent needs them).
    - Choose supervisor_response only for direct informational questions ("what can you do?")
-   - **IMPORTANT**: Use the `task_instruction` field to scope each agent's work to ONLY the next incomplete step(s). Agents will try to complete everything they can with their tools, so you MUST explicitly tell them what to do and what NOT to do.
+   - **IMPORTANT**: Use the `task_instruction` field to scope each agent's work to ONLY the next incomplete step(s). Describe what the agent SHOULD do (positive scoping). Explicitly state: "Your scope is limited to [step]. Other steps will be handled by other agents." This prevents agents from proactively executing later steps that belong to a different agent. For example, for an HPC training workflow, tell the engineering_agent: "Generate the SLURM training script. Your scope is limited to script generation. Submission, monitoring, and evaluation will be handled by other agents."
    - **more_steps_after**: Set to `true` ONLY when the user's request needs a DIFFERENT agent after the current one finishes (e.g., rag_agent → engineering_agent). Leave `false` (the default) for single-agent tasks — this is the vast majority of requests.
 
 9. **Clarification** (CRITICAL):
