@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import matplotlib.transforms as mtransforms
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -598,6 +599,37 @@ def _get_seed_val(frame: pd.DataFrame, seed: int, metric: str) -> float:
     return float(row[metric].iloc[0])
 
 
+def _draw_missing_markers(
+    ax: plt.Axes,
+    x: np.ndarray,
+    model_series: list[tuple[list[float], float, str]],
+) -> None:
+    """Draw 'x' markers at the axes bottom for missing/unplottable values.
+
+    Args:
+        ax: The matplotlib axes.
+        x: Group x-positions.
+        model_series: List of (values, bar_offset, color) tuples.
+    """
+    is_log = ax.get_yscale() == "log"
+    transform = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
+
+    for vals, offset, color in model_series:
+        for j, v in enumerate(vals):
+            if np.isnan(v) or (is_log and v <= 0):
+                ax.plot(
+                    x[j] + offset,
+                    0,
+                    marker="x",
+                    color=color,
+                    markersize=5,
+                    markeredgewidth=1.5,
+                    clip_on=False,
+                    transform=transform,
+                    zorder=5,
+                )
+
+
 def _plot_baseline_metric(  # noqa: PLR0913
     metric: str,
     agent_metrics: pd.DataFrame,
@@ -610,7 +642,6 @@ def _plot_baseline_metric(  # noqa: PLR0913
 
     One figure per metric with grouped bars (models + baseline) per seed + Avg.
     """
-    font_sizes = PLOT_STYLE["font_sizes"]
     algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
 
     # Filter agent data to matching algorithm
@@ -656,7 +687,6 @@ def _plot_baseline_metric(  # noqa: PLR0913
             color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
             alpha=PLOT_STYLE["alpha"],
         )
-
     # Baseline bar
     b_vals = [
         _get_seed_val(algo_baseline, s, metric)
@@ -677,6 +707,37 @@ def _plot_baseline_metric(  # noqa: PLR0913
         hatch="//",
     )
 
+    _format_baseline_axes(
+        ax,
+        x,
+        all_seeds,
+        models,
+        comparable,
+        metric,
+        b_vals,
+        b_offset,
+        bar_w,
+    )
+
+    fig.subplots_adjust(bottom=0.22)
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+
+
+def _format_baseline_axes(  # noqa: PLR0913
+    ax: plt.Axes,
+    x: np.ndarray,
+    all_seeds: list[int],
+    models: list[str],
+    comparable: pd.DataFrame,
+    metric: str,
+    b_vals: list[float],
+    b_offset: float,
+    bar_w: float,
+) -> None:
+    """Format axes: labels, log scale, missing markers, legend."""
+    font_sizes = PLOT_STYLE["font_sizes"]
+
     # Vertical separator line before Avg group
     ax.axvline(x=len(all_seeds) - 0.5, color="grey", linewidth=0.5, linestyle="--")
 
@@ -686,15 +747,54 @@ def _plot_baseline_metric(  # noqa: PLR0913
     ax.set_xticklabels(group_labels, fontsize=font_sizes["tick_label"])
     ax.set_xlabel("Seed", fontsize=font_sizes["axes_label"])
     ax.set_ylabel(EVAL_METRIC_LABELS.get(f"eval_{metric}", metric))
-    # Use log scale for DPP (values span many orders of magnitude)
-    if metric == "DPP":
-        ax.set_yscale("log")
-    ax.grid(True, axis="y", alpha=0.3)
-    ax.legend(fontsize=font_sizes["legend"], loc="upper right")
+    ax.set_xlim(x[0] - 0.5, x[-1] + 0.5)
 
-    fig.tight_layout()
-    save_figure(fig, filename, output_dir)
-    plt.close(fig)
+    # Use log scale when values span many orders of magnitude
+    all_plotted = [v for v in b_vals if not np.isnan(v) and v > 0]
+    for model in models:
+        model_df = comparable[comparable["model"] == model]
+        all_plotted.extend(
+            v
+            for s in all_seeds
+            for v in [_get_seed_val(model_df, s, metric)]
+            if not np.isnan(v) and v > 0
+        )
+    _log_scale_ratio = 1000
+    if (
+        len(all_plotted) > 1
+        and min(all_plotted) > 0
+        and max(all_plotted) / min(all_plotted) > _log_scale_ratio
+    ):
+        ax.set_yscale("log")
+        ax.set_ylim(bottom=min(all_plotted) * 0.3)
+
+    # Mark missing data with "x" on the axes bottom edge (must be after yscale)
+    n_bars = len(models) + 1
+    marker_series: list[tuple[list[float], float, str]] = []
+    for i, model in enumerate(models):
+        model_df = comparable[comparable["model"] == model]
+        model_vals = [_get_seed_val(model_df, s, metric) for s in all_seeds]
+        model_avg = (
+            float(np.nanmean(model_vals)) if not all(np.isnan(model_vals)) else 0.0
+        )
+        model_vals.append(model_avg)
+        offset = (i - (n_bars - 1) / 2) * bar_w
+        marker_series.append(
+            (model_vals, offset, COLOR_PALETTE[i % len(COLOR_PALETTE)])
+        )
+    marker_series.append(
+        (b_vals, b_offset, COLOR_PALETTE[len(models) % len(COLOR_PALETTE)])
+    )
+    _draw_missing_markers(ax, x, marker_series)
+
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.legend(
+        fontsize=font_sizes["legend"],
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=len(models) + 1,
+        frameon=True,
+    )
 
 
 def plot_baseline_comparison(
