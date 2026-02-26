@@ -181,6 +181,67 @@ def plot_step_completion_heatmap(
     plt.close(fig)
 
 
+# ── Plot 1b: Step Completion Heatmap (averaged per model) ─────────────────────
+
+
+def plot_step_completion_heatmap_avg(
+    df: pd.DataFrame,
+    filename: str = "step_completion_heatmap_avg.png",
+    output_dir: Path | None = None,
+) -> None:
+    """Heatmap showing average workflow step completion per model.
+
+    Rows = models (averaged across all seeds/configs), Columns = 4 workflow steps.
+    Cell values are completion percentages (0-100%).
+    """
+    setup_style()
+    df = _prepare_data(df)
+
+    step_cols = [f"step_{s}" for s in WORKFLOW_STEPS]
+    available_cols = [c for c in step_cols if c in df.columns]
+    if not available_cols:
+        print("  No step completion data found, skipping averaged heatmap")
+        return
+
+    for col in available_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+
+    # Average across all seeds per model
+    grouped = df.groupby("model_short", sort=False)[available_cols].mean()
+
+    row_labels = list(grouped.index)
+    col_labels = [
+        STEP_SHORT_LABELS.get(c.replace("step_", ""), c) for c in available_cols
+    ]
+
+    n_rows = len(row_labels)
+    fig_height = max(2.5, 1.0 * n_rows + 1.0)
+    fig, ax = plt.subplots(figsize=(PLOT_STYLE["figsize_full_width"][0], fig_height))
+
+    cmap = sns.color_palette(["#d9534f", "#f0ad4e", "#5cb85c"], as_cmap=True)
+    sns.heatmap(
+        grouped.values,
+        annot=True,
+        fmt=".0%",
+        cmap=cmap,
+        vmin=0,
+        vmax=1,
+        linewidths=0.5,
+        linecolor="white",
+        xticklabels=col_labels,
+        yticklabels=row_labels,
+        cbar_kws={"label": "Avg completion rate", "shrink": 0.6},
+        ax=ax,
+    )
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.tick_params(axis="x", rotation=30)
+
+    fig.tight_layout()
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+
+
 # ── Plot 2: Workflow Score Bars ──────────────────────────────────────────────
 
 
@@ -720,19 +781,22 @@ def main(
 
     print(f"  HPC training data: {len(df)} rows")
 
-    print("\n[1/5] Step completion heatmap...")
+    print("\n[1/6] Step completion heatmap...")
     plot_step_completion_heatmap(df, output_dir=output_dir)
 
-    print("\n[2/5] Workflow score bars...")
+    print("\n[2/6] Step completion heatmap (averaged per model)...")
+    plot_step_completion_heatmap_avg(df, output_dir=output_dir)
+
+    print("\n[3/6] Workflow score bars...")
     plot_workflow_score_bars(df, output_dir=output_dir)
 
-    print("\n[3/5] Step completion rate...")
+    print("\n[4/6] Step completion rate...")
     plot_step_completion_rate(df, output_dir=output_dir)
 
-    print("\n[4/5] Evaluation metrics...")
+    print("\n[5/6] Evaluation metrics...")
     plot_evaluation_metrics(df, output_dir=output_dir)
 
-    print("\n[5/5] Baseline comparison (one figure per metric)...")
+    print("\n[6/6] Baseline comparison (one figure per metric)...")
     plot_baseline_comparison(df, output_dir=output_dir, prompt_style=prompt_style)
 
 
