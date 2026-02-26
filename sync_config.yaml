@@ -87,19 +87,21 @@ figures:
         - "tool_usage_heatmap_counts.pdf"
         - "performance_by_tools_overall.pdf"
 
-    # HPC training evaluation figures
+    # HPC training evaluation figures — cGAN (main text)
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-cgan/no_rag"
-      target: "figures/benchmark/hpc"
+      target: "figures/benchmark/hpc/cgan"
       extensions: [".pdf"]
       files:
-        - "step_completion_heatmap.pdf"
+        - "step_completion_heatmap_avg.pdf"
         - "evaluation_metrics.pdf"
-        - "baseline_COG_cgan.pdf"
-        - "baseline_IOG_cgan.pdf"
-        - "baseline_FOG_cgan.pdf"
-        - "baseline_MMD_cgan.pdf"
-        - "baseline_DPP_cgan.pdf"
-        - "baseline_viol_cgan.pdf"
+
+    # HPC training evaluation figures — Diffusion (appendix)
+    - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-diff/no_rag"
+      target: "figures/benchmark/hpc/diff"
+      extensions: [".pdf"]
+      files:
+        - "step_completion_heatmap_avg.pdf"
+        - "evaluation_metrics.pdf"
 
 # ---------------------------------------------------------------------------
 # LaTeX tables

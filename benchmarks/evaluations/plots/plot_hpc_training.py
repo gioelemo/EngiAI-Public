@@ -207,38 +207,70 @@ def plot_step_completion_heatmap_avg(
     for col in available_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
 
-    # Average across all seeds per model
-    grouped = df.groupby("model_short", sort=False)[available_cols].mean()
+    # Average and std across all seeds per model
+    grouped_mean = df.groupby("model_short", sort=False)[available_cols].mean()
+    grouped_std = df.groupby("model_short", sort=False)[available_cols].std(ddof=1)
 
-    row_labels = list(grouped.index)
+    row_labels = list(grouped_mean.index)
     col_labels = [
         STEP_SHORT_LABELS.get(c.replace("step_", ""), c) for c in available_cols
     ]
 
     n_rows = len(row_labels)
-    fig_height = max(2.5, 1.0 * n_rows + 1.0)
+    fig_height = max(2.5, 1.2 * n_rows + 1.0)
     fig, ax = plt.subplots(figsize=(PLOT_STYLE["figsize_full_width"][0], fig_height))
 
-    cmap = sns.color_palette(["#d9534f", "#f0ad4e", "#5cb85c"], as_cmap=True)
+    # Display as 0-100% with explicit "%" in cell annotations
+    mean_vals = grouped_mean.to_numpy() * 100
+    std_vals = grouped_std.to_numpy() * 100
     sns.heatmap(
-        grouped.values,
-        annot=True,
-        fmt=".0%",
-        cmap=cmap,
+        mean_vals,
+        annot=False,
+        cmap="YlOrRd",
         vmin=0,
-        vmax=1,
+        vmax=100,
         linewidths=0.5,
         linecolor="white",
         xticklabels=col_labels,
         yticklabels=row_labels,
-        cbar_kws={"label": "Avg completion rate", "shrink": 0.6},
+        cbar=False,
         ax=ax,
     )
+    # Manually place mean +/- std annotations (escape % for LaTeX)
+    for i in range(mean_vals.shape[0]):
+        for j in range(mean_vals.shape[1]):
+            m = mean_vals[i, j]
+            s = std_vals[i, j]
+            ax.text(
+                j + 0.5,
+                i + 0.38,
+                f"{m:.0f}\\%",
+                ha="center",
+                va="center",
+                color="white",
+                fontsize=14,
+            )
+            ax.text(
+                j + 0.5,
+                i + 0.62,
+                f"$\\pm${s:.1f}\\%",
+                ha="center",
+                va="center",
+                color="white",
+                fontsize=9,
+            )
     ax.set_xlabel("")
     ax.set_ylabel("")
     ax.tick_params(axis="x", rotation=30)
 
+    # Place colorbar manually so it spans the full heatmap height.
+    # tight_layout first, then read the axes position and create cbar axes.
     fig.tight_layout()
+    pos = ax.get_position()
+    cax = fig.add_axes([pos.x1 + 0.01, pos.y0, 0.015, pos.height])
+    cbar = fig.colorbar(ax.collections[0], cax=cax)
+    cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}\\%"))
+    cbar.set_label("Avg completion rate")
     save_figure(fig, filename, output_dir)
     plt.close(fig)
 
