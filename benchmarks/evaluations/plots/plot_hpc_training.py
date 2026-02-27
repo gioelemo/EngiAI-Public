@@ -532,7 +532,8 @@ def plot_evaluation_metrics(
     """Grouped bar chart of EngiOpt evaluation metrics per model x config.
 
     Shows IOG, COG, FOG, MMD, DPP, violation rate extracted from
-    the evaluation output. Uses a 2x3 grid. Includes baselines when available.
+    the evaluation output, using a dynamically sized grid based on available
+    metrics. Includes baselines when available.
     """
     setup_style()
     df = _prepare_data(df)
