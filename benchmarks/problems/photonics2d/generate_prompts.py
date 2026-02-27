@@ -6,8 +6,12 @@ into natural language prompts that can be used to evaluate the engineering agent
 
 Supports multiple prompt styles:
 - full: Exact numerical parameters
+- natural: Natural language descriptions only
 - workflow-random: Full workflow with randomized STL export parameters
+- workflow-derived-params: Workflow with STL parameters derived from optimization inputs
+- workflow-distractor: Workflow with distractor parameters mixed with real STL params
 - workflow-conditional: Workflow with if/then branching based on simulation results
+- workflow-multi-export: Workflow requiring two STL exports with different parameters
 
 Dataset: https://huggingface.co/datasets/IDEALLab/photonics_2d_120_120_v0
 """
@@ -40,8 +44,38 @@ STL_SCALE_Z_MAX = 20.0  # Maximum Z extrusion height
 OVERLAP_THRESHOLD_MIN = 0.1
 OVERLAP_THRESHOLD_MAX = 0.8
 
+# Lambda thresholds for natural language descriptions
+LAMBDA_SHORT = 0.7   # Short wavelength upper bound
+LAMBDA_MEDIUM = 1.0  # Medium wavelength upper bound
+
+# Blur radius thresholds for natural language descriptions
+BLUR_NONE = 0       # No blur
+BLUR_LIGHT = 1      # Light smoothing
+BLUR_MODERATE = 2   # Moderate smoothing
+
+# Derivation rule constants for workflow-derived-params
+# threshold = blur_radius * 0.1 + 0.3  (maps 0→0.3, 4→0.7)
+DERIVED_THRESHOLD_SCALE = 0.1
+DERIVED_THRESHOLD_OFFSET = 0.3
+# scale_xy = lambda1 + lambda2  (maps ~1.3 to ~2.7)
+# scale_z = (lambda1 + lambda2) * 5.0  (maps ~6.5 to ~13.5)
+DERIVED_SCALE_Z_MULTIPLIER = 5.0
+# mirror_y = True if lambda1 > 1.0  (roughly 50/50 split)
+DERIVED_MIRROR_LAMBDA1_THRESHOLD = 1.0
+
+# Seed offset for distractor parameter generation (workflow-distractor style)
+DISTRACTOR_SEED_OFFSET = 10000
+
+# Fallback thresholds for distractor parameter generation
+DISTRACTOR_THRESHOLD_MIDPOINT = (STL_THRESHOLD_MIN + STL_THRESHOLD_MAX) / 2
+DISTRACTOR_SCALE_XY_MIDPOINT = (STL_SCALE_XY_MIN + STL_SCALE_XY_MAX) / 2
+
 # Gap requirements for parameter distinctness
 MIN_THRESHOLD_GAP = 0.1  # Minimum gap between threshold values
+MIN_DISTRACTOR_SCALE_GAP = (
+    0.5  # Larger gap for distractor vs real (clearer distinction)
+)
+MIN_MULTI_EXPORT_SCALE_GAP = 0.2  # Smaller gap for two valid exports (both are real)
 
 # Prompt styles configuration with their optimal tool sequences
 PROMPT_STYLES: dict[str, dict[str, Any]] = {
@@ -54,8 +88,38 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
         ],
         "optimal_call_count": 3,
     },
+    "natural": {
+        "description": "Natural language descriptions only",
+        "optimal_tool_calls": [
+            {"name": "ask_human_for_clarification", "count": 1},
+        ],
+        "optimal_call_count": 1,
+        "success_criteria": "clarification_requested",
+    },
     "workflow-random": {
         "description": "Full workflow with random STL parameters",
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "convert_design_to_stl", "count": 1},
+        ],
+        "optimal_call_count": 3,
+        "success_criteria": "stl_export_with_params",
+        "validate_stl_params": True,
+    },
+    "workflow-derived-params": {
+        "description": "Workflow with STL parameters derived from optimization inputs",
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "convert_design_to_stl", "count": 1},
+        ],
+        "optimal_call_count": 3,
+        "success_criteria": "stl_export_with_params",
+        "validate_stl_params": True,
+    },
+    "workflow-distractor": {
+        "description": "Workflow with distractor parameters mixed with real STL params",
         "optimal_tool_calls": [
             {"name": "optimize_design", "count": 1},
             {"name": "simulate_design", "count": 1},
@@ -76,6 +140,17 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
         "success_criteria": "stl_export_with_params",
         "validate_stl_params": True,
     },
+    "workflow-multi-export": {
+        "description": "Workflow requiring two STL exports with different parameters",
+        "optimal_tool_calls": [
+            {"name": "optimize_design", "count": 1},
+            {"name": "simulate_design", "count": 1},
+            {"name": "convert_design_to_stl", "count": 2},
+        ],
+        "optimal_call_count": 4,
+        "success_criteria": "stl_export_with_params",
+        "validate_stl_params": True,
+    },
 }
 
 
@@ -90,6 +165,337 @@ def _create_full_prompt(lambda1: float, lambda2: float, blur_radius: float) -> s
         f"- Target: Maximize total_overlap (field overlap integral)\n\n"
         f"Use binary material distribution (0=air, 1=dielectric material)."
     )
+
+
+def _describe_wavelength(value: float) -> str:
+    """Convert a wavelength parameter to a natural language description."""
+    if value < LAMBDA_SHORT:
+        return "a short wavelength"
+    if value < LAMBDA_MEDIUM:
+        return "a medium wavelength"
+    return "a long wavelength"
+
+
+def _describe_blur_radius(value: float) -> str:
+    """Convert a blur radius to a natural language description."""
+    r = round(value)
+    if r <= BLUR_NONE:
+        return "no spatial smoothing"
+    if r <= BLUR_LIGHT:
+        return "light spatial smoothing"
+    if r <= BLUR_MODERATE:
+        return "moderate spatial smoothing"
+    return "heavy spatial smoothing"
+
+
+def _create_natural_prompt(
+    lambda1: float, lambda2: float, blur_radius: float
+) -> str:
+    """Create prompt with natural language descriptions only."""
+    l1_desc = _describe_wavelength(lambda1)
+    l2_desc = _describe_wavelength(lambda2)
+    blur_desc = _describe_blur_radius(blur_radius)
+
+    return (
+        f"Design a 2D photonic structure.\n\n"
+        f"Design requirements:\n"
+        f"- Use {l1_desc} for the first mode\n"
+        f"- Use {l2_desc} for the second mode\n"
+        f"- Apply {blur_desc} to the design\n"
+        f"Optimize the structure and simulate the result to obtain the "
+        f"total overlap value."
+    )
+
+
+def _compute_derived_stl_params(
+    lambda1: float, lambda2: float, blur_radius: float
+) -> dict[str, Any]:
+    """Compute STL parameters from optimization inputs using derivation rules.
+
+    Rules:
+    - threshold = blur_radius * 0.1 + 0.3  (maps 0→0.3, 4→0.7)
+    - scale_xy = lambda1 + lambda2  (maps ~1.3 to ~2.7)
+    - scale_z = (lambda1 + lambda2) * 5.0  (maps ~6.5 to ~13.5)
+    - mirror_y = True if lambda1 > 1.0  (roughly 50/50 split)
+    """
+    threshold = DERIVED_THRESHOLD_SCALE * blur_radius + DERIVED_THRESHOLD_OFFSET
+    return {
+        "mirror_y": lambda1 > DERIVED_MIRROR_LAMBDA1_THRESHOLD,
+        "scale_xy": float(lambda1 + lambda2),
+        "scale_z": float(DERIVED_SCALE_Z_MULTIPLIER * (lambda1 + lambda2)),
+        "threshold": float(threshold),
+    }
+
+
+def _create_workflow_derived_params_prompt(
+    lambda1: float, lambda2: float, blur_radius: float
+) -> tuple[str, dict[str, Any]]:
+    """Create workflow prompt where STL params are derived from optimization inputs.
+
+    The prompt gives derivation RULES (not final values). The agent must compute
+    the correct parameters from the optimization inputs.
+    """
+    stl_params = _compute_derived_stl_params(lambda1, lambda2, blur_radius)
+
+    prompt = (
+        f"Execute a 2D photonic structure optimization, simulate the result, and "
+        f"export the geometry as a 3D-printable STL file.\n\n"
+        f"1. Optimization Configuration\n"
+        f"   - lambda1: {lambda1:.6f}\n"
+        f"   - lambda2: {lambda2:.6f}\n"
+        f"   - blur_radius: {blur_radius:.6f}\n"
+        f"   - Objective: Maximize total field overlap\n\n"
+        f"2. Simulation\n"
+        f"   - After optimization, simulate the design to obtain the total_overlap value\n\n"
+        f"3. Post-processing & Export\n"
+        f"   The STL export parameters must be derived from the optimization inputs:\n"
+        f"   - Thresholding: Compute the density threshold as the blur radius "
+        f"multiplied by 0.1 plus 0.3\n"
+        f"   - Mirror: Mirror the design across the y-axis only if lambda1 "
+        f"is greater than 1.0\n"
+        f"   - XY Scaling: Scale the X and Y dimensions by the sum of lambda1 and "
+        f"lambda2\n"
+        f"   - Extrusion: Extrude the 2D result in the Z-axis by the sum of "
+        f"lambda1 and lambda2 multiplied by 5\n"
+        f"   - Export: Save the final geometry as an STL file with these derived "
+        f"parameters"
+    )
+
+    return prompt, stl_params
+
+
+def _generate_distractor_params(
+    rng: np.random.Generator,
+    real_params: dict[str, Any],
+) -> dict[str, float]:
+    """Generate competing distractor values for real STL parameters.
+
+    Produces alternative values for ``threshold`` and ``scale_xy`` that look
+    plausible but belong to a non-export context (preview / analysis).
+    """
+    max_attempts = 100
+
+    # Generate distractor threshold with guaranteed gap from real value
+    real_threshold = real_params["threshold"]
+    dt = None
+    for _ in range(max_attempts):
+        candidate = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+        if abs(candidate - real_threshold) >= MIN_THRESHOLD_GAP:
+            dt = candidate
+            break
+    if dt is None:
+        dt = (
+            STL_THRESHOLD_MIN
+            if real_threshold > DISTRACTOR_THRESHOLD_MIDPOINT
+            else STL_THRESHOLD_MAX
+        )
+
+    # Generate distractor scale_xy with guaranteed gap from real value
+    real_scale_xy = real_params["scale_xy"]
+    ds = None
+    for _ in range(max_attempts):
+        candidate = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+        if abs(candidate - real_scale_xy) >= MIN_DISTRACTOR_SCALE_GAP:
+            ds = candidate
+            break
+    if ds is None:
+        ds = (
+            STL_SCALE_XY_MIN
+            if real_scale_xy > DISTRACTOR_SCALE_XY_MIDPOINT
+            else STL_SCALE_XY_MAX
+        )
+
+    return {
+        "distractor_threshold": dt,
+        "distractor_scale_xy": ds,
+    }
+
+
+def _create_workflow_distractor_prompt(
+    lambda1: float,
+    lambda2: float,
+    blur_radius: float,
+    example_id: int,
+    seed: int | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Create workflow prompt with competing parameter values.
+
+    The prompt presents two plausible values for ``threshold`` and
+    ``scale_xy`` — one in a preview/analysis context and one in the
+    manufacturing/export context.  The agent must pick the export-context values.
+    """
+    unique_seed = (seed if seed is not None else 0) + example_id
+    stl_params = _generate_random_stl_params(unique_seed)
+
+    distractor_rng = np.random.default_rng(unique_seed + DISTRACTOR_SEED_OFFSET)
+    distractors = _generate_distractor_params(distractor_rng, stl_params)
+
+    mirror_instruction = (
+        "Mirror the design across the y-axis"
+        if stl_params["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+
+    prompt = (
+        f"Execute a 2D photonic structure optimization, simulate the result, and "
+        f"export the geometry as a 3D-printable STL file.\n\n"
+        f"1. Optimization Configuration\n"
+        f"   - lambda1: {lambda1:.6f}\n"
+        f"   - lambda2: {lambda2:.6f}\n"
+        f"   - blur_radius: {blur_radius:.6f}\n"
+        f"   - Objective: Maximize total field overlap\n\n"
+        f"2. Simulation\n"
+        f"   - After optimization, simulate the design to obtain the total_overlap "
+        f"value\n\n"
+        f"3. Post-processing & Export\n"
+        f"   - Threshold the density field at "
+        f"{distractors['distractor_threshold']:.2f} to preview the design "
+        f"topology\n"
+        f"   - Apply a {stl_params['threshold']:.2f} density threshold to "
+        f"produce the final solid/void geometry\n"
+        f"   - Scale the preview display by "
+        f"{distractors['distractor_scale_xy']:.2f}x in XY for quick "
+        f"inspection\n"
+        f"   - Scale the X and Y dimensions of the part by "
+        f"{stl_params['scale_xy']:.2f} for manufacturing\n"
+        f"   - {mirror_instruction} for the final geometry\n"
+        f"   - Extrude the 2D result by {stl_params['scale_z']:.1f} units "
+        f"in the Z-axis to create a 3D volume\n"
+        f"   - Export: Save the final geometry as an STL file with these exact "
+        f"parameters"
+    )
+
+    return prompt, stl_params
+
+
+def _generate_random_multi_export_params(seed: int | None = None) -> dict[str, Any]:
+    """Generate random parameters for workflow-multi-export prompts.
+
+    Generates TWO distinct param sets for two STL exports from the same optimization.
+    Distinctness guarantees: mirror_y opposite, threshold gap >= MIN_THRESHOLD_GAP,
+    scale_xy gap >= MIN_MULTI_EXPORT_SCALE_GAP, scale_z gap >= MIN_MULTI_EXPORT_SCALE_GAP.
+    """
+    rng = np.random.default_rng(seed)
+
+    # Mirror: guaranteed opposite
+    mirror_a = bool(rng.choice([True, False]))
+    mirror_b = not mirror_a
+
+    # Thresholds: both in [0.3, 0.7], gap >= MIN_THRESHOLD_GAP
+    threshold_a = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+    threshold_b = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+    for _ in range(100):
+        if abs(threshold_a - threshold_b) >= MIN_THRESHOLD_GAP:
+            break
+        threshold_b = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))
+    else:
+        midpoint = (STL_THRESHOLD_MIN + STL_THRESHOLD_MAX) / 2
+        threshold_b = STL_THRESHOLD_MIN if threshold_a > midpoint else STL_THRESHOLD_MAX
+
+    # Scale XY: both in [0.5, 5.0], gap >= MIN_MULTI_EXPORT_SCALE_GAP
+    scale_xy_a = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+    scale_xy_b = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+    for _ in range(100):
+        if abs(scale_xy_a - scale_xy_b) >= MIN_MULTI_EXPORT_SCALE_GAP:
+            break
+        scale_xy_b = float(rng.uniform(STL_SCALE_XY_MIN, STL_SCALE_XY_MAX))
+    else:
+        midpoint = (STL_SCALE_XY_MIN + STL_SCALE_XY_MAX) / 2
+        scale_xy_b = STL_SCALE_XY_MIN if scale_xy_a > midpoint else STL_SCALE_XY_MAX
+
+    # Scale Z: both in [5.0, 20.0], gap >= MIN_MULTI_EXPORT_SCALE_GAP
+    scale_z_a = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
+    scale_z_b = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
+    for _ in range(100):
+        if abs(scale_z_a - scale_z_b) >= MIN_MULTI_EXPORT_SCALE_GAP:
+            break
+        scale_z_b = float(rng.uniform(STL_SCALE_Z_MIN, STL_SCALE_Z_MAX))
+    else:
+        midpoint = (STL_SCALE_Z_MIN + STL_SCALE_Z_MAX) / 2
+        scale_z_b = STL_SCALE_Z_MIN if scale_z_a > midpoint else STL_SCALE_Z_MAX
+
+    return {
+        "multi_export": True,
+        "exports": [
+            {
+                "label": "A",
+                "mirror_y": mirror_a,
+                "scale_xy": scale_xy_a,
+                "scale_z": scale_z_a,
+                "threshold": threshold_a,
+            },
+            {
+                "label": "B",
+                "mirror_y": mirror_b,
+                "scale_xy": scale_xy_b,
+                "scale_z": scale_z_b,
+                "threshold": threshold_b,
+            },
+        ],
+    }
+
+
+def _create_workflow_multi_export_prompt(
+    lambda1: float,
+    lambda2: float,
+    blur_radius: float,
+    example_id: int,
+    seed: int | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Create workflow prompt requiring two STL exports with different parameters."""
+    unique_seed = (seed if seed is not None else 0) + example_id
+    params = _generate_random_multi_export_params(unique_seed)
+
+    export_a = params["exports"][0]
+    export_b = params["exports"][1]
+
+    mirror_a_instr = (
+        "Mirror the design across the y-axis"
+        if export_a["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+    mirror_b_instr = (
+        "Mirror the design across the y-axis"
+        if export_b["mirror_y"]
+        else "Do NOT mirror the design"
+    )
+
+    prompt = (
+        f"Execute a 2D photonic structure optimization, simulate the result, and "
+        f"export the geometry as TWO separate 3D-printable STL files with different "
+        f"parameters.\n\n"
+        f"1. Optimization Configuration\n"
+        f"   - lambda1: {lambda1:.6f}\n"
+        f"   - lambda2: {lambda2:.6f}\n"
+        f"   - blur_radius: {blur_radius:.6f}\n"
+        f"   - Objective: Maximize total field overlap\n\n"
+        f"2. Simulation\n"
+        f"   - After optimization, simulate the design to obtain the total_overlap "
+        f"value\n\n"
+        f"3. Post-processing & Export\n\n"
+        f"   Export A:\n"
+        f"   - Thresholding: Apply a {export_a['threshold']:.2f} density threshold "
+        f"to convert the continuous density map into binary geometry\n"
+        f"   - Mirror: {mirror_a_instr} for the final geometry\n"
+        f"   - XY Scaling: Scale the X and Y dimensions by "
+        f"{export_a['scale_xy']:.2f}\n"
+        f"   - Extrusion: Extrude the 2D result by {export_a['scale_z']:.1f} units "
+        f"in the Z-axis to create a 3D volume\n"
+        f"   - Export: Save the final geometry as an STL file with these exact "
+        f"parameters\n\n"
+        f"   Export B:\n"
+        f"   - Thresholding: Apply a {export_b['threshold']:.2f} density threshold "
+        f"to convert the continuous density map into binary geometry\n"
+        f"   - Mirror: {mirror_b_instr} for the final geometry\n"
+        f"   - XY Scaling: Scale the X and Y dimensions by "
+        f"{export_b['scale_xy']:.2f}\n"
+        f"   - Extrusion: Extrude the 2D result by {export_b['scale_z']:.1f} units "
+        f"in the Z-axis to create a 3D volume\n"
+        f"   - Export: Save the final geometry as an STL file with these exact "
+        f"parameters"
+    )
+
+    return prompt, params
 
 
 def _generate_random_stl_params(seed: int | None = None) -> dict[str, Any]:
@@ -336,16 +742,31 @@ def create_prompt_from_conditions(
 
     # Create style-specific prompt
     stl_expected_params = None
+    example_id = example.get("example_id", 0)
 
     if prompt_style == "full":
         prompt = _create_full_prompt(lambda1, lambda2, blur_radius)
+    elif prompt_style == "natural":
+        prompt = _create_natural_prompt(lambda1, lambda2, blur_radius)
     elif prompt_style == "workflow-random":
         prompt, stl_expected_params = _create_workflow_random_prompt(
-            lambda1, lambda2, blur_radius, example.get("example_id", 0), seed
+            lambda1, lambda2, blur_radius, example_id, seed
+        )
+    elif prompt_style == "workflow-derived-params":
+        prompt, stl_expected_params = _create_workflow_derived_params_prompt(
+            lambda1, lambda2, blur_radius
+        )
+    elif prompt_style == "workflow-distractor":
+        prompt, stl_expected_params = _create_workflow_distractor_prompt(
+            lambda1, lambda2, blur_radius, example_id, seed
         )
     elif prompt_style == "workflow-conditional":
         prompt, stl_expected_params = _create_workflow_conditional_prompt(
-            lambda1, lambda2, blur_radius, example.get("example_id", 0), seed
+            lambda1, lambda2, blur_radius, example_id, seed
+        )
+    elif prompt_style == "workflow-multi-export":
+        prompt, stl_expected_params = _create_workflow_multi_export_prompt(
+            lambda1, lambda2, blur_radius, example_id, seed
         )
     else:
         prompt = _create_full_prompt(lambda1, lambda2, blur_radius)
