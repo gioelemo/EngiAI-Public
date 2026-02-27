@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # forces FINISH.  Smaller models often fail to emit FINISH and keep
 # re-routing to the same agent (sometimes with spurious tool calls).
 # The first delegation is always allowed; the counter tracks re-routings.
-# Set to 1: if an agent just completed with tool results, re-routing to
+# Limit of 1: if an agent just completed with tool results, re-routing to
 # the same agent is almost always a mistake (the LLM failed to recognise
 # the step was done).
 _MAX_CONSECUTIVE_SAME_AGENT_REROUTINGS = 1
