@@ -79,9 +79,7 @@ PROMPT_STYLES: dict[str, dict[str, Any]] = {
 }
 
 
-def _create_full_prompt(
-    lambda1: float, lambda2: float, blur_radius: float
-) -> str:
+def _create_full_prompt(lambda1: float, lambda2: float, blur_radius: float) -> str:
     """Create prompt with exact numerical parameters."""
     return (
         f"Design a 2D photonic structure to maximize field overlap with the "
@@ -132,9 +130,7 @@ def _generate_random_conditional_params(seed: int | None = None) -> dict[str, An
     rng = np.random.default_rng(seed)
 
     # Overlap threshold for branching (centered on dataset median ~0.29)
-    overlap_threshold = float(
-        rng.uniform(OVERLAP_THRESHOLD_MIN, OVERLAP_THRESHOLD_MAX)
-    )
+    overlap_threshold = float(rng.uniform(OVERLAP_THRESHOLD_MIN, OVERLAP_THRESHOLD_MAX))
 
     # Branch-specific parameters: threshold and mirror_y
     threshold_high = float(rng.uniform(STL_THRESHOLD_MIN, STL_THRESHOLD_MAX))

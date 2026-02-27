@@ -151,9 +151,7 @@ class EngineeringAgent(weave.Model):
             # calling ask_human_for_clarification without stopping).
             # HPC training workflows need a higher limit due to multi-agent routing
             # and long monitoring tool calls.
-            recursion_limit = (
-                200 if self.problem_type.startswith("hpc_train_") else 50
-            )
+            recursion_limit = 200 if self.problem_type.startswith("hpc_train_") else 50
             config_dict = {
                 "configurable": {"thread_id": thread_id},
                 "recursion_limit": recursion_limit,

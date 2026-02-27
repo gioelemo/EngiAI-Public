@@ -267,8 +267,7 @@ def _resolve_conditional_params(
     }
 
     logger.info(
-        "Example %s (workflow-conditional): %s=%.4f, threshold=%.4f, "
-        "correct_branch=%s",
+        "Example %s (workflow-conditional): %s=%.4f, threshold=%.4f, correct_branch=%s",
         example_id,
         objective_field,
         gt_value,

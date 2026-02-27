@@ -252,9 +252,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         )
 
     baseline_dir = (
-        Path(args.baseline_dir)
-        if args.baseline_dir
-        else get_baseline_dir(args.problem)
+        Path(args.baseline_dir) if args.baseline_dir else get_baseline_dir(args.problem)
     )
 
     print("=" * 60)
