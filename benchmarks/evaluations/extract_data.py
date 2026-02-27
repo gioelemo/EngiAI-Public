@@ -432,19 +432,53 @@ def _extract_metrics_from_scorers(
     return result
 
 
-def _mmore_matches(example, mmore_filter: bool | None) -> bool:
-    """Return False if example.metadata.mmore_enabled contradicts mmore_filter."""
-    if mmore_filter is None:
+def _mmore_matches(  # noqa: PLR0911
+    example, mmore_filter: bool | None, rag_mode_filter: str | None = None
+) -> bool:
+    """Return False if example metadata contradicts the RAG filter.
+
+    Uses ``rag_mode`` (3-state: "rag", "empty_rag", "no_rag") when available
+    in metadata, falling back to the boolean ``mmore_enabled`` for older runs.
+    """
+    if mmore_filter is None and rag_mode_filter is None:
         return True
     try:
         ex_meta = example.get("metadata", {}) if hasattr(example, "get") else {}
-        mmore_enabled = (ex_meta or {}).get("mmore_enabled")
-        if mmore_enabled is None:
-            return False  # No tag — exclude from filtered runs to avoid duplicates
-        return bool(mmore_enabled) == mmore_filter
+        meta = ex_meta or {}
+
+        # Prefer rag_mode field (new 3-state) over boolean mmore_enabled
+        rag_mode = meta.get("rag_mode")
+        if rag_mode is not None and rag_mode_filter is not None:
+            match = rag_mode == rag_mode_filter
+            if match:
+                eid = meta.get("example_id", "?")
+                logger.debug("  [rag_mode match] eid=%s rag_mode=%s", eid, rag_mode)
+            return match
+
+        # If we're doing 3-state filtering but this run predates rag_mode,
+        # exclude it — old runs can't be reliably classified as rag/empty_rag/no_rag
+        if rag_mode_filter is not None:
+            return False
+
+        # Fallback: boolean mmore_enabled (only when NOT using 3-state filter)
+        if mmore_filter is not None:
+            mmore_enabled = meta.get("mmore_enabled")
+            if mmore_enabled is None:
+                return False  # No tag — exclude from filtered runs to avoid duplicates
+            match = bool(mmore_enabled) == mmore_filter
+            if match:
+                eid = meta.get("example_id", "?")
+                logger.debug(
+                    "  [mmore_enabled fallback] eid=%s mmore_enabled=%s (no rag_mode field)",
+                    eid,
+                    mmore_enabled,
+                )
+            return match
+
+        return True  # noqa: TRY300
     except (AttributeError, TypeError, KeyError) as exc:
-        logger.warning("Could not read mmore_enabled from example metadata: %s", exc)
-        return True  # Cannot read field — do not filter out
+        logger.warning("Could not read rag metadata from example: %s", exc)
+        return False  # Cannot read field — exclude to avoid cross-contamination
 
 
 def _prompt_style_matches(example, prompt_style_filter: str | None) -> bool:
@@ -470,6 +504,7 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0913, P
     mmore_filter: bool | None = None,
     prompt_style_filter: str | None = None,
     problem_type_filter: str | None = None,
+    rag_mode_filter: str | None = None,
 ) -> dict | None:
     """Process a predict_and_score call and extract ALL data for offline processing.
 
@@ -483,6 +518,8 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0913, P
             example.metadata.prompt_style matches this value; None = no filter.
         problem_type_filter: If set, only include calls where the resolved
             problem_type matches this value; None = no filter.
+        rag_mode_filter: If set, only include calls where example.metadata.rag_mode
+            matches this value (e.g. "rag", "empty_rag", "no_rag"); None = no filter.
 
     Returns:
         Complete design data dict if successful, None otherwise
@@ -492,8 +529,8 @@ def _process_score_call_for_complete_data(  # noqa: PLR0911, PLR0912, PLR0913, P
         score_inputs = score_call.inputs or {}
         example = score_inputs.get("example", {})
 
-        # Filter by mmore_enabled (stored in inputs.example.metadata.mmore_enabled)
-        if not _mmore_matches(example, mmore_filter):
+        # Filter by rag_mode / mmore_enabled
+        if not _mmore_matches(example, mmore_filter, rag_mode_filter):
             return None
 
         # Filter by prompt_style (stored in inputs.example.metadata.prompt_style)
@@ -732,7 +769,7 @@ def _find_eval_ids_by_name_pattern(
     return matched
 
 
-def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
+def extract_complete_design_data_from_evaluation(  # noqa: PLR0912, PLR0913
     project: str,
     model_filter: str | None = None,
     limit: int = 100,
@@ -740,6 +777,7 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
     mmore_filter: bool | None = None,
     prompt_style_filter: str | None = None,
     problem_type_filter: str | None = None,
+    rag_mode_filter: str | None = None,
 ) -> list[dict]:
     """Extract complete per-design data from Weave evaluations.
 
@@ -751,13 +789,17 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
         mmore_filter: If True/False, only include calls where
             example.metadata.mmore_enabled matches.  Used to separate RAG-on
             (True) from RAG-off (False) runs — the value lives in the Weave UI
-            at inputs.example.metadata.mmore_enabled.
+            at inputs.example.metadata.mmore_enabled.  Superseded by
+            rag_mode_filter for new runs that include the rag_mode field.
         prompt_style_filter: If set, only include calls where
             example.metadata.prompt_style matches this value.  Used to separate
             different prompt styles within a single Weave project.
         problem_type_filter: If set, only include calls where the resolved
             problem_type matches this value.  Prevents cross-contamination
             when multiple problems share the same prompt style.
+        rag_mode_filter: If set, only include calls where example.metadata.rag_mode
+            matches exactly (e.g. "rag", "empty_rag", "no_rag").  Takes priority
+            over mmore_filter when the metadata contains a rag_mode field.
 
     Returns:
         List of dictionaries with complete design data (metrics, arrays, histories) per example
@@ -766,7 +808,9 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
 
     # Get predict_and_score calls (individual examples) with scorer outputs
     print(f"Fetching up to {limit} predict_and_score calls from Weave...")
-    if mmore_filter is not None:
+    if rag_mode_filter is not None:
+        print(f"  Filtering by rag_mode='{rag_mode_filter}' (from example metadata)")
+    elif mmore_filter is not None:
         print(f"  Filtering by mmore_enabled={mmore_filter} (from example metadata)")
     if prompt_style_filter is not None:
         print(
@@ -802,6 +846,9 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
 
     results: list[dict] = []
     seen_models: set[str] = set()
+    # Track seen (example_id, seed) pairs → index into results list.
+    # When duplicates exist, keep the entry with the highest combined_overall_score.
+    seen_example_keys: dict[tuple, int] = {}
 
     # Process each predict_and_score call to extract metrics
     for idx, score_call in enumerate(score_calls_list, 1):
@@ -817,8 +864,22 @@ def extract_complete_design_data_from_evaluation(  # noqa: PLR0913
             mmore_filter,
             prompt_style_filter,
             problem_type_filter,
+            rag_mode_filter,
         )
         if result:
+            # Deduplicate: keep the best entry per (example_id, seed).
+            # When multiple evaluation runs exist for the same example, prefer
+            # the one with the highest combined_overall_score (which captures
+            # whether the agent actually completed the task).
+            dedup_key = (result.get("example_id"), result.get("seed"))
+            new_score = result.get("combined_overall_score") or 0.0
+            if dedup_key in seen_example_keys:
+                prev_idx = seen_example_keys[dedup_key]
+                prev_score = results[prev_idx].get("combined_overall_score") or 0.0
+                if new_score > prev_score:
+                    results[prev_idx] = result  # replace with better result
+                continue
+            seen_example_keys[dedup_key] = len(results)
             results.append(result)
 
     print(f"✅ Extracted complete data from {len(results)} designs")
@@ -958,7 +1019,7 @@ def main():
         "--rag-status",
         type=str,
         default="no_rag",
-        choices=["rag", "no_rag"],
+        choices=["rag", "no_rag", "empty_rag"],
         help="RAG status (default: no_rag)",
     )
     parser.add_argument("--eval-id", help="Evaluation ID to filter by")
@@ -967,7 +1028,7 @@ def main():
         default=None,
         help=(
             "Substring to match against evaluation display names in Weave. "
-            "For rag_beams2d this is auto-set from --rag-status (mmore_on / mmore_off)."
+            "For rag_beams2d this is auto-set from --rag-status (mmore_on / mmore_empty / mmore_off)."
         ),
     )
     parser.add_argument("--output", help="Output path")
@@ -995,11 +1056,14 @@ def main():
         if matched:
             resolved_eval_id = ",".join(matched)
 
-    # For rag_beams2d, filter by mmore_enabled in example metadata (most reliable).
+    # For rag_beams2d, filter by rag_mode (3-state) with boolean mmore_enabled fallback.
     mmore_filter: bool | None = None
+    rag_mode_filter: str | None = None
     if args.problem == "rag_beams2d":
-        mmore_filter = args.rag_status == "rag"
-        print(f"  mmore_filter={mmore_filter} (rag_status='{args.rag_status}')")
+        rag_mode_filter = args.rag_status  # "rag", "empty_rag", or "no_rag"
+        # Boolean fallback for old runs that lack rag_mode metadata
+        mmore_filter = args.rag_status in ("rag", "empty_rag")
+        print(f"  rag_mode_filter='{rag_mode_filter}', mmore_filter={mmore_filter}")
 
     prompt_style_filter = args.prompt_style
     print(f"  prompt_style_filter='{prompt_style_filter}'")
@@ -1012,6 +1076,7 @@ def main():
         mmore_filter,
         prompt_style_filter,
         problem_type_filter=args.problem,
+        rag_mode_filter=rag_mode_filter,
     )
 
     if not data:

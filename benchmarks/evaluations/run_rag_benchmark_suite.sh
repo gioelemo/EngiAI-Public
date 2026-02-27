@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Run RAG benchmark suite for multiple models.
 #
-# Evaluates each model twice (RAG on via MMORE, RAG off) to measure how much
-# document retrieval improves parameter accuracy.
+# Evaluates each model three ways (RAG on, Empty RAG, RAG off) to measure how
+# much document retrieval improves parameter accuracy.
 #
 # Usage:
 #   ./benchmarks/evaluations/run_rag_benchmark_suite.sh
@@ -15,8 +15,8 @@
 #
 # Pipeline:
 #   1. Generate prompts (fixed, 4 handcrafted prompts)
-#   2. For each model × run: evaluate with --mmore (RAG on) and --no-mmore (RAG off)
-#   3. Extract data for both RAG statuses
+#   2. For each model × run: evaluate with --mmore (RAG on), --empty-rag, and --no-mmore (RAG off)
+#   3. Extract data for all RAG statuses
 #   4. Generate plots (scans all models)
 
 set -euo pipefail
@@ -70,6 +70,20 @@ for MODEL in "${MODELS[@]}"; do
             --mmore
     done
 
+    # EMPTY RAG (tools available but index empty — control condition)
+    for RUN in "${RUNS[@]}"; do
+        echo ""
+        echo "  ${MODEL} — EMPTY RAG — run ${RUN}"
+        echo "------------------------------------------------------------"
+        MMORE_RAG_URL="${MMORE_RAG_URL}" \
+        python benchmarks/evaluations/evaluate_agent.py \
+            --problem "${PROBLEM}" \
+            --prompt-style "${STYLE}" \
+            --model "${MODEL}" \
+            --run "${RUN}" \
+            --empty-rag
+    done
+
     # RAG OFF
     for RUN in "${RUNS[@]}"; do
         echo ""
@@ -92,7 +106,7 @@ echo "------------------------------------------------------------"
 echo "  Extracting data"
 echo "------------------------------------------------------------"
 for MODEL in "${MODELS[@]}"; do
-    for RAG_STATUS in "rag" "no_rag"; do
+    for RAG_STATUS in "rag" "empty_rag" "no_rag"; do
         echo "  Extracting: ${MODEL} — ${RAG_STATUS}"
         python benchmarks/evaluations/extract_data.py \
             --problem "${PROBLEM}" \

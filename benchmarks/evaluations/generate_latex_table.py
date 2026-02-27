@@ -300,7 +300,7 @@ def main():
     parser.add_argument(
         "--rag-status",
         default="no_rag",
-        choices=["rag", "no_rag"],
+        choices=["rag", "no_rag", "empty_rag"],
         help="RAG status (default: no_rag)",
     )
     parser.add_argument(

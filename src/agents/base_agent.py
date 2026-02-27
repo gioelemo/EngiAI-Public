@@ -120,8 +120,23 @@ class BaseAgent(ABC):
             prompt = strip_suggested_prompts(prompt)
         messages: list[AnyMessage] = [SystemMessage(content=prompt)] + state["messages"]
 
+        response = self.llm_with_tools.invoke(messages)
+
+        # Guard: Gemini (and potentially other models) hallucinate tool calls
+        # even when bind_tools([]) was used.  Strip them so they never enter
+        # the message history or get counted by scorers.
+        if not self.tools and isinstance(response, AIMessage) and response.tool_calls:
+            logger.warning(
+                "%s: LLM hallucinated tool call(s) %s with no tools bound — stripping",
+                self.__class__.__name__,
+                [tc.get("name") for tc in response.tool_calls],
+            )
+            response.tool_calls = []
+            response.additional_kwargs.pop("function_call", None)
+            response.additional_kwargs.pop("tool_calls", None)
+
         return {
-            "messages": [self.llm_with_tools.invoke(messages)],
+            "messages": [response],
             "llm_calls": state.get("llm_calls", 0) + 1,
         }
 
@@ -180,6 +195,16 @@ class BaseAgent(ABC):
 
         # If the LLM makes a tool call, then perform an action
         if isinstance(last_message, AIMessage) and last_message.tool_calls:
+            # Guard: some models (e.g. Gemini) hallucinate tool calls even when
+            # bind_tools([]) was used and no tool definitions were provided.
+            # Routing to tool_node would just produce KeyError ToolMessages and
+            # cause an infinite loop.  End immediately instead.
+            if not self.tools:
+                logger.warning(
+                    "%s: LLM emitted tool calls but agent has no tools — ignoring",
+                    self.__class__.__name__,
+                )
+                return "__end__"
             return "tool_node"
 
         # Otherwise, we stop (reply to the user)
