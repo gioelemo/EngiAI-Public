@@ -369,7 +369,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         "--rag-status",
         type=str,
         default="no_rag",
-        choices=["rag", "no_rag"],
+        choices=["rag", "no_rag", "empty_rag"],
         help="RAG status (default: no_rag)",
     )
     parser.add_argument(

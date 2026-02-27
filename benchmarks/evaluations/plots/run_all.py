@@ -301,8 +301,8 @@ def _parse_args():
     parser.add_argument(
         "--rag-status",
         type=str,
-        choices=["rag", "no_rag"],
-        help="Filter by RAG status (rag or no_rag)",
+        choices=["rag", "no_rag", "empty_rag"],
+        help="Filter by RAG status (rag, no_rag, or empty_rag)",
     )
     return parser.parse_args()
 

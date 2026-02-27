@@ -159,6 +159,11 @@ class MMOREClient:
         Raises:
             requests.HTTPError: If retrieval fails
         """
+        # Empty-RAG evaluation mode: tools are available but index is empty.
+        if os.getenv("MMORE_EMPTY_RAG", "false").lower() == "true":
+            logger.debug("MMORE_EMPTY_RAG=true: returning empty results")
+            return []
+
         payload = {
             "query": query,
             "fileIds": file_ids or [],
@@ -228,6 +233,11 @@ class MMOREClient:
         Raises:
             requests.HTTPError: If listing fails
         """
+        # Empty-RAG evaluation mode: tools are available but index is empty.
+        if os.getenv("MMORE_EMPTY_RAG", "false").lower() == "true":
+            logger.debug("MMORE_EMPTY_RAG=true: returning empty file list")
+            return []
+
         response = requests.get(
             f"{self.base_url}/list_files",
             params={"collection_name": collection_name},

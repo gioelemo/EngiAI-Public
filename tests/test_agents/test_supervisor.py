@@ -722,15 +722,17 @@ def test_supervisor_routing_is_deterministic():
     )
 
     with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
-        agent = SupervisorAgent()
-
         state = {
             "messages": [HumanMessage(content="Optimize my beam")],
             "next": "",
         }
 
-        result1 = agent._supervisor_node(state)
-        result2 = agent._supervisor_node(state)
+        # Use fresh agents to avoid internal loop-detection state carrying over
+        agent1 = SupervisorAgent()
+        result1 = agent1._supervisor_node(state)
+
+        agent2 = SupervisorAgent()
+        result2 = agent2._supervisor_node(state)
 
         assert result1["next"] == result2["next"]
 

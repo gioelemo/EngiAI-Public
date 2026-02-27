@@ -40,7 +40,10 @@ logger = logging.getLogger(__name__)
 # forces FINISH.  Smaller models often fail to emit FINISH and keep
 # re-routing to the same agent (sometimes with spurious tool calls).
 # The first delegation is always allowed; the counter tracks re-routings.
-_MAX_CONSECUTIVE_SAME_AGENT_REROUTINGS = 3
+# Limit of 1: if an agent just completed with tool results, re-routing to
+# the same agent is almost always a mistake (the LLM failed to recognise
+# the step was done).
+_MAX_CONSECUTIVE_SAME_AGENT_REROUTINGS = 1
 
 
 class RouteDecision(BaseModel):
@@ -190,38 +193,26 @@ class SupervisorAgent:
                 "full citations, DOIs, authors, or extensive quotes — just the "
                 "numeric values needed for the next step."
             )
-        return prompt
-
-    @staticmethod
-    def _filter_supervisor_instructions(messages: list) -> list:
-        """Remove [SUPERVISOR INSTRUCTION] messages from routing context.
-
-        These scoped sub-task instructions were injected for delegated agents.
-        When the supervisor re-evaluates, it should see the original user
-        request + agent results, not its own prior sub-task scoping.
-        """
-        return [
-            m
-            for m in messages
-            if not (
-                isinstance(m, HumanMessage)
-                and isinstance(m.content, str)
-                and m.content.startswith("[SUPERVISOR INSTRUCTION")
+        if os.getenv("SKIP_SEARCH", "false").lower() == "true":
+            prompt += (
+                "\n\nIMPORTANT: Web search is currently unavailable. "
+                "Do NOT route to search_agent under any circumstances. "
+                "Use rag_agent for document lookup and engineering_agent "
+                "for design tasks."
             )
-        ]
+        return prompt
 
     def _supervisor_node(self, state: SupervisorState):
         """Supervisor decides which agent should act next using LLM-based routing.
 
         After each agent completes, the supervisor re-evaluates the full message
         history to decide whether to route to another agent or finish.
+        Prior [SUPERVISOR INSTRUCTION] messages are kept so the routing LLM
+        can see which sub-tasks were already delegated and completed.
         """
-        # Filter out prior [SUPERVISOR INSTRUCTION] messages so the LLM
-        # re-evaluates against the original user request, not scoped sub-tasks.
-        filtered = self._filter_supervisor_instructions(state["messages"])
         messages = [
             {"role": "system", "content": self._build_routing_prompt()},
-            *filtered,
+            *state["messages"],
         ]
 
         # Use structured output to get routing decision from LLM
@@ -240,10 +231,10 @@ class SupervisorAgent:
         )
 
         # ── Same-agent loop detection ────────────────────────────────
-        # If the LLM keeps routing to the same agent, it is stuck.
-        # Force FINISH to avoid burning tokens/time.  Common with
-        # smaller models that fail to emit FINISH even when their own
-        # reasoning says "the task is complete."
+        # If the LLM tries to re-route to the agent that just completed,
+        # it likely failed to recognise the step was done.  Rather than
+        # forcing FINISH (which would skip remaining steps), re-invoke the
+        # routing LLM with a redirect hint so it picks a different agent.
         if next_agent not in ("FINISH", "supervisor_response"):
             if next_agent == self._last_routed_agent:
                 self._consecutive_same_agent_count += 1
@@ -257,21 +248,50 @@ class SupervisorAgent:
                 logger.warning(
                     f"[SUPERVISOR] Loop detected: '{next_agent}' re-routed "
                     f"{self._consecutive_same_agent_count} consecutive times. "
-                    "Forcing FINISH."
+                    "Re-invoking routing with redirect hint."
                 )
-                self._consecutive_same_agent_count = 0
-                self._last_routed_agent = None
-                return {
-                    "next": "FINISH",
-                    "messages": [
-                        AIMessage(
-                            content=(
-                                "I've completed the task based on the information "
-                                "gathered so far."
+                # Re-invoke routing with a hint to pick a different agent
+                redirect_hint = HumanMessage(
+                    content=(
+                        f"[SYSTEM] You already delegated to '{next_agent}' and "
+                        f"it completed its work (see results above). Do NOT "
+                        f"route to '{next_agent}' again. Choose a DIFFERENT "
+                        f"agent for the next step, or FINISH if all steps are done."
+                    )
+                )
+                retry_messages = [*messages, redirect_hint]
+                retry_decision = cast(
+                    RouteDecision, self.routing_llm.invoke(retry_messages)
+                )
+                next_agent = retry_decision.agent
+                self._expects_followup = retry_decision.more_steps_after
+                logger.info(
+                    f"[SUPERVISOR REDIRECT] Agent: '{next_agent}' "
+                    f"| Reasoning: {retry_decision.reasoning} "
+                    f"| more_steps_after: {retry_decision.more_steps_after}"
+                )
+                # If the LLM STILL picks the same agent, force FINISH
+                if next_agent == self._last_routed_agent:
+                    logger.warning(
+                        f"[SUPERVISOR] Redirect failed — still '{next_agent}'. "
+                        "Forcing FINISH."
+                    )
+                    self._consecutive_same_agent_count = 0
+                    self._last_routed_agent = None
+                    return {
+                        "next": "FINISH",
+                        "messages": [
+                            AIMessage(
+                                content=(
+                                    "I've completed the task based on the "
+                                    "information gathered so far."
+                                )
                             )
-                        )
-                    ],
-                }
+                        ],
+                    }
+                # Redirect succeeded — use the new decision going forward
+                route_decision = retry_decision
+                self._consecutive_same_agent_count = 0
 
             self._last_routed_agent = next_agent
         else:
@@ -342,6 +362,19 @@ class SupervisorAgent:
 
     def _search_node(self, state: SupervisorState):
         """Delegate to search agent."""
+        if os.getenv("SKIP_SEARCH", "false").lower() == "true":
+            self._last_delegation_had_tools = True
+            return {
+                "messages": [
+                    AIMessage(
+                        content=(
+                            "Web search is not available in this context. "
+                            "Please use the document search tool (search_documents) instead."
+                        )
+                    )
+                ],
+                "next": "",
+            }
 
         agent_state = cast(MessagesState, {"messages": state["messages"]})
         result = self.search_agent.invoke(

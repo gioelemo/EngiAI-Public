@@ -7,6 +7,9 @@ Now powered by MMORE for advanced multimodal document processing.
 
 import logging
 import os
+from typing import Literal
+
+from langchain_core.messages import ToolMessage
 
 from src.agents.base_agent import BaseAgent
 from src.tools import MMOREClient
@@ -14,6 +17,10 @@ from src.tools.rag_tools import create_rag_tools
 from src.utils.prompts import build_rag_agent_prompt
 
 logger = logging.getLogger(__name__)
+
+# Maximum number of tool calls before the RAG agent stops searching.
+# Prevents infinite search loops when the index is empty or queries return nothing.
+_MAX_RAG_TOOL_CALLS = 6
 
 
 class RAGAgent(BaseAgent):
@@ -74,3 +81,16 @@ class RAGAgent(BaseAgent):
             System prompt string
         """
         return build_rag_agent_prompt(read_only=self.rag_read_only)
+
+    def _after_tools(self, state) -> Literal["llm_call", "__end__"]:
+        """Route after tool execution, with a cap on total tool calls.
+
+        Prevents infinite search loops when the RAG index returns no results.
+        """
+        tool_count = sum(1 for m in state["messages"] if isinstance(m, ToolMessage))
+        if tool_count >= _MAX_RAG_TOOL_CALLS:
+            logger.warning(
+                f"RAG agent reached tool call limit ({tool_count}/{_MAX_RAG_TOOL_CALLS}), stopping"
+            )
+            return "__end__"
+        return super()._after_tools(state)

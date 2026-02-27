@@ -59,7 +59,7 @@ KNOWN_PROMPT_STYLES = [
 MODELS_DIR = RESULTS_DIR / "models"
 
 # Known RAG statuses (order matters: check longer patterns first!)
-KNOWN_RAG_STATUSES = ["no_rag", "rag"]
+KNOWN_RAG_STATUSES = ["no_rag", "empty_rag", "rag"]
 
 # Minimum parts when parsing keys like "{model}_{prompt_style}_{problem}_{type}"
 MIN_KEY_PARTS = 3
@@ -703,7 +703,10 @@ def get_combined_design_df(data):
 
         design_dfs.append(df)
 
-    return pd.concat(design_dfs, ignore_index=True) if design_dfs else None
+    if not design_dfs:
+        return None
+    filtered = [df.dropna(axis=1, how="all") for df in design_dfs]
+    return pd.concat(filtered, ignore_index=True)
 
 
 def get_problem_output_dir(problem: str) -> Path:

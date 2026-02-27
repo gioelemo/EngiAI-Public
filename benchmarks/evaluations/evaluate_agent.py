@@ -51,13 +51,17 @@ sys.path.insert(0, str(project_root / "services"))
 
 # Results directory structure:
 # benchmarks/evaluations/results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/
-# where rag_status is "rag" (--mmore) or "no_rag" (default)
+# where rag_status is "rag" (--mmore), "no_rag" (--no-mmore), or "empty_rag" (--empty-rag)
 RESULTS_BASE_DIR = Path("benchmarks/evaluations/results/models")
 
 
-def _get_rag_dir(mmore_enabled: bool) -> str:
-    """Return the RAG subdirectory name based on the mmore flag."""
-    return "rag" if mmore_enabled else "no_rag"
+def _get_rag_dir(rag_mode: str) -> str:
+    """Return the RAG subdirectory name based on the rag mode.
+
+    Args:
+        rag_mode: One of "rag", "no_rag", or "empty_rag".
+    """
+    return rag_mode
 
 
 # Import output quality scorers
@@ -388,19 +392,29 @@ def parse_arguments() -> argparse.Namespace:
         ],
         help="Prompt style to use (default: full). Determines optimal tool sequence expectations.",
     )
-    parser.add_argument(
+    rag_group = parser.add_mutually_exclusive_group()
+    rag_group.add_argument(
         "--mmore",
-        dest="mmore_enabled",
-        action="store_true",
-        default=False,
-        help="Enable MMORE RAG system for document retrieval (default: disabled)",
+        dest="rag_mode",
+        action="store_const",
+        const="rag",
+        help="Enable MMORE RAG system for document retrieval",
     )
-    parser.add_argument(
+    rag_group.add_argument(
         "--no-mmore",
-        dest="mmore_enabled",
-        action="store_false",
+        dest="rag_mode",
+        action="store_const",
+        const="no_rag",
         help="Disable MMORE RAG system (default)",
     )
+    rag_group.add_argument(
+        "--empty-rag",
+        dest="rag_mode",
+        action="store_const",
+        const="empty_rag",
+        help="RAG tools available but index is empty (control condition)",
+    )
+    parser.set_defaults(rag_mode="no_rag")
     args = parser.parse_args()
 
     # --run = tracking identifier (1, 2, 3, …) with a fixed optimization seed.
@@ -457,10 +471,12 @@ def get_or_create_dataset(
     """
     try:
         dataset = weave.ref(dataset_name).get()
-        # Check count AND prompt content so stale cached datasets are refreshed
+        # Check prompts AND metadata so stale cached datasets are refreshed
         existing_prompts = [row.get("prompt", "") for row in dataset.rows]
         new_prompts = [row.get("prompt", "") for row in eval_dataset]
-        if existing_prompts == new_prompts:
+        existing_meta = [row.get("metadata", {}) for row in dataset.rows]
+        new_meta = [row.get("metadata", {}) for row in eval_dataset]
+        if existing_prompts == new_prompts and existing_meta == new_meta:
             print(
                 f"📦 Using existing evaluation dataset from Weave ({len(dataset.rows)} samples)"
             )
@@ -553,15 +569,22 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     args = parse_arguments()
 
     # Set SKIP_MMORE based on CLI flag (must be set before importing agent modules)
-    os.environ["SKIP_MMORE"] = "false" if args.mmore_enabled else "true"
+    # "rag" and "empty_rag" both need MMORE client initialized (tools available).
+    # "no_rag" disables the MMORE client entirely (no RAG tools).
+    mmore_enabled = args.rag_mode in ("rag", "empty_rag")
+    os.environ["SKIP_MMORE"] = "false" if mmore_enabled else "true"
+    # Empty-RAG mode: tools exist but retrieve/list return empty results.
+    os.environ["MMORE_EMPTY_RAG"] = "true" if args.rag_mode == "empty_rag" else "false"
     # Reset MMORE cache to pick up the new env var value
     config.reset_mmore_cache()
 
-    # For RAG evaluation problems disable ArXiv so MMORE is the only document source.
-    # This keeps the RAG-on vs RAG-off comparison clean: the only variable is whether
-    # MMORE (search_documents) is available, not whether the agent can reach the paper
-    # via the ArXiv agent as an alternative route.
-    os.environ["SKIP_ARXIV"] = "true" if args.problem == "rag_beams2d" else "false"
+    # For RAG evaluation problems disable ArXiv and web search so MMORE is the only
+    # document source.  This keeps the RAG-on vs RAG-off comparison clean: the only
+    # variable is whether MMORE (search_documents) is available, not whether the agent
+    # can reach the paper via ArXiv or Tavily as an alternative route.
+    _is_rag_eval = args.problem == "rag_beams2d"
+    os.environ["SKIP_ARXIV"] = "true" if _is_rag_eval else "false"
+    os.environ["SKIP_SEARCH"] = "true" if _is_rag_eval else "false"
 
     # Disable SLURM email notifications for HPC training benchmarks to avoid spam
     os.environ["SKIP_SLURM_EMAIL"] = (
@@ -573,7 +596,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     model_safe_env = (
         (args.model or config.llm_model).replace("/", "_").replace(":", "_")
     )
-    rag_dir_env = _get_rag_dir(args.mmore_enabled)
+    rag_dir_env = _get_rag_dir(args.rag_mode)
     eval_results_dir = str(
         RESULTS_BASE_DIR
         / model_safe_env
@@ -656,7 +679,12 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     print(f"LLM Seed: {llm_seed}")
     print(f"Dataset Split: {args.split}")
     print(f"Prompt Style: {args.prompt_style}")
-    print(f"MMORE RAG: {'enabled' if args.mmore_enabled else 'disabled'}")
+    _rag_mode_labels = {
+        "rag": "enabled",
+        "no_rag": "disabled",
+        "empty_rag": "empty index",
+    }
+    print(f"MMORE RAG: {_rag_mode_labels.get(args.rag_mode, args.rag_mode)}")
     print(
         f"ArXiv: {'disabled (rag eval)' if args.problem == 'rag_beams2d' else 'enabled'}"
     )
@@ -669,7 +697,12 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Debug: print the expected trace names
     safe_model = model_name.replace("/", "_").replace(":", "_")
-    mmore_suffix = "mmore_on" if args.mmore_enabled else "mmore_off"
+    _mmore_suffixes = {
+        "rag": "mmore_on",
+        "no_rag": "mmore_off",
+        "empty_rag": "mmore_empty",
+    }
+    mmore_suffix = _mmore_suffixes.get(args.rag_mode, "mmore_off")
     # Scorer names exclude model name and problem type to enable cross-model and cross-problem comparison
     expected_scorer_names = scorer_types
     expected_eval_run_name = (
@@ -720,7 +753,8 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         "seed": args.seed,  # Only --seed adds "Use seed=N" prompt instruction
         "run_id": args.run_id,  # Tracking identifier (from --run or --seed)
         "prompt_style": args.prompt_style,
-        "mmore_enabled": args.mmore_enabled,
+        "mmore_enabled": args.rag_mode in ("rag", "empty_rag"),
+        "rag_mode": args.rag_mode,
         "model_name": model_name,
         "temperature": temperature,
         "llm_seed": llm_seed,
@@ -783,7 +817,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Save per-design metrics to CSV
     model_safe = model_name.replace("/", "_").replace(":", "_")
-    rag_dir = _get_rag_dir(args.mmore_enabled)
+    rag_dir = _get_rag_dir(args.rag_mode)
     results_dir = (
         RESULTS_BASE_DIR / model_safe / args.problem / args.prompt_style / rag_dir
     )
@@ -821,9 +855,12 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         print("RAG EVALUATION RESULTS")
         print("=" * 60)
         print()
-        mmore_status = (
-            "enabled (RAG on)" if args.mmore_enabled else "disabled (RAG off)"
-        )
+        _rag_status_labels = {
+            "rag": "enabled (RAG on)",
+            "no_rag": "disabled (RAG off)",
+            "empty_rag": "empty index (RAG tools available, no documents)",
+        }
+        mmore_status = _rag_status_labels.get(args.rag_mode, args.rag_mode)
         print(f"MMORE RAG: {mmore_status}")
         print()
         print("Next steps:")
