@@ -45,13 +45,13 @@ OVERLAP_THRESHOLD_MIN = 0.1
 OVERLAP_THRESHOLD_MAX = 0.8
 
 # Lambda thresholds for natural language descriptions
-LAMBDA_SHORT = 0.7   # Short wavelength upper bound
+LAMBDA_SHORT = 0.7  # Short wavelength upper bound
 LAMBDA_MEDIUM = 1.0  # Medium wavelength upper bound
 
 # Blur radius thresholds for natural language descriptions
-BLUR_NONE = 0       # No blur
-BLUR_LIGHT = 1      # Light smoothing
-BLUR_MODERATE = 2   # Moderate smoothing
+BLUR_NONE = 0  # No blur
+BLUR_LIGHT = 1  # Light smoothing
+BLUR_MODERATE = 2  # Moderate smoothing
 
 # Derivation rule constants for workflow-derived-params
 # threshold = blur_radius * 0.1 + 0.3  (maps 0→0.3, 4→0.7)
@@ -188,9 +188,7 @@ def _describe_blur_radius(value: float) -> str:
     return "heavy spatial smoothing"
 
 
-def _create_natural_prompt(
-    lambda1: float, lambda2: float, blur_radius: float
-) -> str:
+def _create_natural_prompt(lambda1: float, lambda2: float, blur_radius: float) -> str:
     """Create prompt with natural language descriptions only."""
     l1_desc = _describe_wavelength(lambda1)
     l2_desc = _describe_wavelength(lambda2)
