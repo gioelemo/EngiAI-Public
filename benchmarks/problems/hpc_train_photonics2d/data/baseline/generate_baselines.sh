@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate baseline metric CSVs for the HPC training benchmark.
+# Generate baseline metric CSVs for the HPC training benchmark (Photonics2D).
 #
 # These baselines are from the OFFICIAL pre-trained EngiOpt models (100 epochs)
 # downloaded from WandB. They serve as the reference for agent vs baseline
@@ -13,9 +13,9 @@
 # --wandb-entity engibench to resolve correctly.
 #
 # Usage:
-#   ./benchmarks/problems/hpc_train_beams2d/data/baseline/generate_baselines.sh
-#   ./benchmarks/problems/hpc_train_beams2d/data/baseline/generate_baselines.sh --parallel 4
-#   ./benchmarks/problems/hpc_train_beams2d/data/baseline/generate_baselines.sh --parallel 6
+#   ./benchmarks/problems/hpc_train_photonics2d/data/baseline/generate_baselines.sh
+#   ./benchmarks/problems/hpc_train_photonics2d/data/baseline/generate_baselines.sh --parallel 4
+#   ./benchmarks/problems/hpc_train_photonics2d/data/baseline/generate_baselines.sh --parallel 6
 #
 # Prerequisites:
 #   - engiopt package installed (pip install -e .)
@@ -46,7 +46,7 @@ done
 # ── Configuration ────────────────────────────────────────────────────────────
 SEEDS=(1 2 3 4 5 6 7 8 9 10)
 ALGORITHMS=("cgan_cnn_2d" "diffusion_2d_cond")
-PROBLEM_ID="beams2d"
+PROBLEM_ID="photonics2d"
 N_SAMPLES=50
 SIGMA=10.0
 WANDB_PROJECT="engiopt"
@@ -54,7 +54,7 @@ WANDB_ENTITY="engibench"
 # ─────────────────────────────────────────────────────────────────────────────
 
 echo "============================================================"
-echo "HPC Training Baseline Generation"
+echo "HPC Training Baseline Generation (Photonics2D)"
 echo "============================================================"
 echo "  Seeds:        ${SEEDS[*]}"
 echo "  Algorithms:   ${ALGORITHMS[*]}"
