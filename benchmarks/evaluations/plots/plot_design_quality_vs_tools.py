@@ -11,7 +11,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
+from matplotlib.lines import Line2D
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
 if _PROJECT_ROOT not in sys.path:
@@ -274,21 +274,18 @@ def plot_co_vs_dq_by_tools(df, output_dir=None):
     ax.grid(True, axis="y", alpha=0.3)
 
     # Build legend: model colours + metric shapes
-    from matplotlib.lines import Line2D
-
-    handles = []
-    for model in models:
-        handles.append(
-            Line2D(
-                [0],
-                [0],
-                marker="s",
-                color="w",
-                markerfacecolor=styles[model]["color"],
-                markersize=5,
-                label=model,
-            )
+    handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="s",
+            color="w",
+            markerfacecolor=styles[model]["color"],
+            markersize=5,
+            label=model,
         )
+        for model in models
+    ]
     handles.append(
         Line2D(
             [0],
