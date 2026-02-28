@@ -976,6 +976,174 @@ def plot_baseline_comparison(
             )
 
 
+# ── Plot 6: Baseline Grid (2x2) ──────────────────────────────────────────────
+
+# Metrics for the grid: (column_name, display_label, direction)
+_GRID_METRICS = [
+    ("COG", "COG", "down"),
+    ("viol", "RVC", "down"),
+    ("MMD", "MMD", "down"),
+    ("DPP", "DPP", "up"),
+]
+
+
+def _draw_grid_subplot(
+    ax: plt.Axes,
+    metric: str,
+    label: str,
+    direction: str,
+    ctx: dict,
+) -> None:
+    """Draw a single subplot in the baseline grid."""
+    comparable = ctx["comparable"]
+    baseline_metrics = ctx["baseline_metrics"]
+    models = ctx["models"]
+    all_seeds = ctx["all_seeds"]
+    n_bars = ctx["n_bars"]
+    bar_w = ctx["bar_w"]
+    algo_short = ctx["algo_short"]
+    font_sizes = PLOT_STYLE["font_sizes"]
+    x = np.arange(1)  # single group (Avg only)
+
+    # ── Model bars (average across seeds) ──
+    avg_vals = []
+    for i, model in enumerate(models):
+        model_df = comparable[comparable["model"] == model]
+        per_seed = [_get_seed_val(model_df, s, metric) for s in all_seeds]
+        avg = float(np.nanmean(per_seed)) if not all(np.isnan(per_seed)) else 0.0
+        avg_vals.append(avg)
+        offset = (i - (n_bars - 1) / 2) * bar_w
+        ax.bar(
+            x + offset,
+            [avg],
+            bar_w * 0.9,
+            label=model,
+            color=COLOR_PALETTE[i % len(COLOR_PALETTE)],
+            alpha=PLOT_STYLE["alpha"],
+        )
+
+    # ── Baseline bar (average across seeds) ──
+    b_per_seed = [
+        _get_seed_val(baseline_metrics, s, metric)
+        if s in _BASELINE_SEEDS
+        else float("nan")
+        for s in sorted(baseline_metrics["seed"].unique())
+    ]
+    b_avg = float(np.nanmean(b_per_seed)) if not all(np.isnan(b_per_seed)) else 0.0
+    b_offset = (len(models) - (n_bars - 1) / 2) * bar_w
+    ax.bar(
+        x + b_offset,
+        [b_avg],
+        bar_w * 0.9,
+        label=f"Baseline ({algo_short})",
+        color=COLOR_PALETTE[len(models) % len(COLOR_PALETTE)],
+        alpha=0.50,
+        hatch="//",
+    )
+
+    # ── Axis formatting ──
+    arrow = r"$\downarrow$" if direction == "down" else r"$\uparrow$"
+    ax.set_ylabel(f"{label} {arrow}")
+    ax.set_xticks(x)
+    ax.set_xticklabels(["Avg"], fontsize=font_sizes["tick_label"])
+    ax.set_xlim(x[0] - 0.5, x[-1] + 0.5)
+
+    # ── Log scale when values span many orders of magnitude ──
+    all_plotted = [v for v in [*avg_vals, b_avg] if not np.isnan(v) and v > 0]
+    _log_scale_ratio = 1000
+    if (
+        len(all_plotted) > 1
+        and min(all_plotted) > 0
+        and max(all_plotted) / min(all_plotted) > _log_scale_ratio
+    ):
+        ax.set_yscale("log")
+        ax.set_ylim(bottom=min(all_plotted) * 0.3)
+
+    ax.grid(True, axis="y", alpha=0.3)
+
+
+def plot_baseline_grid(
+    df: pd.DataFrame,
+    filename: str = "baseline_grid.png",
+    output_dir: Path | None = None,
+    prompt_style: str | None = None,
+) -> None:
+    """2x2 grid of baseline comparison plots for COG, RVC, MMD, DPP.
+
+    Each subplot shows average bars (models + baseline),
+    matching the style of individual baseline_*.png figures.
+    Arrows indicate desired direction for each metric.
+    """
+    setup_style()
+    df = _prepare_data(df)
+
+    # Load data (same pipeline as plot_baseline_comparison)
+    algorithm = _algorithm_from_style(prompt_style)
+    algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
+    _, eid_to_config, _ = _build_config_mappings(algorithm)
+
+    agent_metrics = _extract_agent_metrics(df, example_id_to_config=eid_to_config)
+    if agent_metrics is None:
+        print("  No agent metrics found, skipping baseline grid")
+        return
+
+    baseline_df = _load_baseline_csvs(_BASELINE_DIR)
+    if baseline_df is None or baseline_df.empty:
+        print("  No baseline CSVs found, skipping baseline grid")
+        return
+
+    baseline_metrics = _extract_baseline_metrics(baseline_df)
+    if "algorithm" in baseline_metrics.columns:
+        baseline_metrics = baseline_metrics[baseline_metrics["algorithm"] == algorithm]
+    if baseline_metrics.empty:
+        print("  No matching baseline data, skipping baseline grid")
+        return
+
+    # Filter agent data to matching algorithm
+    comparable = agent_metrics
+    if "algorithm" in comparable.columns:
+        comparable = comparable[comparable["algorithm"] == algorithm]
+    if comparable.empty:
+        print("  No matching agent data, skipping baseline grid")
+        return
+
+    models = sorted(comparable["model"].unique().tolist())
+    all_seeds = sorted(comparable["seed"].unique().tolist())
+    n_bars = len(models) + 1  # +1 for baseline
+    bar_w = 0.7 / max(n_bars, 1)
+    font_sizes = PLOT_STYLE["font_sizes"]
+
+    ctx = {
+        "comparable": comparable,
+        "baseline_metrics": baseline_metrics,
+        "models": models,
+        "all_seeds": all_seeds,
+        "n_bars": n_bars,
+        "bar_w": bar_w,
+        "algo_short": algo_short,
+    }
+
+    fig, axes = plt.subplots(2, 2, figsize=(FULL_WIDTH, 4.2))
+
+    for idx, (metric, label, direction) in enumerate(_GRID_METRICS):
+        _draw_grid_subplot(axes[idx // 2, idx % 2], metric, label, direction, ctx)
+
+    # ── Shared legend at bottom ──
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        fontsize=font_sizes["legend"],
+        loc="lower center",
+        ncol=n_bars,
+        frameon=True,
+    )
+
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+
+
 # ── Main entrypoint ──────────────────────────────────────────────────────────
 
 
@@ -998,23 +1166,26 @@ def main(
 
     print(f"  HPC training data: {len(df)} rows")
 
-    print("\n[1/6] Step completion heatmap...")
+    print("\n[1/7] Step completion heatmap...")
     plot_step_completion_heatmap(df, output_dir=output_dir)
 
-    print("\n[2/6] Step completion heatmap (averaged per model)...")
+    print("\n[2/7] Step completion heatmap (averaged per model)...")
     plot_step_completion_heatmap_avg(df, output_dir=output_dir)
 
-    print("\n[3/6] Workflow score bars...")
+    print("\n[3/7] Workflow score bars...")
     plot_workflow_score_bars(df, output_dir=output_dir)
 
-    print("\n[4/6] Step completion rate...")
+    print("\n[4/7] Step completion rate...")
     plot_step_completion_rate(df, output_dir=output_dir)
 
-    print("\n[5/6] Evaluation metrics...")
+    print("\n[5/7] Evaluation metrics...")
     plot_evaluation_metrics(df, output_dir=output_dir, prompt_style=prompt_style)
 
-    print("\n[6/6] Baseline comparison (one figure per metric)...")
+    print("\n[6/7] Baseline comparison (one figure per metric)...")
     plot_baseline_comparison(df, output_dir=output_dir, prompt_style=prompt_style)
+
+    print("\n[7/7] Baseline grid (2x2: COG, RVC, MMD, DPP)...")
+    plot_baseline_grid(df, output_dir=output_dir, prompt_style=prompt_style)
 
 
 if __name__ == "__main__":
