@@ -125,10 +125,11 @@ def plot_design_quality_vs_tools(df, output_dir=None):
 
 
 def plot_co_vs_dq_by_tools(df, output_dir=None):
-    """Side-by-side: CO score vs tools (violin) and DQ score vs tools (scatter).
+    """Single scatter: CO and DQ scores vs total tools, per model.
 
-    Shows that CO declines with more tools while design quality stays flat,
-    demonstrating the decline is driven by efficiency penalties, not quality.
+    Both metrics share one panel with distinct marker shapes (circles for CO,
+    triangles for DQ) and model-specific colours.  Two mean trend lines show
+    that CO declines with more tools while DQ stays flat.
 
     Args:
         df: Combined design DataFrame for a single prompt style.
@@ -146,98 +147,95 @@ def plot_co_vs_dq_by_tools(df, output_dir=None):
         print(f"Missing columns: {required - set(df.columns)}")
         return
 
-    plot_df = df.dropna(subset=["total_tools", "combined_overall_score"]).copy()
+    co_df = df.dropna(subset=["total_tools", "combined_overall_score"]).copy()
     dq_df = df.dropna(subset=["total_tools", "design_quality_score"]).copy()
-    if len(plot_df) == 0:
+    if len(co_df) == 0:
         print("No valid data")
         return
 
     font_sizes = PLOT_STYLE["font_sizes"]
-    fig, (ax_co, ax_dq) = plt.subplots(
-        1, 2, figsize=PLOT_STYLE["figsize_full_width"], constrained_layout=True
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
     )
 
-    # --- Left panel: CO violin (same as performance_by_tools_overall) ---
-    tool_counts_co = sorted(plot_df["total_tools"].unique())
-    n_groups = len(tool_counts_co)
-    palette = PLOT_STYLE["color_palette"][:n_groups]
-
-    sns.violinplot(
-        data=plot_df,
-        x="total_tools",
-        y="combined_overall_score",
-        hue="total_tools",
-        legend=False,
-        inner="box",
-        palette=palette,
-        linewidth=0.5,
-        ax=ax_co,
-    )
-
-    # Mean annotations for CO
-    y_bot_co = plot_df["combined_overall_score"].min()
-    for j, tc in enumerate(tool_counts_co):
-        subset = plot_df[plot_df["total_tools"] == tc]["combined_overall_score"]
-        if len(subset) > 0:
-            ax_co.annotate(
-                f"$\\mu$={subset.mean():.2f}",
-                xy=(j, y_bot_co),
-                ha="center",
-                va="bottom",
-                fontsize=font_sizes["annotation"],
-                bbox={
-                    "boxstyle": "round,pad=0.3",
-                    "facecolor": "white",
-                    "alpha": 0.8,
-                    "edgecolor": "0.8",
-                },
-            )
-
-    ax_co.set_ylabel("Combined Overall Score")
-    ax_co.set_xlabel("Total Tools Used")
-    ax_co.grid(True, axis="y", alpha=0.3)
-    ax_co.set_title("(a)", fontsize=font_sizes["axes_label"], loc="left")
-
-    # --- Right panel: DQ scatter (same as design_quality_vs_tools) ---
-    models = sorted(dq_df["model"].unique())
+    models = sorted(co_df["model"].unique())
     styles = get_model_style(models)
 
+    # CO markers: circles (o), DQ markers: triangles (^)
+    co_marker = "o"
+    dq_marker = "^"
+
+    # --- Scatter: CO per model ---
     for model in models:
-        subset = dq_df[dq_df["model"] == model]
+        subset = co_df[co_df["model"] == model]
         style = styles[model]
         jitter = np.random.default_rng(42).uniform(-0.12, 0.12, len(subset))
-        ax_dq.scatter(
+        ax.scatter(
             subset["total_tools"].values + jitter,
-            subset["design_quality_score"].values,
+            subset["combined_overall_score"].values,
             color=style["color"],
-            marker=style["marker"],
+            marker=co_marker,
             s=PLOT_STYLE["marker_size"],
-            alpha=0.65,
-            label=model,
+            alpha=0.55,
             edgecolors="white",
             linewidths=0.3,
         )
 
-    # Mean trend line
-    tool_counts_dq = sorted(dq_df["total_tools"].unique())
-    means = [
-        dq_df.loc[dq_df["total_tools"] == tc, "design_quality_score"].mean()
-        for tc in tool_counts_dq
+    # --- Scatter: DQ per model ---
+    for model in models:
+        subset = dq_df[dq_df["model"] == model]
+        style = styles[model]
+        jitter = np.random.default_rng(99).uniform(-0.12, 0.12, len(subset))
+        ax.scatter(
+            subset["total_tools"].values + jitter,
+            subset["design_quality_score"].values,
+            color=style["color"],
+            marker=dq_marker,
+            s=PLOT_STYLE["marker_size"],
+            alpha=0.55,
+            edgecolors="white",
+            linewidths=0.3,
+        )
+
+    # --- CO mean trend line ---
+    tool_counts = sorted(co_df["total_tools"].unique())
+    co_means = [
+        co_df.loc[co_df["total_tools"] == tc, "combined_overall_score"].mean()
+        for tc in tool_counts
     ]
-    ax_dq.plot(
-        tool_counts_dq,
-        means,
+    ax.plot(
+        tool_counts,
+        co_means,
+        color="black",
+        linewidth=1.2,
+        linestyle="-",
+        marker=co_marker,
+        markersize=4,
+        zorder=10,
+        label="CO mean",
+    )
+
+    # --- DQ mean trend line ---
+    dq_tool_counts = sorted(dq_df["total_tools"].unique())
+    dq_means = [
+        dq_df.loc[dq_df["total_tools"] == tc, "design_quality_score"].mean()
+        for tc in dq_tool_counts
+    ]
+    ax.plot(
+        dq_tool_counts,
+        dq_means,
         color="black",
         linewidth=1.2,
         linestyle="--",
-        marker="D",
+        marker=dq_marker,
         markersize=4,
         zorder=10,
-        label=r"Mean ($\mu$)",
+        label="DQ mean",
     )
 
-    for tc, mu in zip(tool_counts_dq, means, strict=True):
-        ax_dq.annotate(
+    # Annotate CO means (above, since CO > DQ)
+    for tc, mu in zip(tool_counts, co_means, strict=True):
+        ax.annotate(
             f"{mu:.2f}",
             xy=(tc, mu),
             xytext=(0, 8),
@@ -252,13 +250,73 @@ def plot_co_vs_dq_by_tools(df, output_dir=None):
             },
         )
 
-    ax_dq.set_xlabel("Total Tools Used")
-    ax_dq.set_ylabel("Design Quality Score")
-    ax_dq.set_xticks(tool_counts_dq)
-    ax_dq.set_ylim(-0.05, 1.05)
-    ax_dq.grid(True, axis="y", alpha=0.3)
-    ax_dq.legend(fontsize=font_sizes["legend"], loc="lower left", framealpha=0.9)
-    ax_dq.set_title("(b)", fontsize=font_sizes["axes_label"], loc="left")
+    # Annotate DQ means (below, since DQ < CO)
+    for tc, mu in zip(dq_tool_counts, dq_means, strict=True):
+        ax.annotate(
+            f"{mu:.2f}",
+            xy=(tc, mu),
+            xytext=(0, -10),
+            textcoords="offset points",
+            ha="center",
+            fontsize=font_sizes["annotation"],
+            bbox={
+                "boxstyle": "round,pad=0.2",
+                "facecolor": "white",
+                "alpha": 0.85,
+                "edgecolor": "0.7",
+            },
+        )
+
+    ax.set_xlabel("Total Tools Used")
+    ax.set_ylabel("Score")
+    ax.set_xticks(tool_counts)
+    ax.set_ylim(-0.05, 1.05)
+    ax.grid(True, axis="y", alpha=0.3)
+
+    # Build legend: model colours + metric shapes
+    from matplotlib.lines import Line2D
+
+    handles = []
+    for model in models:
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                marker="s",
+                color="w",
+                markerfacecolor=styles[model]["color"],
+                markersize=5,
+                label=model,
+            )
+        )
+    handles.append(
+        Line2D(
+            [0],
+            [0],
+            marker=co_marker,
+            color="black",
+            linestyle="-",
+            markersize=4,
+            label="CO mean",
+        )
+    )
+    handles.append(
+        Line2D(
+            [0],
+            [0],
+            marker=dq_marker,
+            color="black",
+            linestyle="--",
+            markersize=4,
+            label="DQ mean",
+        )
+    )
+    ax.legend(
+        handles=handles,
+        fontsize=font_sizes["legend"],
+        loc="lower left",
+        framealpha=0.9,
+    )
 
     save_figure(fig, "co_vs_dq_by_tools.png", output_dir)
     return fig

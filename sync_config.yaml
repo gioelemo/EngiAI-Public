@@ -94,6 +94,7 @@ figures:
       files:
         - "step_completion_heatmap_avg.pdf"
         - "evaluation_metrics.pdf"
+        - "baseline_grid.pdf"
 
     # HPC training evaluation figures — Diffusion (appendix)
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-diff/no_rag"
@@ -102,6 +103,7 @@ figures:
       files:
         - "step_completion_heatmap_avg.pdf"
         - "evaluation_metrics.pdf"
+        - "baseline_grid.pdf"
 
 # ---------------------------------------------------------------------------
 # LaTeX tables
