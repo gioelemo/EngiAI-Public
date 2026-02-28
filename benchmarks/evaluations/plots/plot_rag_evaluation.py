@@ -483,18 +483,20 @@ def plot_rag_score_components_by_prompt(
     df: pd.DataFrame,
     filename: str = "rag_score_components_by_prompt.png",
     output_dir: Path | None = None,
+    exclude_rag_statuses: list[str] | None = None,
 ) -> None:
     """Stacked bar chart: score component breakdown grouped by **prompt**.
 
     Same data as ``plot_rag_score_components`` but transposed:
     x-axis = prompt (P0, P1, …) and within each prompt group there is one
-    bar per model, distinguished by hatch pattern.  Two subplots for
-    RAG on / RAG off.
+    bar per model, distinguished by hatch pattern.  One subplot per
+    RAG status.
 
     Args:
         df: Design data DataFrame.
         filename: Output filename.
         output_dir: Directory to save figures.
+        exclude_rag_statuses: RAG statuses to exclude (default: ``["no_rag"]``).
     """
     setup_style()
     df = _prepare_data(df)
@@ -539,7 +541,13 @@ def plot_rag_score_components_by_prompt(
     model_hatches = dict(zip(models, ["", "//", "..", "xx", "++", "oo"], strict=False))
     x = np.arange(len(example_ids))
 
-    rag_statuses = [s for s in _RAG_STATUS_ORDER if s in df["rag_status"].unique()]
+    if exclude_rag_statuses is None:
+        exclude_rag_statuses = ["no_rag"]
+    rag_statuses = [
+        s
+        for s in _RAG_STATUS_ORDER
+        if s in df["rag_status"].unique() and s not in exclude_rag_statuses
+    ]
     n_panels = len(rag_statuses)
     fig, axes = plt.subplots(
         1,
