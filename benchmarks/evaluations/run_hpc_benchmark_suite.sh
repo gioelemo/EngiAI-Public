@@ -3,7 +3,12 @@
 #
 # Usage:
 #   ./benchmarks/evaluations/run_hpc_benchmark_suite.sh hpc-train-cgan hpc-train-diff
+#   ./benchmarks/evaluations/run_hpc_benchmark_suite.sh --problem hpc_train_photonics2d hpc-train-cgan hpc-train-diff
 #   ./benchmarks/evaluations/run_hpc_benchmark_suite.sh hpc-train-natural-cgan hpc-train-natural-diff
+#
+# Options:
+#   --problem <name>  HPC problem to evaluate (default: hpc_train_beams2d).
+#                     E.g. hpc_train_beams2d, hpc_train_photonics2d
 #
 # Algorithm-specific prompt styles ensure data stays separate per algorithm:
 #   hpc-train-cgan / hpc-train-natural-cgan     -> cgan_cnn_2d
@@ -34,11 +39,25 @@ PROBLEM="hpc_train_beams2d"
 RAG_STATUS="no_rag"
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Prompt styles from CLI args (each encodes the algorithm)
+# Parse optional --problem flag
+while [[ $# -gt 0 && "$1" == --* ]]; do
+    case "$1" in
+        --problem)
+            PROBLEM="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Prompt styles from remaining CLI args (each encodes the algorithm)
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <prompt-style> [<prompt-style> ...]"
+    echo "Usage: $0 [--problem <name>] <prompt-style> [<prompt-style> ...]"
     echo "  e.g. $0 hpc-train-cgan hpc-train-diff"
-    echo "  e.g. $0 hpc-train-natural-cgan hpc-train-natural-diff"
+    echo "  e.g. $0 --problem hpc_train_photonics2d hpc-train-cgan hpc-train-diff"
     exit 1
 fi
 PROMPT_STYLES=("$@")
@@ -62,9 +81,9 @@ for STYLE in "${PROMPT_STYLES[@]}"; do
     # Step 1: Generate prompts (algorithm is encoded in the style)
     echo ""
     echo "------------------------------------------------------------"
-    echo "  Generating prompts: style=${STYLE}"
+    echo "  Generating prompts: style=${STYLE}  problem=${PROBLEM}"
     echo "------------------------------------------------------------"
-    python benchmarks/problems/hpc_train_beams2d/generate_prompts.py \
+    python "benchmarks/problems/${PROBLEM}/generate_prompts.py" \
         --style "${STYLE}"
 
     for MODEL in "${MODELS[@]}"; do

@@ -267,7 +267,7 @@ def plot_step_completion_heatmap_avg(
     # tight_layout first, then read the axes position and create cbar axes.
     fig.tight_layout()
     pos = ax.get_position()
-    cax = fig.add_axes([pos.x1 + 0.01, pos.y0, 0.015, pos.height])
+    cax = fig.add_axes((pos.x1 + 0.01, pos.y0, 0.015, pos.height))
     cbar = fig.colorbar(ax.collections[0], cax=cax)
     cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}\\%"))
     cbar.set_label("Avg. completion rate")
@@ -591,7 +591,7 @@ def plot_evaluation_metrics(
         axes[idx // n_cols, idx % n_cols].set_visible(False)
 
     # Leave 5% at bottom for shared legend
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(

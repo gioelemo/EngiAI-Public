@@ -270,6 +270,45 @@ PROBLEMS: dict[str, ProblemConfig] = {
         },
         prompt_file_template="hpc_train_beams2d_prompts_10_samples_{split}_{style}.json",
     ),
+    "hpc_train_photonics2d": ProblemConfig(
+        name="hpc_train_photonics2d",
+        dataset_name="",  # Handcrafted prompts — no HuggingFace sampling
+        design_field="optimal_design",
+        tool_name="generate_training_command",  # Informational only; objectives=[] so objective_extractor is unused
+        objectives=[],  # Design quality scored offline via compute_hpc_metrics.py
+        primary_scorer="hpc_workflow",
+        conditions=[
+            ConditionConfig(
+                name="seed",
+                field_name="seed",
+                constraint_type="none",
+                aliases=["training_seed"],
+            ),
+            ConditionConfig(
+                name="epochs",
+                field_name="epochs",
+                constraint_type="none",
+                aliases=["n_epochs"],
+            ),
+            ConditionConfig(
+                name="algorithm",
+                field_name="algorithm",
+                constraint_type="none",
+                aliases=["model_algorithm"],
+            ),
+        ],
+        score_categories={
+            "workflow_completion": {
+                "weight": 0.80,
+                "hpc_workflow_score": 1.0,
+            },
+            "tool_efficiency": {
+                "weight": 0.20,
+                "efficiency_ratio": 1.0,
+            },
+        },
+        prompt_file_template="hpc_train_photonics2d_prompts_10_samples_{split}_{style}.json",
+    ),
 }
 
 

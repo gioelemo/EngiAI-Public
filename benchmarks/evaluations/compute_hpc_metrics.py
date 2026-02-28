@@ -39,10 +39,16 @@ from config import config  # noqa: E402
 # Metrics produced by evaluate_cgan_2d.py
 EVAL_METRICS = ["IOG", "COG", "FOG", "MMD", "DPP", "viol"]
 
-# Default baseline directory
-BASELINE_DIR = (
-    PROJECT_ROOT / "benchmarks" / "problems" / "hpc_train_beams2d" / "data" / "baseline"
-)
+# Default baseline directory (resolved dynamically per problem)
+DEFAULT_HPC_PROBLEM = "hpc_train_beams2d"
+
+
+def get_baseline_dir(problem: str) -> Path:
+    """Construct default baseline directory from problem name."""
+    return PROJECT_ROOT / "benchmarks" / "problems" / problem / "data" / "baseline"
+
+
+BASELINE_DIR = get_baseline_dir(DEFAULT_HPC_PROBLEM)
 
 
 def find_eval_csvs(search_dir: Path) -> list[Path]:
@@ -52,7 +58,7 @@ def find_eval_csvs(search_dir: Path) -> list[Path]:
     """
     patterns = [
         "evaluate_*_metrics.csv",
-        "hpc_train_beams2d_seed*_metrics.csv",
+        "*_seed*_metrics.csv",
         "cgan_cnn_2d_*_metrics.csv",
         "diffusion_2d_cond_*_metrics.csv",
         "seed*_metrics.csv",
@@ -245,7 +251,9 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             f"{args.problem}/{args.prompt_style}/{args.rag_status}"
         )
 
-    baseline_dir = Path(args.baseline_dir) if args.baseline_dir else BASELINE_DIR
+    baseline_dir = (
+        Path(args.baseline_dir) if args.baseline_dir else get_baseline_dir(args.problem)
+    )
 
     print("=" * 60)
     print("HPC TRAINING METRICS — AGENT vs BASELINE")

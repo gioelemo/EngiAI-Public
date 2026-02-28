@@ -151,7 +151,7 @@ class EngineeringAgent(weave.Model):
             # calling ask_human_for_clarification without stopping).
             # HPC training workflows need a higher limit due to multi-agent routing
             # and long monitoring tool calls.
-            recursion_limit = 200 if self.problem_type == "hpc_train_beams2d" else 50
+            recursion_limit = 200 if self.problem_type.startswith("hpc_train_") else 50
             config_dict = {
                 "configurable": {"thread_id": thread_id},
                 "recursion_limit": recursion_limit,
@@ -588,7 +588,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
 
     # Disable SLURM email notifications for HPC training benchmarks to avoid spam
     os.environ["SKIP_SLURM_EMAIL"] = (
-        "true" if args.problem == "hpc_train_beams2d" else "false"
+        "true" if args.problem.startswith("hpc_train_") else "false"
     )
 
     # Set results directory for evaluate_model tool so HPC training CSVs
@@ -660,7 +660,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
         ]
 
     # HPC training requires WandB for model download after training
-    if args.problem == "hpc_train_beams2d":
+    if args.problem.startswith("hpc_train_"):
         os.environ["USE_WANDB"] = "True"
 
     # Wrap scorers with evaluation context for better trace naming in Weave UI
@@ -824,7 +824,7 @@ async def main() -> None:  # noqa: PLR0915, PLR0912
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # HPC training evaluation — no HuggingFace ground-truth, design quality scored offline.
-    if args.problem == "hpc_train_beams2d":
+    if args.problem.startswith("hpc_train_"):
         print()
         print("=" * 60)
         print("HPC TRAINING EVALUATION RESULTS")

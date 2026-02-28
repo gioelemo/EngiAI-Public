@@ -3,10 +3,13 @@
 #
 # Usage:
 #   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh workflow-random
-#   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh natural workflow-random workflow-conditional
+#   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh --problem photonics2d workflow-random workflow-conditional
 #   ./benchmarks/evaluations/run_workflow_benchmark_suite.sh full natural workflow-random workflow-conditional
 #
-# Prompt styles are passed as positional arguments.
+# Options:
+#   --problem <name>  Problem to evaluate (default: beams2d). E.g. beams2d, photonics2d
+#
+# Prompt styles are passed as positional arguments (after optional flags).
 # Models, seeds, and samples are configured below.
 
 set -euo pipefail
@@ -23,10 +26,25 @@ PROBLEM="beams2d"
 RAG_STATUS="no_rag"
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Prompt styles from CLI args
+# Parse optional --problem flag
+while [[ $# -gt 0 && "$1" == --* ]]; do
+    case "$1" in
+        --problem)
+            PROBLEM="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Prompt styles from remaining CLI args
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <prompt-style> [<prompt-style> ...]"
+    echo "Usage: $0 [--problem <name>] <prompt-style> [<prompt-style> ...]"
     echo "  e.g. $0 natural workflow-random workflow-conditional"
+    echo "  e.g. $0 --problem photonics2d workflow-random workflow-conditional"
     exit 1
 fi
 PROMPT_STYLES=("$@")

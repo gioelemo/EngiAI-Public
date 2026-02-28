@@ -204,16 +204,24 @@ def _resolve_conditional_params(
     target: dict[str, Any],
     example_id: int,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Resolve conditional STL parameters based on ground truth compliance.
+    """Resolve conditional STL parameters based on ground truth objective value.
 
     For workflow-conditional prompts, determines which branch the agent should
-    have taken based on the ground truth compliance value, and returns the
-    expected flat parameter dict for validation.
+    have taken based on the ground truth objective value (e.g. compliance for
+    beams2d, total_overlap for photonics2d), and returns the expected flat
+    parameter dict for validation.
+
+    Supports two formats:
+    - Legacy (beams2d): ``compliance_threshold`` key, looks up ``target["compliance"]``
+    - Generic: ``objective_field`` + ``objective_threshold`` keys, looks up
+      ``target[objective_field]``
 
     Args:
         conditional_params: The conditional stl_expected_params structure with
-            compliance_threshold, branch_high, branch_low, and common keys
-        target: Target dict containing ground truth compliance
+            objective_threshold (or compliance_threshold), branch_high, branch_low,
+            and common keys.  May include ``objective_field`` to specify which
+            target key to use.
+        target: Target dict containing ground truth objective value
         example_id: Example ID for logging
 
     Returns:
@@ -221,11 +229,17 @@ def _resolve_conditional_params(
         - resolved_flat_params: Flat dict with scale_xy, scale_z, threshold, mirror_y
         - branch_metrics: Dict with branch decision details for reporting
     """
-    compliance_threshold = conditional_params["compliance_threshold"]
-    gt_compliance = target.get("compliance", 0.0)
+    # Support both generic (objective_field/objective_threshold) and legacy
+    # (compliance_threshold) formats for backward compatibility.
+    objective_field = conditional_params.get("objective_field", "compliance")
+    branching_threshold = conditional_params.get(
+        "objective_threshold",
+        conditional_params.get("compliance_threshold", 0.0),
+    )
+    gt_value = target.get(objective_field, 0.0)
 
     # Determine correct branch
-    if gt_compliance > compliance_threshold:
+    if gt_value > branching_threshold:
         correct_branch = "high"
         branch_params = conditional_params["branch_high"]
     else:
@@ -243,17 +257,21 @@ def _resolve_conditional_params(
     }
 
     branch_metrics = {
-        "conditional_compliance_threshold": compliance_threshold,
-        "conditional_gt_compliance": gt_compliance,
+        "conditional_objective_field": objective_field,
+        "conditional_objective_threshold": branching_threshold,
+        "conditional_gt_value": gt_value,
         "conditional_correct_branch": correct_branch,
+        # Legacy keys for backward compatibility with existing beams2d Weave data
+        "conditional_compliance_threshold": branching_threshold,
+        "conditional_gt_compliance": gt_value,
     }
 
     logger.info(
-        "Example %s (workflow-conditional): gt_compliance=%.2f, threshold=%.1f, "
-        "correct_branch=%s",
+        "Example %s (workflow-conditional): %s=%.4f, threshold=%.4f, correct_branch=%s",
         example_id,
-        gt_compliance,
-        compliance_threshold,
+        objective_field,
+        gt_value,
+        branching_threshold,
         correct_branch,
     )
 
