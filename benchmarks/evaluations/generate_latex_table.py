@@ -270,10 +270,7 @@ def generate_table(
     lines: list[str] = []
     lines.append(r"\begin{table*}[ht]")
     lines.append(r"\centering")
-    lines.append(
-        f"\\caption[{meta['caption_short']}]"
-        f"{{{meta['caption_long']}}}"
-    )
+    lines.append(f"\\caption[{meta['caption_short']}]{{{meta['caption_long']}}}")
     lines.append(f"\\label{{{meta['label']}}}")
     lines.append(r"\small")
     lines.append(
