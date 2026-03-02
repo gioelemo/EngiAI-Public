@@ -87,6 +87,24 @@ figures:
         - "tool_usage_heatmap_counts.pdf"
         - "performance_by_tools_overall.pdf"
 
+    # --- Photonics 2D workflow figures ---
+
+    # Photonics W-Rand: CO violin + tool counts heatmap
+    - source: "benchmarks/evaluations/plots/figures/photonics2d/workflow-random/no_rag"
+      target: "figures/benchmark/workflow/photonics2d-workflow-random"
+      extensions: [".pdf"]
+      files:
+        - "combined_overall_score_distribution.pdf"
+        - "tool_usage_heatmap_counts.pdf"
+
+    # Photonics W-Cond: CO violin + tool counts heatmap
+    - source: "benchmarks/evaluations/plots/figures/photonics2d/workflow-conditional/no_rag"
+      target: "figures/benchmark/workflow/photonics2d-workflow-conditional"
+      extensions: [".pdf"]
+      files:
+        - "combined_overall_score_distribution.pdf"
+        - "tool_usage_heatmap_counts.pdf"
+
     # HPC training evaluation figures — cGAN (main text)
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-cgan/no_rag"
       target: "figures/benchmark/hpc/cgan"
@@ -120,6 +138,8 @@ tables:
   generators:
     - command: "python benchmarks/evaluations/generate_latex_table.py --problem beams2d --rag-status no_rag --output {target}"
       target: "tables/workflow_results.tex"
+    - command: "python benchmarks/evaluations/generate_latex_table.py --problem photonics2d --rag-status no_rag --output {target}"
+      target: "tables/photonics_workflow_results.tex"
 
 # ---------------------------------------------------------------------------
 # Prompts  (overwrites TODO placeholders inside appendix.tex)

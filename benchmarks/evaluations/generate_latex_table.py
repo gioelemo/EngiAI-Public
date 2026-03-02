@@ -35,11 +35,33 @@ STYLE_ORDER = [
 STYLE_LABELS = {
     "full": r"\textsc{Full}",
     "natural": r"\textsc{Natural}",
-    "workflow-random": r"\textsc{Random}",
-    "workflow-derived-params": r"\textsc{Derived}",
-    "workflow-distractor": r"\textsc{Distractor}",
-    "workflow-conditional": r"\textsc{Conditional}",
-    "workflow-multi-export": r"\textsc{Multi-Export}",
+    "workflow-random": r"\textsc{W-Rand}",
+    "workflow-derived-params": r"\textsc{W-Derived}",
+    "workflow-distractor": r"\textsc{W-Distract}",
+    "workflow-conditional": r"\textsc{W-Cond}",
+    "workflow-multi-export": r"\textsc{W-Multi}",
+}
+
+# Problem-specific caption and label overrides
+PROBLEM_TABLE_META: dict[str, dict[str, str]] = {
+    "beams2d": {
+        "caption_short": "Workflow evaluation results (Beams~2D).",
+        "caption_long": (
+            "Workflow evaluation results for Beams~2D (mean $\\pm$ std). "
+            "TC = Task Completion rate, CO = Combined Overall score. "
+            "\\textbf{Bold} = best model per metric per row."
+        ),
+        "label": "tab:workflow_results",
+    },
+    "photonics2d": {
+        "caption_short": "Workflow evaluation results (Photonics~2D).",
+        "caption_long": (
+            "Workflow evaluation results for Photonics~2D (mean $\\pm$ std). "
+            "TC = Task Completion rate, CO = Combined Overall score. "
+            "\\textbf{Bold} = best model per metric per row."
+        ),
+        "label": "tab:workflow_results_photonics",
+    },
 }
 
 # Display order for model columns (left to right)
@@ -231,16 +253,28 @@ def generate_table(
     n_score_cols = len(SCORES)
     total_data_cols = len(models) * n_score_cols
 
+    # Problem-specific table metadata
+    meta = PROBLEM_TABLE_META.get(
+        problem,
+        {
+            "caption_short": f"Workflow evaluation results ({problem}).",
+            "caption_long": (
+                f"Workflow evaluation results for {problem} (mean $\\pm$ std). "
+                "TC = Task Completion rate, CO = Combined Overall score. "
+                "\\textbf{Bold} = best model per metric per row."
+            ),
+            "label": f"tab:workflow_results_{problem}",
+        },
+    )
+
     lines: list[str] = []
     lines.append(r"\begin{table*}[ht]")
     lines.append(r"\centering")
     lines.append(
-        r"\caption[Workflow evaluation results.]"
-        r"{Workflow evaluation results (mean $\pm$ std). "
-        r"TC = Task Completion rate, CO = Combined Overall score. "
-        r"\textbf{Bold} = best model per metric per row.}"
+        f"\\caption[{meta['caption_short']}]"
+        f"{{{meta['caption_long']}}}"
     )
-    lines.append(r"\label{tab:workflow_results}")
+    lines.append(f"\\label{{{meta['label']}}}")
     lines.append(r"\small")
     lines.append(
         r"\begin{tabular*}{\textwidth}"
