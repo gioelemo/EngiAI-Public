@@ -82,6 +82,7 @@ services:
     command: >
       "chown -R mmoreuser:mmoreuser /app/uploads /home/mmoreuser/.cache &&
       su mmoreuser -c 'cd /app && . .venv/bin/activate &&
+      pip install --quiet \"setuptools<72\" &&
       python -m mmore.run_live_retrieval
       --config-file /app/config/retriever_config.yaml
       --host 0.0.0.0
