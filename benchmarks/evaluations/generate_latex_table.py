@@ -21,6 +21,9 @@ import numpy as np
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
+# Threshold for switching to tighter table formatting (footnotesize + reduced tabcolsep)
+COMPACT_TABLE_MODEL_THRESHOLD = 4
+
 # Display order (top = easiest)
 STYLE_ORDER = [
     "full",
@@ -238,7 +241,7 @@ def _build_data_rows(
     return lines
 
 
-def generate_table(
+def generate_table(  # noqa: PLR0912
     problem: str, rag_status: str, results_dir: Path | None = None
 ) -> str:
     """Generate the full LaTeX table string."""
@@ -275,7 +278,7 @@ def generate_table(
     lines.append(f"\\caption[{meta['caption_short']}]{{{meta['caption_long']}}}")
     lines.append(f"\\label{{{meta['label']}}}")
     # Use tighter formatting when there are 4+ models to fit the page width
-    if len(models) >= 4:
+    if len(models) >= COMPACT_TABLE_MODEL_THRESHOLD:
         lines.append(r"\footnotesize")
         lines.append(r"\setlength{\tabcolsep}{4pt}")
     else:
