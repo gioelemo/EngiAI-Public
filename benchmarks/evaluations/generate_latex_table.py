@@ -274,7 +274,12 @@ def generate_table(
     lines.append(r"\centering")
     lines.append(f"\\caption[{meta['caption_short']}]{{{meta['caption_long']}}}")
     lines.append(f"\\label{{{meta['label']}}}")
-    lines.append(r"\small")
+    # Use tighter formatting when there are 4+ models to fit the page width
+    if len(models) >= 4:
+        lines.append(r"\footnotesize")
+        lines.append(r"\setlength{\tabcolsep}{4pt}")
+    else:
+        lines.append(r"\small")
     lines.append(
         r"\begin{tabular*}{\textwidth}"
         r"{@{\extracolsep{\fill}}l" + "c" * total_data_cols + r"@{}}"
