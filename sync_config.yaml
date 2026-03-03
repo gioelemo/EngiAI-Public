@@ -97,6 +97,14 @@ figures:
         - "combined_overall_score_distribution.pdf"
         - "tool_usage_heatmap_counts.pdf"
 
+    # Photonics W-Distract: CO violin + tool counts heatmap
+    - source: "benchmarks/evaluations/plots/figures/photonics2d/workflow-distractor/no_rag"
+      target: "figures/benchmark/workflow/photonics2d-workflow-distractor"
+      extensions: [".pdf"]
+      files:
+        - "combined_overall_score_distribution.pdf"
+        - "tool_usage_heatmap_counts.pdf"
+
     # Photonics W-Cond: CO violin + tool counts heatmap
     - source: "benchmarks/evaluations/plots/figures/photonics2d/workflow-conditional/no_rag"
       target: "figures/benchmark/workflow/photonics2d-workflow-conditional"
