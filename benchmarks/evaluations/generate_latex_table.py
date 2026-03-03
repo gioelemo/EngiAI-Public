@@ -69,6 +69,7 @@ MODEL_ORDER = [
     "openai_gpt-5-mini",
     "google_genai_gemini-3-flash-preview",
     "ollama_qwen3_4b-instruct-2507-q8_0",
+    "ollama_qwen3.5_4b-q8_0",
 ]
 
 # Short model labels for column headers
@@ -76,6 +77,7 @@ MODEL_LABELS = {
     "openai_gpt-5-mini": "GPT-5-mini",
     "google_genai_gemini-3-flash-preview": "Gemini-3-Flash",
     "ollama_qwen3_4b-instruct-2507-q8_0": "Qwen3-4B",
+    "ollama_qwen3.5_4b-q8_0": "Qwen3.5-4B",
 }
 
 RESULTS_DIR = Path(__file__).parent / "results" / "models"
