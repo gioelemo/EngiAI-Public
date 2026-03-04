@@ -110,7 +110,6 @@ html_sidebars = {
 # Intersphinx configuration
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "langchain": ("https://reference.langchain.com/python/", None),
 }
 
 # GitHub Changelog
