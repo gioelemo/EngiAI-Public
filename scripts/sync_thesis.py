@@ -488,6 +488,76 @@ def _sync_workflow_prompts(
     return tex, actions
 
 
+# Maps \textsc{} label -> (algorithm, natural) for HPC training prompts
+_HPC_PROMPT_LABELS: dict[str, dict[str, str | bool]] = {
+    "HPC-Train (Explicit)": {"algorithm": "cgan_cnn_2d", "natural": False},
+    "HPC-Train (Natural)": {"algorithm": "cgan_cnn_2d", "natural": True},
+    "HPC-Train-Diff (Natural)": {"algorithm": "diffusion_2d_cond", "natural": True},
+}
+
+_HPC_EXAMPLE_SEED = 1
+_HPC_EXAMPLE_EPOCHS = 100
+
+
+def _extract_hpc_prompts() -> dict[str, str] | None:
+    """Extract HPC training prompt texts using seed=1, epochs=100."""
+    try:
+        root_str = str(PROJECT_ROOT)
+        if root_str not in sys.path:
+            sys.path.insert(0, root_str)
+
+        logging.getLogger("config").setLevel(logging.WARNING)
+
+        mod = importlib.import_module(
+            "benchmarks.problems.hpc_train_beams2d.generate_prompts"
+        )
+
+        results: dict[str, str] = {}
+        for label, cfg in _HPC_PROMPT_LABELS.items():
+            if cfg["natural"]:
+                text = mod._build_natural_prompt(
+                    _HPC_EXAMPLE_SEED, _HPC_EXAMPLE_EPOCHS, cfg["algorithm"]
+                )
+            else:
+                text = mod._build_prompt(
+                    _HPC_EXAMPLE_SEED, _HPC_EXAMPLE_EPOCHS, cfg["algorithm"]
+                )
+            results[label] = text
+    except Exception:
+        log.exception("Failed to extract HPC prompts from hpc_train_beams2d")
+        return None
+    else:
+        return results
+
+
+def _sync_hpc_prompts(
+    prompt_cfg: dict, target_file: str, tex: str
+) -> tuple[str, list[dict]]:
+    """Replace HPC training prompt verbatim blocks.  Returns (updated_tex, actions)."""
+    actions: list[dict] = []
+    if not prompt_cfg.get("hpc_prompts"):
+        return tex, actions
+
+    hpc_texts = _extract_hpc_prompts()
+    if hpc_texts is None:
+        log.warning("Could not extract HPC prompts — skipping")
+        return tex, actions
+
+    for label, text in hpc_texts.items():
+        wrapped = _sanitize_for_latex(text)
+        old_tex = tex
+        tex = _replace_listing_after_textsc(tex, label, wrapped)
+        if tex != old_tex:
+            actions.append(
+                {
+                    "source": f"hpc_train_beams2d/generate_prompts.py:{label}",
+                    "target": f"{target_file} (\\textsc{{{label}}})",
+                    "action": "replaced",
+                }
+            )
+    return tex, actions
+
+
 def _sync_benchmark_prompts(
     prompt_cfg: dict, target_file: str, tex: str
 ) -> tuple[str, list[dict]]:
@@ -533,8 +603,9 @@ def sync_prompts(cfg: dict, thesis_root: Path, *, dry_run: bool) -> list[dict]:
 
     tex, agent_actions = _sync_agent_prompts(prompt_cfg, target_file, tex)
     tex, workflow_actions = _sync_workflow_prompts(prompt_cfg, target_file, tex)
+    tex, hpc_actions = _sync_hpc_prompts(prompt_cfg, target_file, tex)
     tex, bench_actions = _sync_benchmark_prompts(prompt_cfg, target_file, tex)
-    all_actions = agent_actions + workflow_actions + bench_actions
+    all_actions = agent_actions + workflow_actions + hpc_actions + bench_actions
 
     # In dry-run mode, change "replaced" → "would replace"
     if dry_run:

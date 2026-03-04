@@ -38,6 +38,7 @@ figures:
         - "combined_overall_score_distribution.pdf"
         - "tool_usage_heatmap_counts.pdf"
         - "performance_by_tools_overall.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
     # Natural style: tool counts heatmap + performance by tools (main results)
     - source: "benchmarks/evaluations/plots/figures/beams2d/natural/no_rag"
@@ -46,6 +47,7 @@ figures:
       files:
         - "tool_usage_heatmap_counts.pdf"
         - "performance_by_tools_overall.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
     # Workflow-conditional: CO violin + tool counts heatmap + performance by tools
     - source: "benchmarks/evaluations/plots/figures/beams2d/workflow-conditional/no_rag"
@@ -55,6 +57,7 @@ figures:
         - "combined_overall_score_distribution.pdf"
         - "tool_usage_heatmap_counts.pdf"
         - "performance_by_tools_overall.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
     # --- Workflow figures (appendix: remaining tool counts heatmaps) ---
 
@@ -72,6 +75,7 @@ figures:
       files:
         - "tool_usage_heatmap_counts.pdf"
         - "performance_by_tools_overall.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
     - source: "benchmarks/evaluations/plots/figures/beams2d/workflow-distractor/no_rag"
       target: "figures/benchmark/workflow/workflow-distractor"
@@ -79,6 +83,7 @@ figures:
       files:
         - "tool_usage_heatmap_counts.pdf"
         - "performance_by_tools_overall.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
     - source: "benchmarks/evaluations/plots/figures/beams2d/workflow-multi-export/no_rag"
       target: "figures/benchmark/workflow/workflow-multi-export"
@@ -86,32 +91,36 @@ figures:
       files:
         - "tool_usage_heatmap_counts.pdf"
         - "performance_by_tools_overall.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
     # --- Photonics 2D workflow figures ---
 
-    # Photonics W-Rand: CO violin + tool counts heatmap
+    # Photonics W-Rand: CO violin + tool counts heatmap + CO vs DQ
     - source: "benchmarks/evaluations/plots/figures/photonics2d/workflow-random/no_rag"
       target: "figures/benchmark/workflow/photonics2d-workflow-random"
       extensions: [".pdf"]
       files:
         - "combined_overall_score_distribution.pdf"
         - "tool_usage_heatmap_counts.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
-    # Photonics W-Distract: CO violin + tool counts heatmap
+    # Photonics W-Distract: CO violin + tool counts heatmap + CO vs DQ
     - source: "benchmarks/evaluations/plots/figures/photonics2d/workflow-distractor/no_rag"
       target: "figures/benchmark/workflow/photonics2d-workflow-distractor"
       extensions: [".pdf"]
       files:
         - "combined_overall_score_distribution.pdf"
         - "tool_usage_heatmap_counts.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
-    # Photonics W-Cond: CO violin + tool counts heatmap
+    # Photonics W-Cond: CO violin + tool counts heatmap + CO vs DQ
     - source: "benchmarks/evaluations/plots/figures/photonics2d/workflow-conditional/no_rag"
       target: "figures/benchmark/workflow/photonics2d-workflow-conditional"
       extensions: [".pdf"]
       files:
         - "combined_overall_score_distribution.pdf"
         - "tool_usage_heatmap_counts.pdf"
+        - "co_vs_dq_by_tools.pdf"
 
     # HPC training evaluation figures — cGAN natural prompt (main text)
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-cgan/no_rag"
@@ -180,6 +189,12 @@ prompts:
   # representative params (volfrac=0.4, forcedist=0.65, rmin=4.0, seed=42).
   workflow_prompts:
     source: "benchmarks/problems/beams2d/generate_prompts.py"
+
+  # HPC training prompt examples.
+  # Generated from benchmarks/problems/hpc_train_beams2d/generate_prompts.py
+  # with seed=1, epochs=100.
+  hpc_prompts:
+    source: "benchmarks/problems/hpc_train_beams2d/generate_prompts.py"
 
   # Benchmark prompts (P0-P3 RAG evaluation prompt examples).
   # Extracted from benchmarks/problems/rag_beams2d/generate_prompts.py:RAG_PROMPTS
