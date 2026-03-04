@@ -99,7 +99,7 @@ Key Capabilities
 ----------------
 
 **Engineering & Optimization**
-   * Topology optimization with EngiBench (beams2d, ThermoElastic2D)
+   * Topology optimization with EngiBench (beams2d, photonics2d, thermoelastic2d)
    * STL export for 3D printing
    * Design simulation and constraints checking
    * Multi-physics optimization
@@ -133,7 +133,7 @@ Technology Stack
 ----------------
 
 * **Frameworks**: LangGraph, LangChain, Streamlit, Fabric
-* **LLMs**: OpenAI GPT-4o, GPT-4-turbo,  Gemini-3-flash-preview, Ollama Qwen3
+* **LLMs**: OpenAI GPT-4o/GPT-4.1, Google Gemini-3-Flash, Ollama (Qwen3, Qwen3.5)
 * **Storage**: MMORE (RAG), PostgreSQL/SQLite (relational)
 * **Integrations**: EngiBench/EngiOpt, Prusa Connect, Weights & Biases, Tavily
 
