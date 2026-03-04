@@ -113,7 +113,7 @@ figures:
         - "combined_overall_score_distribution.pdf"
         - "tool_usage_heatmap_counts.pdf"
 
-    # HPC training evaluation figures — cGAN (main text)
+    # HPC training evaluation figures — cGAN natural prompt (main text)
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-cgan/no_rag"
       target: "figures/benchmark/hpc/cgan"
       extensions: [".pdf"]
@@ -121,6 +121,13 @@ figures:
         - "step_completion_heatmap_avg.pdf"
         - "evaluation_metrics.pdf"
         - "baseline_grid.pdf"
+
+    # HPC training evaluation figures — cGAN explicit prompt (main text, side-by-side comparison)
+    - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-cgan/no_rag"
+      target: "figures/benchmark/hpc/cgan-explicit"
+      extensions: [".pdf"]
+      files:
+        - "step_completion_heatmap_avg.pdf"
 
     # HPC training evaluation figures — Diffusion (appendix)
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-natural-diff/no_rag"
