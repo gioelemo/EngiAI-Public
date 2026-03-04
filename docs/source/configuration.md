@@ -77,12 +77,10 @@ DATABASE_URL=sqlite:///data/engineer_assistant.db
 ```
 
 **For Prusa 3D printer integration:**
-- Use the Prusa MCP server from this repository:
-  ```bash
-  # Available in services/prusa_mcp_server/ directory
-  # See services/prusa_mcp_server/README.md for setup
-  ```
-- Set `SKIP_MCP=false` and configure `PRUSA_MCP_PATH`
+- The Prusa MCP server is included as a git submodule at `services/prusa_mcp_server/prusa-mcp`
+- Clone with `--recurse-submodules` or run `git submodule update --init --recursive`
+- See `services/prusa_mcp_server/README.md` for setup
+- Set `SKIP_MCP=false` to enable
 
 ### Voice Integration
 

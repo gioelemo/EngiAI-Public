@@ -25,8 +25,11 @@ The easiest and most reliable way to get started:
 ### 1. Clone and Navigate
 
 ```bash
-git clone https://github.com/gioelemo/engineer-assistant.git
+git clone --recurse-submodules https://github.com/gioelemo/engineer-assistant.git
 cd engineer-assistant
+
+# If you already cloned without --recurse-submodules:
+# git submodule update --init --recursive
 ```
 
 ### 2. Configure Environment
@@ -38,7 +41,7 @@ cp .env.example .env
 
 Get API keys from:
 - [OpenAI](https://platform.openai.com/api-keys)
-- [Google](https://google.com/)
+- [Google](https://aistudio.google.com/apikey)
 - [Tavily](https://tavily.com/)
 
 **Important:** Verify `MMORE_RAG_URL=http://localhost:8000` in your `.env` file points to your running MMORE service.
@@ -151,12 +154,12 @@ See the [Paper Import Guide](paper_import_guide.md) for detailed instructions.
 ### Design Workflow
 
 1. **Generate Design**: "Create a 2D beam design"
-2. **Optimize**: "Optimize for minimal compliance" (works with beams2d, thermoelastic2d, photonics2d)
+2. **Optimize**: "Optimize for minimal compliance" (works with beams2d, photonics2d)
 3. **Export**: "Convert to STL for 3D printing"
 
 ### HPC Training Workflow
 
-1. **Prepare**: "Set up training for [problem_type]" (any supported problem: beams2d, thermoelastic2d, photonics2d)
+1. **Prepare**: "Set up training for [problem_type]" (any supported problem: beams2d, photonics2d)
 2. **Submit**: "Submit training job to HPC cluster"
 3. **Monitor**: "Check training status"
 

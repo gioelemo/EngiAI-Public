@@ -15,7 +15,8 @@ The Prusa Agent communicates with Prusa Connect via an MCP (Model Context Protoc
 
 - Prusa printer with Prusa Connect (cloud or local)
 - Prusa Connect account credentials
-- MCP server setup (included in Docker deployment)
+- MCP server (included as git submodule at `services/prusa_mcp_server/prusa-mcp`)
+  - Clone with `--recurse-submodules` or run `git submodule update --init --recursive`
 
 ## Setup
 

@@ -23,12 +23,9 @@ The following services must be cloned locally and accessible to the Docker conta
    - Configure with `MMORE_RAG_URL` in `.env`
 
 2. **Prusa Connect MCP Server** (Optional - only if using 3D printer integration)
-   ```bash
-   # Use the prusa_mcp_server directory in this repository
-   cd services/prusa_mcp_server
-   # Follow Prusa MCP setup instructions in README.md
-   ```
-   - Configure with `PRUSA_MCP_PATH` in `.env`
+   - Included as a git submodule at `services/prusa_mcp_server/prusa-mcp`
+   - Automatically cloned with `--recurse-submodules` flag
+   - See `services/prusa_mcp_server/README.md` for configuration
    - Set `SKIP_MCP=false` to enable
 
 These services run as separate containers/processes and the Engineer Assistant connects to them via network.
