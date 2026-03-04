@@ -350,15 +350,13 @@ launchctl load ~/Library/LaunchAgents/com.engineer-assistant.paper-import.plist
 
 ## Querying Imported Documents
 
-### Using RAG Agent
+### Using the Streamlit UI
 
-You can query the imported papers through the RAG agent:
+The easiest way to query imported papers is through the chat interface. The RAG agent will automatically search your indexed documents:
 
-```python
-from src.agents.rag_agent import RAGAgent
-
-agent = RAGAgent()
-response = agent.run("What are the key findings in recent papers about FEA?")
+```
+"What are the key findings in recent papers about FEA?"
+"What does the EngiBench paper say about topology optimization?"
 ```
 
 ### Filtering by Source
@@ -597,7 +595,7 @@ python scripts/import_local_papers.py --dry-run
 python scripts/import_local_papers.py
 
 # Check what was imported
-python scripts/quick_db_check.py
+python scripts/inspect_mmore.py
 ```
 
 ## Support

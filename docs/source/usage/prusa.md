@@ -37,17 +37,13 @@ This starts:
 Add your Prusa Connect credentials to `.env`:
 
 ```bash
-# Prusa Connect Credentials
-PRUSA_EMAIL=your-email@example.com
-PRUSA_PASSWORD=your-password
-
 # MCP Configuration
 SKIP_MCP=false
-PRUSA_MCP_URL=http://prusa-mcp-server:8000  # For Docker
+PRUSA_MCP_URL=http://prusa-mcp-server:8765  # For Docker
 # PRUSA_MCP_URL=http://localhost:8765        # For local MCP server
 ```
 
-**Note**: You can also log in through the UI settings page instead of storing credentials in `.env`.
+**Note**: Log in to Prusa Connect through the UI settings page.
 
 ### Disabling Prusa Integration
 
@@ -212,7 +208,7 @@ For local development:
 
 ```bash
 # Start MCP server
-./prusa_mcp_server/run.sh
+./services/prusa_mcp_server/run.sh
 
 # Or via Make
 make run-mcp
@@ -307,7 +303,7 @@ ls -lh outputs/*.stl
 ## Further Reading
 
 - [Prusa Connect Documentation](https://help.prusa3d.com/guide/prusa-connect_245530)
-- [MCP Server Code](https://github.com/gioelemo/engineer-assistant/tree/main/prusa_mcp_server)
+- [MCP Server Code](https://github.com/gioelemo/engineer-assistant/tree/main/services/prusa_mcp_server)
 - [Docker Deployment](../docker_deployment.md)
 - [Architecture Overview](../architecture.md)
 

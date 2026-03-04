@@ -61,9 +61,6 @@ make format
 
 # Lint code
 make lint
-
-# Type check
-make type-check
 ```
 
 ### 5. Commit Your Changes
@@ -110,7 +107,6 @@ The system uses a **unified problem registry** that makes adding new EngiBench p
    ```python
    PROBLEM_CLASSES: dict[ProblemId, type[Problem]] = {
        "beams2d": Beams2D,
-       "thermoelastic2d": ThermoElastic2D,
        "photonics2d": Photonics2D,
        "yournewproblem": YourNewProblem,  # Add here
    }
@@ -118,7 +114,7 @@ The system uses a **unified problem registry** that makes adding new EngiBench p
 
 3. **Update ProblemId Type**:
    ```python
-   ProblemId = Literal["beams2d", "thermoelastic2d", "photonics2d", "yournewproblem"]
+   ProblemId = Literal["beams2d", "photonics2d", "yournewproblem"]
    ```
 
 4. **That's It!** The system automatically:
@@ -223,11 +219,13 @@ def test_volume_fractions(agent, volfrac):
     result = agent.optimize(config={"volfrac": volfrac})
     assert result["volfrac"] == volfrac
 
-@pytest.mark.parametrize("problem_type", ["beams2d", "thermoelastic2d", "photonics2d"])
-def test_all_problem_types(agent, problem_type):
+@pytest.mark.parametrize("problem_type", ["beams2d", "photonics2d"])
+def test_all_problem_types(problem_type):
     # System automatically adapts to any registered problem
-    result = agent.optimize(problem=problem_type)
-    assert result is not None
+    from src.tools.problems import PROBLEM_CLASSES
+    problem_class = PROBLEM_CLASSES[problem_type]
+    problem = problem_class()
+    assert problem is not None
 ```
 
 ### Running Tests
@@ -240,7 +238,7 @@ make test
 pytest tests/test_agents/test_arxiv_agent.py
 
 # With coverage
-make test-coverage
+make test-cov
 
 # Verbose output
 pytest -v

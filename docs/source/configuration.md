@@ -38,7 +38,7 @@ MMORE_RAG_URL=http://localhost:8000
 
 **Where to get keys:**
 - **OpenAI**: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-- **Google**: [https://google.com](https://google.com)
+- **Google**: [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 - **Tavily**: [https://tavily.com/](https://tavily.com/)
 
 **External Services:**
@@ -79,8 +79,8 @@ DATABASE_URL=sqlite:///data/engineer_assistant.db
 **For Prusa 3D printer integration:**
 - Use the Prusa MCP server from this repository:
   ```bash
-  # Available in prusa_mcp_server/ directory
-  # See prusa_mcp_server/README.md for setup
+  # Available in services/prusa_mcp_server/ directory
+  # See services/prusa_mcp_server/README.md for setup
   ```
 - Set `SKIP_MCP=false` and configure `PRUSA_MCP_PATH`
 
@@ -94,7 +94,7 @@ VOICE_PROVIDER=elevenlabs  # Options: "elevenlabs" or "openai"
 
 # ElevenLabs Configuration (default provider)
 ELEVENLABS_API_KEY=your-elevenlabs-api-key
-ELEVENLABS_STT_MODEL=eleven_multilingual_v2
+ELEVENLABS_STT_MODEL=scribe_v2
 ELEVENLABS_TTS_MODEL=eleven_multilingual_v2
 ELEVENLABS_DEFAULT_VOICE=George
 ELEVENLABS_VOICES=Rachel:21m00Tcm4TlvDq8ikWAM,Domi:AZnzlk1XvdvUeBnXmlld,Bella:EXAVITQu4vr4xnSDxMaL,Antoni:ErXwobaYiN019PkySvjV,Josh:TxGEqnHWrfWFTfGW9XjX,George:JBFqnCBsd6RMkjVDRZzb
@@ -212,10 +212,15 @@ You can configure which language model to use:
 
 ```bash
 # OpenAI Models
-LLM_MODEL=openai:gpt-4o          # GPT-4 Optimized (recommended)
-LLM_MODEL=openai:gpt-4.1         # GPT-4.1 (fast and cost-effective)
+LLM_MODEL=openai:gpt-4.1         # GPT-4.1 (recommended)
+LLM_MODEL=openai:gpt-4o          # GPT-4o
 LLM_MODEL=openai:gpt-4o-mini     # GPT-4o Mini (faster, cheaper)
 
+# Google Models
+LLM_MODEL=google:gemini-3-flash  # Gemini 3 Flash
+
+# Ollama (local models)
+LLM_MODEL=ollama:qwen3.5:4b      # Qwen 3.5 4B (local)
 ```
 
 ### Model Parameters
@@ -307,13 +312,13 @@ Check your configuration:
 
 ```bash
 # Test API keys
-python -c "import config; print('OpenAI Key:', config.config.openai_api_key[:10])"
+python -c "from config import config; print('OpenAI Key:', config.openai_api_key[:10])"
 
 # Test database connection
 python -c "from src.ui.database import DatabaseManager; db = DatabaseManager(); print('DB OK')"
 
 # Run all tests
-pytest tests/test_config.py
+pytest
 ```
 
 ## Troubleshooting

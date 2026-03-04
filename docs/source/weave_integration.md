@@ -37,13 +37,13 @@ The main evaluation script is located in `benchmarks/evaluations/`:
 cd benchmarks/evaluations
 python evaluate_agent.py \
     --problem beams2d \
-    --num-samples 10 \
-    --agent-config config.yaml
+    --samples 10 \
+    --scorers all
 ```
 
 **📚 For complete documentation see:**
-- [**Benchmarks Overview**](../../benchmarks/README.md) - Available problems, datasets, and metrics
-- [**Evaluation Guide**](../../benchmarks/evaluations/README.md) - How to run evaluations and configure scorers
+- [**Benchmarks Overview**](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/README.md) - Available problems, datasets, and metrics
+- [**Evaluation Guide**](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/evaluations/README.md) - How to run evaluations and configure scorers
 
 ### Available Problem Types
 
@@ -55,7 +55,7 @@ Three engineering optimization problems are available:
 | **photonics2d** | 120×120 grids | Photonic devices | Transmission efficiency, volume |
 | **thermoelastic2d** | Variable size | Thermal structures | Compliance, thermal loss, volume |
 
-See [benchmarks/README.md](../../benchmarks/README.md) for detailed problem descriptions.
+See [benchmarks/README.md](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/README.md) for detailed problem descriptions.
 
 ## Evaluation Workflow
 
@@ -80,28 +80,28 @@ Specify the number of test samples:
 
 ```bash
 # Run on 10 samples for quick testing
-python evaluate_agent.py --problem beams2d --num-samples 10
+python evaluate_agent.py --problem beams2d --samples 10
 
 # Run on full dataset (50 samples for beams2d)
-python evaluate_agent.py --problem beams2d --num-samples 50
+python evaluate_agent.py --problem beams2d --samples 50
 ```
 
 ### 3. Select Scorer
 
-Choose between two scoring methods:
+Choose which scorers to compute:
 
-- **`generic`** (default): Per-design metrics (compliance, volume, binary)
-- **`engibench`**: Global distribution metrics (MMD, DPP, RVC, optimality gap)
+- **`all`** (default): Full per-design and global metrics
+- **`engibench`**: Lightweight design extraction only for faster evaluation
 
 ```bash
-# Per-design evaluation
-python evaluate_agent.py --problem beams2d --scorer generic
+# Full evaluation with all metrics
+python evaluate_agent.py --problem beams2d --scorers all
 
-# Global distribution evaluation
-python evaluate_agent.py --problem beams2d --scorer engibench
+# Lightweight evaluation
+python evaluate_agent.py --problem beams2d --scorers engibench
 ```
 
-See the [Evaluation Guide](../../benchmarks/evaluations/README.md) for scorer details.
+See the [Evaluation Guide](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/evaluations/README.md) for scorer details.
 
 ### 4. View Results
 
@@ -136,28 +136,20 @@ Evaluated across the full set of generated designs:
 - **RVC (Relative Volume Coverage)**: Design space coverage
 - **Optimality Gap**: Distance from optimal solutions
 
-See [benchmarks/README.md](../../benchmarks/README.md#metrics) for detailed metric definitions.
+See [benchmarks/README.md](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/README.md#metrics) for detailed metric definitions.
 
 ## Advanced Usage
 
-### Custom Agent Configuration
+### Custom Model Configuration
 
-Create a configuration file for your agent:
-
-```yaml
-# agent_config.yaml
-model: "gpt-4"
-temperature: 0.7
-max_iterations: 10
-```
-
-Run with custom config:
+Specify the model and temperature:
 
 ```bash
 python evaluate_agent.py \
     --problem beams2d \
-    --num-samples 10 \
-    --agent-config agent_config.yaml
+    --samples 10 \
+    --model "openai:gpt-4.1" \
+    --temperature 0.0
 ```
 
 ### Batch Evaluations
@@ -167,12 +159,12 @@ Evaluate multiple configurations:
 ```bash
 # Test different problems
 for problem in beams2d photonics2d thermoelastic2d; do
-    python evaluate_agent.py --problem $problem --num-samples 10
+    python evaluate_agent.py --problem $problem --samples 10
 done
 
 # Test different scorers
-for scorer in generic engibench; do
-    python evaluate_agent.py --problem beams2d --scorer $scorer
+for scorer in output_quality task_completion tool_use all; do
+    python evaluate_agent.py --problem beams2d --scorers $scorer
 done
 ```
 
@@ -206,11 +198,11 @@ To add a new optimization problem to the benchmark suite:
 3. **Implement generator**: Create `generate_prompts.py` for your problem
 4. **Add dataset**: Create or reference HuggingFace dataset
 
-See the [Evaluation Guide](../../benchmarks/evaluations/README.md#adding-new-problem-types) for complete instructions.
+See the [Evaluation Guide](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/evaluations/README.md#adding-new-problem-types) for complete instructions.
 
 ## Best Practices
 
-1. **Start Small**: Test with `--num-samples 10` before running full evaluations
+1. **Start Small**: Test with `--samples 10` before running full evaluations
 2. **Use Generic Scorer**: For per-design analysis and debugging
 3. **Use EngiBench Scorer**: For comparing overall performance across agents
 4. **Track Costs**: Monitor token usage in the Weave UI to manage API costs
@@ -261,21 +253,21 @@ PROBLEMS = {
 
 **Problem**: `ValueError: Unknown scorer: ...`
 
-**Solution**: Use valid scorer names: `generic` or `engibench`
+**Solution**: Use valid scorer names: `all` or `engibench`
 
 ```bash
 # Correct
-python evaluate_agent.py --problem beams2d --scorer generic
+python evaluate_agent.py --problem beams2d --scorers all
 
 # Incorrect
-python evaluate_agent.py --problem beams2d --scorer custom  # Not supported
+python evaluate_agent.py --problem beams2d --scorers custom  # Not supported
 ```
 
 ## Further Reading
 
-- [Benchmarks Overview](../../benchmarks/README.md) - Complete benchmark system documentation
-- [Evaluation Guide](../../benchmarks/evaluations/README.md) - Detailed evaluation instructions
-- [Problem Registry](../../benchmarks/shared/problem_registry.py) - Problem configuration reference
+- [Benchmarks Overview](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/README.md) - Complete benchmark system documentation
+- [Evaluation Guide](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/evaluations/README.md) - Detailed evaluation instructions
+- [Problem Registry](https://github.com/gioelemo/engineer-assistant/blob/main/benchmarks/shared/problem_registry.py) - Problem configuration reference
 - [Weave Documentation](https://docs.wandb.ai/weave) - Official Weave documentation
 
 ## Technical Integration Details
@@ -329,4 +321,4 @@ else:
     print("Weave disabled, using local logging")
 ```
 
-See [Weave Integration Utils](../../src/utils/weave_integration.py) for implementation details.
+See [Weave Integration Utils](https://github.com/gioelemo/engineer-assistant/blob/main/src/utils/weave_integration.py) for implementation details.

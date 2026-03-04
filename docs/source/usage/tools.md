@@ -1,6 +1,6 @@
 # Tools
 
-Engineer Assistant provides a comprehensive set of tools for various tasks.
+Engineer Assistant provides a comprehensive set of tools that agents use to complete tasks. All tools are LangChain `@tool` decorated functions that agents call automatically based on user requests.
 
 ## ArXiv Tools
 
@@ -11,26 +11,33 @@ Search and analyze academic papers.
 Search for papers on arXiv.
 
 ```python
-from src.tools import arxiv_tools
+from src.tools import search_arxiv
 
-results = arxiv_tools.search_papers("machine learning", max_results=10)
+results = search_arxiv.invoke({"query": "topology optimization", "max_results": 5})
 ```
 
 ### `get_arxiv_paper`
 
-Download and retrieve paper details.
+Retrieve paper details by arXiv ID.
 
 ```python
-paper = arxiv_tools.get_paper("2301.12345")
+from src.tools import get_arxiv_paper
+
+paper = get_arxiv_paper.invoke({"arxiv_id": "2301.12345"})
 ```
+
+Additional tools (created via factory with MMORE client):
+- `download_and_analyze_paper` — Download PDF and index in MMORE
+- `ask_about_papers` — Query indexed papers via RAG
+- `list_analyzed_papers` — List all indexed papers
 
 ## RAG Tools
 
 Retrieve information from your knowledge base using MMORE.
 
-### `search_documents`
+### `MMOREClient`
 
-Query MMORE for relevant documents.
+The MMORE client provides direct access to the document retrieval service:
 
 ```python
 from src.tools import MMOREClient
@@ -42,114 +49,118 @@ results = mmore.retrieve(
 )
 ```
 
-### `upload_file`
-
-Add new documents to MMORE.
+### RAG tool functions (created via factory)
 
 ```python
-from src.tools import MMOREClient
+from src.tools import create_rag_tools, MMOREClient
 
 mmore = MMOREClient()
-response = mmore.upload_file(
-    file_path="document.pdf",
-    file_id="my_document"
-)
+tools = create_rag_tools(mmore)
+# Returns: [search_documents, add_document, add_url_to_knowledge_base,
+#           list_documents, delete_document]
 ```
 
 ## HPC Tools
 
-Interact with high-performance computing clusters.
+Interact with high-performance computing clusters via SSH/SLURM.
 
 ### `submit_slurm_job`
 
-Submit a job to a SLURM cluster.
+Submit a SLURM job script to the cluster.
 
 ```python
-from src.tools import hpc
+from src.tools.hpc import submit_slurm_job
 
-job_id = hpc.submit_job(
-    script="simulation.sh",
-    nodes=4,
-    time="24:00:00"
-)
+result = submit_slurm_job.invoke({
+    "slurm_file": "#!/bin/bash\n#SBATCH --job-name=test\npython train.py",
+    "host_alias": "euler",
+})
 ```
 
-### `monitor_job`
+### `get_slurm_job_status`
 
-Check job status and retrieve results.
+Check the status of a submitted job.
 
 ```python
-status = hpc.check_job_status(job_id)
-output = hpc.get_job_output(job_id)
+from src.tools.hpc import get_slurm_job_status
+
+status = get_slurm_job_status.invoke({"job_id": "12345"})
 ```
+
+### Other HPC tools
+
+- `test_hpc_connection` — Verify SSH connectivity
+- `monitor_job_until_complete` — Poll job until completion
+- `cancel_slurm_job` — Cancel a running job
+- `download_job_outputs` — Retrieve job output files
 
 ## Engineering Tools
 
-Optimization and design tools.
-
-### `engibench_optimize`
-
-Run optimization using EngiBench problems.
+Optimization and design tools using EngiBench.
 
 Supported problem types:
 - **beams2d**: 2D structural topology optimization
-- **thermoelastic2d**: 2D multi-physics optimization (structural + thermal)
+- **photonics2d**: 2D photonic device topology optimization
+
+### `optimize_design`
+
+Run topology optimization on an EngiBench problem.
 
 ```python
-from src.tools import engibench
+from src.tools import optimize_design
 
-# Structural optimization
-result = engibench.optimize(
-    problem="beams2d",
-    config={"volfrac": 0.3, "forcedist": 0.5}
-)
-
-# Multi-physics thermoelastic optimization
-result = engibench.optimize(
-    problem="thermoelastic2d",
-    config={"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
-)
+result = optimize_design.invoke({
+    "problem_type": "beams2d",
+    "volfrac": 0.3,
+    "forcedist": 0.5,
+})
 ```
 
-The unified tools work with both problem types:
-- `create_problem` - Initialize a problem instance
-- `simulate_design` - Evaluate a design
-- `optimize_design` - Run topology optimization
-- `render_design` - Visualize the design
-- `get_problem_info` - Get problem metadata
-- `get_problem_details` - Get detailed problem description
-- `get_dataset_info` - Get dataset information
+### All EngiBench tools
 
-### `engiopt_optimize`
+- `create_problem` — Initialize a problem instance
+- `simulate_design` — Evaluate a design's objectives
+- `optimize_design` — Run topology optimization
+- `render_design` — Visualize the design as an image
+- `get_problem_details` — Get detailed problem description
+- `get_dataset_info` — Get dataset information
 
-Use EngiOpt algorithms for optimization.
+### EngiOpt tools
 
-```python
-from src.tools import engiopt
+Tools for working with trained generative models:
 
-result = engiopt.optimize(
-    design=initial_design,
-    objective=objective_fn
-)
-```
+- `download_wandb_model` — Download a model from W&B
+- `load_wandb_model` — Load a downloaded model
+- `sample_designs_from_model` — Generate designs from a trained model
+- `generate_training_command` — Generate SLURM training scripts
+- `evaluate_model` — Evaluate a trained model against baselines
 
 ## Export Tools
 
-Export designs to various formats.
+### `convert_design_to_stl`
 
-### `export_to_stl`
-
-Convert designs to STL format for 3D printing.
+Convert a 2D design to STL format for 3D printing.
 
 ```python
-from src.tools import stl_export
+from src.tools import convert_design_to_stl
 
-stl_export.design_to_stl(
-    design=optimized_design,
-    output="design.stl",
-    extrude_height=10.0
-)
+result = convert_design_to_stl.invoke({
+    "npy_file_path": "outputs/design.npy",
+    "scale_xy": 1.0,
+    "scale_z": 10.0,
+    "mirror_y": False,
+    "threshold": 0.5,
+})
 ```
+
+## CLI Tools
+
+- `execute_cli_command` — Run shell commands locally
+- `open_gui_application` — Launch GUI applications (PrusaSlicer, VS Code, etc.)
+
+## Search Tools
+
+- `create_search_tool()` — Factory that returns a Tavily web search tool
 
 ## Next Steps
 

@@ -75,11 +75,11 @@ Each agent is autonomous and equipped with specific tools:
 Handles structural design and optimization workflows.
 
 **Tools**:
-- EngiBench optimization (beams2d, ThermoElastic2D, Photonics2D)
-- Unified problem registry system - easily extensible for new problem types
+- EngiBench optimization (beams2d, photonics2d) via unified problem registry
 - Design simulation and analysis with dynamic objective extraction
-- Constraint checking
 - STL export for 3D printing
+- W&B model management (download, load, sample, evaluate)
+- Training command generation for HPC
 
 **Typical Workflow**:
 ```
@@ -130,8 +130,6 @@ Performs web searches for technical information.
 
 **Tools**:
 - Tavily search API
-- Web scraping
-- Content summarization
 
 #### HPC Agent
 **Module**: `src.agents.hpc_agent`
@@ -198,7 +196,7 @@ Tools are reusable functions that agents use to complete tasks.
 - **Fabric**: SSH/remote execution
 
 ### Models
-- **LLMs**: OpenAI GPT-4o, Gemini 3 flash
+- **LLMs**: OpenAI GPT-4o/GPT-4.1, Google Gemini-3-Flash, Ollama (Qwen3, Qwen3.5)
 - **Embeddings**: text-embedding-3-small (OpenAI)
 
 ### Storage
@@ -311,14 +309,14 @@ All configuration via environment variables (`.env` file):
 # Core
 OPENAI_API_KEY=sk-...
 TAVILY_API_KEY=tvly-...
-LLM_MODEL=openai:gpt-4o
+LLM_MODEL=openai:gpt-4.1
 
 # Database
 DATABASE_URL=postgresql://user:pass@postgres:5432/engineer_assistant
 
 # Optional Integrations
 SKIP_MCP=true              # Disable Prusa integration
-PRUSA_MCP_URL=http://prusa-mcp-server:8000
+PRUSA_MCP_URL=http://prusa-mcp-server:8765
 HOST_SERVICE_PORT=9999     # For GUI app launching
 HPC_HOST_ALIAS=euler       # SSH config alias
 ```

@@ -100,12 +100,8 @@ GOOGLE_API_KEY=sk-...
 # Tavily API Key (for web search)
 TAVILY_API_KEY=tvly-...
 
-# Prusa Connect Credentials (optional, can login via UI)
-PRUSA_EMAIL=your-email@example.com
-PRUSA_PASSWORD=your-password
-
 # LLM Configuration
-LLM_MODEL=openai:gpt-4o
+LLM_MODEL=openai:gpt-4.1
 
 # Database Configuration
 DATABASE_URL=postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant
@@ -147,7 +143,7 @@ Expected output:
 NAME                          STATUS                   PORTS
 engineer-assistant-chatbot    Up (healthy)             0.0.0.0:8501->8501/tcp
 engineer-assistant-postgres   Up (healthy)             0.0.0.0:5432->5432/tcp
-prusa-mcp-server              Up (healthy)             0.0.0.0:8765->8000/tcp
+prusa-mcp-server              Up (healthy)             0.0.0.0:8765->8765/tcp
 ```
 
 ### Step 6: Access the Application

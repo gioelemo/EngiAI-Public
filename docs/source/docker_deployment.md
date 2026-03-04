@@ -25,7 +25,7 @@ The following services must be cloned locally and accessible to the Docker conta
 2. **Prusa Connect MCP Server** (Optional - only if using 3D printer integration)
    ```bash
    # Use the prusa_mcp_server directory in this repository
-   cd prusa_mcp_server
+   cd services/prusa_mcp_server
    # Follow Prusa MCP setup instructions in README.md
    ```
    - Configure with `PRUSA_MCP_PATH` in `.env`
@@ -155,16 +155,17 @@ If you build the image on your local machine and want to deploy on Windows Serve
 
 ### Required Variables
 - `OPENAI_API_KEY`: Your OpenAI API key
+- `GOOGLE_API_KEY`: Your Google API key
 - `TAVILY_API_KEY`: Your Tavily API key
 
 ### Important Variables
-- `SKIP_MCP`: Skip Prusa MCP server initialization (default: `true` in Docker)
-  - Set to `true` for basic deployment without 3D printer integration
-  - Set to `false` only if you have the Prusa MCP server set up
+- `SKIP_MCP`: Skip Prusa MCP server initialization (default: `false` in Docker)
+  - Set to `true` to disable 3D printer integration
+  - Set to `false` (default in docker-compose) to enable Prusa MCP
 
 ### Optional Variables
 
-- `LLM_MODEL`: Model to use (default: `openai:gpt-4o`)
+- `LLM_MODEL`: Model to use (default: `openai:gpt-4.1`)
 - `DATABASE_URL`: Database connection string (default: `sqlite:///data/conversations.db`)
 - `LANGCHAIN_TRACING`: Enable LangSmith tracing (default: `false`)
 

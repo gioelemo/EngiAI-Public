@@ -166,7 +166,7 @@ If you're using Docker and want to open GUI applications (like PrusaSlicer) on y
 
 ```bash
 # In a separate terminal:
-python host_service.py
+python services/host_service.py
 ```
 
 This allows the containerized assistant to:

@@ -85,7 +85,7 @@ The database tables will be created automatically on first run.
 
 ## Database Schema
 
-The application creates three tables:
+The application creates four tables:
 
 ### 1. `conversations`
 Stores conversation metadata:
@@ -94,6 +94,9 @@ Stores conversation metadata:
 - `created_at` (DateTime): Creation timestamp
 - `updated_at` (DateTime): Last update timestamp
 - `message_count` (Integer): Number of messages
+- `pinned` (Boolean): Whether conversation is pinned to top
+- `voice_id` (String): Voice name (e.g., "George" for ElevenLabs, "alloy" for OpenAI)
+- `voice_provider` (String): Voice provider ("elevenlabs" or "openai")
 
 ### 2. `messages`
 Stores individual messages:
@@ -101,6 +104,9 @@ Stores individual messages:
 - `conversation_id` (String): Foreign key to conversations
 - `role` (String): 'user' or 'assistant'
 - `content` (Text): Message content
+- `images` (JSON): List of image data (base64 encoded)
+- `suggested_prompts` (JSON): Follow-up prompt suggestions
+- `audio` (JSON): Audio attachment data
 - `created_at` (DateTime): Creation timestamp
 
 ### 3. `conversation_states`
@@ -109,6 +115,13 @@ Stores LangGraph agent state:
 - `agent_state` (JSON): Agent messages and state
 - `config` (JSON): LangGraph configuration
 - `waiting_for_confirmation` (Integer): Boolean flag (0 or 1)
+- `updated_at` (DateTime): Last update timestamp
+
+### 4. `settings`
+Stores user settings as key-value pairs:
+- `id` (Integer): Auto-increment primary key
+- `key` (String): Setting name (unique)
+- `value` (JSON): Setting value
 - `updated_at` (DateTime): Last update timestamp
 
 ## How It Works

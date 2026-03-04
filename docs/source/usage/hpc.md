@@ -1,193 +1,128 @@
 # HPC Integration
 
-Engineer Assistant integrates with high-performance computing (HPC) clusters for running computationally intensive tasks.
+Engineer Assistant integrates with high-performance computing (HPC) clusters for running computationally intensive tasks via SLURM.
 
 ## Prerequisites
 
-- Access to an HPC cluster with SLURM
+- Access to an HPC cluster with SLURM (e.g., ETH Euler)
 - SSH key authentication configured
 - Proper environment modules on the cluster
 
 ## Configuration
 
-Set up your HPC credentials in the configuration:
-
-```bash
-export HPC_HOST_ALIAS="euler"
-export HPC_HOSTNAME="cluster.university.edu"
-export HPC_USERNAME="your_username"
-```
-
-Or in your `.env` file:
+Set up your HPC credentials in `.env`:
 
 ```bash
 HPC_HOST_ALIAS=euler
-HPC_HOSTNAME=cluster.university.edu
+HPC_HOSTNAME=euler.ethz.ch
 HPC_USERNAME=your_username
 ```
 
-## Submitting Jobs
-
-### Basic Job Submission
-
-```python
-from src.agents import HPCAgent
-
-agent = HPCAgent()
-
-job_id = agent.submit_job(
-    script="simulation.sh",
-    nodes=4,
-    cpus_per_node=48,
-    time="24:00:00",
-    memory="128GB"
-)
-
-print(f"Job submitted with ID: {job_id}")
-```
-
-### Job Script Template
-
-Create a SLURM job script (`simulation.sh`):
+And configure your SSH access:
 
 ```bash
-#!/bin/bash
-#SBATCH --job-name=optimization
-#SBATCH --nodes=4
-#SBATCH --ntasks-per-node=48
-#SBATCH --time=24:00:00
-#SBATCH --mem=128GB
-
-module load python/3.11
-module load openmpi
-
-python simulation.py
+# In ~/.ssh/config
+Host euler
+    HostName euler.ethz.ch
+    User your-username
+    IdentityFile ~/.ssh/id_ed25519
 ```
 
-## Monitoring Jobs
-
-### Check Job Status
-
-```python
-status = agent.check_status(job_id)
-print(f"Job status: {status}")
+Test the connection:
+```bash
+ssh euler
 ```
 
-### View Job Queue
+## Using the HPC Agent
 
-```python
-queue = agent.get_queue()
-for job in queue:
-    print(f"{job['id']}: {job['status']} - {job['name']}")
+The HPC agent is accessed through natural language via the Streamlit UI or Supervisor Agent. Simply describe what you want to do:
+
+### Submitting Jobs
+
+```
+"Submit a training job to Euler with seed 1 and 100 epochs"
+"Run the cGAN training on HPC for beams2d"
 ```
 
-### Retrieve Output
+The agent will:
+1. Generate a SLURM script with appropriate resources
+2. Submit the job via SSH
+3. Report the job ID
 
-```python
-# Get standard output
-output = agent.get_output(job_id)
+### Monitoring Jobs
 
-# Get standard error
-errors = agent.get_errors(job_id)
+```
+"Check the status of my running jobs"
+"Monitor job 12345 until it completes"
 ```
 
-## Advanced Usage
+### Retrieving Results
 
-### Interactive Job Monitoring
-
-```python
-import time
-
-while True:
-    status = agent.check_status(job_id)
-    if status in ["COMPLETED", "FAILED", "CANCELLED"]:
-        break
-    print(f"Job {job_id}: {status}")
-    time.sleep(60)  # Check every minute
-
-print(f"Final status: {status}")
+```
+"Download the output from job 12345"
+"Get the training results from HPC"
 ```
 
-### Batch Job Submission
+## Available HPC Tools
 
-```python
-job_ids = []
-configs = [
-    {"volfrac": 0.3, "forcedist": 0.0},
-    {"volfrac": 0.4, "forcedist": 0.5},
-    {"volfrac": 0.5, "forcedist": 1.0},
-]
+The HPC agent has access to these tools:
 
-for config in configs:
-    job_id = agent.submit_optimization_job(config)
-    job_ids.append(job_id)
+| Tool | Description |
+|------|-------------|
+| `test_hpc_connection` | Verify SSH connectivity to the cluster |
+| `submit_slurm_job` | Submit a SLURM job script |
+| `get_slurm_job_status` | Check job status |
+| `monitor_job_until_complete` | Poll until job finishes |
+| `cancel_slurm_job` | Cancel a running job |
+| `download_job_outputs` | Retrieve output files via SFTP |
+| `get_active_jobs_summary` | List all active jobs |
 
-print(f"Submitted {len(job_ids)} jobs")
+## SLURM Configuration
+
+Default SLURM parameters can be set in `.env`:
+
+```bash
+SLURM_TIME=00:45:00
+SLURM_NTASKS=1
+SLURM_CPUS_PER_TASK=4
+SLURM_MEM_PER_CPU=7GB
+SLURM_GPUS=rtx_4090:1
 ```
 
-## File Transfer
+These can also be configured via the Settings UI.
 
-### Upload Files
+## ML Training Pipeline
 
-```python
-agent.upload_file(
-    local_path="local_data.npy",
-    remote_path="/scratch/username/data.npy"
-)
+The HPC agent supports end-to-end ML training workflows:
+
+1. **Generate training script** — Creates a SLURM script for EngiOpt model training
+2. **Submit to cluster** — Uploads and submits the job
+3. **Monitor execution** — Tracks job progress until completion
+4. **Evaluate results** — Downloads the trained model and computes metrics
+
+Example:
+```
+"Train a cGAN model for beams2d on Euler with seed 1 and 100 epochs,
+then evaluate it against the dataset baseline"
 ```
 
-### Download Results
+## SSH in Docker
 
-```python
-agent.download_file(
-    remote_path="/scratch/username/results.npy",
-    local_path="results.npy"
-)
-```
-
-## Job Templates
-
-The HPC agent provides pre-configured templates for common tasks:
-
-```python
-# Optimization job
-job_id = agent.submit_optimization_job(
-    problem="beams2d",
-    config={"volfrac": 0.3}
-)
-
-# Simulation job
-job_id = agent.submit_simulation_job(
-    design="design.npy",
-    simulator="fenics"
-)
-```
+When running in Docker, SSH keys are automatically mounted from `~/.ssh`. See the [Docker Deployment Guide](../docker_deployment.md) for details on SSH agent forwarding with passphrase-protected keys.
 
 ## Troubleshooting
 
 ### Connection Issues
 
-If you encounter connection problems:
-
-1. Verify SSH access: `ssh your_username@cluster.university.edu`
-2. Check SSH key permissions: `chmod 600 ~/.ssh/id_rsa`
-3. Test SLURM commands: `ssh cluster.university.edu "squeue -u $USER"`
+1. Verify SSH access: `ssh euler`
+2. Check SSH key permissions: `chmod 600 ~/.ssh/id_ed25519`
+3. For Docker: ensure SSH agent is running with `ssh-add -l`
 
 ### Job Failures
 
-Common issues and solutions:
-
-- **Out of Memory**: Increase `--mem` in job script
-- **Time Limit**: Increase `--time` or optimize your code
-- **Module Not Found**: Check available modules with `module avail`
-
-## Best Practices
-
-1. **Use appropriate resources**: Don't request more than needed
-2. **Set realistic time limits**: Add buffer time for queue delays
-3. **Monitor disk space**: Clean up old results regularly
-4. **Use checkpoints**: Save intermediate results for long jobs
-5. **Test locally first**: Debug on small problems before scaling up
+- Check job output: `cat slurm-<jobid>.out`
+- Verify modules are available: `module avail`
+- Check resource requests match cluster limits
 
 ## Next Steps
 

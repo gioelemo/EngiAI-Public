@@ -334,7 +334,7 @@ lsof -i :9999
 
 **Start host service** (on your local machine):
 ```bash
-python host_service.py
+python services/host_service.py
 ```
 
 **Verify from Docker**:
@@ -347,7 +347,7 @@ docker exec engineer-assistant-chatbot curl http://host.docker.internal:9999/hea
 **Solutions**:
 1. Verify PrusaSlicer is installed on host machine
 
-2. Verify host service whitelist includes the app (in `host_service.py`)
+2. Verify host service whitelist includes the app (in `services/host_service.py`)
 
 ### Port 9999 Already in Use
 
