@@ -251,7 +251,7 @@ def _build_data_rows(
     return lines
 
 
-def _build_reference_rows(
+def _build_reference_rows(  # noqa: PLR0912
     ref_data: dict[str, dict[str, dict[str, list[float]]]],
     models: list[str],
     styles: list[str],
@@ -337,7 +337,7 @@ def _build_reference_rows(
     return lines
 
 
-def generate_table(  # noqa: PLR0912
+def generate_table(  # noqa: PLR0912, PLR0915
     problem: str,
     rag_status: str,
     results_dir: Path | None = None,
