@@ -61,10 +61,18 @@ PROBLEM_TABLE_META: dict[str, dict[str, str]] = {
         "caption_long": (
             "Workflow evaluation results for Photonics~2D (mean $\\pm$ std). "
             "TC = Task Completion rate, CO = Combined Overall score. "
-            "\\textbf{Bold} = best model per metric per row."
+            "\\textbf{Bold} = best model per metric per row. "
+            "{\\color{black!80}Gray text} shows Beams~2D results on the same "
+            "workflow styles for comparison."
         ),
         "label": "tab:workflow_results_photonics",
     },
+}
+
+# Short problem labels for reference rows
+PROBLEM_LABELS: dict[str, str] = {
+    "beams2d": "Beams~2D",
+    "photonics2d": "Photonics~2D",
 }
 
 # Display order for model columns (left to right)
@@ -135,15 +143,17 @@ def _load_scores(
     return data
 
 
-def _fmt(vals: list[float], bold: bool = False) -> str:
+def _fmt(vals: list[float], bold: bool = False, gray: bool = False) -> str:
     """Format mean ± std for LaTeX. Always shows ±std for consistent alignment."""
     if not vals:
-        return "---"
+        return "{\\color{black!80}---}" if gray else "---"
     mean = np.mean(vals)
     std = np.std(vals)
     text = f"{mean:.2f}\\tiny{{$\\pm${std:.2f}}}"
     if bold:
-        return f"\\textbf{{{text}}}"
+        text = f"\\textbf{{{text}}}"
+    if gray:
+        text = f"{{\\color{{black!80}}{text}}}"
     return text
 
 
@@ -241,8 +251,97 @@ def _build_data_rows(
     return lines
 
 
+def _build_reference_rows(
+    ref_data: dict[str, dict[str, dict[str, list[float]]]],
+    models: list[str],
+    styles: list[str],
+    ref_problem: str,
+    total_data_cols: int,
+) -> list[str]:
+    """Build gray-text reference rows from another problem for comparison."""
+    n_score_cols = len(SCORES)
+    ref_label = PROBLEM_LABELS.get(ref_problem, ref_problem)
+    lines: list[str] = []
+    gc = r"{\color{black!80}"  # gray color open
+    ge = r"}"  # gray color close
+
+    # Section header
+    ncols = 1 + total_data_cols
+    lines.append(r"\midrule")
+    lines.append(
+        f"\\multicolumn{{{ncols}}}{{l}}"
+        f"{{{gc}\\textit{{{ref_label} (same styles, for comparison)}}{ge}}}"
+        r" \\"
+    )
+
+    # Data rows
+    ref_col_sums: list[list[float]] = [[] for _ in range(total_data_cols)]
+    for style in styles:
+        label = STYLE_LABELS.get(style, style.replace("-", r"\text{-}"))
+        row_parts = [f"{gc}{label}{ge}"]
+
+        best_models_per_score: dict[str, set[str]] = {}
+        for score_key, _ in SCORES:
+            means: dict[str, float] = {}
+            for m in models:
+                vals = ref_data.get(m, {}).get(style, {}).get(score_key, [])
+                means[m] = float(np.mean(vals)) if vals else -1.0
+            best_val = max(means.values())
+            if best_val > 0:
+                best_models_per_score[score_key] = {
+                    m for m, v in means.items() if np.isclose(v, best_val)
+                }
+
+        col_idx = 0
+        for m in models:
+            style_data = ref_data.get(m, {}).get(style, {})
+            for score_key, _ in SCORES:
+                vals = style_data.get(score_key, [])
+                bold = m in best_models_per_score.get(score_key, set())
+                row_parts.append(_fmt(vals, bold=bold, gray=True))
+                if vals:
+                    ref_col_sums[col_idx].append(float(np.mean(vals)))
+                col_idx += 1
+
+        lines.append(" & ".join(row_parts) + r" \\")
+
+    # Average row
+    lines.append(r"\cmidrule{1-" + str(1 + total_data_cols) + r"}")
+    ref_avgs = [float(np.mean(cv)) if cv else None for cv in ref_col_sums]
+
+    best_ref_cols: set[int] = set()
+    for score_offset in range(n_score_cols):
+        best_val = -1.0
+        for i in range(len(models)):
+            idx = i * n_score_cols + score_offset
+            val = ref_avgs[idx]
+            if val is not None and val > best_val:
+                best_val = val
+        if best_val > 0:
+            for i in range(len(models)):
+                idx = i * n_score_cols + score_offset
+                val = ref_avgs[idx]
+                if val is not None and np.isclose(val, best_val):
+                    best_ref_cols.add(idx)
+
+    avg_parts = [f"{gc}\\textit{{Average}}{ge}"]
+    for col_idx, avg in enumerate(ref_avgs):
+        if avg is None:
+            avg_parts.append(f"{gc}---{ge}")
+        elif col_idx in best_ref_cols:
+            avg_parts.append(f"{gc}\\textbf{{\\textit{{{avg:.2f}}}}}{ge}")
+        else:
+            avg_parts.append(f"{gc}\\textit{{{avg:.2f}}}{ge}")
+    lines.append(" & ".join(avg_parts) + r" \\")
+
+    return lines
+
+
 def generate_table(  # noqa: PLR0912
-    problem: str, rag_status: str, results_dir: Path | None = None
+    problem: str,
+    rag_status: str,
+    results_dir: Path | None = None,
+    reference_problem: str | None = None,
 ) -> str:
     """Generate the full LaTeX table string."""
     data = _load_scores(problem, rag_status, results_dir)
@@ -326,6 +425,16 @@ def generate_table(  # noqa: PLR0912
             avg_parts.append(f"\\textit{{{avg:.2f}}}")
     lines.append(" & ".join(avg_parts) + r" \\")
 
+    # Reference problem rows (e.g. beams2d comparison in photonics table)
+    if reference_problem:
+        ref_data = _load_scores(reference_problem, rag_status, results_dir)
+        if ref_data:
+            lines.extend(
+                _build_reference_rows(
+                    ref_data, models, styles, reference_problem, total_data_cols
+                )
+            )
+
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular*}")
     lines.append(r"\end{table*}")
@@ -354,11 +463,18 @@ def main():
         default=None,
         help="Path to models/ results directory (default: results/models/)",
     )
+    parser.add_argument(
+        "--reference-problem",
+        default=None,
+        help="Add comparison rows from another problem (e.g. beams2d) in gray",
+    )
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir) if args.results_dir else None
 
-    table = generate_table(args.problem, args.rag_status, results_dir)
+    table = generate_table(
+        args.problem, args.rag_status, results_dir, args.reference_problem
+    )
 
     if args.output:
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
