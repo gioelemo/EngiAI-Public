@@ -1144,6 +1144,148 @@ def plot_baseline_grid(
     plt.close(fig)
 
 
+# ── Plot 7: Baseline Grid (violin) ────────────────────────────────────────────
+
+
+def plot_baseline_grid_violin(  # noqa: PLR0912, PLR0915
+    df: pd.DataFrame,
+    filename: str = "baseline_grid.png",
+    output_dir: Path | None = None,
+    prompt_style: str | None = None,
+) -> None:
+    """2x2 grid of violin plots for COG, RVC, MMD, DPP.
+
+    Each subplot shows per-seed distributions as violins (models + baseline)
+    with individual data points overlaid.
+    Arrows indicate desired direction for each metric.
+    """
+    setup_style()
+    df = _prepare_data(df)
+
+    # Load data (same pipeline as plot_baseline_grid)
+    algorithm = _algorithm_from_style(prompt_style)
+    algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
+    _, eid_to_config, _ = _build_config_mappings(algorithm)
+
+    agent_metrics = _extract_agent_metrics(df, example_id_to_config=eid_to_config)
+    if agent_metrics is None:
+        print("  No agent metrics found, skipping baseline grid violin")
+        return
+
+    baseline_df = _load_baseline_csvs(_BASELINE_DIR)
+    if baseline_df is None or baseline_df.empty:
+        print("  No baseline CSVs found, skipping baseline grid violin")
+        return
+
+    baseline_metrics = _extract_baseline_metrics(baseline_df)
+    if "algorithm" in baseline_metrics.columns:
+        baseline_metrics = baseline_metrics[baseline_metrics["algorithm"] == algorithm]
+    if baseline_metrics.empty:
+        print("  No matching baseline data, skipping baseline grid violin")
+        return
+
+    # Filter agent data to matching algorithm
+    comparable = agent_metrics
+    if "algorithm" in comparable.columns:
+        comparable = comparable[comparable["algorithm"] == algorithm]
+    if comparable.empty:
+        print("  No matching agent data, skipping baseline grid violin")
+        return
+
+    models = sorted(comparable["model"].unique().tolist())
+    all_seeds = sorted(comparable["seed"].unique().tolist())
+    font_sizes = PLOT_STYLE["font_sizes"]
+
+    # Assign consistent colours: models + baseline
+    group_names = [*models, f"Baseline ({algo_short})"]
+    palette = {
+        name: COLOR_PALETTE[i % len(COLOR_PALETTE)]
+        for i, name in enumerate(group_names)
+    }
+
+    fig, axes = plt.subplots(2, 2, figsize=(FULL_WIDTH, 4.2))
+
+    for idx, (metric, label, direction) in enumerate(_GRID_METRICS):
+        ax = axes[idx // 2, idx % 2]
+
+        # Build long-form DataFrame for this metric
+        rows: list[dict[str, Any]] = []
+        for model in models:
+            model_df = comparable[comparable["model"] == model]
+            for seed in all_seeds:
+                val = _get_seed_val(model_df, seed, metric)
+                if not np.isnan(val):
+                    rows.append({"group": model, "value": val})
+
+        baseline_label = f"Baseline ({algo_short})"
+        for seed in sorted(baseline_metrics["seed"].unique()):
+            val = _get_seed_val(baseline_metrics, int(seed), metric)
+            if not np.isnan(val):
+                rows.append({"group": baseline_label, "value": val})
+
+        if not rows:
+            ax.set_visible(False)
+            continue
+
+        long_df = pd.DataFrame(rows)
+
+        # Violin plot with inner box (median + IQR)
+        sns.violinplot(
+            data=long_df,
+            x="group",
+            y="value",
+            order=group_names,
+            palette=palette,
+            inner="box",
+            linewidth=0.5,
+            saturation=0.8,
+            cut=0,
+            ax=ax,
+        )
+
+        # Mean annotations at bottom of each violin
+        for i, name in enumerate(group_names):
+            subset = long_df[long_df["group"] == name]["value"]
+            if not subset.empty:
+                mean_val = subset.mean()
+                # Use scientific notation for large/tiny values
+                _sci_upper = 1000
+                _sci_lower = 0.01
+                if abs(mean_val) >= _sci_upper or (
+                    mean_val != 0 and abs(mean_val) < _sci_lower
+                ):
+                    mean_str = f"$\\mu$={mean_val:.1e}"
+                else:
+                    mean_str = f"$\\mu$={mean_val:.2f}"
+                ax.annotate(
+                    mean_str,
+                    xy=(i, ax.get_ylim()[0]),
+                    ha="center",
+                    va="bottom",
+                    fontsize=font_sizes["annotation"],
+                    bbox={
+                        "boxstyle": "round,pad=0.2",
+                        "facecolor": "white",
+                        "alpha": 0.8,
+                        "edgecolor": "0.8",
+                    },
+                )
+
+        arrow = r"$\downarrow$" if direction == "down" else r"$\uparrow$"
+        ax.set_ylabel(f"{label} {arrow}")
+        ax.set_xlabel("")
+        ax.tick_params(axis="x", labelsize=font_sizes["tick_label"])
+        # Rotate x-labels if many groups
+        _max_unrotated_groups = 3
+        if len(group_names) > _max_unrotated_groups:
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=20, ha="right")
+        ax.grid(True, axis="y", alpha=0.3)
+
+    fig.tight_layout()
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+
+
 # ── Main entrypoint ──────────────────────────────────────────────────────────
 
 
@@ -1184,8 +1326,8 @@ def main(
     print("\n[6/7] Baseline comparison (one figure per metric)...")
     plot_baseline_comparison(df, output_dir=output_dir, prompt_style=prompt_style)
 
-    print("\n[7/7] Baseline grid (2x2: COG, RVC, MMD, DPP)...")
-    plot_baseline_grid(df, output_dir=output_dir, prompt_style=prompt_style)
+    print("\n[7/7] Baseline grid violin (2x2: COG, RVC, MMD, DPP)...")
+    plot_baseline_grid_violin(df, output_dir=output_dir, prompt_style=prompt_style)
 
 
 if __name__ == "__main__":
