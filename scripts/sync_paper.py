@@ -151,11 +151,21 @@ def _extract_workflow_prompts(cfg: dict) -> dict[str, str] | None:
         results: dict[str, str] = {}
         results["full"] = mod._create_full_prompt(vf, fd, rm)
         results["natural"] = mod._create_natural_prompt(vf, fd)
-        results["workflow-random"] = mod._create_workflow_random_prompt(vf, fd, rm, 0, seed)[0]
-        results["workflow-derived-params"] = mod._create_workflow_derived_params_prompt(vf, fd, rm)[0]
-        results["workflow-distractor"] = mod._create_workflow_distractor_prompt(vf, fd, rm, 0, seed)[0]
-        results["workflow-conditional"] = mod._create_workflow_conditional_prompt(vf, fd, rm, 0, seed)[0]
-        results["workflow-multi-export"] = mod._create_workflow_multi_export_prompt(vf, fd, rm, 0, seed)[0]
+        results["workflow-random"] = mod._create_workflow_random_prompt(
+            vf, fd, rm, 0, seed
+        )[0]
+        results["workflow-derived-params"] = mod._create_workflow_derived_params_prompt(
+            vf, fd, rm
+        )[0]
+        results["workflow-distractor"] = mod._create_workflow_distractor_prompt(
+            vf, fd, rm, 0, seed
+        )[0]
+        results["workflow-conditional"] = mod._create_workflow_conditional_prompt(
+            vf, fd, rm, 0, seed
+        )[0]
+        results["workflow-multi-export"] = mod._create_workflow_multi_export_prompt(
+            vf, fd, rm, 0, seed
+        )[0]
     except Exception:
         log.exception("Failed to extract workflow prompts from beams2d")
         return None
@@ -197,7 +207,9 @@ def _extract_rag_prompts(cfg: dict) -> dict[str, str] | None:
 
         logging.getLogger("config").setLevel(logging.WARNING)
 
-        mod = importlib.import_module("benchmarks.problems.rag_beams2d.generate_prompts")
+        mod = importlib.import_module(
+            "benchmarks.problems.rag_beams2d.generate_prompts"
+        )
         rag_prompts = getattr(mod, "RAG_PROMPTS", None)
         if rag_prompts is None:
             log.warning("RAG_PROMPTS not found in rag_beams2d generate_prompts")
@@ -300,7 +312,9 @@ def sync_prompts(cfg: dict, *, dry_run: bool) -> list[dict]:  # noqa: PLR0912, P
     if supervisor_text:
         sanitized = _sanitize_for_latex(supervisor_text)
         old_tex = tex
-        tex = _replace_listing_after_subsection(tex, "Supervisor System Prompt", sanitized)
+        tex = _replace_listing_after_subsection(
+            tex, "Supervisor System Prompt", sanitized
+        )
         if tex != old_tex:
             action = "would replace" if dry_run else "replaced"
             actions.append(
@@ -394,7 +408,9 @@ def main():
     actions = sync_prompts(cfg, dry_run=args.dry_run)
 
     if actions:
-        print(f"\n{'Would sync' if args.dry_run else 'Synced'} {len(actions)} prompt(s):")
+        print(
+            f"\n{'Would sync' if args.dry_run else 'Synced'} {len(actions)} prompt(s):"
+        )
         for a in actions:
             print(f"  {a['action']}: {a['source']} -> {a['target']}")
     else:
