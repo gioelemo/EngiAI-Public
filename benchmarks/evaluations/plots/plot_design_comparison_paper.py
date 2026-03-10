@@ -205,8 +205,8 @@ def generate_figure(  # noqa: PLR0913, PLR0915
     fig, axes = plt.subplots(
         2,
         3,
-        figsize=(6.75, 3.6),
-        gridspec_kw={"wspace": 0.08, "hspace": 0.25},
+        figsize=(3.25, 2.0),
+        gridspec_kw={"wspace": 0.08, "hspace": 0.35, "left": 0.18},
     )
 
     # Compute differences
@@ -217,8 +217,8 @@ def generate_figure(  # noqa: PLR0913, PLR0915
     diff_cmap = "hot_r"
 
     # Font sizes
-    title_fs = 11
-    label_fs = 10
+    title_fs = 7
+    label_fs = 5
 
     # Plot row A
     axes[0, 0].imshow(design_a, cmap="gray_r", vmin=0, vmax=1, aspect="equal")
@@ -238,12 +238,12 @@ def generate_figure(  # noqa: PLR0913, PLR0915
             0.03,
             f"MAE={mae:.3f}",
             transform=ax.transAxes,
-            fontsize=8,
+            fontsize=5,
             fontweight="bold",
             ha="right",
             va="bottom",
             bbox={
-                "boxstyle": "round,pad=0.2",
+                "boxstyle": "round,pad=0.15",
                 "facecolor": "white",
                 "alpha": 0.8,
                 "edgecolor": "0.5",
@@ -258,8 +258,8 @@ def generate_figure(  # noqa: PLR0913, PLR0915
     # Row labels as ylabels
     row_label_a = f"{label_a}\n(TC={tc_a:.1f}, IoU={iou_a:.2f})"
     row_label_b = f"{label_b}\n(TC={tc_b:.1f}, IoU={iou_b:.2f})"
-    axes[0, 0].set_ylabel(row_label_a, fontsize=label_fs, fontweight="bold")
-    axes[1, 0].set_ylabel(row_label_b, fontsize=label_fs, fontweight="bold")
+    axes[0, 0].set_ylabel(row_label_a, fontsize=label_fs, labelpad=3)
+    axes[1, 0].set_ylabel(row_label_b, fontsize=label_fs, labelpad=3)
 
     # Turn off all ticks
     for ax_row in axes:
@@ -276,8 +276,8 @@ def generate_figure(  # noqa: PLR0913, PLR0915
         orientation="horizontal",
         label="Material Density",
     )
-    cbar_gray_ax.tick_params(labelsize=7)
-    cbar_gray_ax.set_xlabel("Material Density", fontsize=8)
+    cbar_gray_ax.tick_params(labelsize=5)
+    cbar_gray_ax.set_xlabel("Material Density", fontsize=5)
 
     # Red colorbar for difference column
     cbar_red_ax = fig.add_axes((0.60, 0.02, 0.25, 0.025))
@@ -286,8 +286,8 @@ def generate_figure(  # noqa: PLR0913, PLR0915
         cax=cbar_red_ax,
         orientation="horizontal",
     )
-    cbar_red_ax.tick_params(labelsize=7)
-    cbar_red_ax.set_xlabel("Absolute Difference", fontsize=8)
+    cbar_red_ax.tick_params(labelsize=5)
+    cbar_red_ax.set_xlabel("Absolute Difference", fontsize=5)
 
     # Save
     output_path = Path(output)
