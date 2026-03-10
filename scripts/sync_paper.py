@@ -199,7 +199,7 @@ def _extract_supervisor_prompt() -> str | None:
 
 
 def _extract_rag_prompts(cfg: dict) -> dict[str, str] | None:
-    """Extract selected RAG evaluation prompts (P0, P3)."""
+    """Extract selected RAG evaluation prompts."""
     try:
         root_str = str(PROJECT_ROOT)
         if root_str not in sys.path:

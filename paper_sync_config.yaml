@@ -28,4 +28,4 @@ prompts:
   # RAG evaluation prompts (P0 = easiest, P3 = hardest).
   rag_prompts:
     source: benchmarks/problems/rag_beams2d/generate_prompts.py
-    indices: [0, 3]
+    indices: [0, 1, 2, 3]
