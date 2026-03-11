@@ -538,7 +538,7 @@ def plot_rag_score_components_by_prompt(
         if n_models > 1
         else [0.0]
     )
-    model_hatches = dict(zip(models, ["", "//", "..", "xx", "++", "oo"], strict=False))
+    model_hatches = dict.fromkeys(models, "")
     x = np.arange(len(example_ids))
 
     if exclude_rag_statuses is None:

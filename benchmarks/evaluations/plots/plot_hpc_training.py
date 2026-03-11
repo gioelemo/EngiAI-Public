@@ -33,6 +33,7 @@ if _PROJECT_ROOT not in sys.path:
 
 from benchmarks.evaluations.plots.utils import (
     COLOR_PALETTE,
+    COLUMN_WIDTH,
     FULL_WIDTH,
     PLOT_STYLE,
     get_problem_prompt_output_dir,
@@ -218,7 +219,7 @@ def plot_step_completion_heatmap_avg(
 
     n_rows = len(row_labels)
     fig_height = max(1.8, 0.8 * n_rows + 0.8)
-    fig, ax = plt.subplots(figsize=(PLOT_STYLE["figsize_full_width"][0], fig_height))
+    fig, ax = plt.subplots(figsize=(PLOT_STYLE["figsize_single_col"][0], fig_height))
 
     # Display as 0-100% with explicit "%" in cell annotations
     mean_vals = grouped_mean.to_numpy() * 100
@@ -1123,13 +1124,13 @@ def plot_baseline_grid(
         "algo_short": algo_short,
     }
 
-    fig, axes = plt.subplots(2, 2, figsize=(FULL_WIDTH, 4.2))
+    fig, axes = plt.subplots(2, 2, figsize=(COLUMN_WIDTH, 3.2))
 
     for idx, (metric, label, direction) in enumerate(_GRID_METRICS):
         _draw_grid_subplot(axes[idx // 2, idx % 2], metric, label, direction, ctx)
 
     # ── Shared legend at bottom ──
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(
         handles,
@@ -1203,7 +1204,7 @@ def plot_baseline_grid_violin(  # noqa: PLR0912, PLR0915
         for i, name in enumerate(group_names)
     }
 
-    fig, axes = plt.subplots(2, 2, figsize=(FULL_WIDTH, 4.2))
+    fig, axes = plt.subplots(2, 2, figsize=(COLUMN_WIDTH, 3.2))
 
     for idx, (metric, label, direction) in enumerate(_GRID_METRICS):
         ax = axes[idx // 2, idx % 2]
@@ -1275,10 +1276,112 @@ def plot_baseline_grid_violin(  # noqa: PLR0912, PLR0915
         ax.set_ylabel(f"{label} {arrow}")
         ax.set_xlabel("")
         ax.tick_params(axis="x", labelsize=font_sizes["tick_label"])
-        # Rotate x-labels if many groups
-        _max_unrotated_groups = 3
-        if len(group_names) > _max_unrotated_groups:
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=20, ha="right")
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=25, ha="right")
+        ax.grid(True, axis="y", alpha=0.3)
+
+    fig.tight_layout()
+    save_figure(fig, filename, output_dir)
+    plt.close(fig)
+
+
+# ── Plot 8: Baseline Grid Violin 1x4 (full width) ───────────────────────────
+
+
+def plot_baseline_grid_violin_1x4(  # noqa: PLR0912, PLR0915
+    df: pd.DataFrame,
+    filename: str = "baseline_grid_1x4.png",
+    output_dir: Path | None = None,
+    prompt_style: str | None = None,
+) -> None:
+    """1x4 full-width grid of violin plots for COG, RVC, MMD, DPP.
+
+    Same content as `plot_baseline_grid_violin` but arranged horizontally
+    in a single row at full (2-column) width for better readability.
+    """
+    setup_style()
+    df = _prepare_data(df)
+
+    algorithm = _algorithm_from_style(prompt_style)
+    algo_short = _ALGO_SHORT.get(algorithm, algorithm[:4])
+    _, eid_to_config, _ = _build_config_mappings(algorithm)
+
+    agent_metrics = _extract_agent_metrics(df, example_id_to_config=eid_to_config)
+    if agent_metrics is None:
+        print("  No agent metrics found, skipping baseline grid 1x4")
+        return
+
+    baseline_df = _load_baseline_csvs(_BASELINE_DIR)
+    if baseline_df is None or baseline_df.empty:
+        print("  No baseline CSVs found, skipping baseline grid 1x4")
+        return
+
+    baseline_metrics = _extract_baseline_metrics(baseline_df)
+    if "algorithm" in baseline_metrics.columns:
+        baseline_metrics = baseline_metrics[baseline_metrics["algorithm"] == algorithm]
+    if baseline_metrics.empty:
+        print("  No matching baseline data, skipping baseline grid 1x4")
+        return
+
+    comparable = agent_metrics
+    if "algorithm" in comparable.columns:
+        comparable = comparable[comparable["algorithm"] == algorithm]
+    if comparable.empty:
+        print("  No matching agent data, skipping baseline grid 1x4")
+        return
+
+    models = sorted(comparable["model"].unique().tolist())
+    all_seeds = sorted(comparable["seed"].unique().tolist())
+    font_sizes = PLOT_STYLE["font_sizes"]
+
+    group_names = [*models, f"Baseline ({algo_short})"]
+    palette = {
+        name: COLOR_PALETTE[i % len(COLOR_PALETTE)]
+        for i, name in enumerate(group_names)
+    }
+
+    fig, axes = plt.subplots(1, 4, figsize=(FULL_WIDTH, 2.4))
+
+    for idx, (metric, label, direction) in enumerate(_GRID_METRICS):
+        ax = axes[idx]
+
+        rows: list[dict[str, Any]] = []
+        for model in models:
+            model_df = comparable[comparable["model"] == model]
+            for seed in all_seeds:
+                val = _get_seed_val(model_df, seed, metric)
+                if not np.isnan(val):
+                    rows.append({"group": model, "value": val})
+
+        baseline_label = f"Baseline ({algo_short})"
+        for seed in sorted(baseline_metrics["seed"].unique()):
+            val = _get_seed_val(baseline_metrics, int(seed), metric)
+            if not np.isnan(val):
+                rows.append({"group": baseline_label, "value": val})
+
+        if not rows:
+            ax.set_visible(False)
+            continue
+
+        long_df = pd.DataFrame(rows)
+
+        sns.violinplot(
+            data=long_df,
+            x="group",
+            y="value",
+            order=group_names,
+            palette=palette,
+            inner="box",
+            linewidth=0.5,
+            saturation=0.8,
+            cut=0,
+            ax=ax,
+        )
+
+        arrow = r"$\downarrow$" if direction == "down" else r"$\uparrow$"
+        ax.set_ylabel(f"{label} {arrow}")
+        ax.set_xlabel("")
+        ax.tick_params(axis="x", labelsize=font_sizes["tick_label"])
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=25, ha="right")
         ax.grid(True, axis="y", alpha=0.3)
 
     fig.tight_layout()
@@ -1308,26 +1411,29 @@ def main(
 
     print(f"  HPC training data: {len(df)} rows")
 
-    print("\n[1/7] Step completion heatmap...")
+    print("\n[1/8] Step completion heatmap...")
     plot_step_completion_heatmap(df, output_dir=output_dir)
 
-    print("\n[2/7] Step completion heatmap (averaged per model)...")
+    print("\n[2/8] Step completion heatmap (averaged per model)...")
     plot_step_completion_heatmap_avg(df, output_dir=output_dir)
 
-    print("\n[3/7] Workflow score bars...")
+    print("\n[3/8] Workflow score bars...")
     plot_workflow_score_bars(df, output_dir=output_dir)
 
-    print("\n[4/7] Step completion rate...")
+    print("\n[4/8] Step completion rate...")
     plot_step_completion_rate(df, output_dir=output_dir)
 
-    print("\n[5/7] Evaluation metrics...")
+    print("\n[5/8] Evaluation metrics...")
     plot_evaluation_metrics(df, output_dir=output_dir, prompt_style=prompt_style)
 
-    print("\n[6/7] Baseline comparison (one figure per metric)...")
+    print("\n[6/8] Baseline comparison (one figure per metric)...")
     plot_baseline_comparison(df, output_dir=output_dir, prompt_style=prompt_style)
 
-    print("\n[7/7] Baseline grid violin (2x2: COG, RVC, MMD, DPP)...")
+    print("\n[7/8] Baseline grid violin (2x2: COG, RVC, MMD, DPP)...")
     plot_baseline_grid_violin(df, output_dir=output_dir, prompt_style=prompt_style)
+
+    print("\n[8/8] Baseline grid violin 1x4 (full width: COG, RVC, MMD, DPP)...")
+    plot_baseline_grid_violin_1x4(df, output_dir=output_dir, prompt_style=prompt_style)
 
 
 if __name__ == "__main__":
