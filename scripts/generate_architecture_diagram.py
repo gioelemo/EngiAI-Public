@@ -13,7 +13,6 @@ from pathlib import Path
 plots_dir = Path(__file__).parent.parent / "benchmarks" / "evaluations" / "plots"
 sys.path.insert(0, str(plots_dir))
 
-import matplotlib.patches as mpatches  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch  # noqa: E402
 
@@ -24,8 +23,8 @@ setup_style()
 
 # Create figure with appropriate size for conference paper (full width)
 fig, ax = plt.subplots(1, 1, figsize=PLOT_STYLE["figsize_full_width_tall"])
-ax.set_xlim(0, 10)
-ax.set_ylim(2.2, 9.6)
+ax.set_xlim(0.3, 9.7)
+ax.set_ylim(3.05, 9.05)
 ax.axis("off")
 
 # Color scheme — all from COLOR_PALETTE (Okabe-Ito) for consistency with benchmark plots
@@ -40,10 +39,10 @@ box_linewidth = 1.0  # matches lines.linewidth in setup_style
 arrow_linewidth = 1.0
 arrow_alpha = 0.7
 
-# Font sizes (using utils style)
+# Font sizes (using utils style, bumped +1 for readability)
 font_sizes = PLOT_STYLE["font_sizes"]
-label_size = font_sizes["axes_label"]
-small_size = font_sizes["tick_label"]
+label_size = font_sizes["axes_label"] + 1
+small_size = font_sizes["tick_label"] + 1
 
 # ============================================================================
 # Uniform vertical layout — all boxes same height, equal gaps between layers
@@ -140,7 +139,9 @@ ax.text(
 agent_height = box_h
 agent_width = 1.15
 n_agents = 7
-agent_spacing = (9 - n_agents * agent_width) / (n_agents - 1)
+agent_x_start = 0.5
+agent_available = 9.5 - agent_x_start
+agent_spacing = (agent_available - n_agents * agent_width) / (n_agents - 1)
 
 agents = [
     {"name": "Engineering"},
@@ -154,7 +155,7 @@ agents = [
 
 # Compute x positions
 for i, agent in enumerate(agents):
-    agent["x"] = 0.5 + i * (agent_width + agent_spacing)
+    agent["x"] = agent_x_start + i * (agent_width + agent_spacing)
 
 # Draw agents
 for agent in agents:
@@ -260,77 +261,8 @@ for tool in tools:
 # ============================================================================
 # Layer labels (on the left side)
 # ============================================================================
-layer_label_size = label_size  # 8pt — larger than small_size for readability
-ax.text(
-    -0.3,
-    user_y + box_h / 2,
-    r"\textbf{Interface}",
-    fontsize=layer_label_size,
-    ha="right",
-    va="center",
-    color="black",
-)
-ax.text(
-    -0.3,
-    supervisor_y + box_h / 2,
-    r"\textbf{Orchestration}",
-    fontsize=layer_label_size,
-    ha="right",
-    va="center",
-    color="black",
-)
-ax.text(
-    -0.3,
-    agent_y + box_h / 2,
-    r"\textbf{Specialization}",
-    fontsize=layer_label_size,
-    ha="right",
-    va="center",
-    color="black",
-)
-ax.text(
-    -0.3,
-    tools_y + box_h / 2,
-    r"\textbf{Execution}",
-    fontsize=layer_label_size,
-    ha="right",
-    va="center",
-    color="black",
-)
+# Layer labels removed — described in figure caption instead
 
-# ============================================================================
-# Legend at bottom
-# ============================================================================
-legend_elements = [
-    mpatches.Patch(
-        facecolor=color_supervisor,
-        edgecolor="black",
-        label=r"\textbf{Supervisor (Orchestration)}",
-        alpha=box_alpha,
-    ),
-    mpatches.Patch(
-        facecolor=color_agent,
-        edgecolor="black",
-        label=r"\textbf{Domain Agent (LLM)}",
-        alpha=box_alpha,
-    ),
-    mpatches.Patch(
-        facecolor=color_external,
-        edgecolor="black",
-        label=r"\textbf{External Service/Tool}",
-        alpha=box_alpha,
-    ),
-]
-
-legend = ax.legend(
-    handles=legend_elements,
-    loc="lower center",
-    ncol=3,
-    frameon=True,
-    fontsize=label_size,
-    bbox_to_anchor=(0.5, -0.02),
-)
-legend.get_frame().set_linewidth(0.5)
 
 # ============================================================================
 # Save figure
@@ -345,8 +277,14 @@ output_dir.mkdir(parents=True, exist_ok=True)
 output_png = output_dir / "architecture_simplified.png"
 output_pdf = output_dir / "architecture_simplified.pdf"
 
-fig.savefig(output_png, dpi=PLOT_STYLE["dpi"], bbox_inches="tight", facecolor="white")
-fig.savefig(output_pdf, bbox_inches="tight", facecolor="white")
+fig.savefig(
+    output_png,
+    dpi=PLOT_STYLE["dpi"],
+    bbox_inches="tight",
+    pad_inches=0.05,
+    facecolor="white",
+)
+fig.savefig(output_pdf, bbox_inches="tight", pad_inches=0.05, facecolor="white")
 
 print("Simplified architecture diagram saved:")
 print(f"   PNG: {output_png}")
