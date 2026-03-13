@@ -85,26 +85,6 @@ def _replace_listing_after_textsc(tex: str, textsc_label: str, new_content: str)
     return tex[: vm.start(2)] + new_content + tex[vm.end(2) :]
 
 
-def _replace_listing_after_subsection(
-    tex: str,
-    subsection_text: str,
-    new_content: str,
-) -> str:
-    """Replace lstlisting content after \\subsection{<text>}."""
-    pattern = re.escape(f"\\subsection{{{subsection_text}}}")
-    label_match = re.search(pattern, tex)
-    if not label_match:
-        log.warning("\\subsection{%s} not found in LaTeX file", subsection_text)
-        return tex
-
-    vm = _LISTING_PATTERN.search(tex, label_match.end())
-    if not vm:
-        log.warning("No lstlisting block found after \\subsection{%s}", subsection_text)
-        return tex
-
-    return tex[: vm.start(2)] + new_content + tex[vm.end(2) :]
-
-
 # ---------------------------------------------------------------------------
 # Config loader
 # ---------------------------------------------------------------------------
@@ -171,31 +151,6 @@ def _extract_workflow_prompts(cfg: dict) -> dict[str, str] | None:
         return None
     else:
         return results
-
-
-def _extract_supervisor_prompt() -> str | None:
-    """Extract SUPERVISOR_AGENT_SYSTEM_PROMPT, stripping suggested next prompts."""
-    try:
-        root_str = str(PROJECT_ROOT)
-        if root_str not in sys.path:
-            sys.path.insert(0, root_str)
-
-        logging.getLogger("config").setLevel(logging.WARNING)
-
-        mod = importlib.import_module("src.utils.prompts")
-        prompt = getattr(mod, "SUPERVISOR_AGENT_SYSTEM_PROMPT", None)
-        if prompt is None:
-            log.warning("SUPERVISOR_AGENT_SYSTEM_PROMPT not found")
-            return None
-
-        text = str(prompt)
-        # Strip "Suggested Next Prompts" section
-        text = re.sub(r"\n*## Suggested Next Prompts.*", "", text, flags=re.DOTALL)
-    except Exception:
-        log.exception("Failed to extract supervisor prompt")
-        return None
-    else:
-        return text
 
 
 def _extract_rag_prompts(cfg: dict) -> dict[str, str] | None:
@@ -273,7 +228,7 @@ def _extract_hpc_prompts() -> dict[str, str] | None:
 # ---------------------------------------------------------------------------
 
 
-def sync_prompts(cfg: dict, *, dry_run: bool) -> list[dict]:  # noqa: PLR0912, PLR0915
+def sync_prompts(cfg: dict, *, dry_run: bool) -> list[dict]:  # noqa: PLR0912
     """Sync all prompts into the paper LaTeX file."""
     paper_path = PROJECT_ROOT / cfg.get("paper_submodule_path", "paper/asmeconf")
     target_file = cfg.get("target_file", "asmeconf-template.tex")
@@ -306,25 +261,6 @@ def sync_prompts(cfg: dict, *, dry_run: bool) -> list[dict]:  # noqa: PLR0912, P
                     }
                 )
                 log.info("%s workflow prompt: %s", action.capitalize(), label)
-
-    # --- Supervisor system prompt ---
-    supervisor_text = _extract_supervisor_prompt()
-    if supervisor_text:
-        sanitized = _sanitize_for_latex(supervisor_text)
-        old_tex = tex
-        tex = _replace_listing_after_subsection(
-            tex, "Supervisor System Prompt", sanitized
-        )
-        if tex != old_tex:
-            action = "would replace" if dry_run else "replaced"
-            actions.append(
-                {
-                    "source": "src/utils/prompts.py:SUPERVISOR_AGENT_SYSTEM_PROMPT",
-                    "target": f"{target_file} (Supervisor System Prompt)",
-                    "action": action,
-                }
-            )
-            log.info("%s supervisor prompt", action.capitalize())
 
     # --- HPC prompts ---
     hpc_texts = _extract_hpc_prompts()
