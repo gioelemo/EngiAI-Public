@@ -129,7 +129,7 @@ figures:
       files:
         - "step_completion_heatmap_avg.pdf"
         - "evaluation_metrics.pdf"
-        - "baseline_grid.pdf"
+        - "baseline_grid_1x4.pdf"
 
     # HPC training evaluation figures — cGAN explicit prompt (main text, side-by-side comparison)
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-cgan/no_rag"
@@ -145,7 +145,7 @@ figures:
       files:
         - "step_completion_heatmap_avg.pdf"
         - "evaluation_metrics.pdf"
-        - "baseline_grid.pdf"
+        - "baseline_grid_1x4.pdf"
 
 # ---------------------------------------------------------------------------
 # LaTeX tables

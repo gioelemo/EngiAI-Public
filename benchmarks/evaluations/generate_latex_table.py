@@ -200,7 +200,7 @@ def _build_header(models: list[str], n_score_cols: int) -> list[str]:
     header2_parts = [r"\textbf{Style}"]
     for _ in models:
         for _, abbrev in SCORES:
-            header2_parts.append(f"\\textbf{{{abbrev}}}")
+            header2_parts.append(f"\\textbf{{{abbrev}\\,$\\uparrow$}}")
     lines.append(" & ".join(header2_parts) + r" \\")
     lines.append(r"\midrule")
     return lines
