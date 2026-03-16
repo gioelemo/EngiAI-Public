@@ -164,6 +164,10 @@ tables:
       target: "tables/workflow_results.tex"
     - command: "python benchmarks/evaluations/generate_latex_table.py --problem photonics2d --rag-status no_rag --reference-problem beams2d --output {target}"
       target: "tables/photonics_workflow_results.tex"
+    - command: "python scripts/generate_raw_scores_table.py --problem beams2d --output {target}"
+      target: "tables/raw_scores_beams2d.tex"
+    - command: "python scripts/generate_raw_scores_table.py --problem photonics2d --output {target}"
+      target: "tables/raw_scores_photonics2d.tex"
 
 # ---------------------------------------------------------------------------
 # Prompts  (overwrites TODO placeholders inside appendix.tex)
