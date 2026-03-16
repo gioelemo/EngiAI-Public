@@ -48,21 +48,21 @@ STYLE_LABELS = {
 # Problem-specific caption and label overrides
 PROBLEM_TABLE_META: dict[str, dict[str, str]] = {
     "beams2d": {
-        "caption_short": "Workflow evaluation results (Beams~2D).",
+        "caption_short": "Workflow evaluation results (Beams2D).",
         "caption_long": (
-            "Workflow evaluation results for Beams~2D (mean $\\pm$ std). "
+            "Workflow evaluation results for Beams2D (mean $\\pm$ std). "
             "TC = Task Completion rate, CO = Combined Overall score. "
             "\\textbf{Bold} = best model per metric per row."
         ),
         "label": "tab:workflow_results",
     },
     "photonics2d": {
-        "caption_short": "Workflow evaluation results (Photonics~2D).",
+        "caption_short": "Workflow evaluation results (Photonics2D).",
         "caption_long": (
-            "Workflow evaluation results for Photonics~2D (mean $\\pm$ std). "
+            "Workflow evaluation results for Photonics2D (mean $\\pm$ std). "
             "TC = Task Completion rate, CO = Combined Overall score. "
             "\\textbf{Bold} = best model per metric per row. "
-            "{\\color{black!80}Gray text} shows Beams~2D results on the same "
+            "{\\color{black!80}Gray text} shows Beams2D results on the same "
             "workflow styles for comparison."
         ),
         "label": "tab:workflow_results_photonics",
@@ -71,8 +71,8 @@ PROBLEM_TABLE_META: dict[str, dict[str, str]] = {
 
 # Short problem labels for reference rows
 PROBLEM_LABELS: dict[str, str] = {
-    "beams2d": "Beams~2D",
-    "photonics2d": "Photonics~2D",
+    "beams2d": "Beams2D",
+    "photonics2d": "Photonics2D",
 }
 
 # Display order for model columns (left to right)

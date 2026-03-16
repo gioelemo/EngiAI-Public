@@ -128,7 +128,7 @@ def generate_table(problem: str) -> str:
     lines.append(r"\centering")
     lines.append(
         r"\caption{Raw per-metric scores (mean $\pm$ std) for all models and prompt styles on "
-        + problem.replace("2d", r"\ 2D").capitalize()
+        + problem.replace("2d", "2D").capitalize()
         + r". Most cells aggregate 15 runs (3 seeds $\times$ 5 samples); a few Qwen3.5-4B configurations have 13--14 runs due to JSON parsing errors. Metric abbreviations are defined in Section~\ref{subsubsec:scoring_methodology}.}"
     )
     lines.append(r"\label{tab:raw_scores_" + problem + "}")

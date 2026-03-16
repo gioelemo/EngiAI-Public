@@ -28,6 +28,13 @@ figures:
       files:
         - "rag_score_components_by_prompt.pdf"
 
+    # Design comparison figure (W-Cond style, paper Fig. 5)
+    - source: "paper/asmeconf/figures/benchmarks"
+      target: "figures/benchmark/workflow"
+      extensions: [".pdf"]
+      files:
+        - "comparison_connected_1x6.pdf"
+
     # --- Workflow figures (main results) ---
 
     # Full style: CO violin + tool counts heatmap + performance by tools
@@ -129,7 +136,13 @@ figures:
       files:
         - "step_completion_heatmap_avg.pdf"
         - "evaluation_metrics.pdf"
-        - "baseline_grid_1x4.pdf"
+
+    # HPC baseline grid (paper-style, no means) — cGAN
+    - source: "paper/asmeconf/figures/benchmarks"
+      target: "figures/benchmark/hpc/cgan"
+      extensions: [".pdf"]
+      files:
+        - "cgan_baseline_grid.pdf"
 
     # HPC training evaluation figures — cGAN explicit prompt (main text, side-by-side comparison)
     - source: "benchmarks/evaluations/plots/figures/hpc_train_beams2d/hpc-train-cgan/no_rag"
@@ -145,7 +158,13 @@ figures:
       files:
         - "step_completion_heatmap_avg.pdf"
         - "evaluation_metrics.pdf"
-        - "baseline_grid_1x4.pdf"
+
+    # HPC baseline grid (paper-style, no means) — Diffusion
+    - source: "paper/asmeconf/figures/benchmarks"
+      target: "figures/benchmark/hpc/diff"
+      extensions: [".pdf"]
+      files:
+        - "diff_baseline_grid.pdf"
 
 # ---------------------------------------------------------------------------
 # LaTeX tables
