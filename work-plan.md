@@ -28,7 +28,7 @@
 | Jun 29 – Jul 7, 2026 | PASC conference + holidays |
 | Aug 23–26, 2026 | IDETC conference |
 
-Swiss public holidays (Labour Day, Ascension, Whit Monday) are accounted for in the schedule below.
+Swiss public holidays (Labour Day, Ascension, Whit Monday) are accounted for in the schedule below. All hour estimates are approximate — actual effort may vary depending on task complexity and external factors.
 
 ---
 
