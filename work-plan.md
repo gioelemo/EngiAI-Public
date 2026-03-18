@@ -1,189 +1,160 @@
-# Engineer Assistant — Post-Thesis Work Plan
+# EngiAI — Post-Thesis Work Plan
 
-## Context
-
-The Engineer Assistant thesis (76 pages, compiled) needs minor polishing before the **April 13** deadline. After that, the focus shifts to the May 8 presentation, potential IDETC paper revision (notification April 27), code cleanup, and system improvements — all the way through the IDETC conference at end of August.
-
-**Work schedule:**
-- **Full-time (~40h/week)** until at least April 13, likely until May 8
-- **Part-time (2 full days + 1 half day ≈ 20h/week)** from May 9 onwards
-
-This gives roughly **560 usable hours** total. Since thesis polishing is minor, the full-time period before April 13 can also be used for code cleanup and early improvements. The plan below totals ~484h.
-
-**Closed-loop manufacturing** is out of scope. Everything else the user listed is included.
+**Author:** Gioele Molinari<br>
+**Date:** March 2026<br>
+**Project:** EngiAI — A Multi-Agent Framework and Benchmark Suite for LLM-Driven Engineering Design
 
 ---
 
-## Fixed Milestones
+## Goals
+
+1. **Make the system production-ready and easy to deploy** — Ensure full test coverage, update all dependencies, simplify the Docker-based deployment with a graphical launcher for non-technical users, standardize the codebase to match the lab's EngiBench/EngiOpt conventions, and set up automated CI/CD pipelines.
+
+2. **Extend the system with new capabilities** — Add support for local language models (Ollama) in the chat interface, develop an interactive whiteboard for collaborative design (Excalidraw integration), implement a new agent for automated training code generation with HPC support, extend the document retrieval system to additional file formats, set up experiment recording infrastructure, improve error handling, and configure a new dedicated workstation.
+
+---
+
+
+## Key Milestones
 
 | Date | Event |
 |------|-------|
-| Apr 3-6 | Easter break (Good Friday – Easter Monday) |
-| **Apr 13** | **Thesis written report deadline** |
-| Apr 20-23 | HPC AI conference (tentative, unavailable) |
-| Apr 27 | IDETC paper notification |
-| May 1 (Fri) | Labour Day (Swiss holiday) |
-| **May 8** | **Final presentation (30 min)** |
-| May 14-15 | Ascension Day + bridge day |
-| **May 19** | **IDETC final paper submission + author registration** |
-| May 25 (Mon) | Whit Monday (Swiss holiday) |
-| Jun 29 – Jul 7 | Conference + holidays (unavailable) |
-| Aug 1 (Sat) | Swiss National Day (weekend, no impact) |
-| Aug 23-26 | IDETC conference |
+| Apr 3–6, 2026 | Easter break |
+| **Apr 13, 2026** | **Thesis written report deadline** |
+| Apr 20–23, 2026 | HPC AI conference (tentative) |
+| Apr 27, 2026 | IDETC paper notification |
+| **May 8, 2026** | **Final presentation (30 min + questions)** |
+| **May 19, 2026** | **IDETC final paper submission + author registration** |
+| Jun 29 – Jul 7, 2026 | PASC conference + holidays |
+| Aug 23–26, 2026 | IDETC conference |
+
+Swiss public holidays (Labour Day, Ascension, Whit Monday) are accounted for in the schedule below.
 
 ---
 
-## Phase 1: Thesis + Video + Early Cleanup (Mar 17 – Apr 13) ~120h (full-time)
+## Phase 1: Thesis Completion + Demo Video + Code Quality (Mar 17 – Apr 13) — ~125h
 
-Thesis content is largely final (mirrors the submitted IDETC paper). Polishing is light. Focus is: thesis, video, test fixes, and start deployment improvements.
+| Period | Task | Hours |
+|--------|------|-------|
+| Mar 17–20 | Thesis polishing + YouTube video script | 25h |
+| Mar 23–27 | Record and edit demo video (5–8 min, all system features) | 30h |
+| Mar 30 – Apr 2 | Fix test suite + update dependencies + Python 3.12 support | 30h |
+| Apr 7–10 | Start presentation slides | 30h |
+| Apr 13 | Final thesis compilation and submission | 10h |
 
-| Week | Task | Hours | Details |
-|------|------|-------|---------|
-| Mar 17-20 (Tue-Fri, 4d) | Thesis polish + **YouTube video script** | 24h | Quick thesis read-through (content already solid from paper). Fix typos/formatting. Write video script and prepare demo scenarios. |
-| Mar 23-27 (Mon-Fri, 5d) | **Record + edit YouTube video** | 30h | Record demo: all agents, optimization, STL export, Prusa, RAG, Excalidraw. 5-8 min. Edit and upload. This is the main focus for the week. |
-| Mar 30 – Apr 2 (Mon-Thu, 4d) | **Fix tests** + **update deps** | 28h | Fix 2 pre-existing test failures (temperature assertion in arxiv_agent, rag_agent). Audit full test suite: verify correctness, remove obsolete tests, add missing coverage. Update dependencies one at a time with pytest after each. **Add Python 3.12+ support** (test compatibility, update Dockerfile, fix deprecations). |
-| Apr 3-6 | Easter break (Fri-Mon) | 0h | No work. |
-| Apr 7-10 (Tue-Fri, 4d) | **Start deployment simplification** | 32h | **Prerequisite:** Ensure MMORE PR #240 is merged before MMORE integration changes. (1) **MMORE as dependency**: Replace external `~/Desktop/mmore` folder with pip package or git submodule (depends on PR #240 merge). (2) Docker Compose profiles (`--profile full/dev/eval`). Replace env-var feature flags with profiles. (3) Docker secrets or auto-generated random credentials for DB (no plaintext). |
-| Apr 13 (Mon, 1d) | **Submit thesis** | 8h | Final compile, submit. Remove thesis and paper submodules from main repo (they're separate repos, no longer needed in the codebase). Prusa MCP submodule sync. |
-
-**Deliverables:** Thesis submitted. YouTube video published. Tests green. Dependencies updated. Deployment restructured (Docker profiles + MMORE).
+**Deliverables:** Thesis submitted. Demo video published. Test suite fully passing. Dependencies up to date. Presentation draft started.
 
 ---
 
-## Phase 2: Presentation + Standardization + arXiv (Apr 14 – May 7) ~120h (full-time)
+## Phase 2: Presentation + Standardization + arXiv Preprint (Apr 14 – May 8) — ~110h
 
-Presentation is the main focus. Standardization and GUI launcher (deferred from Phase 1) fill the gaps.
+| Period | Task | Hours |
+|--------|------|-------|
+| Apr 14–17 | Finalize presentation + rename repository to EngiAI + deployment simplification (Docker profiles, secure credentials, dependency management) | 30h |
+| Apr 20–23 | HPC AI conference (unavailable) | 0h |
+| Apr 24 | Presentation refinement | 10h |
+| Apr 27–30 | Codebase standardization (EngiBench/EngiOpt conventions, CI/CD pipelines, documentation update) + rehearsal | 30h |
+| May 4–7 | arXiv preprint preparation + rehearsals + begin GUI launcher development | 30h |
+| **May 8** | **Final presentation** | 10h |
 
-> **Note:** Apr 20-23 is blocked by the HPC AI conference (tentative). Presentation first draft must be done by Apr 17.
-
-| Week | Task | Hours | Details |
-|------|------|-------|---------|
-| Apr 14-17 (Tue-Fri, 4d) | Presentation first draft + **rename to EngiAI** | 32h | ~25-30 slides, 30 min talk. Structure: motivation → architecture → tool integration → benchmarks → demo video clip → conclusions. Reuse thesis figures. **Must have a complete first draft by Apr 17.** **Rename repo** from `engineer-assistant` to `EngiAI` (package name, imports, Docker images, README, docs, CI). |
-| Apr 20-23 | **HPC AI conference** (tentative) | 0h | Unavailable. |
-| Apr 24 (Fri, 1d) | Presentation refinement | 8h | Polish slides post-conference. Fresh eyes review. |
-| Apr 27-30 (Mon-Thu, 4d) | **Standardization (EngiBench/EngiOpt style)** + rehearsal | 32h | Match EngiBench/EngiOpt structure exactly: conventional commits via `conventional-commit-lint` pre-commit hook, Ruff config (line-length 124, Google docstrings, `select = ["ALL"]`), Pyright, Codespell, dynamic version from `__init__.py`, `CITATION.cff`, `CONTRIBUTING.md`, organized pyproject.toml extras, GPL-3.0, **same CI/CD pipeline** (GitHub Actions: automated testing, linting, releases, changelog, Docker/PyPI publishing, GitHub Pages docs). **Update Sphinx docs** to match current features + new name. 1 rehearsal. **Apr 27 = paper notification** — if revision needed → see Phase 3a. |
-| ~~May 1 (Fri)~~ | **Labour Day** (Swiss holiday) | 0h | Off. |
-| May 4-7 (Mon-Thu, 4d) | **arXiv paper** + rehearsals + **start GUI launcher** | 32h | Convert ASME paper to arXiv format (strip class deps, self-contained figures, arXiv metadata). Upload preprint. 2 full timed rehearsals + Q&A prep. Backup plan: pre-recorded demo video. Start **cross-platform GUI launcher** (Python + customtkinter/PySide6, PyInstaller): start/stop Docker, show health, open browser. **Admin panel in launcher** (password-protected): API keys (encrypted, masked), Docker service config. **Streamlit settings remain open**: model selection, voice, theme — accessible to all users. |
-| **May 8 (Fri)** | **Presentation** | 8h | Present. |
-
-**Deliverables:** Presentation delivered. arXiv preprint submitted. Codebase standardized (EngiBench/EngiOpt style). GUI launcher + secure settings working.
+**Deliverables:** Presentation delivered. arXiv preprint submitted. Codebase standardized with automated CI/CD. GUI launcher prototype with secure settings management.
 
 ---
 
-## Phase 3: System Improvements + Paper Revision (May 9 – Jun 27) ~110h (part-time, 20h/week)
+## Phase 3: Paper Revision + Code Cleanup + System Improvements (May 9 – Jun 27) — ~110h
 
-Most code cleanup was done in Phases 1-2. This phase focuses on system improvements and paper revision.
+### 3a. IDETC Paper Revision (May 9–19) — 20h
 
-### 3a. IDETC Paper Revision + Final Submission + GUI Launcher — May 9-19, ~20h (HARD DEADLINE)
+Address reviewer feedback (if needed), prepare camera-ready version, and complete author registration by the **May 19 deadline**. Finalize the GUI launcher in parallel.
 
-Paper notification is Apr 27, final submission is **May 19**. This takes priority. GUI launcher finish runs in parallel.
+### 3b. Code Cleanup (May 19 – Jun 6) — 35h
 
-> **Note:** May 14 (Thu) = Ascension Day, May 15 (Fri) = bridge day (likely off).
+- Remove dead code, duplicate logic, and unused dependencies
+- Standardize the Prusa 3D printer integration module to lab conventions
+- Extract the Excalidraw whiteboard component into a standalone reusable package
 
-| Week | Task | Hours | Details |
-|------|-------|---------|---------|
-| May 9-13 (Mon-Wed before Ascension, 3d) | Paper revision + **finish GUI launcher** | 12h | Address reviewer feedback (if needed). Finish and test GUI launcher + admin panel from Phase 2. |
-| ~~May 14-15~~ | **Ascension + bridge day** | 0h | Off. |
-| May 16-19 (Mon only before deadline) | Camera-ready + author registration | 8h | Final formatting, submit by **May 19**. Register as author. |
+### 3c. System Improvements (Jun 8–26) — 55h
 
-*If paper accepted without revision, these hours go to cleanup. Either way, the May 19 deadline must be met.*
+| Period | Task | Hours |
+|--------|------|-------|
+| Jun 8–12 | Local model support (Ollama integration in chat interface) | 15h |
+| Jun 15–19 | Improved progress feedback for long-running tasks + error recovery mechanisms | 20h |
+| Jun 22–26 | Experiment recording infrastructure (screen + camera capture) + Google audio model support | 20h |
 
-### 3b. Deep Code Cleanup — May 19 – Jun 6, ~35h
-
-| Week | Task | Hours | Details |
-|------|-------|---------|---------|
-| May 19-23 (Mon-Fri) | **Dead code removal + deduplication** | 10h | Audit codebase for unused imports, functions, dead code paths, and duplicate logic. Use ruff's `F401`/`F841`. Check for duplicate patterns across agents. Remove stale files. Prune unused deps. |
-| May 19-23 | **Prusa MCP cleanup + standardization** | 10h | Sync submodule (currently detached HEAD). Refactor and standardize to EngiBench/EngiOpt conventions: conventional commits, ruff/pyright config, CITATION.cff, CONTRIBUTING.md, pyproject.toml structure, GPL-3.0. |
-| ~~May 25~~ | **Whit Monday** (Swiss holiday) | 0h | Off. |
-| May 26 – Jun 6 (Tue-Fri + Mon-Fri, 9d) | **(Extract Excalidraw component)** | 15h | Extract `src/ui/components/excalidraw/` to standalone `streamlit-excalidraw` repo with own CI. Standardize to EngiBench/EngiOpt conventions. Do before MCP Excalidraw work (Phase 4). |
-
-### 3c. System Improvements — Jun 8 – Jun 26, ~55h
-
-| Week | Task | Hours | Details |
-|------|------|-------|---------|
-| Jun 8-12 (Mon-Fri) | **Full Ollama support in chatbot** | 15h | Ollama model selection in Streamlit settings. Test with llama3, mistral. Handle tool-calling quirks. Add Ollama container to Docker Compose. |
-| Jun 15-19 (Mon-Fri) | **Better outputs for long-running tasks** + **Error recovery** | 20h | Streaming progress in Streamlit during optimization. Intermediate design visualization. HPC job polling with real-time status. Retry with exponential backoff for API calls. LangGraph error nodes. Graceful degradation (MMORE down → local, Prusa unreachable → save locally). |
-| Jun 22-26 (Mon-Fri) | **Experiment recording system** + **Google audio model support** | 20h | Set up recording infrastructure for human-AI experiments (Opencast/Tobira or OBS-based): screen capture + webcam, session storage/management. Gemini audio integration (1:1 with OpenAI voices, extend `voices.py`). |
-
-**Jun 29 – Jul 7: Conference + Holidays (unavailable)**
+*Jun 29 – Jul 7: PASC conference + holidays (unavailable)*
 
 ---
 
-## Phase 4: Feature Development (Jul 8 – Aug 15) ~120h (part-time, 20h/week)
+## Phase 4: New Features + Handover (Jul 8 – Aug 7) — ~105h
 
-### 4a. Core Features — Jul 8-24, ~55h
+### 4a. Core Features (Jul 8–24) — 55h
 
-| Week | Task | Hours | Details |
-|------|------|-------|---------|
-| Jul 8-10 + Jul 13-17 (8d) | **Interactive MCP Excalidraw whiteboard** | 35h | Integrate the official excalidraw-mcp server with the existing Streamlit Excalidraw component (`src/ui/components/excalidraw/`). Add as a new MCP service (like Prusa MCP). Connect agent to whiteboard: agent can draw topology results, annotate designs; user sketches constraints that agent interprets. Bridge the MCP server ↔ Streamlit component communication. |
-| Jul 20-24 (Mon-Fri) | **More RAG file formats** + **Extend to other problems/models** | 20h | Extend MMORE client: .pptx, .ipynb, video files, and other common formats. Update rag_tools.py. Containerized problem solvers (input/output JSON interface). Example container for new problem type. Update problem registry. |
+| Period | Task | Hours |
+|--------|------|-------|
+| Jul 8–17 | Interactive Excalidraw whiteboard with AI agent integration (bidirectional: agent draws results, user sketches constraints) | 35h |
+| Jul 20–24 | Additional file format support for document retrieval + containerized problem solver framework | 20h |
 
-### 4b. New Agents + Repo Transfer — Jul 27 – Aug 14, ~65h
+### 4b. New Agent + Handover (Jul 27 – Aug 7) — 50h
 
-| Week | Task | Hours | Details |
-|------|------|-------|---------|
-| Jul 27-31 + Aug 3 (Mon-Mon, 6d) | **Self-writing training code agent** | 30h | New `TrainingAgent` (BaseAgent pattern). Tools: generate_training_script, run_training, evaluate_model. Automatic validation: generated code is compiled/syntax-checked before submission, no manual review step. HPC integration for Euler. Enable extended HPC benchmarks (longer training runs, multi-model evaluation). Full testing: unit tests for agent/tools, integration test with mock HPC, end-to-end test on Euler. |
-| Aug 4-5 (Tue-Wed) | **Repo transfer to lab GitHub org** | 8h | Repo already renamed to EngiAI (Phase 2). Clean any remaining hardcoded paths/credentials. Final verification of EngiBench/EngiOpt-style structure. Transfer/fork under lab org. Handoff document. Tag v2.0.0. |
-| Aug 6-7 (Thu-Fri) | **New computer setup** | 10h | Set up dev environment on new machine. Verify Docker deployment from clean clone (serves as deployment validation). Install deps, test all services via GUI launcher. |
-| Aug 10-14 (Mon-Fri) | **Buffer / overflow** | 17h | Catch up on any tasks that slipped. Polish features. Final testing. |
-
----
-
-## Phase 5: IDETC + Wrap-Up (Aug 17 – Aug 28) ~20h
-
-| Date | Task | Hours |
-|------|------|-------|
-| Aug 17-21 (Mon-Fri) | IDETC prep + travel | 10h |
-| Aug 23-26 (Sun-Wed) | IDETC conference | — |
-| Aug 27-28 (Thu-Fri) | Final wrap-up | 10h |
-
-Wrap-up: update README/docs with all new features, final release tag, archive, status document for the lab.
+| Period | Task | Hours |
+|--------|------|-------|
+| Jul 27 – Aug 3 | Training code generation agent (automated code validation, HPC integration for Euler, full test suite) | 30h |
+| Aug 4–5 | Repository transfer to lab GitHub organization (v2.0.0 release) | 10h |
+| Aug 6–7 | New workstation setup and deployment verification | 10h |
 
 ---
 
-## Hours Summary
+## Phase 5: IDETC Conference + Wrap-Up (Aug 10–28) — ~60h
 
-| Phase | Period | Pace | Hours | Focus |
-|-------|--------|------|-------|-------|
-| 1. Thesis + Video + Tests | Mar 17 – Apr 13 | Full-time | 122h | Thesis, video, test fixes, deps, deployment restructure |
-| 2. Presentation + Standardization + arXiv | Apr 14 – May 8 | Full-time | 112h | Slides, rename, standardization, CI/CD, arXiv, GUI launcher (minus HPC AI conf + May 1) |
-| 3. Cleanup + Improvements | May 9 – Jun 27 | Part-time | 110h | Paper revision, dead code, Excalidraw extraction, Prusa MCP, Ollama, outputs, errors, recording, audio |
-| 4. Features | Jul 8 – Aug 15 | Part-time | 120h | MCP whiteboard, training agent, RAG formats, containers, repo transfer, new computer |
-| 5. IDETC | Aug 17 – Aug 28 | — | 20h | Conference + wrap-up |
-| **Total** | | | **484h** | |
-
-**Available hours:**
-- Full-time (Mar 17 – May 8, ~7 weeks minus Easter/HPC AI conf): ~230h
-- Part-time (May 9 – Aug 31, ~16 usable weeks × 20h): ~320h
-- **Total available: ~550h → buffer of ~66h**
-
-### Is This Feasible?
-
-**Yes, comfortably.** The full-time period (Phases 1-2) handles all the deadline-critical work plus most code cleanup. By May 8, the thesis is submitted, presentation done, arXiv uploaded, docs updated, and the codebase is clean. Phases 3-4 at part-time are modular — individual tasks can be paused, reordered, or dropped if paper revision demands more time.
-
-If IDETC paper is accepted without revision, you gain ~30h extra buffer.
+| Period | Task | Hours |
+|--------|------|-------|
+| Aug 10–21 | IDETC conference presentation preparation, rehearsals + travel | 30h |
+| Aug 23–26 | IDETC conference | 20h |
+| Aug 27–28 | Final documentation, release tagging, status report for the lab | 10h |
 
 ---
 
-## Risk Factors
+## Summary
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Paper rejected (Apr 27) | Frees ~30h; need to decide on resubmission venue | arXiv preprint ensures visibility. Redirect hours to features. |
-| Heavy paper revision | Eats into Phase 3b cleanup time | Defer some cleanup tasks to Phase 4. |
-| MCP Excalidraw harder than expected | 30h may not be enough | Ship a simpler version (display-only, no bidirectional drawing) and document full vision. |
-| Ollama models can't do tool calling | Feature limited in scope | Document which models are compatible. Fall back to "Ollama for Q&A, API for tools." |
-| Dependency updates break things | Could cascade | Update one at a time, test after each. Keep pre-update tag. |
+| Phase | Period | Pace | Hours |
+|-------|--------|------|-------|
+| 1. Thesis + Video + Code Quality | Mar 17 – Apr 13 | Full-time | ~125h |
+| 2. Presentation + Standardization | Apr 14 – May 8 | Full-time | ~110h |
+| 3. Paper Revision + Cleanup + Improvements | May 9 – Jun 27 | Part-time | ~110h |
+| 4. New Features + Handover | Jul 8 – Aug 7 | Part-time | ~105h |
+| 5. IDETC + Wrap-Up | Aug 10 – Aug 28 | Part-time | ~60h |
+| **Total** | **Mar 17 – Aug 28** | | **~510h** |
+
+The full-time period (Phases 1–2) covers all deadline-critical work: thesis, presentation, arXiv preprint, and codebase standardization. The part-time period (Phases 3–4) is modular — tasks can be reordered or adjusted depending on the IDETC paper revision workload.
 
 ---
 
-## Optional / Deferred Tasks
+## Contingencies
 
-These can be scheduled if buffer hours open up (e.g., paper accepted without revision):
+| Scenario | Response |
+|----------|----------|
+| Heavy IDETC paper revision required | Defer some Phase 3b cleanup tasks to Phase 4 buffer |
+| IDETC paper accepted without revision | Redirect ~30h to feature development |
+| Excalidraw integration more complex than estimated | Deliver a simplified version and document the full design |
 
-- **Ablation studies** (prompt/temperature/model tests) — ~15-20h. May be useful for arXiv paper or future publication. Run if paper reviewers request it or if time permits.
+---
 
-## Tasks NOT Included
+## Stretch Goals
 
-- **Closed-loop manufacturing feedback** — out of scope per user decision.
-- **User studies** — mentioned in thesis as future work, not planned here.
+If buffer hours are available:
+
+- **Ablation studies** (prompt/temperature/model comparisons) — ~15–20h. Useful for potential future publications.
+
+---
+
+## Proposed Employment (tentative)
+
+| | |
+|---|---|
+| **Employment period** | **~May 9 – August 28, 2026** (part-time, after thesis defense) |
+| **Employment rate** | **~50%** (~2 full days + 1 half day per week, ~20h/week) |
+| **Total part-time effort** | **~275 hours** across ~13 usable weeks |
+
+Exact dates and employment rate to be discussed. Prior to the employment period, Phases 1–2 (Mar 17 – May 8) are covered under the existing full-time arrangement (~40h/week, ~235h). The part-time contract would begin after the final presentation on May 8.
+
+**Total project effort:** ~510 hours (full-time + part-time combined).
