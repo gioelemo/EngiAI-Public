@@ -432,6 +432,10 @@ def convert_design_to_stl(  # noqa: PLR0913, PLR0912
             else:
                 base_path = Path(stl_file_path)
 
+        # Ensure .stl extension is present (LLMs may omit it)
+        if base_path.suffix != ".stl":
+            base_path = base_path.with_suffix(".stl")
+
         # Apply consistent versioned naming pattern
         output_path = _build_versioned_path(base_path, problem_type, "_exported")
 
