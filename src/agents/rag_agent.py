@@ -82,7 +82,9 @@ class RAGAgent(BaseAgent):
         """
         return build_rag_agent_prompt(read_only=self.rag_read_only)
 
-    def _after_tools(self, state) -> Literal["llm_call", "__end__"]:
+    def _after_tools(
+        self, state
+    ) -> Literal["llm_call", "clarification_response", "__end__"]:
         """Route after tool execution, with a cap on total tool calls.
 
         Prevents infinite search loops when the RAG index returns no results.

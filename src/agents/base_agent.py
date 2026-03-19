@@ -24,11 +24,6 @@ from src.utils.prompts import _is_eval_mode, strip_suggested_prompts
 
 logger = logging.getLogger(__name__)
 
-# Stop the agent after this many successful ask_human_for_clarification calls.
-# The first call lets the LLM observe the "awaiting response" result; the second
-# call halts the graph to prevent infinite clarification loops.
-_MAX_CLARIFICATION_CALLS = 2
-
 
 class BaseAgent(ABC):
     """Abstract base class for LangGraph agents with common functionality."""
@@ -210,27 +205,28 @@ class BaseAgent(ABC):
         # Otherwise, we stop (reply to the user)
         return "__end__"
 
-    def _after_tools(self, state: MessagesState) -> Literal["llm_call", "__end__"]:
+    def _after_tools(
+        self, state: MessagesState
+    ) -> Literal["llm_call", "clarification_response", "__end__"]:
         """Route after tool execution.
 
-        After the first ask_human_for_clarification call, the LLM is allowed to
-        observe the tool response and decide what to do next (e.g. stop
-        naturally or — incorrectly — call design tools anyway).  The graph is
-        only halted after the **second** successful clarification call to
-        prevent infinite clarification loops.
+        If the current batch of tool results contains a successful
+        ask_human_for_clarification call, route to clarification_response
+        which synthesizes an AIMessage from the tool result — no additional
+        LLM round-trip needed. This avoids a ~30-60s unnecessary LLM call.
 
         Args:
             state: Current conversation state
 
         Returns:
-            Next node to execute ("llm_call" or "__end__")
+            Next node to execute
         """
         messages = state["messages"]
-        # Count ALL successful ask_human_for_clarification calls in the history
-        clarification_count = 0
-        for message in messages:
+        # Check only the current batch of ToolMessages (trailing ToolMessages
+        # at the end of the message list, before any non-ToolMessage).
+        for message in reversed(messages):
             if not isinstance(message, ToolMessage):
-                continue
+                break
             if message.name != "ask_human_for_clarification":
                 continue
             try:
@@ -239,12 +235,33 @@ class BaseAgent(ABC):
                     continue
                 payload = json.loads(content)
                 if payload.get("success") is True:
-                    clarification_count += 1
+                    return "clarification_response"
             except (json.JSONDecodeError, AttributeError):
                 pass
-        if clarification_count >= _MAX_CLARIFICATION_CALLS:
-            return "__end__"
         return "llm_call"
+
+    def _clarification_response(self, state: MessagesState) -> dict:
+        """Synthesize an AIMessage from the clarification tool result.
+
+        Extracts the question from the last successful
+        ask_human_for_clarification ToolMessage and returns it as a proper
+        AIMessage so the user sees the question. No LLM call needed.
+        """
+        for message in reversed(state["messages"]):
+            if not isinstance(message, ToolMessage):
+                break
+            if message.name != "ask_human_for_clarification":
+                continue
+            try:
+                content = message.content
+                if isinstance(content, str):
+                    payload = json.loads(content)
+                    question = payload.get("question", "")
+                    if question:
+                        return {"messages": [AIMessage(content=question)]}
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        return {"messages": []}
 
     def _build_agent(self) -> Any:
         """Build the agent workflow graph.
@@ -258,6 +275,7 @@ class BaseAgent(ABC):
         # Add nodes
         agent_builder.add_node("llm_call", self._llm_call)
         agent_builder.add_node("tool_node", self._tool_node)
+        agent_builder.add_node("clarification_response", self._clarification_response)
 
         # Add edges to connect nodes
         agent_builder.add_edge(START, "llm_call")
@@ -265,8 +283,11 @@ class BaseAgent(ABC):
             "llm_call", self._should_continue, ["tool_node", END]
         )
         agent_builder.add_conditional_edges(
-            "tool_node", self._after_tools, ["llm_call", END]
+            "tool_node",
+            self._after_tools,
+            ["llm_call", "clarification_response", END],
         )
+        agent_builder.add_edge("clarification_response", END)
 
         # Compile with persistent checkpointer for conversation memory
         checkpointer = get_checkpointer()

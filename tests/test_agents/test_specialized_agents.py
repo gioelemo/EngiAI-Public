@@ -319,8 +319,8 @@ def test_after_tools_routes_to_llm_call_for_regular_tool():
 
 
 @pytest.mark.unit
-def test_after_tools_routes_to_llm_call_for_first_clarification():
-    """First ask_human_for_clarification should route to llm_call so the LLM can react."""
+def test_after_tools_routes_to_clarification_response_for_first_clarification():
+    """First ask_human_for_clarification should route to clarification_response."""
     agent = _make_agent()
     state = {
         "messages": [
@@ -338,12 +338,12 @@ def test_after_tools_routes_to_llm_call_for_first_clarification():
             ),
         ]
     }
-    assert agent._after_tools(state) == "llm_call"
+    assert agent._after_tools(state) == "clarification_response"
 
 
 @pytest.mark.unit
-def test_after_tools_routes_to_llm_call_for_first_clarification_mixed():
-    """First clarification among other tools should still route to llm_call."""
+def test_after_tools_routes_to_clarification_response_for_first_clarification_mixed():
+    """First clarification among other tools should route to clarification_response."""
     agent = _make_agent()
     state = {
         "messages": [
@@ -367,7 +367,7 @@ def test_after_tools_routes_to_llm_call_for_first_clarification_mixed():
             ),
         ]
     }
-    assert agent._after_tools(state) == "llm_call"
+    assert agent._after_tools(state) == "clarification_response"
 
 
 @pytest.mark.unit
@@ -471,12 +471,12 @@ def test_after_tools_routes_to_end_for_second_clarification():
             ),
         ]
     }
-    assert agent._after_tools(state) == "__end__"
+    assert agent._after_tools(state) == "clarification_response"
 
 
 @pytest.mark.unit
-def test_after_tools_error_plus_success_counts_as_one():
-    """One errored + one successful clarification = count 1, should route to llm_call."""
+def test_after_tools_error_plus_success_routes_to_clarification_response():
+    """One errored + one successful clarification — current batch has success, route to clarification_response."""
     agent = _make_agent()
     state = {
         "messages": [
@@ -505,12 +505,12 @@ def test_after_tools_error_plus_success_counts_as_one():
             ),
         ]
     }
-    assert agent._after_tools(state) == "llm_call"
+    assert agent._after_tools(state) == "clarification_response"
 
 
 @pytest.mark.unit
 def test_after_tools_two_clarifications_with_intermediate_tools():
-    """Two successful clarifications with design tools in between must route to __end__."""
+    """Two successful clarifications with design tools in between must route to clarification_response."""
     agent = _make_agent()
     state = {
         "messages": [
@@ -546,4 +546,4 @@ def test_after_tools_two_clarifications_with_intermediate_tools():
             ),
         ]
     }
-    assert agent._after_tools(state) == "__end__"
+    assert agent._after_tools(state) == "clarification_response"
