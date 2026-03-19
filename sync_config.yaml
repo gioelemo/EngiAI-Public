@@ -46,13 +46,13 @@ figures:
         - "tool_usage_heatmap_counts.pdf"
         - "co_vs_dq_by_tools.pdf"
 
-    # Natural style: CO violin + tool counts heatmap + performance by tools (main results)
+    # Natural style: CO violin + performance by tools (main results)
+    # Note: tool_usage_heatmap_counts.pdf removed — not referenced in any .tex file
     - source: "benchmarks/evaluations/plots/figures/beams2d/natural/no_rag"
       target: "figures/benchmark/workflow/natural"
       extensions: [".pdf"]
       files:
         - "combined_overall_score_distribution.pdf"
-        - "tool_usage_heatmap_counts.pdf"
         - "co_vs_dq_by_tools.pdf"
 
     # Workflow-conditional: CO violin + tool counts heatmap + performance by tools
