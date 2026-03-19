@@ -67,7 +67,7 @@ def _render_agent_grid() -> None:
 
     with col4:
         st.markdown("#### ⚙️ CLI")
-        st.markdown("Execute commands and open GUI apps (PrusaSlicer, Blender)")
+        st.markdown("Execute commands and open GUI apps (PrusaSlicer)")
         st.markdown("#### 🎯 Supervisor")
         st.markdown("Answers capability questions directly")
 
@@ -137,7 +137,7 @@ def _render_system_info() -> None:
         - **3D Printing**: Prusa Connect + PrusaSlicer integration
         - **Engineering**: EngiBench topology optimization
         - **Research**: ArXiv papers + web search
-        - **GUI Apps**: Open PrusaSlicer, Blender, VS Code, etc.
+        - **GUI Apps**: Open PrusaSlicer, VS Code, etc.
         """
         )
 

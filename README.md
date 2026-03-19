@@ -187,7 +187,7 @@ Docker provides the most reliable, isolated, and portable deployment. All depend
 
 6. **For GUI Application Integration (Optional):**
 
-   If you want the Docker container to open GUI applications (like PrusaSlicer, Blender, etc.) on your host machine:
+   If you want the Docker container to open GUI applications (like PrusaSlicer, etc.) on your host machine:
 
    ```bash
    # In a separate terminal, run the host service:
