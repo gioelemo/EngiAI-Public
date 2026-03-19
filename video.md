@@ -102,34 +102,69 @@ Let the response sit for ~3 seconds so viewers can read it.
 
 ---
 
-### SCENE 3 — Message 2: Optimize (0:50–1:40)
+### SCENE 3 — Message 2: Optimize Request (0:50–1:05)
 
-**Text overlay**: `Step 2 — Run topology optimization`
+**Text overlay**: `Step 2 — Topology optimization`
 
 **Type this prompt**:
 ```
-Now optimize a 2D beam with those parameters.
+Optimize a 2D beam with those parameters and render the result.
+```
+
+**Press Enter.**
+
+- ⏩ **Speed up** the thinking briefly (2×).
+
+**Agent asks for clarification** — it will respond asking for the filter radius (rmin):
+
+- Return to **1× speed** so viewer can read the question
+- **Voiceover**:
+> "The agent identifies a missing parameter and asks for clarification — it won't guess values for the engineer."
+
+- **Text overlay**: `Human-in-the-loop: agent asks before proceeding`
+
+---
+
+### SCENE 3b — Message 3: Provide rmin (1:05–2:00)
+
+**Type this reply**:
+```
+Use rmin = 1.5
 ```
 
 **Press Enter.**
 
 **Voiceover**:
-> "Now we ask the engineering agent to run the topology optimization using the values it just found."
+> "We provide the filter radius and the engineering agent proceeds with the optimization."
 
 - ⏩ **Speed up** the optimization phase (4-8×). This is the longest computation (~30-60s real time). Add markers.
 - **Text overlay** during speed-up: `Optimizing... ⏩`
 
-**When the result appears** (topology image + compliance from simulation):
+**When the topology image appears** (rendered PNG of optimized design):
 - Return to **1× speed**
 - **Voiceover**:
 > "The optimization converges — we can see the material distributed along the main load paths."
-
-- Let the 2D topology image sit for ~3-4 seconds
-- If compliance is mentioned: "The compliance value tells us how stiff the structure is."
+- Let the topology image sit for ~3-4 seconds
 
 ---
 
-### SCENE 4 — Message 3: STL Export (1:40–2:20)
+### SCENE 3b — Whiteboard Annotation (1:50–2:10)
+
+**Text overlay**: `Built-in whiteboard for design review`
+
+**Action sequence**:
+1. Drag the rendered topology image from the chat into the Excalidraw whiteboard (right panel)
+2. Use the pen/arrow tool to draw a quick annotation — e.g., circle a thin region, draw an arrow, write "stress concentration"
+3. Pause briefly so viewers can see the annotated image
+
+**Voiceover**:
+> "Engineers can pull results onto the whiteboard to annotate and discuss with the team."
+
+**Do NOT send it back to chat** — just show the annotation capability. ~20 seconds total.
+
+---
+
+### SCENE 4 — Message 3: STL Export (2:10–2:50)
 
 **Text overlay**: `Step 3 — Export to 3D-printable STL`
 
@@ -155,7 +190,7 @@ Export the design as an STL file for 3D printing.
 
 ---
 
-### SCENE 5 — PrusaSlicer (2:20–2:50)
+### SCENE 5 — PrusaSlicer (2:50–3:20)
 
 **Preparation**: Have PrusaSlicer already open (empty or with a default plate). After the STL export, you know the file is at `outputs/beams2d_design_exported_<timestamp>.stl`.
 
@@ -175,16 +210,16 @@ Export the design as an STL file for 3D printing.
 
 ---
 
-### SCENE 6 — Closing (2:50–3:05)
+### SCENE 6 — Closing (3:20–3:35)
 
-**On screen**: Either stay on PrusaSlicer sliced view, or cut back to the chat to show the full 3-message conversation
+**On screen**: Either stay on PrusaSlicer sliced view, or cut back to the chat to show the full conversation
 
 **Voiceover**:
-> "Three messages — from research paper to printable design. That's EngiAI."
+> "From research paper to printable design — all through natural language. That's EngiAI."
 
 **Text overlay / end card**:
 - "EngiAI" (logo)
-- `Paper → Parameters → Optimization → 3D Print`
+- `Paper → Parameters → Optimization → Annotate → 3D Print`
 - Optional: GitHub link, your name, thesis context
 
 **Fade to black.**
@@ -196,8 +231,10 @@ Export the design as an STL file for 3D printing.
 | # | Prompt | What happens |
 |---|--------|-------------|
 | 1 | "Search the EngiBench paper for the Beams2D API code example that sets volfrac and forcedist conditions." | RAG agent searches indexed paper, finds volfrac=0.7 & forcedist=0.3 |
-| 2 | "Now optimize a 2D beam with those parameters." | Engineering agent runs topology optimization + simulation with the RAG-retrieved values |
-| 3 | "Export the design as an STL file for 3D printing." | Engineering agent exports STL, 3D viewer appears |
+| 2 | "Optimize a 2D beam with those parameters and render the result." | Agent asks for rmin (clarification) |
+| 3 | "Use rmin = 1.5" | Engineering agent optimizes + renders topology image |
+| — | *(no prompt — manual action)* | Drag image to whiteboard, annotate it |
+| 4 | "Export the design as an STL file for 3D printing." | Engineering agent exports STL, 3D viewer appears |
 
 ---
 
@@ -226,11 +263,13 @@ Export the design as an STL file for 3D printing.
 |-------|----------|-------|---------|
 | Home page | 8s | 1× | Agent grid overview |
 | Message 1 (RAG) | 42s | Mixed | Type → think (⏩) → RAG results (1×) |
-| Message 2 (Optimize) | 50s | Mixed | Type → optimize (⏩) → topology result (1×) |
-| Message 3 (STL) | 40s | Mixed | Type → export (⏩) → 3D viewer (1×) |
+| Message 2 (Optimize) | 15s | Mixed | Type → agent asks for rmin (1×) |
+| Message 3 (rmin reply) | 55s | Mixed | Type "rmin = 1.5" → optimize (⏩) → topology image (1×) |
+| Whiteboard annotation | 20s | 1× | Drag image, draw annotation, show capability |
+| Message 4 (STL) | 40s | Mixed | Type → export (⏩) → 3D viewer (1×) |
 | PrusaSlicer | 30s | 1× | Import STL, show on print bed, optionally slice |
 | Closing | 15s | 1× | End card, fade to black |
-| **Total** | **~3:05** | | |
+| **Total** | **~3:45** | | |
 
 ---
 
