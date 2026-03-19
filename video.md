@@ -8,14 +8,34 @@ Create a ~3 minute demo video showcasing EngiAI's multi-agent chatbot for mechan
 ## Pre-Recording Setup
 
 ### OBS Configuration
-- **Resolution**: 1920×1080 (or retina-scaled equivalent)
-- **Streamlit**: Run `make run-ui` → fullscreen Chrome on `localhost:8501`, hide bookmarks bar, clean Chrome profile
-- **Zoom**: Browser zoom so chat text is readable at 1080p (~80% of screen width)
-- **Scene 1 — "Home"**: EngiAI home page capture
-- **Scene 2 — "Chat"**: Chat interface capture (Chrome window)
-- **Scene 3 — "PrusaSlicer"**: PrusaSlicer window capture (add after recording starts, or pre-configure with a placeholder window)
+- **Canvas resolution**: 1920×1080 (OBS Settings → Video → Base & Output Resolution)
+- **Scene 1 — "Home/Chat"**: Window Capture → Safari
+- **Scene 2 — "PrusaSlicer"**: Window Capture → PrusaSlicer
+- Each scene captures only the app window — your 34" ultrawide layout doesn't matter
 
-**Window management**: Use macOS Spaces or split-screen. Keep Chrome on Space 1 and PrusaSlicer on Space 2. Alternatively, use OBS "Window Capture" sources — one for Chrome, one for PrusaSlicer — and switch scenes via Stream Deck. This avoids visible desktop/dock when switching.
+### Window Sizing (run before recording)
+
+**Safari** — resize to exactly 1920×1080 points:
+```bash
+osascript -e 'tell application "Safari" to set bounds of front window to {0, 0, 1920, 1080}'
+```
+
+**PrusaSlicer** — resize via System Events (requires Accessibility permission):
+```bash
+osascript -e 'tell application "System Events" to tell process "PrusaSlicer" to set size of window 1 to {1920, 1080}'
+osascript -e 'tell application "System Events" to tell process "PrusaSlicer" to set position of window 1 to {0, 0}'
+```
+
+> **Note**: PrusaSlicer uses wxWidgets so AppleScript may not work perfectly. Fallback: manually drag-resize PrusaSlicer to roughly fill the OBS preview, then in OBS right-click the source → Transform → **Fit to Screen** to scale it to fill the 1920×1080 canvas.
+
+**macOS permissions needed**:
+- System Settings → Privacy & Security → **Screen Recording** → enable OBS
+- System Settings → Privacy & Security → **Accessibility** → enable Terminal (for AppleScript window control)
+
+**Safari prep**:
+- Hide toolbar: View → Hide Toolbar (or Cmd+Shift+T in older Safari)
+- Hide favorites bar: View → Hide Favorites Bar
+- Open `localhost:8501` in a clean tab
 
 ### Stream Deck Buttons
 1. **Start recording** (OBS)
@@ -61,10 +81,11 @@ Create a ~3 minute demo video showcasing EngiAI's multi-agent chatbot for mechan
 
 **Type this prompt** (naturally, ~3-4 seconds of typing):
 ```
-Search the EngiBench paper for the Beams2D API code example that sets volfrac and forcedist conditions.
+Search the EngiBench paper for the Beams2D API code example that sets
+volfrac and forcedist conditions.
 ```
 
-This mirrors the benchmark prompt style — it references the specific API example in the paper rather than asking generically. The expected answer is `volfrac=0.7, forcedist=0.3` (the non-default values from the paper's code snippet `desired_conds = {"volfrac": 0.7, "forcedist": 0.3}`).
+This wording includes the key terms (`volfrac`, `forcedist`, `Beams2D`, `API code example`) that the RAG retriever matches well (score 0.87). The original benchmark-style natural language prompt scored only ~0.49 and caused 6 failed search attempts. The expected answer is `volfrac=0.7, forcedist=0.3` (from the paper's code snippet `desired_conds = {"volfrac": 0.7, "forcedist": 0.3}`).
 
 **Press Enter.**
 
@@ -87,7 +108,7 @@ Let the response sit for ~3 seconds so viewers can read it.
 
 **Type this prompt**:
 ```
-Now optimize a 2D beam with those parameters and default values for the rest.
+Now optimize a 2D beam with those parameters.
 ```
 
 **Press Enter.**
@@ -174,7 +195,7 @@ Export the design as an STL file for 3D printing.
 
 | # | Prompt | What happens |
 |---|--------|-------------|
-| 1 | "In the EngiBench paper's Section 3.1 API walkthrough, a code example runs a Beams2D optimization using non-default design conditions. Search the paper to find both the volume fraction and force distribution from that example." | RAG agent searches indexed paper, finds volfrac=0.7 & forcedist=0.3 |
+| 1 | "Search the EngiBench paper for the Beams2D API code example that sets volfrac and forcedist conditions." | RAG agent searches indexed paper, finds volfrac=0.7 & forcedist=0.3 |
 | 2 | "Now optimize a 2D beam with those parameters." | Engineering agent runs topology optimization + simulation with the RAG-retrieved values |
 | 3 | "Export the design as an STL file for 3D printing." | Engineering agent exports STL, 3D viewer appears |
 
