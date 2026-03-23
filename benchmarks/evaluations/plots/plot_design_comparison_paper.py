@@ -20,6 +20,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import Normalize
 
 # Add project root to path
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
@@ -271,7 +272,7 @@ def generate_figure(  # noqa: PLR0913, PLR0915
     # Gray colorbar spanning the left 2 columns
     cbar_gray_ax = fig.add_axes((0.125, 0.02, 0.42, 0.025))
     fig.colorbar(
-        plt.cm.ScalarMappable(cmap="gray_r", norm=plt.Normalize(0, 1)),
+        plt.cm.ScalarMappable(cmap="gray_r", norm=Normalize(0, 1)),
         cax=cbar_gray_ax,
         orientation="horizontal",
         label="Material Density",
@@ -282,7 +283,7 @@ def generate_figure(  # noqa: PLR0913, PLR0915
     # Red colorbar for difference column
     cbar_red_ax = fig.add_axes((0.60, 0.02, 0.25, 0.025))
     fig.colorbar(
-        plt.cm.ScalarMappable(cmap=diff_cmap, norm=plt.Normalize(0, 1)),
+        plt.cm.ScalarMappable(cmap=diff_cmap, norm=Normalize(0, 1)),
         cax=cbar_red_ax,
         orientation="horizontal",
     )
@@ -490,7 +491,7 @@ def generate_figure_2x3v2(  # noqa: PLR0913
     # Shared colorbars
     cbar_gray_ax = fig.add_axes((0.125, 0.02, 0.38, 0.02))
     fig.colorbar(
-        plt.cm.ScalarMappable(cmap="gray_r", norm=plt.Normalize(0, 1)),
+        plt.cm.ScalarMappable(cmap="gray_r", norm=Normalize(0, 1)),
         cax=cbar_gray_ax,
         orientation="horizontal",
     )
@@ -499,7 +500,7 @@ def generate_figure_2x3v2(  # noqa: PLR0913
 
     cbar_diff_ax = fig.add_axes((0.57, 0.02, 0.33, 0.02))
     fig.colorbar(
-        plt.cm.ScalarMappable(cmap=diff_cmap, norm=plt.Normalize(0, 1)),
+        plt.cm.ScalarMappable(cmap=diff_cmap, norm=Normalize(0, 1)),
         cax=cbar_diff_ax,
         orientation="horizontal",
     )
@@ -628,7 +629,7 @@ def generate_figure_1x6(  # noqa: PLR0913
     # Colorbars — tight at bottom
     cbar_gray_ax = fig.add_axes((0.01, 0.06, 0.45, 0.04))
     fig.colorbar(
-        plt.cm.ScalarMappable(cmap="gray_r", norm=plt.Normalize(0, 1)),
+        plt.cm.ScalarMappable(cmap="gray_r", norm=Normalize(0, 1)),
         cax=cbar_gray_ax,
         orientation="horizontal",
     )
@@ -637,7 +638,7 @@ def generate_figure_1x6(  # noqa: PLR0913
 
     cbar_diff_ax = fig.add_axes((0.54, 0.06, 0.45, 0.04))
     fig.colorbar(
-        plt.cm.ScalarMappable(cmap=diff_cmap, norm=plt.Normalize(0, 1)),
+        plt.cm.ScalarMappable(cmap=diff_cmap, norm=Normalize(0, 1)),
         cax=cbar_diff_ax,
         orientation="horizontal",
     )
@@ -708,7 +709,7 @@ def generate_figure_1x2(  # noqa: PLR0913
     # Single shared colorbar
     cbar_ax = fig.add_axes((0.25, 0.02, 0.50, 0.03))
     fig.colorbar(
-        plt.cm.ScalarMappable(cmap="gray_r", norm=plt.Normalize(0, 1)),
+        plt.cm.ScalarMappable(cmap="gray_r", norm=Normalize(0, 1)),
         cax=cbar_ax,
         orientation="horizontal",
     )

@@ -16,6 +16,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from matplotlib.figure import Figure
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
 if _PROJECT_ROOT not in sys.path:
@@ -138,7 +139,7 @@ def plot_latency_workflow(
     df: pd.DataFrame,
     output_dir: Path | None = None,
     filename: str = "latency_workflow",
-) -> plt.Figure:
+) -> Figure:
     """Box plots of agent latency by prompt style, model, and problem.
 
     Args:

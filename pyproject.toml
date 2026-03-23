@@ -262,10 +262,8 @@ exclude = [
 ]
 enableTypeIgnoreComments = true
 reportMissingImports = "none"
-reportPrivateImportUsage = "none"
+reportMissingModuleSource = "none"  # CI doesn't install all optional deps
 reportGeneralTypeIssues = "none"  # -> commented out raises a lot of errors
-reportOptionalMemberAccess = "none"
-reportUnsupportedDunderAll = "none"
 reportUnboundVariable = "warning"
 
 [tool.mypy]

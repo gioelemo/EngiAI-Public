@@ -111,6 +111,7 @@ class PrusaAgent:
 
         async def _load():
             """Load tools but DON'T disconnect - keep connection alive for tool calls."""
+            assert self.mcp_client is not None
             try:
                 tools = await self.mcp_client.list_tools()
             except Exception:

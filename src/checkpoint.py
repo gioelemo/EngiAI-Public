@@ -61,6 +61,7 @@ def get_checkpointer() -> MemorySaver:
                 _checkpointer = (
                     _context_manager.__enter__()
                 )  # Get the actual saver from context manager
+                assert _checkpointer is not None
 
                 # Initialize database tables on first use
                 if not _initialized:

@@ -26,6 +26,8 @@ import matplotlib.transforms as mtransforms
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.axes import Axes
+from matplotlib.ticker import FuncFormatter
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
 if _PROJECT_ROOT not in sys.path:
@@ -270,7 +272,7 @@ def plot_step_completion_heatmap_avg(
     pos = ax.get_position()
     cax = fig.add_axes((pos.x1 + 0.01, pos.y0, 0.015, pos.height))
     cbar = fig.colorbar(ax.collections[0], cax=cax)
-    cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}\\%"))
+    cbar.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.0f}\\%"))
     cbar.set_label("Avg. completion rate")
     save_figure(fig, filename, output_dir)
     plt.close(fig)
@@ -441,7 +443,7 @@ EVAL_METRIC_LABELS = {
 }
 
 
-def _draw_eval_subplot(ax: plt.Axes, metric: str, ctx: dict) -> None:
+def _draw_eval_subplot(ax: Axes, metric: str, ctx: dict) -> None:
     """Draw a single subplot in the evaluation metrics grid."""
     df = ctx["df"]
     models = ctx["models"]
@@ -718,7 +720,7 @@ def _get_seed_val(frame: pd.DataFrame, seed: int, metric: str) -> float:
 
 
 def _draw_missing_markers(
-    ax: plt.Axes,
+    ax: Axes,
     x: np.ndarray,
     model_series: list[tuple[list[float], float, str]],
 ) -> None:
@@ -843,7 +845,7 @@ def _plot_baseline_metric(  # noqa: PLR0913
 
 
 def _format_baseline_axes(  # noqa: PLR0913
-    ax: plt.Axes,
+    ax: Axes,
     x: np.ndarray,
     all_seeds: list[int],
     models: list[str],
@@ -989,7 +991,7 @@ _GRID_METRICS = [
 
 
 def _draw_grid_subplot(
-    ax: plt.Axes,
+    ax: Axes,
     metric: str,
     label: str,
     direction: str,
