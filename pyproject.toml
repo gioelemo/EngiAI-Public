@@ -248,6 +248,26 @@ exclude_lines = [
     "@abstractmethod",
 ]
 
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = ["src/**", "tests/**", "scripts/**", "benchmarks/**", "services/**"]
+exclude = [
+  "**/node_modules",
+  "**/__pycache__",
+  "build",
+  "docs",
+  "services/prusa_mcp_server/prusa-mcp",
+  "benchmarks/shared/metrics.py",
+]
+enableTypeIgnoreComments = true
+reportMissingImports = "none"
+reportPrivateImportUsage = "none"
+reportGeneralTypeIssues = "none"  # -> commented out raises a lot of errors
+reportOptionalMemberAccess = "none"
+reportUnsupportedDunderAll = "none"
+reportUnboundVariable = "warning"
+
 [tool.mypy]
 mypy_path = [".", "services"]
 warn_redundant_casts = true

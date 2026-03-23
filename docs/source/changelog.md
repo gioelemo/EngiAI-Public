@@ -365,7 +365,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SSH authentication also via username and password
 - Move supported problems in constant.py to avoid name duplicate
 - Add button to remove all files in the outputs folder
-- Improve connection state managment for Prusa
+- Improve connection state management for Prusa
 - MMORE multimodal RAG service integration for document retrieval
   - Replaced ChromaDB with external MMORE service
   - Enhanced document upload with retry logic and progress tracking

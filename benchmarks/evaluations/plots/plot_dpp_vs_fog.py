@@ -181,7 +181,7 @@ def plot_tradeoff_with_pareto(
         bbox_to_anchor=(1.02, 1),
         fontsize=PLOT_STYLE["font_sizes"]["legend"],
         frameon=True,
-        title="Models \& Frontier",
+        title=r"Models \& Frontier",
     )
 
     save_figure(fig, output_name)
