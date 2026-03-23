@@ -49,7 +49,7 @@ def main():
         raise ImportError(msg)
 
     # Configure transport security BEFORE loading the module
-    from mcp.server.fastmcp.server import TransportSecuritySettings  # noqa: PLC0415
+    from mcp.server.fastmcp.server import TransportSecuritySettings  # noqa: PLC0415  # pyright: ignore[reportPrivateImportUsage]
 
     # Set allowed hosts to include Docker service name and localhost
     allowed_hosts_env = os.getenv(

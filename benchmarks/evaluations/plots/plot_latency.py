@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import pandas as pd
 import seaborn as sns
 
@@ -138,7 +139,7 @@ def plot_latency_workflow(
     df: pd.DataFrame,
     output_dir: Path | None = None,
     filename: str = "latency_workflow",
-) -> plt.Figure:
+) -> Figure:
     """Box plots of agent latency by prompt style, model, and problem.
 
     Args:

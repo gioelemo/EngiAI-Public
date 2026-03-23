@@ -23,6 +23,7 @@ from pathlib import Path
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 import numpy as np
 import pandas as pd
 
@@ -420,7 +421,7 @@ def _abbreviate_model(name: str) -> str:
     return _MODEL_ABBREVIATIONS.get(name, name[:8])
 
 
-def _draw_by_prompt_axes(ax: plt.Axes, df_sub: pd.DataFrame, cfg: dict) -> None:
+def _draw_by_prompt_axes(ax: Axes, df_sub: pd.DataFrame, cfg: dict) -> None:
     """Draw stacked bars and axis labels for one RAG-status panel."""
     models, example_ids = cfg["models"], cfg["example_ids"]
     offsets, bar_width = cfg["offsets"], cfg["bar_width"]
@@ -745,7 +746,7 @@ def plot_rag_accuracy_comparison(  # noqa: PLR0915
 
 
 def _draw_stacked_bars(  # noqa: PLR0913
-    ax: plt.Axes,
+    ax: Axes,
     df: pd.DataFrame,
     models: list[str],
     x: np.ndarray,

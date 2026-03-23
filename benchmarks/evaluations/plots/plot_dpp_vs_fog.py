@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
 from scipy import stats
 from scipy.spatial import ConvexHull
 
@@ -127,7 +128,7 @@ def plot_tradeoff_with_pareto(
         # Shade the model territory (The "Hull")
         try:
             hull = ConvexHull(pts)
-            poly = plt.Polygon(
+            poly = Polygon(
                 pts[hull.vertices], alpha=0.1, color=style["color"], lw=0
             )
             ax.add_patch(poly)

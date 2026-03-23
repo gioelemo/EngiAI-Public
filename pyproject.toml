@@ -262,10 +262,7 @@ exclude = [
 ]
 enableTypeIgnoreComments = true
 reportMissingImports = "none"
-reportPrivateImportUsage = "none"
 reportGeneralTypeIssues = "none"  # -> commented out raises a lot of errors
-reportOptionalMemberAccess = "none"
-reportUnsupportedDunderAll = "none"
 reportUnboundVariable = "warning"
 
 [tool.mypy]
