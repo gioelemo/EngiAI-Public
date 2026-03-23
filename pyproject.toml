@@ -248,6 +248,23 @@ exclude_lines = [
     "@abstractmethod",
 ]
 
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = ["src", "tests", "scripts", "benchmarks", "services"]
+exclude = [
+  "build",
+  "docs",
+  "services/prusa_mcp_server/prusa-mcp",
+  "benchmarks/shared/metrics.py",
+]
+reportMissingImports = false
+reportPrivateImportUsage = false
+reportGeneralTypeIssues = false
+reportOptionalMemberAccess = false
+reportUnsupportedDunderAll = false
+reportUnboundVariable = false  # TODO: fix conditional try/except imports
+
 [tool.mypy]
 mypy_path = [".", "services"]
 warn_redundant_casts = true
