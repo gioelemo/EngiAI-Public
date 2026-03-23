@@ -47,7 +47,6 @@ dependencies = [
     "streamlit-adjustable-columns==0.2.1",
     "streamlit-stl==0.0.6",
     "torch==2.8.0",
-    "torchaudio==2.8.0",
     "torchvision==0.23.0",
     "trimesh>=4.0.0",
     "wandb==0.25.0",
