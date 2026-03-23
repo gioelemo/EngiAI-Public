@@ -29,7 +29,6 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx.ext.mathjax",
     "myst_parser",
-    "sphinx_github_changelog",
 ]
 
 templates_path = ["_templates"]
@@ -111,6 +110,3 @@ html_sidebars = {
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
 }
-
-# GitHub Changelog
-sphinx_github_changelog_token = os.environ.get("SPHINX_GITHUB_CHANGELOG_TOKEN")

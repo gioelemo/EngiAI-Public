@@ -74,7 +74,6 @@ Quick Links
    :caption: Development
 
    contributing
-   changelog
 
 Features at a Glance
 ====================
