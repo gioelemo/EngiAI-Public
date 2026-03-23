@@ -28,7 +28,7 @@ dependencies = [
     "langchain-ollama==1.0.1",
     "langchain-openai==1.1.7",
     "langchain-tavily==0.2.13",
-    "langgraph==1.0.6",
+    "langgraph==1.0.10",
     "langgraph-checkpoint-postgres==3.0.3",
     "matplotlib==3.10.6",
     "nest-asyncio>=1.6.0",
