@@ -271,7 +271,6 @@ make docs-watch
 - [ ] Code is formatted (`make format`)
 - [ ] No linting errors (`make lint`)
 - [ ] Documentation updated
-- [ ] CHANGELOG.md updated (for significant changes)
 
 ### PR Checklist
 

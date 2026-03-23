@@ -71,7 +71,6 @@ docs = [
     "myst-parser>=2.0.0",
     "sphinx>=7.0.0",
     "sphinx-book-theme>=1.0.0",
-    "sphinx-github-changelog>=1.0.0",
 ]
 all = [
   "mypy",
