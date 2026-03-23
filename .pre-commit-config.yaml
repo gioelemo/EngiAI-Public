@@ -41,3 +41,9 @@ repos:
         additional_dependencies: ["pyright@1.1.347"]
         args:
           - --project=pyproject.toml
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        pass_filenames: false
+        types: [python]
