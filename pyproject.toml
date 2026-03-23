@@ -262,6 +262,7 @@ exclude = [
 ]
 enableTypeIgnoreComments = true
 reportMissingImports = "none"
+reportMissingModuleSource = "none"  # CI doesn't install all optional deps
 reportGeneralTypeIssues = "none"  # -> commented out raises a lot of errors
 reportUnboundVariable = "warning"
 
