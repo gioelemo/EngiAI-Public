@@ -128,9 +128,7 @@ def plot_tradeoff_with_pareto(
         # Shade the model territory (The "Hull")
         try:
             hull = ConvexHull(pts)
-            poly = Polygon(
-                pts[hull.vertices], alpha=0.1, color=style["color"], lw=0
-            )
+            poly = Polygon(pts[hull.vertices], alpha=0.1, color=style["color"], lw=0)
             ax.add_patch(poly)
         except (ValueError, Exception):
             # ConvexHull may fail if points are collinear or other geometric issues
