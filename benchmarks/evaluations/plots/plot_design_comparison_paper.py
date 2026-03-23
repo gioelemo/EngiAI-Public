@@ -19,8 +19,8 @@ from itertools import combinations
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 import numpy as np
+from matplotlib.colors import Normalize
 
 # Add project root to path
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)

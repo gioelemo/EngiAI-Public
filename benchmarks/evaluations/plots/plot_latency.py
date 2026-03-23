@@ -14,9 +14,9 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 import pandas as pd
 import seaborn as sns
+from matplotlib.figure import Figure
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
 if _PROJECT_ROOT not in sys.path:

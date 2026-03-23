@@ -22,12 +22,12 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.ticker import FuncFormatter
 import matplotlib.transforms as mtransforms
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.axes import Axes
+from matplotlib.ticker import FuncFormatter
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
 if _PROJECT_ROOT not in sys.path:
