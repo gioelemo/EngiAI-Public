@@ -6,29 +6,7 @@ Engineer Assistant is a sophisticated multi-agent AI system designed for mechani
 
 The system uses a **supervisor-based multi-agent architecture** where a central supervisor coordinates specialized agents, each with domain-specific tools and expertise.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         User Interface                       │
-│                   (Streamlit Web UI)                         │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Supervisor Agent                          │
-│          (Routes requests to specialized agents)             │
-└─┬───────┬───────┬───────┬────────┬────────┬───────┬────────┘
-  │       │       │       │        │        │       │
-  ▼       ▼       ▼       ▼        ▼        ▼       ▼
-┌───┐   ┌───┐  ┌───┐   ┌───┐   ┌─────┐  ┌───┐   ┌───┐
-│Eng│   │RAG│  │Srch│  │ArXv│  │Prusa│  │HPC│   │CLI│
-└─┬─┘   └─┬─┘  └─┬─┘   └─┬─┘   └──┬──┘  └─┬─┘   └─┬─┘
-  │       │      │       │        │       │       │
-  ▼       ▼      ▼       ▼        ▼       ▼       ▼
-┌──────────────────────────────────────────────────────┐
-│                      Tools Layer                      │
-│  EngiBench | RAG Chain | Search | HPC | CLI | MCP   │
-└──────────────────────────────────────────────────────┘
-```
+![Architecture Overview](../../assets/architecture_simplified.png)
 
 ## Core Components
 
