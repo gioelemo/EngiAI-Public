@@ -57,6 +57,8 @@ src/
 ├── models/          # LangGraph state definitions
 ├── utils/           # Prompts, API tracking utilities
 ├── ui/              # Streamlit web interface
+│   └── components/
+│       └── excalidraw/  # Git submodule → gioelemo/streamlit-excalidraw
 └── checkpoint.py    # PostgreSQL/SQLite persistence
 ```
 

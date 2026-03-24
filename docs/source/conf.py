@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path("../..").resolve()))
 
 # -- Project information -----------------------------------------------------
 
-project = "Engineer Assistant"
-copyright = "2025, Engineer Assistant Contributors"
+project = "EngiAI"
+copyright = "2026, EngiAI Contributors"
 author = "Gioele Molinari"
 release = "1.0.0"
 
@@ -64,7 +64,7 @@ myst_enable_extensions = [
 # -- Options for HTML output -------------------------------------------------
 
 html_theme = "sphinx_book_theme"
-html_title = "Engineer Assistant Documentation"
+html_title = "EngiAI Documentation"
 html_baseurl = ""
 html_copy_source = False
 html_logo = "_static/logo.png"
@@ -79,7 +79,7 @@ html_theme_options = {
     "use_edit_page_button": True,
     "use_issues_button": True,
     "logo": {
-        "text": "Engineer Assistant",
+        "text": "EngiAI",
     },
 }
 

@@ -28,6 +28,11 @@ Before starting, ensure you have these external services set up:
    - Automatically cloned with `--recurse-submodules` flag
    - See [Prusa MCP README](services/prusa_mcp_server/README.md) for configuration
 
+3. **Excalidraw Whiteboard** - Interactive drawing canvas in the chat UI
+   - Included as a git submodule at `src/ui/components/excalidraw`
+   - Standalone repo: [gioelemo/streamlit-excalidraw](https://github.com/gioelemo/streamlit-excalidraw)
+   - Automatically cloned with `--recurse-submodules` flag
+
 ### 🚀 Fastest Way: Docker (Recommended)
 
 ```bash
@@ -818,7 +823,9 @@ python connection.py submit outputs/test.slurm
 │   │   ├── chat.py              # Chat page
 │   │   ├── home.py              # Home page
 │   │   ├── settings.py          # Settings page
-│   │   └── chat_management.py   # Multi-chat DB management
+│   │   ├── chat_management.py   # Multi-chat DB management
+│   │   └── components/
+│   │       └── excalidraw/      # Git submodule (streamlit-excalidraw)
 │   ├── utils/                   # Utilities
 │   │   └── prompts.py           # System prompts
 ├── scripts/                     # Utility scripts
