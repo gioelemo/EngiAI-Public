@@ -4,7 +4,9 @@ import base64
 import io
 from datetime import datetime
 
-from src.ui.components.excalidraw import excalidraw_whiteboard  # type: ignore[attr-defined]
+from src.ui.components.excalidraw import (
+    excalidraw_whiteboard,  # type: ignore[attr-defined]
+)
 
 
 class InvalidCanvasDataError(ValueError):
