@@ -5,10 +5,10 @@ FROM node:18-slim AS excalidraw-builder
 WORKDIR /component
 
 # Copy component package files and install
-COPY src/ui/components/excalidraw/frontend/package.json ./
+COPY src/ui/components/excalidraw/streamlit_excalidraw/frontend/package.json ./
 RUN npm install --production=false
 
-COPY src/ui/components/excalidraw/frontend/ ./
+COPY src/ui/components/excalidraw/streamlit_excalidraw/frontend/ ./
 RUN npm run build
 
 # Stage 2: Python application
@@ -39,7 +39,7 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
 COPY . .
 
 # Copy pre-built Excalidraw component from builder stage
-COPY --from=excalidraw-builder /component/build /app/src/ui/components/excalidraw/frontend/build
+COPY --from=excalidraw-builder /component/build /app/src/ui/components/excalidraw/streamlit_excalidraw/frontend/build
 
 # Copy and set permissions for entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
