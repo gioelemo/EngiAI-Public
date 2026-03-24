@@ -23,7 +23,5 @@ jobs:
         with:
           python-version: 3.x
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - run: pip install mypy numpy pytest types-requests
       - run: mypy
