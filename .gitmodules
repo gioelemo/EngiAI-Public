@@ -7,3 +7,6 @@
 [submodule "paper"]
 	path = paper
 	url = https://github.com/gioelemo/EngiAI-Paper.git
+[submodule "src/ui/components/excalidraw"]
+	path = src/ui/components/excalidraw
+	url = https://github.com/gioelemo/streamlit-excalidraw.git
