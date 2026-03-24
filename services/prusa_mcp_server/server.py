@@ -76,7 +76,9 @@ def main():
         logger.warning(f"Could not patch FastMCP: {e}")
 
     # Import the prusa_mcp package (now on sys.path)
-    from prusa_mcp.server import mcp as mcp_server  # noqa: PLC0415
+    from prusa_mcp.server import (  # type: ignore[import-not-found]  # noqa: PLC0415
+        mcp as mcp_server,
+    )
 
     logger.info(f"Found FastMCP server: {mcp_server}")
 
