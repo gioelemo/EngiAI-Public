@@ -5,7 +5,6 @@ This server runs the Prusa MCP FastMCP server with SSE transport,
 allowing it to run as a separate service that can be deployed independently.
 """
 
-import importlib.util
 import logging
 import os
 import sys
@@ -30,23 +29,18 @@ def get_prusa_mcp_path() -> Path:
 
 def main():
     """Run the Prusa MCP server with SSE transport."""
-    # Get prusa-mcp path
+    # Get prusa-mcp path and add its src/ to sys.path so we can import prusa_mcp
     prusa_mcp_path = get_prusa_mcp_path()
-    prusa_mcp_file = prusa_mcp_path / "src" / "prusa-mcp.py"
+    src_path = prusa_mcp_path / "src"
 
-    if not prusa_mcp_file.exists():
-        msg = f"Prusa MCP server not found at {prusa_mcp_file}"
+    if not (src_path / "prusa_mcp" / "server.py").exists():
+        msg = f"Prusa MCP server not found at {src_path / 'prusa_mcp' / 'server.py'}"
         logger.error(msg)
         raise FileNotFoundError(msg)
 
-    logger.info(f"Loading Prusa MCP server from {prusa_mcp_file}")
-
-    # Load the prusa-mcp module
-    spec = importlib.util.spec_from_file_location("prusa_mcp", prusa_mcp_file)
-    if spec is None or spec.loader is None:
-        msg = f"Could not load spec for {prusa_mcp_file}"
-        logger.error(msg)
-        raise ImportError(msg)
+    # Add src/ to sys.path so `import prusa_mcp` works
+    sys.path.insert(0, str(src_path))
+    logger.info(f"Loading Prusa MCP server from {src_path / 'prusa_mcp'}")
 
     # Configure transport security BEFORE loading the module
     from mcp.server.fastmcp.server import (  # noqa: PLC0415
@@ -81,17 +75,9 @@ def main():
     except Exception as e:
         logger.warning(f"Could not patch FastMCP: {e}")
 
-    prusa_mcp_module = importlib.util.module_from_spec(spec)
-    sys.modules["prusa_mcp"] = prusa_mcp_module
-    spec.loader.exec_module(prusa_mcp_module)
+    # Import the prusa_mcp package (now on sys.path)
+    from prusa_mcp.server import mcp as mcp_server  # noqa: PLC0415
 
-    # Get the FastMCP instance
-    if not hasattr(prusa_mcp_module, "mcp"):
-        msg = "Could not find 'mcp' (FastMCP instance) in prusa-mcp.py"
-        logger.error(msg)
-        raise AttributeError(msg)
-
-    mcp_server = prusa_mcp_module.mcp
     logger.info(f"Found FastMCP server: {mcp_server}")
 
     # Get host and port from environment

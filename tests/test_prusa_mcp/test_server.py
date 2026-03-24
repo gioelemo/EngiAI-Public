@@ -42,6 +42,14 @@ def test_get_prusa_mcp_path_default(monkeypatch):
 # ============================================================================
 
 
+def _create_fake_package(tmp_path, server_content):
+    """Helper to create a fake prusa_mcp package at tmp_path/src/prusa_mcp/."""
+    pkg_dir = tmp_path / "src" / "prusa_mcp"
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / "__init__.py").write_text("")
+    (pkg_dir / "server.py").write_text(server_content)
+
+
 @pytest.mark.unit
 def test_main_file_not_found(monkeypatch, tmp_path):
     """Test main raises FileNotFoundError when Prusa MCP not found."""
@@ -56,19 +64,17 @@ def test_main_file_not_found(monkeypatch, tmp_path):
 @pytest.mark.unit
 def test_main_loads_module(monkeypatch, tmp_path):
     """Test that main loads the Prusa MCP module."""
-    # Create a fake prusa-mcp.py file
-    prusa_dir = tmp_path / "src"
-    prusa_dir.mkdir()
-    prusa_file = prusa_dir / "prusa-mcp.py"
-    prusa_file.write_text("""
-# Fake Prusa MCP module
+    _create_fake_package(
+        tmp_path,
+        """
 class FakeMCP:
     @property
     def sse_app(self):
         return lambda: None
 
 mcp = FakeMCP()
-""")
+""",
+    )
 
     monkeypatch.setenv("PRUSA_MCP_PATH", str(tmp_path))
     monkeypatch.setenv("PRUSA_MCP_HOST", "127.0.0.1")
@@ -85,30 +91,11 @@ mcp = FakeMCP()
 
 
 @pytest.mark.unit
-def test_main_no_mcp_attribute(monkeypatch, tmp_path):
-    """Test that main raises AttributeError when mcp not found in module."""
-    # Create a fake prusa-mcp.py without mcp attribute
-    prusa_dir = tmp_path / "src"
-    prusa_dir.mkdir()
-    prusa_file = prusa_dir / "prusa-mcp.py"
-    prusa_file.write_text("# No mcp defined\n")
-
-    monkeypatch.setenv("PRUSA_MCP_PATH", str(tmp_path))
-
-    with pytest.raises(AttributeError) as excinfo:
-        main()
-
-    assert "mcp" in str(excinfo.value)
-
-
-@pytest.mark.unit
 def test_main_calls_app_factory(monkeypatch, tmp_path):
     """Test that main calls app factory if sse_app is callable."""
-    # Create a fake prusa-mcp.py with factory pattern
-    prusa_dir = tmp_path / "src"
-    prusa_dir.mkdir()
-    prusa_file = prusa_dir / "prusa-mcp.py"
-    prusa_file.write_text("""
+    _create_fake_package(
+        tmp_path,
+        """
 class FakeApp:
     pass
 
@@ -124,7 +111,8 @@ class FakeMCP:
         return factory
 
 mcp = FakeMCP()
-""")
+""",
+    )
 
     monkeypatch.setenv("PRUSA_MCP_PATH", str(tmp_path))
     monkeypatch.setenv("PRUSA_MCP_HOST", "0.0.0.0")
@@ -140,17 +128,17 @@ mcp = FakeMCP()
 @pytest.mark.unit
 def test_main_default_host_and_port(monkeypatch, tmp_path):
     """Test main uses default host and port when not set."""
-    prusa_dir = tmp_path / "src"
-    prusa_dir.mkdir()
-    prusa_file = prusa_dir / "prusa-mcp.py"
-    prusa_file.write_text("""
+    _create_fake_package(
+        tmp_path,
+        """
 class FakeMCP:
     @property
     def sse_app(self):
         return object()
 
 mcp = FakeMCP()
-""")
+""",
+    )
 
     monkeypatch.setenv("PRUSA_MCP_PATH", str(tmp_path))
     monkeypatch.delenv("PRUSA_MCP_HOST", raising=False)
@@ -162,26 +150,6 @@ mcp = FakeMCP()
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["host"] == "0.0.0.0"
         assert call_kwargs["port"] == 8000
-
-
-@pytest.mark.unit
-def test_main_spec_none(monkeypatch, tmp_path):
-    """Test main handles None spec gracefully."""
-    prusa_dir = tmp_path / "src"
-    prusa_dir.mkdir()
-    prusa_file = prusa_dir / "prusa-mcp.py"
-    prusa_file.write_text("mcp = None")
-
-    monkeypatch.setenv("PRUSA_MCP_PATH", str(tmp_path))
-
-    with patch(
-        "prusa_mcp_server.server.importlib.util.spec_from_file_location",
-        return_value=None,
-    ):
-        with pytest.raises(ImportError) as excinfo:
-            main()
-
-        assert "Could not load spec" in str(excinfo.value)
 
 
 # ============================================================================
@@ -202,17 +170,17 @@ def test_get_prusa_mcp_path_returns_path_object(monkeypatch):
 @pytest.mark.unit
 def test_main_logs_info(monkeypatch, tmp_path, caplog):
     """Test that main logs information messages."""
-    prusa_dir = tmp_path / "src"
-    prusa_dir.mkdir()
-    prusa_file = prusa_dir / "prusa-mcp.py"
-    prusa_file.write_text("""
+    _create_fake_package(
+        tmp_path,
+        """
 class FakeMCP:
     @property
     def sse_app(self):
         return object()
 
 mcp = FakeMCP()
-""")
+""",
+    )
 
     monkeypatch.setenv("PRUSA_MCP_PATH", str(tmp_path))
 
