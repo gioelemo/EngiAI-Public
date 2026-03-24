@@ -274,6 +274,7 @@ exclude = [
   "docs",
   "services/prusa_mcp_server/prusa-mcp",
   "benchmarks/shared/metrics.py",
+  "src/ui/components/excalidraw",
 ]
 [[tool.mypy.overrides]]
 module = [
