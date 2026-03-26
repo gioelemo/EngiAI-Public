@@ -94,7 +94,7 @@ This wording includes the key terms (`volfrac`, `forcedist`, `Beams2D`, `API cod
 
 - ⏩ **Speed up** the thinking spinner (2-4×). Add marker before/after.
 - **Voiceover** (when RAG results appear, return to 1×):
-> "The RAG agent searches the paper and finds the exact values from the code example — volume fraction 0.7 and force distribution 0.3."
+> "The RAG agent searches the paper and finds the exact values from the code example — volume fraction 0.7 and force distance 0.3."
 
 **Text overlay** (brief, on the response): `Found: volfrac = 0.7, forcedist = 0.3`
 
@@ -279,7 +279,7 @@ Skip the RAG step. Use 2 messages instead:
 
 | # | Prompt |
 |---|--------|
-| 1 | "Design a 2D beam with volume fraction 0.35 and force distribution 0.5. Optimize it and simulate the result." |
+| 1 | "Design a 2D beam with volume fraction 0.35 and force distance 0.5. Optimize it and simulate the result." |
 | 2 | "Export the design as an STL file for 3D printing." |
 
 Adjust voiceover to skip the paper-search narrative.

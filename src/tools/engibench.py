@@ -262,7 +262,7 @@ def simulate_design(  # noqa: PLR0913
     # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
     volume_fraction: float | None = None,
     volfrac: float | None = None,
-    force_distribution: float | None = None,
+    force_distance: float | None = None,
     forcedist: float | None = None,
     rmin: float | None = None,
     lambda1: float | None = None,
@@ -282,7 +282,7 @@ def simulate_design(  # noqa: PLR0913
 
         Configuration parameters (pass directly OR in problem_config dict):
         - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
-        - force_distribution / forcedist: Load position for beams2d (0.0 to 1.0)
+        - force_distance / forcedist: Load position for beams2d (0.0 to 1.0)
         - filter_radius / rmin: Density filter radius
         - lambda1, lambda2: Wavelengths for photonics2d
         - blur_radius: Blur radius for photonics2d
@@ -301,7 +301,7 @@ def simulate_design(  # noqa: PLR0913
         flat_params = {
             "volume_fraction": volume_fraction,
             "volfrac": volfrac,
-            "force_distribution": force_distribution,
+            "force_distance": force_distance,
             "forcedist": forcedist,
             "rmin": rmin,
             "lambda1": lambda1,
@@ -397,7 +397,8 @@ def _build_problem_config_from_flat_params(
         "volume_fraction": "volfrac",
         "vol_frac": "volfrac",
         "volume": "volfrac",
-        "force_distribution": "forcedist",
+        "force_distance": "forcedist",
+        "force_distribution": "forcedist",  # backwards compat alias
         "force_dist": "forcedist",
         "load_position": "forcedist",
         "filter_radius": "rmin",
@@ -461,7 +462,7 @@ def optimize_design(  # noqa: PLR0913
     # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
     volume_fraction: float | None = None,
     volfrac: float | None = None,
-    force_distribution: float | None = None,
+    force_distance: float | None = None,
     forcedist: float | None = None,
     rmin: float | None = None,
     lambda1: float | None = None,
@@ -486,7 +487,7 @@ def optimize_design(  # noqa: PLR0913
 
         Configuration parameters (pass directly OR in problem_config dict):
         - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
-        - force_distribution / forcedist: Load position for beams2d (0.0 to 1.0)
+        - force_distance / forcedist: Load position for beams2d (0.0 to 1.0)
         - filter_radius / rmin: Density filter radius
         - lambda1, lambda2: Wavelengths for photonics2d
         - blur_radius: Blur radius for photonics2d
@@ -499,7 +500,7 @@ def optimize_design(  # noqa: PLR0913
 
     Examples:
         # Flat parameters (recommended for LLMs):
-        >>> optimize_design(problem_type="beams2d", volume_fraction=0.4, force_distribution=0.2, seed=42)
+        >>> optimize_design(problem_type="beams2d", volume_fraction=0.4, force_distance=0.2, seed=42)
 
         # Dict format (also supported):
         >>> optimize_design(problem_type="beams2d", problem_config={"volfrac": 0.4, "forcedist": 0.2}, seed=42)
@@ -509,7 +510,7 @@ def optimize_design(  # noqa: PLR0913
         flat_params = {
             "volume_fraction": volume_fraction,
             "volfrac": volfrac,
-            "force_distribution": force_distribution,
+            "force_distance": force_distance,
             "forcedist": forcedist,
             "rmin": rmin,
             "lambda1": lambda1,
@@ -778,7 +779,7 @@ def render_design(  # noqa: PLR0913
     # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
     volume_fraction: float | None = None,
     volfrac: float | None = None,
-    force_distribution: float | None = None,
+    force_distance: float | None = None,
     forcedist: float | None = None,
     rmin: float | None = None,
     lambda1: float | None = None,
@@ -799,7 +800,7 @@ def render_design(  # noqa: PLR0913
 
         Configuration parameters (pass directly OR in problem_config dict):
         - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
-        - force_distribution / forcedist: Load position for beams2d (0.0 to 1.0)
+        - force_distance / forcedist: Load position for beams2d (0.0 to 1.0)
         - filter_radius / rmin: Density filter radius
         - lambda1, lambda2: Wavelengths for photonics2d
         - blur_radius: Blur radius for photonics2d
@@ -818,7 +819,7 @@ def render_design(  # noqa: PLR0913
         flat_params = {
             "volume_fraction": volume_fraction,
             "volfrac": volfrac,
-            "force_distribution": force_distribution,
+            "force_distance": force_distance,
             "forcedist": forcedist,
             "rmin": rmin,
             "lambda1": lambda1,

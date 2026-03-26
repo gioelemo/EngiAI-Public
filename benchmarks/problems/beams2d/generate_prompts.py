@@ -30,7 +30,7 @@ from benchmarks.shared.prompt_generation import (  # noqa: E402
     run_prompt_generation_workflow,
 )
 
-# Force distribution thresholds for natural language descriptions
+# Force distance thresholds for natural language descriptions
 FORCE_CONCENTRATED = 0.2
 FORCE_LOWER_LEFT = 0.4
 FORCE_MIDDLE = 0.6
@@ -195,7 +195,7 @@ def _create_full_prompt(volfrac: float, forcedist: float, rmin: float) -> str:
         f"Design a 2D beam structure.\n\n"
         f"Design requirements:\n"
         f"- Use a material volume fraction of {volfrac}\n"
-        f"- Force distribution parameter: {forcedist}\n"
+        f"- Force distance parameter: {forcedist}\n"
         f"- Minimum filter radius (rmin): {rmin}\n\n"
         f"Optimize the structure and simulate the result to obtain the compliance value."
     )
@@ -471,7 +471,7 @@ def _create_workflow_derived_params_prompt(
 
     Args:
         volfrac: Volume fraction for optimization
-        forcedist: Force distribution parameter
+        forcedist: Force distance parameter
         rmin: Minimum filter radius
 
     Returns:
@@ -484,7 +484,7 @@ def _create_workflow_derived_params_prompt(
         f"the geometry as a 3D-printable STL file.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
-        f"   - Force Distribution: {forcedist}\n"
+        f"   - Force Distance: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
         f"2. Simulation\n"
@@ -518,7 +518,7 @@ def _create_workflow_multi_export_prompt(
 
     Args:
         volfrac: Volume fraction for optimization
-        forcedist: Force distribution parameter
+        forcedist: Force distance parameter
         rmin: Minimum filter radius
         example_id: Unique example identifier
         seed: Base seed for random generation
@@ -548,7 +548,7 @@ def _create_workflow_multi_export_prompt(
         f"the geometry as TWO separate 3D-printable STL files with different parameters.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
-        f"   - Force Distribution: {forcedist}\n"
+        f"   - Force Distance: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
         f"2. Simulation\n"
@@ -592,7 +592,7 @@ def _create_workflow_conditional_prompt(
 
     Args:
         volfrac: Volume fraction for optimization
-        forcedist: Force distribution parameter
+        forcedist: Force distance parameter
         rmin: Minimum filter radius
         example_id: Unique example identifier
         seed: Base seed for random generation
@@ -625,7 +625,7 @@ def _create_workflow_conditional_prompt(
         f"the simulation outcome.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
-        f"   - Force Distribution: {forcedist}\n"
+        f"   - Force Distance: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
         f"2. Simulation\n"
@@ -660,7 +660,7 @@ def _create_workflow_random_prompt(
 
     Args:
         volfrac: Volume fraction for optimization
-        forcedist: Force distribution parameter
+        forcedist: Force distance parameter
         rmin: Minimum filter radius
         example_id: Unique example identifier
         seed: Base seed for random generation
@@ -684,7 +684,7 @@ def _create_workflow_random_prompt(
         f"the geometry as a 3D-printable STL file.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
-        f"   - Force Distribution: {forcedist}\n"
+        f"   - Force Distance: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
         f"2. Simulation\n"
@@ -720,7 +720,7 @@ def _create_workflow_distractor_prompt(
 
     Args:
         volfrac: Volume fraction for optimization
-        forcedist: Force distribution parameter
+        forcedist: Force distance parameter
         rmin: Minimum filter radius
         example_id: Unique example identifier
         seed: Base seed for random generation
@@ -749,7 +749,7 @@ def _create_workflow_distractor_prompt(
         f"the geometry as a 3D-printable STL file.\n\n"
         f"1. Optimization Configuration\n"
         f"   - Volume Fraction: {volfrac}\n"
-        f"   - Force Distribution: {forcedist}\n"
+        f"   - Force Distance: {forcedist}\n"
         f"   - Filter Radius (rmin): {rmin}\n"
         f"   - Objective: Minimize compliance\n\n"
         f"2. Simulation\n"

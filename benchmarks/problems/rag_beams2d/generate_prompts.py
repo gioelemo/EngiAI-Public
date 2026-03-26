@@ -124,7 +124,7 @@ RAG_PROMPTS: list[dict] = [
         "prompt": (
             "In the EngiBench paper's Section 3.1 API walkthrough, a code example "
             "runs a Beams2D optimization using non-default design conditions. "
-            "Search the paper to find both the volume fraction and force distribution "
+            "Search the paper to find both the volume fraction and force distance "
             "from that example, then generate a 2D beam design with those exact "
             "values. Use default values for all other parameters and do not ask for "
             "clarification."
@@ -228,7 +228,7 @@ RAG_PROMPTS: list[dict] = [
         # -------------------------------------------------------------------
         "prompt": (
             "Generate a 2D beam design combining parameters from multiple sources:\n\n"
-            "1. Use the volume fraction and force distribution from the EngiBench "
+            "1. Use the volume fraction and force distance from the EngiBench "
             "paper's API walkthrough example (the non-default values shown in the "
             "code snippet).\n"
             "2. Use the filter radius from the SOPTX paper by He et al. (2025) for "

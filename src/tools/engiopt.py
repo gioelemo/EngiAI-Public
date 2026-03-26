@@ -1415,7 +1415,7 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
                             # Volume fraction must be in [0, 1], keep reasonable range
                             new_value = max(0.1, min(0.8, new_value))
                         elif key == "forcedist":
-                            # Force distribution must be in [0, 1]
+                            # Force distance must be in [0, 1]
                             new_value = max(0.0, min(1.0, new_value))
                         elif key == "rmin":
                             # Filter radius must be positive, keep reasonable

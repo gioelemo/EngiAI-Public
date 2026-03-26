@@ -236,7 +236,7 @@ def score_rag_evaluation(
         metadata: Evaluation metadata containing:
             - conditions.expected_volfrac: expected volume fraction (float)
             - conditions.expected_volfrac_tolerance: tolerance window (float)
-            - conditions.expected_forcedist: expected force distribution (float, optional)
+            - conditions.expected_forcedist: expected force distance (float, optional)
             - conditions.expected_forcedist_tolerance: tolerance window (float, optional)
             - conditions.expected_rmin: expected filter radius (float, optional)
             - conditions.expected_rmin_tolerance: tolerance window (float, optional)
@@ -254,7 +254,7 @@ def score_rag_evaluation(
         - volfrac_within_tolerance: Whether error <= tolerance (bool)
         - forcedist_accuracy: Raw closeness score for forcedist (0.0-1.0), 0.0 if not tested
         - effective_forcedist_accuracy: forcedist_accuracy gated on rag_tool_called (0.0-1.0)
-        - forcedist_actual: Force distribution the agent used (float | None)
+        - forcedist_actual: Force distance the agent used (float | None)
         - forcedist_expected: Expected forcedist from conditions (float | None)
         - forcedist_error: Absolute error |actual - expected| (float | None)
         - forcedist_within_tolerance: Whether error <= tolerance (bool)

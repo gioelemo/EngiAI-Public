@@ -118,7 +118,7 @@ def validate_parameter_ranges(prompt_data: dict[str, Any]) -> dict[str, Any]:
     forcedist = conditions["forcedist"]
     if not FORCEDIST_MIN <= forcedist <= FORCEDIST_MAX:
         errors.append(
-            f"Force distribution {forcedist} outside range [{FORCEDIST_MIN}, {FORCEDIST_MAX}]"
+            f"Force distance {forcedist} outside range [{FORCEDIST_MIN}, {FORCEDIST_MAX}]"
         )
 
     # Check target compliance if present

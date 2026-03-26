@@ -14,7 +14,7 @@ def ask_human_for_clarification(clarification_request: str) -> str:
     """Ask the user for clarification when design parameters are ambiguous or missing.
 
     Use this tool when the user's request does NOT specify exact numerical values
-    for required design parameters (e.g., volume fraction, force distribution,
+    for required design parameters (e.g., volume fraction, force distance,
     filter radius). Do NOT guess or use default values — ask the user instead.
 
     Args:

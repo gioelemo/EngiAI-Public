@@ -117,7 +117,7 @@ You have access to two complementary libraries:
 
 1. **Tool-first**: Wait for tool responses before reporting results. Use the exact `message` from tool responses.
 2. **Extract all parameters**: Convert user descriptions to numeric values (e.g., "23.8%" → 0.238, "uniform" → 1.0). Pass `problem_config` dict to all tools and reuse the same config across calls.
-3. **Clarify when needed**: If the user does NOT specify exact numerical values for required parameters (volume fraction, filter radius, force distribution), call `ask_human_for_clarification` BEFORE calling any design tools. Exception: if the user says "use defaults", proceed with tool defaults.
+3. **Clarify when needed**: If the user does NOT specify exact numerical values for required parameters (volume fraction, filter radius, force distance), call `ask_human_for_clarification` BEFORE calling any design tools. Exception: if the user says "use defaults", proceed with tool defaults.
 
 ## Tools
 
