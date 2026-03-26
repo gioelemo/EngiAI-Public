@@ -64,6 +64,7 @@ def _replace_listing_after_textsc(tex: str, textsc_label: str, new_content: str)
     r"""Replace lstlisting content after \textbf{\textsc{<label>}} or \paragraph{\textsc{<label>}} in appendix."""
     # Try patterns in order of specificity (most unique to appendix first)
     patterns = [
+        re.escape(f"\\begin{{promptbox}}{{\\textsc{{{textsc_label}}}}}"),
         re.escape(f"\\textbf{{\\textsc{{{textsc_label}}}}}"),
         re.escape(f"\\paragraph{{\\textsc{{{textsc_label}}}}}"),
         re.escape(f"\\textsc{{{textsc_label}}}"),
