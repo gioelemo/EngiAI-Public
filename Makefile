@@ -1,4 +1,4 @@
-.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean mmore-eval-up mmore-eval-down mmore-eval-rebuild mmore-eval-logs mmore-eval-status mmore-eval-run sync-thesis sync-thesis-figures sync-thesis-tables sync-thesis-prompts sync-thesis-dry-run sync-thesis-commit sync-paper sync-paper-dry-run
+.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean mmore-eval-up mmore-eval-down mmore-eval-rebuild mmore-eval-logs mmore-eval-status mmore-eval-run sync-thesis sync-thesis-figures sync-thesis-tables sync-thesis-prompts sync-thesis-dry-run sync-thesis-commit sync-paper sync-paper-dry-run sync-paper-revision sync-paper-revision-dry-run
 
 help:  ## Show this help message
 	@echo "Available commands:"
@@ -159,3 +159,10 @@ sync-paper:  ## Sync prompts to paper submodule
 
 sync-paper-dry-run:  ## Preview what would be synced to paper
 	python scripts/sync_paper.py --prompts --dry-run
+
+# Paper revision sync targets
+sync-paper-revision:  ## Sync prompts to paper revision submodule
+	python scripts/sync_paper.py --prompts --config paper_revision_sync_config.yaml
+
+sync-paper-revision-dry-run:  ## Preview what would be synced to paper revision
+	python scripts/sync_paper.py --prompts --dry-run --config paper_revision_sync_config.yaml
