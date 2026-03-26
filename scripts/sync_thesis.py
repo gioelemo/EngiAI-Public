@@ -318,8 +318,16 @@ def _replace_listing_after_label(tex: str, label_suffix: str, new_content: str) 
 
 def _replace_listing_after_textsc(tex: str, textsc_label: str, new_content: str) -> str:
     """Replace lstlisting content after \\textsc{<label>} in a promptbox."""
-    pattern = re.escape(f"\\textsc{{{textsc_label}}}")
-    label_match = re.search(pattern, tex)
+    # Try promptbox pattern first (most specific), then bare \textsc
+    patterns = [
+        re.escape(f"\\begin{{promptbox}}{{\\textsc{{{textsc_label}}}}}"),
+        re.escape(f"\\textsc{{{textsc_label}}}"),
+    ]
+    label_match = None
+    for pat in patterns:
+        label_match = re.search(pat, tex)
+        if label_match:
+            break
     if not label_match:
         log.warning("\\textsc{%s} not found in appendix.tex", textsc_label)
         return tex
