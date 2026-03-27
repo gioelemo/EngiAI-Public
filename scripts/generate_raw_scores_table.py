@@ -132,7 +132,7 @@ def generate_table(problem: str) -> str:
         + problem_display
         + r".]{Raw per-metric scores (mean $\pm$ std) for all models and prompt styles on "
         + problem_display
-        + r". Most cells aggregate 15 runs (3 seeds $\times$ 5 samples); a few Qwen3.5-4B configurations have 13--14 runs due to JSON parsing errors. Metric abbreviations are defined in Section~\ref{subsubsec:scoring_methodology}.}"
+        + r". Most cells aggregate 15 runs (3 seeds $\times$ 5 samples); a few Qwen3.5-4B configurations have 13--14 runs due to JSON parsing errors. Metric abbreviations are defined in Section~\ref{subsec:scoring_methodology}.}"
     )
     lines.append(r"\label{tab:raw_scores_" + problem + "}")
     lines.append(r"\scriptsize")
