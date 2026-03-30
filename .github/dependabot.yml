@@ -10,3 +10,8 @@ updates:
         patterns:
           - "langchain*"
           - "langgraph*"
+      torch-ecosystem:
+        patterns:
+          - "torch"
+          - "torchvision"
+          - "torchaudio"
