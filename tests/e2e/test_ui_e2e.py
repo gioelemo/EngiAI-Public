@@ -476,3 +476,504 @@ class TestStreamlitUI:
         expect(
             live_page.get_by_placeholder(re.compile("ask me anything", re.IGNORECASE))
         ).to_be_visible(timeout=10_000)
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Per-widget settings tests
+    # ══════════════════════════════════════════════════════════════════════════════
+
+    # ── 3D Viewer ─────────────────────────────────────────────────────────────────
+
+    def test_settings_3d_color_picker_visible(self, live_page: Page) -> None:
+        """The 3D color picker widget must be visible on the settings page."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(live_page.locator("[data-testid='stColorPicker']")).to_be_visible(
+            timeout=10_000
+        )
+
+    def test_settings_3d_opacity_slider_default(self, live_page: Page) -> None:
+        """The opacity slider must default to 1 (fully opaque)."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        slider_container = live_page.locator(
+            "[data-testid='stSlider']", has_text="Opacity"
+        )
+        expect(slider_container).to_be_visible(timeout=10_000)
+        expect(slider_container.get_by_role("slider")).to_have_attribute(
+            "aria-valuenow", "1"
+        )
+
+    def test_settings_3d_auto_rotate_checkbox_default(self, live_page: Page) -> None:
+        """The auto-rotate checkbox must be checked by default."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_role(
+                "checkbox", name=re.compile("Auto-rotate", re.IGNORECASE)
+            )
+        ).to_be_checked()
+
+    # ── Chat & UI additional widgets ──────────────────────────────────────────────
+
+    def test_settings_auto_monitor_jobs_default_unchecked(
+        self, live_page: Page
+    ) -> None:
+        """'Automatically monitor submitted jobs' must be unchecked by default."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_role(
+                "checkbox",
+                name=re.compile("Automatically monitor", re.IGNORECASE),
+            )
+        ).not_to_be_checked()
+
+    def test_settings_export_md_disabled_with_no_messages(
+        self, live_page: Page
+    ) -> None:
+        """Export MD button must be disabled when the active chat has no messages."""
+        live_page.locator("[data-testid='stSidebar']").get_by_text("+ New Chat").click()
+        live_page.wait_for_load_state("networkidle")
+
+        # Wait for the new (empty) chat to fully load before navigating away
+        expect(
+            live_page.get_by_placeholder(re.compile("ask me anything", re.IGNORECASE))
+        ).to_be_visible(timeout=10_000)
+
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_role("button", name=re.compile("Export MD", re.IGNORECASE))
+        ).to_be_disabled(timeout=10_000)
+
+    def test_settings_export_pdf_disabled_with_no_messages(
+        self, live_page: Page
+    ) -> None:
+        """Export PDF button must be disabled when the active chat has no messages."""
+        live_page.locator("[data-testid='stSidebar']").get_by_text("+ New Chat").click()
+        live_page.wait_for_load_state("networkidle")
+
+        # Wait for the new (empty) chat to fully load before navigating away
+        expect(
+            live_page.get_by_placeholder(re.compile("ask me anything", re.IGNORECASE))
+        ).to_be_visible(timeout=10_000)
+
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_role(
+                "button", name=re.compile("Export PDF", re.IGNORECASE)
+            )
+        ).to_be_disabled(timeout=10_000)
+
+    # ── Voice Interaction ─────────────────────────────────────────────────────────
+
+    def test_settings_voice_enabled_default_unchecked(self, live_page: Page) -> None:
+        """'Enable voice features' must be unchecked by default."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_role(
+                "checkbox",
+                name=re.compile("Enable voice features", re.IGNORECASE),
+            )
+        ).not_to_be_checked()
+
+    def test_settings_voice_disabled_shows_info_message(self, live_page: Page) -> None:
+        """When voice is disabled, an info message must prompt the user to enable it."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_text(
+                re.compile(
+                    "Enable voice features to access voice settings", re.IGNORECASE
+                )
+            )
+        ).to_be_visible()
+
+    def test_settings_voice_toggle_reveals_provider_radio(
+        self, live_page: Page
+    ) -> None:
+        """Enabling voice features must reveal the voice provider radio buttons."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        voice_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice features", re.IGNORECASE)
+        )
+        voice_cb.dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+        # The radio group label text is visible even though native inputs are hidden
+        expect(
+            live_page.locator("[data-testid='stRadio']", has_text="voice provider")
+        ).to_be_visible(timeout=10_000)
+
+        # Restore: uncheck voice to avoid affecting later tests
+        voice_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice features", re.IGNORECASE)
+        )
+        voice_cb.dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+    def test_settings_voice_toggle_reveals_microphone_checkbox(
+        self, live_page: Page
+    ) -> None:
+        """Enabling voice must reveal the 'Enable microphone input' checkbox (checked)."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        voice_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice features", re.IGNORECASE)
+        )
+        voice_cb.dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+        # Streamlit checkboxes have opacity:0, so to_be_visible() fails.
+        # to_be_checked() confirms both existence and default state.
+        mic_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable microphone input", re.IGNORECASE)
+        )
+        expect(mic_cb).to_be_checked(timeout=10_000)
+
+        # Restore
+        voice_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice features", re.IGNORECASE)
+        )
+        voice_cb.dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+    def test_settings_voice_toggle_reveals_voice_responses_checkbox(
+        self, live_page: Page
+    ) -> None:
+        """Enabling voice must reveal the 'Enable voice responses' checkbox (checked)."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        voice_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice features", re.IGNORECASE)
+        )
+        voice_cb.dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+        resp_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice responses", re.IGNORECASE)
+        )
+        expect(resp_cb).to_be_checked(timeout=10_000)
+
+        # Restore
+        voice_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice features", re.IGNORECASE)
+        )
+        voice_cb.dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+    def test_settings_voice_toggle_reveals_auto_play_checkbox(
+        self, live_page: Page
+    ) -> None:
+        """Enabling voice must reveal the 'Auto-play responses' checkbox (checked)."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        voice_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice features", re.IGNORECASE)
+        )
+        voice_cb.dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+        auto_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Auto-play responses", re.IGNORECASE)
+        )
+        expect(auto_cb).to_be_checked(timeout=10_000)
+
+        # Restore
+        voice_cb = live_page.get_by_role(
+            "checkbox", name=re.compile("Enable voice features", re.IGNORECASE)
+        )
+        voice_cb.dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+    # ── Media Saving ──────────────────────────────────────────────────────────────
+
+    def test_settings_media_save_dir_visible(self, live_page: Page) -> None:
+        """The media save directory input must be visible and default to 'outputs'."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        save_dir = live_page.locator(
+            "[data-testid='stTextInput']", has_text="Save directory"
+        ).get_by_role("textbox")
+        expect(save_dir).to_be_visible(timeout=10_000)
+        expect(save_dir).to_have_value(re.compile(r"outputs$"))
+
+    def test_settings_auto_save_media_default_unchecked(self, live_page: Page) -> None:
+        """'Auto-save displayed media' must be unchecked by default."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_role(
+                "checkbox",
+                name=re.compile("Auto-save displayed media", re.IGNORECASE),
+            )
+        ).not_to_be_checked()
+
+    # ── File Management ───────────────────────────────────────────────────────────
+
+    def test_settings_clear_output_folder_button_visible(self, live_page: Page) -> None:
+        """The 'Clear Output Folder' button must be visible on settings."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        btn = live_page.get_by_role(
+            "button", name=re.compile("Clear Output Folder", re.IGNORECASE)
+        )
+        btn.scroll_into_view_if_needed()
+        expect(btn).to_be_visible()
+
+    def test_settings_clear_artifact_folder_button_visible(
+        self, live_page: Page
+    ) -> None:
+        """The 'Clear Artifact Folder' button must be visible on settings."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        btn = live_page.get_by_role(
+            "button", name=re.compile("Clear Artifact Folder", re.IGNORECASE)
+        )
+        btn.scroll_into_view_if_needed()
+        expect(btn).to_be_visible()
+
+    # ── HPC Connection ────────────────────────────────────────────────────────────
+
+    def test_settings_hpc_ssh_config_test_button_visible(self, live_page: Page) -> None:
+        """In SSH Config mode (default), the 'Test SSH Config Connection' button must be visible."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        btn = live_page.get_by_role(
+            "button",
+            name=re.compile("Test SSH Config Connection", re.IGNORECASE),
+        )
+        btn.scroll_into_view_if_needed()
+        expect(btn).to_be_visible()
+
+    def test_settings_password_auth_credential_inputs_visible(
+        self, live_page: Page
+    ) -> None:
+        """Switching to Password Auth must show Hostname, Username, Port, and Password."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        # Switch to Password Authentication
+        live_page.get_by_role(
+            "radio", name=re.compile("Password Authentication", re.IGNORECASE)
+        ).dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+        # Hostname with default
+        hostname = live_page.locator(
+            "[data-testid='stTextInput']", has_text="Hostname"
+        ).get_by_role("textbox")
+        hostname.scroll_into_view_if_needed()
+        expect(hostname).to_have_value("euler.ethz.ch", timeout=10_000)
+
+        # Username visible
+        username = live_page.locator(
+            "[data-testid='stTextInput']", has_text="Username"
+        ).get_by_role("textbox")
+        expect(username).to_be_visible()
+
+        # Port default 22
+        port = live_page.locator(
+            "[data-testid='stNumberInput']", has_text="Port"
+        ).get_by_role("spinbutton")
+        expect(port).to_have_value("22")
+
+        # Password visible
+        password = live_page.locator(
+            "[data-testid='stTextInput']", has_text="Password"
+        ).get_by_role("textbox")
+        expect(password).to_be_visible()
+
+        # Restore to SSH Config mode
+        live_page.get_by_role(
+            "radio", name=re.compile("SSH Config", re.IGNORECASE)
+        ).dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+    def test_settings_password_auth_save_button_visible(self, live_page: Page) -> None:
+        """In Password Auth mode, the 'Save Credentials' button must be visible."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        live_page.get_by_role(
+            "radio", name=re.compile("Password Authentication", re.IGNORECASE)
+        ).dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+        btn = live_page.get_by_role(
+            "button", name=re.compile("Save Credentials", re.IGNORECASE)
+        )
+        btn.scroll_into_view_if_needed()
+        expect(btn).to_be_visible()
+
+        # Restore
+        live_page.get_by_role(
+            "radio", name=re.compile("SSH Config", re.IGNORECASE)
+        ).dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+    def test_settings_password_auth_test_connection_button_visible(
+        self, live_page: Page
+    ) -> None:
+        """In Password Auth mode, the 'Test Connection' button must be visible."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        live_page.get_by_role(
+            "radio", name=re.compile("Password Authentication", re.IGNORECASE)
+        ).dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+        btn = live_page.get_by_role(
+            "button", name=re.compile("Test Connection", re.IGNORECASE)
+        )
+        btn.scroll_into_view_if_needed()
+        expect(btn).to_be_visible()
+
+        # Restore
+        live_page.get_by_role(
+            "radio", name=re.compile("SSH Config", re.IGNORECASE)
+        ).dispatch_event("click")
+        live_page.wait_for_load_state("networkidle")
+
+    # ── SLURM Configuration ───────────────────────────────────────────────────────
+
+    def test_settings_slurm_text_inputs_have_defaults(self, live_page: Page) -> None:
+        """SLURM config text inputs must show their expected default values."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expected = {
+            "Virtual Environment Path": "~/venvs/engineer_assistant",
+            "EngiOpt Path": "$HOME/EngiOpt",
+            "WandB Project": "engiopt",
+            "Logs Directory": "$SCRATCH/logs",
+            "HuggingFace Cache": "$SCRATCH/models",
+        }
+        for label, value in expected.items():
+            inp = live_page.locator(
+                "[data-testid='stTextInput']", has_text=label
+            ).get_by_role("textbox")
+            inp.scroll_into_view_if_needed()
+            expect(inp).to_have_value(value, timeout=10_000)
+
+    # ── Expanders & headings ──────────────────────────────────────────────────────
+
+    def test_settings_paper_import_expander_visible(self, live_page: Page) -> None:
+        """The 'Paper Import' expander must be visible on the settings page."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expander = live_page.locator("[data-testid='stExpander']").filter(
+            has_text="Paper Import"
+        )
+        expander.scroll_into_view_if_needed()
+        expect(expander).to_be_visible()
+
+    def test_settings_paper_import_expander_opens(self, live_page: Page) -> None:
+        """Clicking the Paper Import expander must reveal its content."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expander = live_page.locator("[data-testid='stExpander']").filter(
+            has_text="Paper Import"
+        )
+        expander.scroll_into_view_if_needed()
+        # Click the summary/header to expand
+        expander.locator("summary, [data-testid='stExpanderToggleDetails']").click()
+        live_page.wait_for_load_state("networkidle")
+
+        # Interior should show the papers directory info
+        expect(
+            expander.get_by_text(re.compile("papers directory", re.IGNORECASE))
+        ).to_be_visible(timeout=10_000)
+
+    def test_settings_hpc_connection_heading_visible(self, live_page: Page) -> None:
+        """The 'HPC Connection' section heading must be visible on settings."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("settings", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_role(
+                "heading", name=re.compile("HPC Connection", re.IGNORECASE)
+            )
+        ).to_be_visible()
+
+    # ── Sidebar widgets ───────────────────────────────────────────────────────────
+
+    def test_sidebar_current_model_expander_visible(self, live_page: Page) -> None:
+        """The 'Current Model' expander must be visible in the sidebar."""
+        sidebar = live_page.locator("[data-testid='stSidebar']")
+        expect(
+            sidebar.locator("[data-testid='stExpander']").filter(
+                has_text="Current Model"
+            )
+        ).to_be_visible(timeout=10_000)
