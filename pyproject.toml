@@ -315,6 +315,7 @@ module = [
   "pandas",
   "pandas.*",
   "PIL",
+  "playwright.*",
   "pillow",
   "pydantic",
   "python-dotenv",
