@@ -33,6 +33,10 @@ def pytest_configure(config):
         "markers",
         "smoke: marks tests as smoke tests (quick sanity checks)",
     )
+    config.addinivalue_line(
+        "markers",
+        "e2e: Full-browser Playwright tests (require a running Streamlit server)",
+    )
 
     # Filter known warnings from async test mocking
     config.addinivalue_line(
@@ -53,6 +57,11 @@ def pytest_collection_modifyitems(items):
             keyword in item.nodeid
             for keyword in ["slow", "long_running", "performance"]
         ):
+            item.add_marker(pytest.mark.slow)
+
+        # Auto-mark e2e tests as both e2e and slow (excluded from normal CI runs)
+        if "/e2e/" in item.nodeid or "\\e2e\\" in item.nodeid:
+            item.add_marker(pytest.mark.e2e)
             item.add_marker(pytest.mark.slow)
 
 

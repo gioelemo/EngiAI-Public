@@ -65,6 +65,7 @@ test = [
   "pytest>=8.0.0",
   "pytest-cov>=4.1.0",
   "pytest-mock>=3.12.0",
+  "pytest-playwright>=0.6.0",
 ]
 docs = [
     "myst-parser>=2.0.0",
@@ -220,6 +221,7 @@ markers = [
     "slow: Slow tests (skip with -m 'not slow')",
     "requires_api: Tests requiring real API keys",
     "asyncio: Async tests",
+    "e2e: Full-browser Playwright tests (require a running Streamlit server)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:pydantic.*:",

@@ -172,8 +172,9 @@ def test_save_noop_when_active_chat_id_is_none():
     st = _make_st(active_chat_id=None, chats={})
     mock_db = MagicMock()
 
-    with patch("src.ui.chat_management.st", st), patch(
-        "src.ui.chat_management.get_db", return_value=mock_db
+    with (
+        patch("src.ui.chat_management.st", st),
+        patch("src.ui.chat_management.get_db", return_value=mock_db),
     ):
         save_active_chat_to_storage()
 
@@ -195,8 +196,9 @@ def test_save_early_return_when_chat_has_no_messages():
     )
     mock_db = MagicMock()
 
-    with patch("src.ui.chat_management.st", st), patch(
-        "src.ui.chat_management.get_db", return_value=mock_db
+    with (
+        patch("src.ui.chat_management.st", st),
+        patch("src.ui.chat_management.get_db", return_value=mock_db),
     ):
         save_active_chat_to_storage()
 
@@ -228,9 +230,11 @@ def test_save_calls_create_conversation_when_not_yet_in_db():
     )
     mock_db = MagicMock()
 
-    with patch("src.ui.chat_management.st", st), patch(
-        "src.ui.chat_management.get_db", return_value=mock_db
-    ), patch("src.ui.chat_management.generate_chat_title", return_value="My Chat"):
+    with (
+        patch("src.ui.chat_management.st", st),
+        patch("src.ui.chat_management.get_db", return_value=mock_db),
+        patch("src.ui.chat_management.generate_chat_title", return_value="My Chat"),
+    ):
         save_active_chat_to_storage()
 
     mock_db.create_conversation.assert_called_once()
@@ -256,9 +260,11 @@ def test_save_calls_update_voice_when_already_in_db():
     )
     mock_db = MagicMock()
 
-    with patch("src.ui.chat_management.st", st), patch(
-        "src.ui.chat_management.get_db", return_value=mock_db
-    ), patch("src.ui.chat_management.generate_chat_title", return_value="My Chat"):
+    with (
+        patch("src.ui.chat_management.st", st),
+        patch("src.ui.chat_management.get_db", return_value=mock_db),
+        patch("src.ui.chat_management.generate_chat_title", return_value="My Chat"),
+    ):
         save_active_chat_to_storage()
 
     mock_db.create_conversation.assert_not_called()
@@ -284,11 +290,14 @@ def test_save_generates_title_for_new_chat_prefix():
     )
     mock_db = MagicMock()
 
-    with patch("src.ui.chat_management.st", st), patch(
-        "src.ui.chat_management.get_db", return_value=mock_db
-    ), patch(
-        "src.ui.chat_management.generate_chat_title", return_value="Beam Optimization"
-    ) as mock_title:
+    with (
+        patch("src.ui.chat_management.st", st),
+        patch("src.ui.chat_management.get_db", return_value=mock_db),
+        patch(
+            "src.ui.chat_management.generate_chat_title",
+            return_value="Beam Optimization",
+        ) as mock_title,
+    ):
         save_active_chat_to_storage()
 
     mock_title.assert_called_once_with("optimize a beam")
@@ -314,9 +323,11 @@ def test_save_skips_title_generation_for_custom_title():
     )
     mock_db = MagicMock()
 
-    with patch("src.ui.chat_management.st", st), patch(
-        "src.ui.chat_management.get_db", return_value=mock_db
-    ), patch("src.ui.chat_management.generate_chat_title") as mock_title:
+    with (
+        patch("src.ui.chat_management.st", st),
+        patch("src.ui.chat_management.get_db", return_value=mock_db),
+        patch("src.ui.chat_management.generate_chat_title") as mock_title,
+    ):
         save_active_chat_to_storage()
 
     mock_title.assert_not_called()
@@ -344,9 +355,11 @@ def test_save_always_calls_save_conversation_state():
     )
     mock_db = MagicMock()
 
-    with patch("src.ui.chat_management.st", st), patch(
-        "src.ui.chat_management.get_db", return_value=mock_db
-    ), patch("src.ui.chat_management.generate_chat_title", return_value="My Chat"):
+    with (
+        patch("src.ui.chat_management.st", st),
+        patch("src.ui.chat_management.get_db", return_value=mock_db),
+        patch("src.ui.chat_management.generate_chat_title", return_value="My Chat"),
+    ):
         save_active_chat_to_storage()
 
     mock_db.save_conversation_state.assert_called_once_with(

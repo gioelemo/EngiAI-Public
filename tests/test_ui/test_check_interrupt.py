@@ -99,8 +99,9 @@ def test_returns_auto_resume_when_cli_but_no_command_info():
     snapshot = _make_snapshot(next_nodes=("cli_agent",))
     st = _make_st(snapshot)
 
-    with patch("src.ui.confirmation_handler.st", st), patch(
-        "src.ui.confirmation_handler.extract_command_info", return_value=""
+    with (
+        patch("src.ui.confirmation_handler.st", st),
+        patch("src.ui.confirmation_handler.extract_command_info", return_value=""),
     ):
         interrupted, request = check_streamlit_interrupt()
 
@@ -115,8 +116,12 @@ def test_returns_true_with_user_request_when_command_detected():
     agent_state = {"messages": [HumanMessage(content="run ls -la")]}
     st = _make_st(snapshot, agent_state=agent_state)
 
-    with patch("src.ui.confirmation_handler.st", st), patch(
-        "src.ui.confirmation_handler.extract_command_info", return_value="**Command:** ls -la"
+    with (
+        patch("src.ui.confirmation_handler.st", st),
+        patch(
+            "src.ui.confirmation_handler.extract_command_info",
+            return_value="**Command:** ls -la",
+        ),
     ):
         interrupted, request = check_streamlit_interrupt()
 
@@ -131,8 +136,12 @@ def test_returns_empty_user_request_when_no_human_messages():
     agent_state = {"messages": [AIMessage(content="I will run ls")]}
     st = _make_st(snapshot, agent_state=agent_state)
 
-    with patch("src.ui.confirmation_handler.st", st), patch(
-        "src.ui.confirmation_handler.extract_command_info", return_value="**Command:** ls"
+    with (
+        patch("src.ui.confirmation_handler.st", st),
+        patch(
+            "src.ui.confirmation_handler.extract_command_info",
+            return_value="**Command:** ls",
+        ),
     ):
         interrupted, request = check_streamlit_interrupt()
 
