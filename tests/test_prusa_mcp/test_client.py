@@ -7,9 +7,13 @@ These tests cover the PrusaMCPClient class for HTTP/SSE MCP communication.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import nest_asyncio
 import pytest
 
 from prusa_mcp_server.client import NEST_ASYNCIO_AVAILABLE, PrusaMCPClient
+
+# Allow asyncio.run() inside an already-running event loop (e.g. pytest plugins)
+nest_asyncio.apply()
 
 # ============================================================================
 # INITIALIZATION TESTS
@@ -503,18 +507,13 @@ def test_call_tool_sync_with_running_loop_nest_asyncio():
 
 @pytest.mark.unit
 def test_call_tool_sync_with_running_loop_no_nest_asyncio():
-    """Test call_tool_sync when loop is running without nest_asyncio."""
+    """call_tool_sync returns the tool result even when nest_asyncio is unavailable."""
     client = PrusaMCPClient()
-
-    mock_loop = MagicMock()
-    mock_loop.is_closed.return_value = False
-    mock_loop.is_running.return_value = True
 
     async def mock_call_tool(_name, _args):
         return "Thread pool result"
 
     with (
-        patch("asyncio.get_event_loop", return_value=mock_loop),
         patch("prusa_mcp_server.client.NEST_ASYNCIO_AVAILABLE", False),
         patch.object(PrusaMCPClient, "connect", new_callable=AsyncMock),
         patch.object(PrusaMCPClient, "call_tool", side_effect=mock_call_tool),
@@ -527,18 +526,13 @@ def test_call_tool_sync_with_running_loop_no_nest_asyncio():
 
 @pytest.mark.unit
 def test_call_tool_sync_loop_exists_not_running():
-    """Test call_tool_sync when loop exists but not running."""
+    """call_tool_sync works when an event loop exists but is not running."""
     client = PrusaMCPClient()
-
-    mock_loop = MagicMock()
-    mock_loop.is_closed.return_value = False
-    mock_loop.is_running.return_value = False
 
     async def mock_call_tool(_name, _args):
         return "Non-running loop result"
 
     with (
-        patch("asyncio.get_event_loop", return_value=mock_loop),
         patch.object(PrusaMCPClient, "connect", new_callable=AsyncMock),
         patch.object(PrusaMCPClient, "call_tool", side_effect=mock_call_tool),
         patch.object(PrusaMCPClient, "disconnect", new_callable=AsyncMock),

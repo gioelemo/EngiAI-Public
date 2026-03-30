@@ -37,7 +37,7 @@ def test_tool_node_exception_becomes_tool_message():
 
     # Register a fake tool that always raises
     @tool
-    def boom(_x: str) -> str:
+    def boom(x: str) -> str:  # noqa: ARG001
         """A tool that explodes."""
         raise ValueError("kaboom")
 
