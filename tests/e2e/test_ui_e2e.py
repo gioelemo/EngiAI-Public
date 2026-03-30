@@ -149,9 +149,11 @@ class TestStreamlitUI:
 
         # Target the Excalidraw iframe specifically (the chat page also contains a
         # streamlit_adjustable_columns iframe, so "iframe" would be ambiguous).
-        canvas = live_page.frame_locator(
-            "iframe[title*='excalidraw_whiteboard']"
-        ).locator("canvas").first
+        canvas = (
+            live_page.frame_locator("iframe[title*='excalidraw_whiteboard']")
+            .locator("canvas")
+            .first
+        )
         expect(canvas).to_be_visible(timeout=15_000)
 
     def test_whiteboard_message_input_accepts_text(self, live_page: Page) -> None:
