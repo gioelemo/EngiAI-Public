@@ -122,6 +122,7 @@ class TestArXivAgentInitialization:
         self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test that ArXiv agent initializes correctly."""
+        from config import config
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
@@ -135,7 +136,7 @@ class TestArXivAgentInitialization:
         # (seed may also be passed depending on config)
         call_args = mock_init_llm.call_args
         assert call_args[0] == ("openai:gpt-4o",)
-        assert call_args[1]["temperature"] == 0.7  # Default from config
+        assert call_args[1]["temperature"] == config.llm_temperature
         mock_mmore_cls.assert_called_once_with(base_url=None)
         mock_mmore_client.health_check.assert_called_once()
 
