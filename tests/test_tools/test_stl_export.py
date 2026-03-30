@@ -16,6 +16,7 @@ from src.tools.stl_export import (
     _check_design_connectivity,
     _check_mesh_watertightness,
     _create_stl_from_heatmap_extruded,
+    _get_versioned_filename,
     _mirror_beam_along_y,
     convert_design_to_stl,
 )
@@ -910,3 +911,43 @@ def test_mesh_repair_functionality(tmp_path):
         # After repair, volume should be available
         assert result["volume_mm3"] is not None
         assert result["volume_mm3"] > 0
+
+
+# ============================================================================
+# _get_versioned_filename
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_versioned_filename_nonexistent_file(tmp_path):
+    """File that does not exist → path returned unchanged."""
+    p = tmp_path / "beam.stl"
+    assert _get_versioned_filename(p) == p
+
+
+@pytest.mark.unit
+def test_versioned_filename_adds_v1(tmp_path):
+    """Existing file with no _vN suffix → _v1 appended."""
+    p = tmp_path / "beam.stl"
+    p.touch()
+    result = _get_versioned_filename(p)
+    assert result == tmp_path / "beam_v1.stl"
+
+
+@pytest.mark.unit
+def test_versioned_filename_increments_existing_version(tmp_path):
+    """Stem already ending in _v2 and that file also exists → returns _v3."""
+    p = tmp_path / "beam_v2.stl"
+    p.touch()
+    result = _get_versioned_filename(p)
+    assert result == tmp_path / "beam_v3.stl"
+
+
+@pytest.mark.unit
+def test_versioned_filename_skips_taken_versions(tmp_path):
+    """_v1 and _v2 already exist → returns _v3."""
+    (tmp_path / "beam.stl").touch()
+    (tmp_path / "beam_v1.stl").touch()
+    (tmp_path / "beam_v2.stl").touch()
+    result = _get_versioned_filename(tmp_path / "beam.stl")
+    assert result == tmp_path / "beam_v3.stl"
