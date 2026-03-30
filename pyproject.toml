@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "arxiv==2.4.1",
     "beautifulsoup4==4.12.3",
-    "cryptography==46.0.3",
+    "cryptography==46.0.6",
     "cvxopt",
     "elevenlabs>=1.0.0",
     # EngiBench is pinned to a specific commit for reproducibility and because the required fixes are not yet available in a tagged release.
