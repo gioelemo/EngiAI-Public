@@ -14,10 +14,15 @@ Run locally:
     pytest tests/e2e/ -v             # headless
 """
 
+from __future__ import annotations
+
+import contextlib
 import re
 
 import pytest
-from playwright.sync_api import Page, expect
+
+with contextlib.suppress(ImportError):
+    from playwright.sync_api import Page, expect
 
 
 @pytest.mark.e2e

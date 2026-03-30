@@ -7,6 +7,9 @@ it down after the session.  `live_page` wraps pytest-playwright's `page`
 fixture and navigates to the running server.
 """
 
+from __future__ import annotations
+
+import contextlib
 import os
 import subprocess
 import time
@@ -14,7 +17,9 @@ from pathlib import Path
 
 import pytest
 import requests
-from playwright.sync_api import Page
+
+with contextlib.suppress(ImportError):
+    from playwright.sync_api import Page
 
 # ── constants ──────────────────────────────────────────────────────────────────
 
