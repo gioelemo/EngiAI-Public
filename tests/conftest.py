@@ -5,8 +5,15 @@ Provides test environment setup and pytest markers.
 """
 
 import os
+from pathlib import Path
 
 import pytest
+
+# Skip e2e directory when playwright is not installed (e.g. CI without test extras)
+try:
+    import playwright  # noqa: F401
+except ModuleNotFoundError:
+    collect_ignore_glob = [str(Path(__file__).parent / "e2e" / "*.py")]
 
 # Disable LangSmith tracing during tests to avoid rate limits
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
