@@ -70,12 +70,6 @@ def pytest_collection_modifyitems(items):
 # ============================================================================
 
 
-@pytest.fixture(scope="session")
-def test_data_dir(tmp_path_factory):
-    """Create a temporary directory for test data that persists across tests."""
-    return tmp_path_factory.mktemp("test_data")
-
-
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
     """Setup test environment once before all tests."""

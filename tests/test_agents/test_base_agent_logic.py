@@ -5,23 +5,11 @@ Covers edge cases and error paths in _tool_node, _should_continue,
 and _clarification_response that are not exercised by other test files.
 """
 
-from unittest.mock import Mock, patch
-
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
-from src.agents.cli_agent import CLIAgent
-
-
-def _make_agent() -> CLIAgent:
-    """Return a CLIAgent with a mocked LLM."""
-    with patch("src.agents.base_agent.init_chat_model") as mock_init:
-        mock_llm = Mock()
-        mock_llm.bind_tools = Mock(return_value=mock_llm)
-        mock_init.return_value = mock_llm
-        return CLIAgent()
-
+from tests.test_agents.conftest import make_cli_agent
 
 # --- _tool_node ---
 
@@ -33,7 +21,7 @@ def test_tool_node_exception_becomes_tool_message():
     OpenAI rejects responses that leave a tool_call_id without a corresponding
     ToolMessage, so errors must always be wrapped.
     """
-    agent = _make_agent()
+    agent = make_cli_agent()
 
     # Register a fake tool that always raises
     @tool
@@ -65,7 +53,7 @@ def test_tool_node_exception_becomes_tool_message():
 @pytest.mark.unit
 def test_tool_node_non_ai_last_message_returns_empty():
     """_tool_node must return empty messages when last message is not an AIMessage."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="hello"),
@@ -85,7 +73,7 @@ def test_should_continue_hallucination_guard():
     Some models (e.g. Gemini) hallucinate tool calls even when no tools were bound.
     Routing to tool_node would cause a KeyError and an infinite loop.
     """
-    agent = _make_agent()
+    agent = make_cli_agent()
     agent.tools = []  # empty — no tools registered
     agent.tools_by_name = {}
 
@@ -107,7 +95,7 @@ def test_should_continue_hallucination_guard():
 @pytest.mark.unit
 def test_clarification_response_extracts_question():
     """Valid clarification ToolMessage → AIMessage containing the question."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
@@ -134,7 +122,7 @@ def test_clarification_response_extracts_question():
 @pytest.mark.unit
 def test_clarification_response_missing_question_key_returns_empty():
     """JSON payload without a 'question' key must yield no messages."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="optimize"),
@@ -158,7 +146,7 @@ def test_clarification_response_missing_question_key_returns_empty():
 @pytest.mark.unit
 def test_clarification_response_no_matching_tool_message_returns_empty():
     """When no ask_human_for_clarification ToolMessage exists, return empty."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="hello"),

@@ -12,33 +12,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.ui.confirmation_handler import check_streamlit_interrupt
-
-# ============================================================================
-# Helpers
-# ============================================================================
-
-
-class FakeSessionState:
-    """Minimal st.session_state substitute (attribute + item + .get())."""
-
-    def __init__(self, **kwargs):
-        object.__setattr__(self, "_store", dict(kwargs))
-
-    def __getattr__(self, name):
-        store = object.__getattribute__(self, "_store")
-        try:
-            return store[name]
-        except KeyError:
-            raise AttributeError(name) from None
-
-    def __setattr__(self, name, value):
-        object.__getattribute__(self, "_store")[name] = value
-
-    def __contains__(self, name):
-        return name in object.__getattribute__(self, "_store")
-
-    def get(self, name, default=None):
-        return object.__getattribute__(self, "_store").get(name, default)
+from tests.test_ui.conftest import FakeSessionState
 
 
 def _make_snapshot(next_nodes=(), values=None):

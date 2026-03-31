@@ -14,49 +14,11 @@ from src.ui.chat_management import (
     save_active_chat_to_storage,
     sync_active_chat_to_session,
 )
+from tests.test_ui.conftest import make_st
 
 # ============================================================================
 # Helpers
 # ============================================================================
-
-
-class FakeSessionState:
-    """Minimal st.session_state substitute: supports attribute + item access and .get()."""
-
-    def __init__(self, **kwargs):
-        object.__setattr__(self, "_store", dict(kwargs))
-
-    def __getattr__(self, name):
-        store = object.__getattribute__(self, "_store")
-        try:
-            return store[name]
-        except KeyError:
-            raise AttributeError(name) from None
-
-    def __setattr__(self, name, value):
-        object.__getattribute__(self, "_store")[name] = value
-
-    def __contains__(self, name):
-        return name in object.__getattribute__(self, "_store")
-
-    def __getitem__(self, name):
-        return object.__getattribute__(self, "_store")[name]
-
-    def __setitem__(self, name, value):
-        object.__getattribute__(self, "_store")[name] = value
-
-    def __delitem__(self, name):
-        del object.__getattribute__(self, "_store")[name]
-
-    def get(self, name, default=None):
-        return object.__getattribute__(self, "_store").get(name, default)
-
-
-def _make_st(**session_kwargs) -> MagicMock:
-    """Return a mock `st` module with a pre-populated FakeSessionState."""
-    st = MagicMock()
-    st.session_state = FakeSessionState(**session_kwargs)
-    return st
 
 
 def _sample_chat(
@@ -89,7 +51,7 @@ def _sample_chat(
 @pytest.mark.unit
 def test_sync_noop_when_active_chat_id_is_none():
     """active_chat_id is None → guard fails, session state unchanged."""
-    st = _make_st(active_chat_id=None, chats={})
+    st = make_st(active_chat_id=None, chats={})
     with patch("src.ui.chat_management.st", st):
         sync_active_chat_to_session()
 
@@ -100,7 +62,7 @@ def test_sync_noop_when_active_chat_id_is_none():
 @pytest.mark.unit
 def test_sync_noop_when_active_chat_not_in_chats():
     """active_chat_id not present in chats → guard fails, session state unchanged."""
-    st = _make_st(active_chat_id="missing-id", chats={})
+    st = make_st(active_chat_id="missing-id", chats={})
     with patch("src.ui.chat_management.st", st):
         sync_active_chat_to_session()
 
@@ -111,7 +73,7 @@ def test_sync_noop_when_active_chat_not_in_chats():
 def test_sync_copies_core_fields():
     """Valid active chat → messages, agent, agent_state, config, waiting all synced."""
     chat_id, chat = _sample_chat(messages=[{"role": "user", "content": "hi"}])
-    st = _make_st(active_chat_id=chat_id, chats={chat_id: chat})
+    st = make_st(active_chat_id=chat_id, chats={chat_id: chat})
 
     with patch("src.ui.chat_management.st", st):
         sync_active_chat_to_session()
@@ -127,7 +89,7 @@ def test_sync_copies_core_fields():
 def test_sync_sets_switching_chat_flag():
     """After sync, _switching_chat must be True to suppress audio auto-play."""
     chat_id, chat = _sample_chat()
-    st = _make_st(active_chat_id=chat_id, chats={chat_id: chat})
+    st = make_st(active_chat_id=chat_id, chats={chat_id: chat})
 
     with patch("src.ui.chat_management.st", st):
         sync_active_chat_to_session()
@@ -139,7 +101,7 @@ def test_sync_sets_switching_chat_flag():
 def test_sync_restores_voice_id_when_present():
     """voice_id present in chat → voice_selected updated in session state."""
     chat_id, chat = _sample_chat(voice_id="George", voice_provider="elevenlabs")
-    st = _make_st(active_chat_id=chat_id, chats={chat_id: chat})
+    st = make_st(active_chat_id=chat_id, chats={chat_id: chat})
 
     with patch("src.ui.chat_management.st", st):
         sync_active_chat_to_session()
@@ -152,7 +114,7 @@ def test_sync_restores_voice_id_when_present():
 def test_sync_does_not_overwrite_voice_when_none():
     """voice_id is None in chat → voice_selected must NOT be touched."""
     chat_id, chat = _sample_chat(voice_id=None)
-    st = _make_st(active_chat_id=chat_id, chats={chat_id: chat}, voice_selected="alloy")
+    st = make_st(active_chat_id=chat_id, chats={chat_id: chat}, voice_selected="alloy")
 
     with patch("src.ui.chat_management.st", st):
         sync_active_chat_to_session()
@@ -169,7 +131,7 @@ def test_sync_does_not_overwrite_voice_when_none():
 @pytest.mark.unit
 def test_save_noop_when_active_chat_id_is_none():
     """active_chat_id is None → function exits without touching anything."""
-    st = _make_st(active_chat_id=None, chats={})
+    st = make_st(active_chat_id=None, chats={})
     mock_db = MagicMock()
 
     with (
@@ -185,7 +147,7 @@ def test_save_noop_when_active_chat_id_is_none():
 def test_save_early_return_when_chat_has_no_messages():
     """Chat with 0 messages → early return, no DB write."""
     chat_id, chat = _sample_chat(messages=[])
-    st = _make_st(
+    st = make_st(
         active_chat_id=chat_id,
         chats={chat_id: chat},
         messages=[],
@@ -219,7 +181,7 @@ def test_save_calls_create_conversation_when_not_yet_in_db():
         title="My Chat",
         saved_to_db=False,
     )
-    st = _make_st(
+    st = make_st(
         active_chat_id=chat_id,
         chats={chat_id: chat},
         messages=chat["messages"],
@@ -249,7 +211,7 @@ def test_save_calls_update_voice_when_already_in_db():
         title="My Chat",
         saved_to_db=True,
     )
-    st = _make_st(
+    st = make_st(
         active_chat_id=chat_id,
         chats={chat_id: chat},
         messages=chat["messages"],
@@ -279,7 +241,7 @@ def test_save_generates_title_for_new_chat_prefix():
         title="New Chat 1",
         saved_to_db=True,
     )
-    st = _make_st(
+    st = make_st(
         active_chat_id=chat_id,
         chats={chat_id: chat},
         messages=chat["messages"],
@@ -312,7 +274,7 @@ def test_save_skips_title_generation_for_custom_title():
         title="My Custom Title",
         saved_to_db=True,
     )
-    st = _make_st(
+    st = make_st(
         active_chat_id=chat_id,
         chats={chat_id: chat},
         messages=chat["messages"],
@@ -344,7 +306,7 @@ def test_save_always_calls_save_conversation_state():
     )
     agent_state = {"messages": []}
     config = {"configurable": {"thread_id": chat_id}}
-    st = _make_st(
+    st = make_st(
         active_chat_id=chat_id,
         chats={chat_id: chat},
         messages=chat["messages"],

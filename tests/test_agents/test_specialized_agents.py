@@ -13,6 +13,7 @@ from src.agents.cli_agent import CLIAgent
 from src.agents.engineering_agent import EngineeringAgent
 from src.agents.hpc_agent import HPCAgent
 from src.agents.search_agent import SearchAgent
+from tests.test_agents.conftest import make_cli_agent
 
 # ============================================================================
 # AGENT TOOL COUNT TESTS
@@ -126,19 +127,10 @@ def test_agent_creation_with_invalid_model():
 # ============================================================================
 
 
-def _make_agent():
-    """Return a CLIAgent with a mocked LLM for routing tests."""
-    with patch("src.agents.base_agent.init_chat_model") as mock_init:
-        mock_llm = Mock()
-        mock_llm.bind_tools = Mock(return_value=mock_llm)
-        mock_init.return_value = mock_llm
-        return CLIAgent()
-
-
 @pytest.mark.unit
 def test_after_tools_routes_to_llm_call_for_regular_tool():
     """Regular tool result should route back to llm_call."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="run ls"),
@@ -157,7 +149,7 @@ def test_after_tools_routes_to_llm_call_for_regular_tool():
 @pytest.mark.unit
 def test_after_tools_routes_to_clarification_response_for_first_clarification():
     """First ask_human_for_clarification should route to clarification_response."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
@@ -180,7 +172,7 @@ def test_after_tools_routes_to_clarification_response_for_first_clarification():
 @pytest.mark.unit
 def test_after_tools_routes_to_clarification_response_for_first_clarification_mixed():
     """First clarification among other tools should route to clarification_response."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
@@ -209,7 +201,7 @@ def test_after_tools_routes_to_clarification_response_for_first_clarification_mi
 @pytest.mark.unit
 def test_after_tools_routes_to_llm_call_when_no_tool_messages():
     """State with no ToolMessages should fall through to llm_call."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="hello"),
@@ -222,7 +214,7 @@ def test_after_tools_routes_to_llm_call_when_no_tool_messages():
 @pytest.mark.unit
 def test_after_tools_routes_to_llm_call_when_clarification_tool_errored():
     """If ask_human_for_clarification raised an error, let the LLM recover."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
@@ -246,7 +238,7 @@ def test_after_tools_routes_to_llm_call_when_clarification_tool_errored():
 @pytest.mark.unit
 def test_after_tools_prior_clarification_does_not_block_regular_tools():
     """One prior clarification (count=1 < 2) must not block routing after regular tools."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     # First turn: clarification was requested
     # Second turn: user responded, then a regular tool is called — should route to llm_call
     state = {
@@ -279,7 +271,7 @@ def test_after_tools_prior_clarification_does_not_block_regular_tools():
 @pytest.mark.unit
 def test_after_tools_routes_to_end_for_second_clarification():
     """Second successful ask_human_for_clarification must route to __end__."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
@@ -313,7 +305,7 @@ def test_after_tools_routes_to_end_for_second_clarification():
 @pytest.mark.unit
 def test_after_tools_error_plus_success_routes_to_clarification_response():
     """One errored + one successful clarification — current batch has success, route to clarification_response."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
@@ -347,7 +339,7 @@ def test_after_tools_error_plus_success_routes_to_clarification_response():
 @pytest.mark.unit
 def test_after_tools_two_clarifications_with_intermediate_tools():
     """Two successful clarifications with design tools in between must route to clarification_response."""
-    agent = _make_agent()
+    agent = make_cli_agent()
     state = {
         "messages": [
             HumanMessage(content="optimize a beam"),
