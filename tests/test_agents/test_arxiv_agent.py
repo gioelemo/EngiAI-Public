@@ -4,9 +4,8 @@ from datetime import datetime
 from unittest.mock import Mock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
-
 from langchain_core.documents import Document
+from langchain_core.messages import AIMessage, HumanMessage
 
 from tests.test_agents.conftest import FakeLLMWithTools
 
