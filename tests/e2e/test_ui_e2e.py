@@ -1,5 +1,5 @@
 """
-Tier-3 Playwright e2e tests for the Engineer Assistant Streamlit UI.
+Tier-3 Playwright e2e tests for the EngiAI Streamlit UI.
 
 All tests in this file are auto-marked `e2e` and `slow` by conftest.py, so
 they are excluded from normal `pytest -m "not slow"` CI runs.
@@ -27,7 +27,7 @@ with contextlib.suppress(ImportError):
 
 @pytest.mark.e2e
 class TestStreamlitUI:
-    """Full-browser smoke tests for the Engineer Assistant UI."""
+    """Full-browser smoke tests for the EngiAI UI."""
 
     # ── page identity ──────────────────────────────────────────────────────────
 

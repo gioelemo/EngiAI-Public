@@ -30,9 +30,7 @@ from benchmarks.shared.problem_registry import PROBLEMS  # noqa: E402
 from config import config  # noqa: E402
 
 # Paths configuration
-CONDA_PYTHON = (
-    Path.home() / "miniforge3" / "envs" / "engineer-assistant" / "bin" / "python"
-)
+CONDA_PYTHON = Path.home() / "miniforge3" / "envs" / "engiai" / "bin" / "python"
 
 # Default output directory for benchmark results
 # Structure: results/models/{model_name}/{problem}/{prompt_style}/{rag_status}/

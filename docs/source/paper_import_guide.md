@@ -58,7 +58,7 @@ All dependencies are automatically installed when you set up the project:
 
 ```bash
 # If using conda
-conda activate engineer-assistant
+conda activate engiai
 
 # If using Docker
 # Dependencies are already included in the container
@@ -247,7 +247,7 @@ crontab -e
 Add this line:
 
 ```
-0 2 * * * cd /path/to/engineer-assistant && /path/to/python scripts/import_local_papers.py >> data/local_import.log 2>&1
+0 2 * * * cd /path/to/engiai && /path/to/python scripts/import_local_papers.py >> data/local_import.log 2>&1
 ```
 
 ### Using Task Scheduler (Windows)
@@ -257,9 +257,9 @@ Add this line:
 3. Set trigger (e.g., daily at 2 AM)
 4. Set action to run:
    ```
-   C:\path\to\python.exe C:\path\to\engineer-assistant\scripts\import_local_papers.py
+   C:\path\to\python.exe C:\path\to\engiai\scripts\import_local_papers.py
    ```
-5. Set working directory: `C:\path\to\engineer-assistant`
+5. Set working directory: `C:\path\to\engiai`
 
 ### Using systemd Timer (Linux)
 
@@ -273,11 +273,11 @@ After=network.target
 [Service]
 Type=oneshot
 User=youruser
-WorkingDirectory=/path/to/engineer-assistant
-EnvironmentFile=/path/to/engineer-assistant/.env
+WorkingDirectory=/path/to/engiai
+EnvironmentFile=/path/to/engiai/.env
 ExecStart=/path/to/python scripts/import_local_papers.py
-StandardOutput=append:/path/to/engineer-assistant/data/local_import.log
-StandardError=append:/path/to/engineer-assistant/data/local_import.log
+StandardOutput=append:/path/to/engiai/data/local_import.log
+StandardError=append:/path/to/engiai/data/local_import.log
 
 [Install]
 WantedBy=multi-user.target
@@ -306,7 +306,7 @@ sudo systemctl start paper-import.timer
 
 ### Using launchd (macOS)
 
-Create `~/Library/LaunchAgents/com.engineer-assistant.paper-import.plist`:
+Create `~/Library/LaunchAgents/com.engiai.paper-import.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -314,14 +314,14 @@ Create `~/Library/LaunchAgents/com.engineer-assistant.paper-import.plist`:
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.engineer-assistant.paper-import</string>
+    <string>com.engiai.paper-import</string>
     <key>ProgramArguments</key>
     <array>
         <string>/path/to/python</string>
-        <string>/path/to/engineer-assistant/scripts/import_local_papers.py</string>
+        <string>/path/to/engiai/scripts/import_local_papers.py</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/path/to/engineer-assistant</string>
+    <string>/path/to/engiai</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -335,9 +335,9 @@ Create `~/Library/LaunchAgents/com.engineer-assistant.paper-import.plist`:
         <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/path/to/engineer-assistant/data/local_import.log</string>
+    <string>/path/to/engiai/data/local_import.log</string>
     <key>StandardErrorPath</key>
-    <string>/path/to/engineer-assistant/data/local_import.log</string>
+    <string>/path/to/engiai/data/local_import.log</string>
 </dict>
 </plist>
 ```
@@ -345,7 +345,7 @@ Create `~/Library/LaunchAgents/com.engineer-assistant.paper-import.plist`:
 Load it:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.engineer-assistant.paper-import.plist
+launchctl load ~/Library/LaunchAgents/com.engiai.paper-import.plist
 ```
 
 ## Querying Imported Documents

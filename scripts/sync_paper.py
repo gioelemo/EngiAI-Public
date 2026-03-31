@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sync benchmark prompts from engineer-assistant into the ASME paper appendix.
+"""Sync benchmark prompts from EngiAI into the ASME paper appendix.
 
 Extracts prompts from Python modules and injects them into lstlisting blocks
 in the paper LaTeX file, following the same pattern as sync_thesis.py.

@@ -1,4 +1,4 @@
-"""Chat page for the Engineer Assistant Streamlit app."""
+"""Chat page for the EngiAI Streamlit app."""
 
 import sys
 from pathlib import Path

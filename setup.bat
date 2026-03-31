@@ -17,11 +17,11 @@ echo ✅ Conda found
 
 REM Create conda environment
 echo 📦 Creating conda environment...
-conda create -n engineer-assistant python=3.11 -y
+conda create -n engiai python=3.11 -y
 
 REM Activate environment
 echo 🔄 Activating environment...
-call conda activate engineer-assistant
+call conda activate engiai
 
 REM Install package and dependencies
 echo 📦 Installing package and dependencies...
@@ -39,7 +39,7 @@ echo.
 echo 🎉 Setup complete!
 echo.
 echo Next steps:
-echo 1. Activate the environment: conda activate engineer-assistant
+echo 1. Activate the environment: conda activate engiai
 echo 2. Configure VS Code:
 echo    - Open project in VS Code (will prompt for extensions)
 echo    - Install Ruff and MyPy extensions: charliermarsh.ruff and ms-python.mypy-type-checker

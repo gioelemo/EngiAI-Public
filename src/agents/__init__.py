@@ -1,5 +1,5 @@
 """
-Agents module for the engineer assistant.
+Agents module for EngiAI.
 
 Contains different specialized agents.
 """

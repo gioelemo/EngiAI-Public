@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Engineer Assistant is an AI-powered multi-agent system for mechanical engineering design, featuring topology optimization, ML-based design generation, HPC job management, and 3D printing integration. Built with LangChain/LangGraph.
+EngiAI is an AI-powered multi-agent system for mechanical engineering design, featuring topology optimization, ML-based design generation, HPC job management, and 3D printing integration. Built with LangChain/LangGraph.
 
 ## Development Commands
 

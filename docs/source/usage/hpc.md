@@ -1,6 +1,6 @@
 # HPC Integration
 
-Engineer Assistant integrates with high-performance computing (HPC) clusters for running computationally intensive tasks via SLURM.
+EngiAI integrates with high-performance computing (HPC) clusters for running computationally intensive tasks via SLURM.
 
 ## Prerequisites
 

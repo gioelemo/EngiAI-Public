@@ -57,7 +57,7 @@ ax.add_patch(network_box)
 ax.text(
     0.4,
     8.1,
-    r"\textit{Docker Network: engineer-assistant}",
+    r"\textit{Docker Network: engiai}",
     fontsize=small_size,
     color=COLOR_PALETTE[1],
     fontweight="bold",
@@ -115,7 +115,7 @@ ax.add_patch(chatbot_box)
 ax.text(
     5,
     7.4,
-    r"\textbf{engineer-assistant-chatbot}",
+    r"\textbf{engiai-chatbot}",
     fontsize=label_size,
     ha="center",
     va="center",

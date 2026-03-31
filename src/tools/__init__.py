@@ -1,5 +1,5 @@
 """
-Tools module for the engineer assistant.
+Tools module for EngiAI.
 
 This module contains all custom tools that can be used by agents.
 """

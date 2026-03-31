@@ -1,6 +1,6 @@
 # Web User Interface
 
-Engineer Assistant provides a Streamlit-based web interface for interactive use.
+EngiAI provides a Streamlit-based web interface for interactive use.
 
 ## Starting the UI
 

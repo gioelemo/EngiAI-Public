@@ -1,6 +1,6 @@
 # System Architecture
 
-Engineer Assistant is a sophisticated multi-agent AI system designed for mechanical engineering design and manufacturing workflows.
+EngiAI is a sophisticated multi-agent AI system designed for mechanical engineering design and manufacturing workflows.
 
 ## Overview
 

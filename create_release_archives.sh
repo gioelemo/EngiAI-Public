@@ -20,7 +20,7 @@ RELEASE_DIR="releases"
 mkdir -p "$RELEASE_DIR"
 
 # Archive name with version
-MAIN_ARCHIVE="engineer-assistant-v${VERSION}.zip"
+MAIN_ARCHIVE="engiai-v${VERSION}.zip"
 PRUSA_ARCHIVE="prusa-mcp-server-v${VERSION}.zip"
 MMORE_ARCHIVE="mmore-rag-service-v${VERSION}.zip"
 

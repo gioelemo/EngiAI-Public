@@ -1,5 +1,5 @@
 """
-Streamlit UI for the Engineer Assistant chatbot.
+Streamlit UI for the EngiAI chatbot.
 
 This provides a web-based chat interface for interacting with the multi-agent system.
 """
@@ -111,7 +111,7 @@ def _initialize_stl_settings() -> None:
         "job_monitor_refresh_interval": 60,  # seconds
         "job_monitor_auto_add": False,  # Ask before monitoring by default
         # SLURM/HPC configuration
-        "slurm_venv_path": "~/venvs/engineer_assistant",
+        "slurm_venv_path": "~/venvs/engiai",
         "slurm_project_path": "$HOME/EngiOpt",
         "slurm_email_user": "",
         "slurm_logs_dir": "$SCRATCH/logs",

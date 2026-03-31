@@ -1,6 +1,6 @@
-# Engineer Assistant - Code Structure
+# EngiAI - Code Structure
 
-This document explains the modular structure of the engineer assistant codebase.
+This document explains the modular structure of the EngiAI codebase.
 
 ## Directory Structure
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Engineer Assistant now uses a database (PostgreSQL or SQLite) to persist chat conversations. This allows you to:
+The EngiAI now uses a database (PostgreSQL or SQLite) to persist chat conversations. This allows you to:
 - Create multiple named conversations
 - Switch between conversations seamlessly
 - Automatically save all messages and agent state

@@ -1,6 +1,6 @@
 # Docker Deployment Guide
 
-This guide explains how to deploy the Engineer Assistant chatbot using Docker on Windows Server or any other platform.
+This guide explains how to deploy the EngiAI chatbot using Docker on Windows Server or any other platform.
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ The following services must be cloned locally and accessible to the Docker conta
    - See `services/prusa_mcp_server/README.md` for configuration
    - Set `SKIP_MCP=false` to enable
 
-These services run as separate containers/processes and the Engineer Assistant connects to them via network.
+These services run as separate containers/processes and the EngiAI connects to them via network.
 
 ## Quick Start
 
@@ -67,18 +67,18 @@ These services run as separate containers/processes and the Engineer Assistant c
 
 1. **Build the Docker image**:
    ```bash
-   docker build -t engineer-assistant-chatbot .
+   docker build -t engiai-chatbot .
    ```
 
 2. **Run the container** with environment variables:
    ```bash
    docker run -d \
-     --name engineer-assistant \
+     --name engiai \
      -p 8501:8501 \
      -e OPENAI_API_KEY=your_openai_key \
      -e TAVILY_API_KEY=your_tavily_key \
      -v $(pwd)/data:/app/data \
-     engineer-assistant-chatbot
+     engiai-chatbot
    ```
 
 3. **Access the application**:
@@ -99,10 +99,10 @@ If you build the image on your local machine and want to deploy on Windows Serve
 1. **On your build machine** (Mac/Linux):
    ```bash
    # Build the image
-   docker build -t engineer-assistant-chatbot .
+   docker build -t engiai-chatbot .
 
    # Save the image to a tar file
-   docker save -o engineer-assistant-chatbot.tar engineer-assistant-chatbot
+   docker save -o engiai-chatbot.tar engiai-chatbot
    ```
 
 2. **Transfer the tar file** to Windows Server (via SCP, FTP, USB, etc.)
@@ -110,16 +110,16 @@ If you build the image on your local machine and want to deploy on Windows Serve
 3. **On Windows Server**:
    ```powershell
    # Load the image
-   docker load -i engineer-assistant-chatbot.tar
+   docker load -i engiai-chatbot.tar
 
    # Create a .env file with your API keys
    # Then run with Docker Compose or Docker CLI
    docker run -d `
-     --name engineer-assistant `
+     --name engiai `
      -p 8501:8501 `
      --env-file .env `
      -v ${PWD}/data:/app/data `
-     engineer-assistant-chatbot
+     engiai-chatbot
    ```
 
 ### Method 3: Using a Container Registry
@@ -127,25 +127,25 @@ If you build the image on your local machine and want to deploy on Windows Serve
 1. **Push to Docker Hub** (or another registry):
    ```bash
    # Tag the image
-   docker tag engineer-assistant-chatbot your-username/engineer-assistant-chatbot:latest
+   docker tag engiai-chatbot your-username/engiai-chatbot:latest
 
    # Login to Docker Hub
    docker login
 
    # Push the image
-   docker push your-username/engineer-assistant-chatbot:latest
+   docker push your-username/engiai-chatbot:latest
    ```
 
 2. **On Windows Server**, pull and run:
    ```powershell
-   docker pull your-username/engineer-assistant-chatbot:latest
+   docker pull your-username/engiai-chatbot:latest
 
    docker run -d `
-     --name engineer-assistant `
+     --name engiai `
      -p 8501:8501 `
      --env-file .env `
      -v ${PWD}/data:/app/data `
-     your-username/engineer-assistant-chatbot:latest
+     your-username/engiai-chatbot:latest
    ```
 
 ## Environment Variables
@@ -271,7 +271,7 @@ docker run -p 8080:8501 ...  # Access on http://localhost:8080
 docker-compose logs -f chatbot
 
 # Using Docker CLI
-docker logs -f engineer-assistant
+docker logs -f engiai
 ```
 
 ### Restarting the container
@@ -281,7 +281,7 @@ docker logs -f engineer-assistant
 docker-compose restart
 
 # Using Docker CLI
-docker restart engineer-assistant
+docker restart engiai
 ```
 
 ## Health Check

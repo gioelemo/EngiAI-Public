@@ -1,5 +1,5 @@
 """
-Utility module for the engineer assistant.
+Utility module for EngiAI.
 
 Contains helper functions and utilities.
 """

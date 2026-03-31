@@ -1,6 +1,6 @@
-# Streamlit UI for Engineer Assistant
+# Streamlit UI for EngiAI
 
-This directory contains the web-based user interface for the Engineer Assistant chatbot.
+This directory contains the web-based user interface for the EngiAI chatbot.
 
 ## Features
 
@@ -26,7 +26,7 @@ make run-ui
 
 ```bash
 # Activate the conda environment
-conda activate engineer-assistant
+conda activate engiai
 
 # Run Streamlit
 streamlit run src/ui/streamlit_app.py

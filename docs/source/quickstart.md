@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-This guide will get you up and running with Engineer Assistant in 5 minutes.
+This guide will get you up and running with EngiAI in 5 minutes.
 
 ## Prerequisites
 
@@ -25,8 +25,8 @@ The easiest and most reliable way to get started:
 ### 1. Clone and Navigate
 
 ```bash
-git clone --recurse-submodules https://github.com/gioelemo/engineer-assistant.git
-cd engineer-assistant
+git clone --recurse-submodules https://github.com/gioelemo/EngiAI.git
+cd EngiAI
 
 # If you already cloned without --recurse-submodules:
 # git submodule update --init --recursive
@@ -75,8 +75,8 @@ If you haven't already, set up the conda environment:
 ./setup.sh
 
 # Or manually
-conda create -n engineer-assistant python=3.11 -y
-conda activate engineer-assistant
+conda create -n engiai python=3.11 -y
+conda activate engiai
 pip install -e .[dev]
 pre-commit install
 ```
@@ -198,5 +198,5 @@ This allows the containerized assistant to:
 ## Need Help?
 
 - [Troubleshooting Guide](troubleshooting.md)
-- [GitHub Issues](https://github.com/gioelemo/engineer-assistant/issues)
+- [GitHub Issues](https://github.com/gioelemo/EngiAI/issues)
 - Check the `scripts/` directory for code examples

@@ -72,7 +72,7 @@ html_favicon = "_static/logo_notext.png"
 
 # Theme options - matching EngiBench style
 html_theme_options = {
-    "repository_url": "https://github.com/gioelemo/engineer-assistant",
+    "repository_url": "https://github.com/gioelemo/EngiAI",
     "repository_branch": "main",
     "path_to_docs": "docs/",
     "use_repository_button": True,

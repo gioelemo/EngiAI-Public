@@ -1,6 +1,6 @@
 # Prusa 3D Printer Integration
 
-The Prusa Agent enables control of Prusa 3D printers through Prusa Connect, allowing you to print designs directly from the Engineer Assistant.
+The Prusa Agent enables control of Prusa 3D printers through Prusa Connect, allowing you to print designs directly from the EngiAI.
 
 ## Overview
 
@@ -180,7 +180,7 @@ Status of my MK4 printer
 
 ## MCP Server Architecture
 
-The MCP server acts as a bridge between the Engineer Assistant and Prusa Connect:
+The MCP server acts as a bridge between the EngiAI and Prusa Connect:
 
 ```
 ┌──────────────────┐
@@ -304,7 +304,7 @@ ls -lh outputs/*.stl
 ## Further Reading
 
 - [Prusa Connect Documentation](https://help.prusa3d.com/guide/prusa-connect_245530)
-- [MCP Server Code](https://github.com/gioelemo/engineer-assistant/tree/main/services/prusa_mcp_server)
+- [MCP Server Code](https://github.com/gioelemo/EngiAI/tree/main/services/prusa_mcp_server)
 - [Docker Deployment](../docker_deployment.md)
 - [Architecture Overview](../architecture.md)
 

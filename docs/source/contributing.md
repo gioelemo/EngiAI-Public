@@ -1,19 +1,19 @@
 # Contributing
 
-Thank you for your interest in contributing to Engineer Assistant! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to EngiAI! This document provides guidelines for contributing to the project.
 
 ## Getting Started
 
 1. **Fork the repository** on GitHub
 2. **Clone your fork**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/engineer-assistant.git
-   cd engineer-assistant
+   git clone https://github.com/YOUR_USERNAME/engiai.git
+   cd EngiAI
    ```
 3. **Create environment and install dependencies**:
    ```bash
-   conda create -n engineer-assistant python=3.11 -y
-   conda activate engineer-assistant
+   conda create -n engiai python=3.11 -y
+   conda activate engiai
    pip install -e ".[dev,test]"
    ```
 
@@ -291,8 +291,8 @@ Your PR should:
 
 ## Questions?
 
-- Open an [issue](https://github.com/gioelemo/engineer-assistant/issues) for bugs
-- Start a [discussion](https://github.com/gioelemo/engineer-assistant/discussions) for questions
+- Open an [issue](https://github.com/gioelemo/EngiAI/issues) for bugs
+- Start a [discussion](https://github.com/gioelemo/EngiAI/discussions) for questions
 - Join our community chat (if available)
 
 ## License

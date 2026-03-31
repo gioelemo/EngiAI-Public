@@ -1,6 +1,6 @@
 # Tools
 
-Engineer Assistant provides a comprehensive set of tools that agents use to complete tasks. All tools are LangChain `@tool` decorated functions that agents call automatically based on user requests.
+EngiAI provides a comprehensive set of tools that agents use to complete tasks. All tools are LangChain `@tool` decorated functions that agents call automatically based on user requests.
 
 ## ArXiv Tools
 

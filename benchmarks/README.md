@@ -1,6 +1,6 @@
-# Engineer Assistant Benchmarks
+# EngiAI Benchmarks
 
-This directory contains benchmarking and evaluation infrastructure for the engineer assistant multi-agent system.
+This directory contains benchmarking and evaluation infrastructure for the EngiAI multi-agent system.
 
 ## Overview
 
@@ -70,7 +70,7 @@ benchmarks/
 First, generate prompts from the dataset for the problem you want to evaluate:
 
 ```bash
-conda activate engineer-assistant
+conda activate engiai
 cd benchmarks/problems/beams2d
 python generate_prompts.py
 ```
@@ -418,7 +418,7 @@ All benchmarks use the main project dependencies from `pyproject.toml`:
 - Check that you're in the correct directory
 
 ### Import errors
-- Activate the conda environment: `conda activate engineer-assistant`
+- Activate the conda environment: `conda activate engiai`
 - Ensure project root is in `PYTHONPATH` (scripts handle this automatically)
 
 ### Weave errors
@@ -468,10 +468,10 @@ This is helpful for diagnosing issues and understanding agent behavior.
 If you use these benchmarks in your research, please cite:
 
 ```bibtex
-@software{engineer_assistant_benchmarks,
-  title = {Engineer Assistant Benchmarks},
+@software{engiai_benchmarks,
+  title = {EngiAI Benchmarks},
   author = {Your Name},
   year = {2024},
-  url = {https://github.com/yourusername/engineer-assistant}
+  url = {https://github.com/gioelemo/EngiAI}
 }
 ```

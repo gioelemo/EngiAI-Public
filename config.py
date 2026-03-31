@@ -122,7 +122,7 @@ class Config:
             os.getenv("USE_WEAVE_CHATBOT", "false").lower() == "true"
         )
         self.weave_project: str = os.getenv(
-            "WEAVE_PROJECT", "gioelemo-ethz/engineer-assistant-benchmarks"
+            "WEAVE_PROJECT", "gioelemo-ethz/engiai-benchmarks"
         )
 
         # Database configuration for persistent checkpointing
@@ -201,7 +201,7 @@ class Config:
         if self._slurm_venv_path is None:
             self._slurm_venv_path = get_setting_from_db(
                 "slurm_venv_path",
-                "~/venvs/engineer_assistant",
+                "~/venvs/engiai",
             )
         return self._slurm_venv_path
 

@@ -1,6 +1,6 @@
 # Building Documentation
 
-This directory contains the Sphinx documentation for Engineer Assistant.
+This directory contains the Sphinx documentation for EngiAI.
 
 The documentation follows the [EngiBench](https://engibench.ethz.ch) template style using `sphinx-book-theme`.
 

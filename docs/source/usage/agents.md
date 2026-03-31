@@ -1,6 +1,6 @@
 # Using Agents
 
-Engineer Assistant provides several specialized agents for different tasks. All agents are **LangGraph state machines** that are invoked through the Supervisor Agent, which automatically routes requests to the appropriate agent.
+EngiAI provides several specialized agents for different tasks. All agents are **LangGraph state machines** that are invoked through the Supervisor Agent, which automatically routes requests to the appropriate agent.
 
 ## How Agents Work
 

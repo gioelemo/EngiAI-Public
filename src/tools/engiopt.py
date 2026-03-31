@@ -1652,7 +1652,7 @@ def _build_slurm_script(
     paths = {
         "venv": get_setting_from_db(
             "slurm_venv_path",
-            "~/venvs/engineer_assistant",
+            "~/venvs/engiai",
         ),
         "project": get_setting_from_db("slurm_project_path", "$HOME/EngiOpt"),
     }

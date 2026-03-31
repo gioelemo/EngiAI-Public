@@ -18,7 +18,7 @@ Transforms beam design examples from the HuggingFace dataset into natural langua
 
 **Usage:**
 ```bash
-conda activate engineer-assistant
+conda activate engiai
 cd benchmarks/problems/beams2d
 python generate_prompts.py
 ```
