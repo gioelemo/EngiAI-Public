@@ -258,7 +258,6 @@ exclude = [
   "**/__pycache__",
   "build",
   "docs",
-  "services/prusa_mcp_server/prusa-mcp",
   "benchmarks/shared/metrics.py",
 ]
 enableTypeIgnoreComments = true
@@ -275,7 +274,6 @@ files = ["src/", "tests/", "scripts/", "benchmarks/", "services/"]
 exclude = [
   "build",
   "docs",
-  "services/prusa_mcp_server/prusa-mcp",
   "benchmarks/shared/metrics.py",
   "src/ui/components/excalidraw",
 ]

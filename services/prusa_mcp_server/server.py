@@ -7,8 +7,6 @@ allowing it to run as a separate service that can be deployed independently.
 
 import logging
 import os
-import sys
-from pathlib import Path
 
 import uvicorn
 
@@ -19,29 +17,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_prusa_mcp_path() -> Path:
-    """Get the path to the Prusa MCP server."""
-    # Default: prusa-mcp submodule in the same directory as this file
-    default_path = Path(__file__).parent / "prusa-mcp"
-    prusa_mcp_path = os.getenv("PRUSA_MCP_PATH", str(default_path))
-    return Path(prusa_mcp_path)
-
-
 def main():
     """Run the Prusa MCP server with SSE transport."""
-    # Get prusa-mcp path and add its src/ to sys.path so we can import prusa_mcp
-    prusa_mcp_path = get_prusa_mcp_path()
-    src_path = prusa_mcp_path / "src"
-
-    if not (src_path / "prusa_mcp" / "server.py").exists():
-        msg = f"Prusa MCP server not found at {src_path / 'prusa_mcp' / 'server.py'}"
-        logger.error(msg)
-        raise FileNotFoundError(msg)
-
-    # Add src/ to sys.path so `import prusa_mcp` works
-    sys.path.insert(0, str(src_path))
-    logger.info(f"Loading Prusa MCP server from {src_path / 'prusa_mcp'}")
-
     # Configure transport security BEFORE loading the module
     from mcp.server.fastmcp.server import (  # noqa: PLC0415
         TransportSecuritySettings,  # pyright: ignore[reportPrivateImportUsage]
@@ -75,8 +52,8 @@ def main():
     except Exception as e:
         logger.warning(f"Could not patch FastMCP: {e}")
 
-    # Import the prusa_mcp package (now on sys.path)
-    from prusa_mcp.server import (  # type: ignore[import-not-found]  # noqa: PLC0415
+    # Import the prusa_mcp package (installed via pip)
+    from prusa_mcp.server import (  # noqa: PLC0415
         mcp as mcp_server,
     )
 

@@ -1,6 +1,3 @@
-[submodule "services/prusa_mcp_server/prusa-mcp"]
-	path = services/prusa_mcp_server/prusa-mcp
-	url = https://github.com/gioelemo/prusa-mcp.git
 [submodule "thesis"]
 	path = thesis
 	url = https://github.com/gioelemo/ETH_Zurich_IDEAL_Gioele_Thesis.git

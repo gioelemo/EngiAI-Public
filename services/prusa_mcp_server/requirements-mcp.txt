@@ -1,7 +1,5 @@
 # Requirements for Prusa MCP Server
-mcp[cli]>=1.18.0
-httpx>=0.28.1
+prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git
 starlette>=0.41.0
 uvicorn[standard]>=0.32.0
-python-dotenv>=1.0.0
 nest-asyncio>=1.5.8

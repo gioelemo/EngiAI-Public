@@ -33,15 +33,11 @@ services:
     env_file:
       - .env  # Load all environment variables from .env file
     environment:
-      # Override specific variables for MCP server
-      - PRUSA_MCP_PATH=/app/prusa-mcp
       - PRUSA_MCP_PORT=8765  # Run on port 8765 inside container
       - PRUSA_CONNECT_STATE=/app/data/connect_state.json
     volumes:
       # Mount data directory to persist connect state
       - ./data:/app/data
-      # Mount the prusa-mcp git submodule
-      - ./services/prusa_mcp_server/prusa-mcp:/app/prusa-mcp:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8765)); s.close()"]

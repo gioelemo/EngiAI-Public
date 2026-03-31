@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y \
 COPY services/prusa_mcp_server /app/prusa_mcp_server
 COPY services/prusa_mcp_server/requirements-mcp.txt /app/
 
-# Install Python dependencies (prusa-mcp will be mounted at runtime)
+# Install Python dependencies (prusa-mcp installed via pip from GitHub)
 RUN pip install --no-cache-dir -r requirements-mcp.txt
 
 # Install Playwright browsers
@@ -39,7 +39,6 @@ RUN pip install --no-cache-dir playwright
 RUN playwright install chromium --with-deps
 
 # Set environment variables
-ENV PRUSA_MCP_PATH=/app/prusa-mcp
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 

@@ -31,7 +31,6 @@ echo "Starting Prusa MCP Server"
 echo "=========================================="
 echo "Host: $HOST"
 echo "Port: $PORT"
-echo "Prusa MCP Path: ${PRUSA_MCP_PATH:-~/Desktop/prusa-mcp}"
 echo "=========================================="
 
 # Run the server

@@ -26,8 +26,7 @@ Before starting, ensure you have these external services set up:
    ```
 
 2. **Prusa MCP Server** (Optional) - Only needed for 3D printer integration
-   - Included as a git submodule at `services/prusa_mcp_server/prusa-mcp`
-   - Automatically cloned with `--recurse-submodules` flag
+   - Installed as a pip dependency from [gioelemo/prusa-mcp](https://github.com/gioelemo/prusa-mcp)
    - See [Prusa MCP README](services/prusa_mcp_server/README.md) for configuration
 
 3. **Excalidraw Whiteboard** - Interactive drawing canvas in the chat UI
