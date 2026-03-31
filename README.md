@@ -1,4 +1,6 @@
-# AI Assistant for Mechanical Engineering Design
+<p align="center">
+<img src="assets/logo_readme.png" align="center" width="50%"/>
+</p>
 
 [![Python tests](https://github.com/gioelemo/EngiAI/actions/workflows/test.yml/badge.svg)](https://github.com/gioelemo/EngiAI/actions/workflows/test.yml)
 [![pre-commit](https://github.com/gioelemo/EngiAI/actions/workflows/pre-commit.yaml/badge.svg)](https://github.com/gioelemo/EngiAI/actions/workflows/pre-commit.yaml)
