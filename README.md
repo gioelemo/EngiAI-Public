@@ -2,12 +2,12 @@
 <img src="assets/logo_readme.png" align="center" width="50%"/>
 </p>
 
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![Python tests](https://github.com/gioelemo/EngiAI/actions/workflows/test.yml/badge.svg)](https://github.com/gioelemo/EngiAI/actions/workflows/test.yml)
 [![pre-commit](https://github.com/gioelemo/EngiAI/actions/workflows/pre-commit.yaml/badge.svg)](https://github.com/gioelemo/EngiAI/actions/workflows/pre-commit.yaml)
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 
 EngiAI provides an AI-powered assistant for mechanical engineering design, integrating topology optimization, research retrieval, HPC simulation, and 3D printer control in a single conversational interface.
 
