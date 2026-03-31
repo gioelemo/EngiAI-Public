@@ -72,7 +72,7 @@ def generate_chat_title(user_message: str) -> str:
 Reply with ONLY the title, nothing else. No quotes, no punctuation at the end."""
 
         # Choose API based on provider
-        if provider.lower() == "google":
+        if provider.lower() in ("google", "google_genai"):
             # Google Generative AI API call
             response = requests.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={config.google_api_key}",
@@ -83,7 +83,8 @@ Reply with ONLY the title, nothing else. No quotes, no punctuation at the end.""
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "temperature": 0.3,
-                        "maxOutputTokens": 20,
+                        "maxOutputTokens": 100,
+                        "thinkingConfig": {"thinkingBudget": 0},
                     },
                 },
                 timeout=10,
@@ -124,6 +125,7 @@ Reply with ONLY the title, nothing else. No quotes, no punctuation at the end.""
         else:
             return title
     except Exception:
+        logger.exception("Failed to generate chat title")
         # Fallback to truncated message if generation fails
         if len(user_message) > max_title_length:
             return user_message[:max_title_length] + "..."

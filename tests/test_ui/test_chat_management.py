@@ -100,6 +100,27 @@ def test_generate_title_google_success():
     assert result == "3D Print Setup"
 
 
+@pytest.mark.unit
+def test_generate_title_google_genai_success():
+    """google_genai provider prefix also routes to Google API."""
+    with (
+        patch("src.ui.chat_management.config") as mock_cfg,
+        patch(
+            "requests.post", return_value=_google_response("Topology Analysis")
+        ) as mock_post,
+    ):
+        mock_cfg.llm_model = "google_genai:gemini-3-flash-preview"
+        mock_cfg.google_api_key = "AIza-test"
+
+        result = generate_chat_title("Analyze topology optimization results")
+
+    assert result == "Topology Analysis"
+    # Verify it hit the Google API, not OpenAI
+    call_url = mock_post.call_args[0][0]
+    assert "generativelanguage.googleapis.com" in call_url
+    assert "gemini-3-flash-preview" in call_url
+
+
 # --- fallback on error ---
 
 
