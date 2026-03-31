@@ -1,64 +1,93 @@
 """
 Tests for src/ui/chat_management.py — generate_chat_title.
 
-generate_chat_title makes HTTP calls via requests but has no Streamlit dependency.
-All tests mock requests.post and config.
+generate_chat_title uses LangChain's init_chat_model, so all tests mock that
+instead of provider-specific HTTP calls.
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
+from langchain_core.messages import AIMessage
 
-# generate_chat_title is the only function we can unit-test without st.*
 from src.ui.chat_management import generate_chat_title
 
 
-def _openai_response(title: str) -> MagicMock:
-    """Build a mock response matching the OpenAI chat completions shape."""
-    resp = MagicMock()
-    resp.raise_for_status = MagicMock()
-    resp.json.return_value = {"choices": [{"message": {"content": title}}]}
-    return resp
+def _mock_llm(content: str | list) -> MagicMock:
+    """Build a mock LLM whose .invoke() returns an AIMessage with the given content."""
+    llm = MagicMock()
+    llm.invoke.return_value = AIMessage(content=content)
+    return llm
 
 
-def _google_response(title: str) -> MagicMock:
-    """Build a mock response matching the Google generateContent shape."""
-    resp = MagicMock()
-    resp.raise_for_status = MagicMock()
-    resp.json.return_value = {"candidates": [{"content": {"parts": [{"text": title}]}}]}
-    return resp
-
-
-# --- OpenAI provider ---
+# --- success cases ---
 
 
 @pytest.mark.unit
-def test_generate_title_openai_success():
-    """OpenAI provider → title extracted from choices[0].message.content."""
+def test_generate_title_success():
+    """init_chat_model → llm.invoke() → title extracted from response content."""
+    mock_llm = _mock_llm("Beam Optimization")
     with (
         patch("src.ui.chat_management.config") as mock_cfg,
         patch(
-            "requests.post", return_value=_openai_response("Beam Optimization")
-        ) as mock_post,
+            "src.ui.chat_management.init_chat_model", return_value=mock_llm
+        ) as mock_init,
     ):
         mock_cfg.llm_model = "openai:gpt-4o"
-        mock_cfg.openai_api_key = "sk-test"
 
         result = generate_chat_title("Optimize a cantilever beam with volfrac 0.3")
 
     assert result == "Beam Optimization"
-    mock_post.assert_called_once()
+    mock_init.assert_called_once_with("openai:gpt-4o", temperature=0.3)
 
 
 @pytest.mark.unit
-def test_generate_title_openai_strips_quotes():
-    """Surrounding quotes in the API response are stripped."""
+def test_generate_title_google_genai():
+    """google_genai provider works the same — no special handling needed."""
+    mock_llm = _mock_llm("Topology Analysis")
     with (
         patch("src.ui.chat_management.config") as mock_cfg,
-        patch("requests.post", return_value=_openai_response('"Beam Design"')),
+        patch(
+            "src.ui.chat_management.init_chat_model", return_value=mock_llm
+        ) as mock_init,
+    ):
+        mock_cfg.llm_model = "google_genai:gemini-3-flash-preview"
+
+        result = generate_chat_title("Analyze topology optimization results")
+
+    assert result == "Topology Analysis"
+    mock_init.assert_called_once_with(
+        "google_genai:gemini-3-flash-preview", temperature=0.3
+    )
+
+
+@pytest.mark.unit
+def test_generate_title_thinking_model_content_blocks():
+    """Thinking models return content as list of blocks — text is extracted."""
+    content_blocks = [
+        {"type": "text", "text": "Print Setup", "extras": {"signature": "abc123"}},
+    ]
+    mock_llm = _mock_llm(content_blocks)
+    with (
+        patch("src.ui.chat_management.config") as mock_cfg,
+        patch("src.ui.chat_management.init_chat_model", return_value=mock_llm),
+    ):
+        mock_cfg.llm_model = "google_genai:gemini-3-flash-preview"
+
+        result = generate_chat_title("Set up the 3D printer")
+
+    assert result == "Print Setup"
+
+
+@pytest.mark.unit
+def test_generate_title_strips_quotes():
+    """Surrounding quotes in the LLM response are stripped."""
+    mock_llm = _mock_llm('"Beam Design"')
+    with (
+        patch("src.ui.chat_management.config") as mock_cfg,
+        patch("src.ui.chat_management.init_chat_model", return_value=mock_llm),
     ):
         mock_cfg.llm_model = "openai:gpt-4o"
-        mock_cfg.openai_api_key = "sk-test"
 
         result = generate_chat_title("Design a beam")
 
@@ -66,15 +95,14 @@ def test_generate_title_openai_strips_quotes():
 
 
 @pytest.mark.unit
-def test_generate_title_truncates_long_api_title():
-    """API returns a title longer than 50 chars → truncated to 47 + '...'."""
-    long_title = "A" * 60
+def test_generate_title_truncates_long_title():
+    """LLM returns a title longer than 50 chars → truncated to 47 + '...'."""
+    mock_llm = _mock_llm("A" * 60)
     with (
         patch("src.ui.chat_management.config") as mock_cfg,
-        patch("requests.post", return_value=_openai_response(long_title)),
+        patch("src.ui.chat_management.init_chat_model", return_value=mock_llm),
     ):
         mock_cfg.llm_model = "openai:gpt-4o"
-        mock_cfg.openai_api_key = "sk-test"
 
         result = generate_chat_title("some request")
 
@@ -82,57 +110,20 @@ def test_generate_title_truncates_long_api_title():
     assert result.endswith("...")
 
 
-# --- Google provider ---
-
-
-@pytest.mark.unit
-def test_generate_title_google_success():
-    """Google provider → title extracted from candidates[0].content.parts[0].text."""
-    with (
-        patch("src.ui.chat_management.config") as mock_cfg,
-        patch("requests.post", return_value=_google_response("3D Print Setup")),
-    ):
-        mock_cfg.llm_model = "google:gemini-2.0-flash"
-        mock_cfg.google_api_key = "AIza-test"
-
-        result = generate_chat_title("Set up the printer for a new job")
-
-    assert result == "3D Print Setup"
-
-
-@pytest.mark.unit
-def test_generate_title_google_genai_success():
-    """google_genai provider prefix also routes to Google API."""
-    with (
-        patch("src.ui.chat_management.config") as mock_cfg,
-        patch(
-            "requests.post", return_value=_google_response("Topology Analysis")
-        ) as mock_post,
-    ):
-        mock_cfg.llm_model = "google_genai:gemini-3-flash-preview"
-        mock_cfg.google_api_key = "AIza-test"
-
-        result = generate_chat_title("Analyze topology optimization results")
-
-    assert result == "Topology Analysis"
-    # Verify it hit the Google API, not OpenAI
-    call_url = mock_post.call_args[0][0]
-    assert "generativelanguage.googleapis.com" in call_url
-    assert "gemini-3-flash-preview" in call_url
-
-
 # --- fallback on error ---
 
 
 @pytest.mark.unit
-def test_generate_title_falls_back_on_request_exception():
-    """Network error → function falls back to the user message (no raise)."""
+def test_generate_title_falls_back_on_exception():
+    """LLM error → function falls back to the user message (no raise)."""
     with (
         patch("src.ui.chat_management.config") as mock_cfg,
-        patch("requests.post", side_effect=ConnectionError("unreachable")),
+        patch(
+            "src.ui.chat_management.init_chat_model",
+            side_effect=ConnectionError("unreachable"),
+        ),
     ):
         mock_cfg.llm_model = "openai:gpt-4o"
-        mock_cfg.openai_api_key = "sk-test"
 
         result = generate_chat_title("Short message")
 
@@ -145,14 +136,16 @@ def test_generate_title_fallback_truncates_long_message():
     long_msg = "x" * 80
     with (
         patch("src.ui.chat_management.config") as mock_cfg,
-        patch("requests.post", side_effect=RuntimeError("boom")),
+        patch(
+            "src.ui.chat_management.init_chat_model",
+            side_effect=RuntimeError("boom"),
+        ),
     ):
         mock_cfg.llm_model = "openai:gpt-4o"
-        mock_cfg.openai_api_key = "sk-test"
 
         result = generate_chat_title(long_msg)
 
-    assert len(result) == 53  # 50 chars + "..."
+    assert len(result) == 50  # 47 chars + "..."
     assert result.endswith("...")
 
 
@@ -161,10 +154,12 @@ def test_generate_title_fallback_short_message_unchanged():
     """Fallback path: short message → returned as-is, no truncation."""
     with (
         patch("src.ui.chat_management.config") as mock_cfg,
-        patch("requests.post", side_effect=RuntimeError("boom")),
+        patch(
+            "src.ui.chat_management.init_chat_model",
+            side_effect=RuntimeError("boom"),
+        ),
     ):
         mock_cfg.llm_model = "openai:gpt-4o"
-        mock_cfg.openai_api_key = "sk-test"
 
         result = generate_chat_title("Help me")
 
