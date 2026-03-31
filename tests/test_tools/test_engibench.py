@@ -22,12 +22,23 @@ pytest.importorskip("engibench")
 from src.tools.engibench import (
     EXPECTED_ARRAY_DIMENSIONS,
     _problem_states,
+    _session_id_var,
+    clear_session_state,
     create_problem,
+    get_current_session_id,
     get_dataset_info,
+    get_final_beta,
+    get_initial_design,
+    get_problem_class,
     get_problem_details,
+    get_problem_state,
     get_unified_last_design,
     optimize_design,
     render_design,
+    set_final_beta,
+    set_initial_design,
+    set_session_id,
+    set_unified_last_design,
     simulate_design,
 )
 from src.tools.problems import SUPPORTED_PROBLEMS
@@ -137,6 +148,137 @@ def test_matplotlib_backend_configuration():
     # After importing engibench module, backend should be 'Agg'
     backend = matplotlib.get_backend()
     assert backend == "Agg" or backend.startswith("agg")
+
+
+# ============================================================================
+# STATE MANAGEMENT TESTS
+# ============================================================================
+
+
+@pytest.fixture(autouse=True)
+def _clean_engibench_state():
+    """Reset problem states and session ID between tests."""
+    _problem_states.clear()
+    _session_id_var.set(None)
+    yield
+    _problem_states.clear()
+    _session_id_var.set(None)
+
+
+@pytest.mark.unit
+def test_get_problem_class_valid():
+    """Known problem type returns a class."""
+    cls = get_problem_class("beams2d")
+    assert isinstance(cls, type)
+
+
+@pytest.mark.unit
+def test_get_problem_class_case_insensitive():
+    """Problem type lookup is case-insensitive."""
+    cls = get_problem_class("Beams2D")
+    assert isinstance(cls, type)
+
+
+@pytest.mark.unit
+def test_get_problem_class_invalid():
+    """Unknown problem type raises ValueError."""
+    with pytest.raises(ValueError, match="Unknown problem type"):
+        get_problem_class("nope")
+
+
+@pytest.mark.unit
+def test_session_id_set_get():
+    """set_session_id / get_current_session_id roundtrip."""
+    set_session_id("sess_42")
+    assert get_current_session_id() == "sess_42"
+
+
+@pytest.mark.unit
+def test_session_id_default():
+    """Unset session ID defaults to 'default'."""
+    assert get_current_session_id() == "default"
+
+
+@pytest.mark.unit
+def test_get_problem_state_creates_new():
+    """First call creates a fresh state dict with expected keys."""
+    set_session_id("s1")
+    state = get_problem_state("beams2d")
+    assert state["last_design"] is None
+    assert state["initial_design"] is None
+    assert state["final_beta"] is None
+
+
+@pytest.mark.unit
+def test_get_problem_state_returns_existing():
+    """Calling twice returns the same dict object."""
+    set_session_id("s1")
+    state1 = get_problem_state("beams2d")
+    state2 = get_problem_state("beams2d")
+    assert state1 is state2
+
+
+@pytest.mark.unit
+def test_unified_last_design_set_get():
+    """set/get_unified_last_design roundtrip."""
+    set_session_id("s1")
+    get_problem_state("beams2d")  # initialize
+    arr = np.ones((10, 10))
+    set_unified_last_design("beams2d", arr)
+    result = get_unified_last_design("beams2d")
+    assert result is not None
+    np.testing.assert_array_equal(result, arr)
+
+
+@pytest.mark.unit
+def test_initial_design_set_get():
+    """set/get_initial_design roundtrip."""
+    set_session_id("s1")
+    get_problem_state("beams2d")
+    arr = np.zeros((5, 5))
+    set_initial_design("beams2d", arr)
+    result = get_initial_design("beams2d")
+    assert result is not None
+    np.testing.assert_array_equal(result, arr)
+
+
+@pytest.mark.unit
+def test_final_beta_set_get():
+    """set/get_final_beta roundtrip."""
+    set_session_id("s1")
+    get_problem_state("beams2d")
+    set_final_beta("beams2d", 3.14)
+    assert get_final_beta("beams2d") == 3.14
+
+
+@pytest.mark.unit
+def test_clear_session_state():
+    """clear_session_state removes the session's data."""
+    set_session_id("s1")
+    get_problem_state("beams2d")
+    assert "s1" in _problem_states
+    clear_session_state("s1")
+    assert "s1" not in _problem_states
+
+
+@pytest.mark.unit
+def test_clear_session_state_current():
+    """clear_session_state() with no arg clears current session."""
+    set_session_id("s1")
+    get_problem_state("beams2d")
+    clear_session_state()
+    assert "s1" not in _problem_states
+
+
+@pytest.mark.unit
+def test_session_isolation():
+    """Two sessions do not share state."""
+    set_session_id("s1")
+    get_problem_state("beams2d")
+    set_unified_last_design("beams2d", np.ones((3, 3)))
+
+    set_session_id("s2")
+    assert get_unified_last_design("beams2d") is None
 
 
 # ============================================================================

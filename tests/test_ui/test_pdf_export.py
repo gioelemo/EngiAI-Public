@@ -16,6 +16,7 @@ from src.ui.pdf_export import (
     MAX_IMAGE_WIDTH,
     _clean_text_for_pdf,
     _create_pdf_image,
+    _create_pdf_styles,
     _is_bullet_point,
 )
 
@@ -174,3 +175,45 @@ def test_create_pdf_image_small_image_not_upscaled():
     assert result is not None
     assert result.drawWidth <= MAX_IMAGE_WIDTH
     assert result.drawHeight <= MAX_IMAGE_HEIGHT
+
+
+# ============================================================================
+# _create_pdf_styles
+# ============================================================================
+
+_EXPECTED_KEYS = {
+    "title",
+    "metadata",
+    "user",
+    "assistant",
+    "role_label",
+    "timestamp",
+    "caption",
+    "missing",
+    "error",
+}
+
+
+@pytest.mark.unit
+def test_create_pdf_styles_returns_expected_keys():
+    """Style dict contains all required keys."""
+    styles = _create_pdf_styles("Helvetica")
+    assert set(styles.keys()) == _EXPECTED_KEYS
+
+
+@pytest.mark.unit
+def test_create_pdf_styles_uses_font_name():
+    """Each style uses the given main_font."""
+    font = "Courier"
+    styles = _create_pdf_styles(font)
+    for key, style in styles.items():
+        assert style.fontName == font, f"Style '{key}' has wrong fontName"
+
+
+@pytest.mark.unit
+def test_create_pdf_styles_title_attributes():
+    """Title style has fontSize=24 and center alignment."""
+    styles = _create_pdf_styles("Helvetica")
+    title = styles["title"]
+    assert title.fontSize == 24
+    assert title.alignment == 1  # center
