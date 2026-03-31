@@ -30,9 +30,7 @@ Before starting, ensure you have these external services set up:
    - See [Prusa MCP README](services/prusa_mcp_server/README.md) for configuration
 
 3. **Excalidraw Whiteboard** - Interactive drawing canvas in the chat UI
-   - Included as a git submodule at `src/ui/components/excalidraw`
-   - Standalone repo: [gioelemo/streamlit-excalidraw](https://github.com/gioelemo/streamlit-excalidraw)
-   - Automatically cloned with `--recurse-submodules` flag
+   - Installed as a pip dependency from [gioelemo/streamlit-excalidraw](https://github.com/gioelemo/streamlit-excalidraw)
 
 ### 🚀 Fastest Way: Docker (Recommended)
 

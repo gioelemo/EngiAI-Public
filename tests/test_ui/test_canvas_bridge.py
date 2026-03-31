@@ -4,10 +4,6 @@ import base64
 
 import pytest
 
-pytest.importorskip(
-    "src.ui.canvas_bridge",
-    reason="excalidraw submodule not available (skipped in CI)",
-)
 from src.ui.canvas_bridge import (
     InvalidCanvasDataError,
     process_canvas_export,

@@ -44,6 +44,7 @@ dependencies = [
     "sqlalchemy==2.0.48",
     "st-copy==1.1.2",
     "streamlit==1.55.0",
+    "streamlit-excalidraw @ git+https://github.com/gioelemo/streamlit-excalidraw.git",
     "streamlit-adjustable-columns==0.2.1",
     "streamlit-stl==0.0.6",
     "torch==2.8.0",
@@ -275,7 +276,6 @@ exclude = [
   "build",
   "docs",
   "benchmarks/shared/metrics.py",
-  "src/ui/components/excalidraw",
 ]
 [[tool.mypy.overrides]]
 module = [
@@ -327,8 +327,8 @@ module = [
   "seaborn.*",
   "sqlalchemy",
   "sqlalchemy.*",
-  "src.ui.components.excalidraw",
-  "src.ui.components.excalidraw.*",
+  "streamlit_excalidraw",
+  "streamlit_excalidraw.*",
   "stl.*",
   "streamlit",
   "streamlit.components.*",
