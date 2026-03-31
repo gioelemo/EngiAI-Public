@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml  # type: ignore[import-untyped]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG = PROJECT_ROOT / "paper_sync_config.yaml"
+DEFAULT_CONFIG = PROJECT_ROOT / "paper" / "paper_sync_config.yaml"
 
 logging.basicConfig(
     level=logging.INFO,

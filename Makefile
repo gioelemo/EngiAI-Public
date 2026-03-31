@@ -162,7 +162,7 @@ sync-paper-dry-run:  ## Preview what would be synced to paper
 
 # Paper revision sync targets
 sync-paper-revision:  ## Sync prompts to paper revision submodule
-	python scripts/sync_paper.py --prompts --config paper_revision_sync_config.yaml
+	python scripts/sync_paper.py --prompts --config paper-revision/paper_revision_sync_config.yaml
 
 sync-paper-revision-dry-run:  ## Preview what would be synced to paper revision
-	python scripts/sync_paper.py --prompts --dry-run --config paper_revision_sync_config.yaml
+	python scripts/sync_paper.py --prompts --dry-run --config paper-revision/paper_revision_sync_config.yaml
