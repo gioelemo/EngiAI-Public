@@ -86,6 +86,8 @@ def streamlit_server(tmp_path_factory):
         "LANGCHAIN_TRACING_V2": "false",
     }
 
+    log_path = _PROJECT_ROOT / "streamlit_e2e.log"
+    log_file = log_path.open("w")
     proc = subprocess.Popen(
         [
             "streamlit",
@@ -98,18 +100,18 @@ def streamlit_server(tmp_path_factory):
         ],
         env=env,
         cwd=str(_PROJECT_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=log_file,
+        stderr=log_file,
     )
 
     try:
         _wait_for_streamlit(_HEALTH_URL, timeout=_STARTUP_TIMEOUT)
     except TimeoutError:
         proc.terminate()
-        stdout = proc.stdout.read().decode(errors="replace") if proc.stdout else ""
-        stderr = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
+        log_file.flush()
+        output = log_path.read_text(errors="replace")
         raise TimeoutError(
-            f"Streamlit failed to start.\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+            f"Streamlit failed to start.\nOutput ({log_path}):\n{output}"
         ) from None
 
     yield _BASE_URL
@@ -119,6 +121,7 @@ def streamlit_server(tmp_path_factory):
         proc.wait(timeout=5)
     except subprocess.TimeoutExpired:
         proc.kill()
+    log_file.close()
 
 
 @pytest.fixture
