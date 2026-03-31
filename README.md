@@ -35,12 +35,9 @@ Before starting, ensure you have these external services set up:
 ### 🚀 Fastest Way: Docker (Recommended)
 
 ```bash
-# 1. Clone and navigate to the repository (with submodules)
-git clone --recurse-submodules https://github.com/gioelemo/EngiAI.git
+# 1. Clone and navigate to the repository
+git clone https://github.com/gioelemo/EngiAI.git
 cd EngiAI
-
-# If you already cloned without --recurse-submodules:
-# git submodule update --init --recursive
 
 # 2. Configure environment
 cp .env.example .env
@@ -73,31 +70,7 @@ For developers who want to modify the code or run without Docker:
 - [Miniforge](https://github.com/conda-forge/miniforge) installed
 - VS Code with Python extension (recommended)
 
-### One-Command Setup
-
-**First, navigate to the project directory:**
-```bash
-cd EngiAI
-```
-
-**Then run the setup script:**
-
-**macOS/Linux:**
-```bash
-./setup.sh
-```
-
-**Windows:**
-```bash
-setup.bat
-```
-
-### Manual Setup (if scripts don't work)
-
-**Make sure you're in the project directory first:**
-```bash
-cd EngiAI
-```
+### Setup
 
 1. **Create environment:**
    ```bash
@@ -153,95 +126,6 @@ See [TESTING.md](TESTING.md) for detailed testing documentation.
 
 ### Running the Application
 
-## 🚀 Deployment Options
-
-### 📦 Option 1: Docker Compose (⭐ RECOMMENDED for Production)
-
-Docker provides the most reliable, isolated, and portable deployment. All dependencies are containerized with consistent behavior across environments.
-
-**Prerequisites:**
-- [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running
-
-**Quick Start:**
-
-1. **Configure environment variables:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys (see configuration section below)
-   ```
-
-2. **Start the application:**
-   ```bash
-   docker-compose up -d
-   ```
-
-3. **Access the application:**
-   - **Web UI**: http://localhost:8501
-   - **Prusa MCP Server**: http://localhost:8765
-
-4. **View logs:**
-   ```bash
-   docker-compose logs -f
-   ```
-
-5. **Stop services:**
-   ```bash
-   docker-compose down
-   ```
-
-6. **For GUI Application Integration (Optional):**
-
-   If you want the Docker container to open GUI applications (like PrusaSlicer, etc.) on your host machine:
-
-   ```bash
-   # In a separate terminal, run the host service:
-   python host_service.py
-   ```
-
-   This allows the containerized assistant to:
-   - ✅ Open PrusaSlicer for 3D model slicing
-   - ✅ Launch other GUI applications (VS Code, Terminal, etc.)
-   - ✅ Execute commands on your host machine
-
-   The host service runs on `http://localhost:9999` and provides a secure bridge between the Docker container and your local system.
-
-   **Note:** This is only needed if you plan to use commands like "open PrusaSlicer" from within the chatbot.
-
-**Benefits:**
-- ✅ Isolated environment with all dependencies
-- ✅ Consistent behavior across machines
-- ✅ Easy to scale and deploy
-- ✅ Automatic restarts on failure
-- ✅ Volume persistence for data
-- ✅ No conda/Python environment conflicts
-
----
-
-### 💻 Option 2: Local Development (Conda)
-
-Best for active development and testing new features.
-
-**Prerequisites:**
-- Conda environment activated: `conda activate engiai`
-
-**Configuration:**
-
-1. **Create your environment file:**
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Edit `.env` with your API keys:**
-   ```bash
-   # Open .env in your preferred editor
-   code .env  # VS Code
-   # or
-   nano .env  # Terminal editor
-   ```
-
-**Running Modes:**
-
-#### a) Streamlit Web UI
 ```bash
 # Using Makefile (recommended)
 make run-ui
@@ -250,46 +134,7 @@ make run-ui
 streamlit run src/ui/streamlit_app.py
 ```
 
-**Features:**
-- 💬 Clean chat interface
-- 🎨 Interactive whiteboard with Excalidraw canvas
-- 🔧 Real-time tool usage visualization
-- 📥 Direct file downloads
-- 🗑️ Conversation management
-- 📊 Multi-chat support with database
-
-**Access:** http://localhost:8501 (or port shown in terminal)
-
-#### b) Standalone Prusa MCP Server
-```bash
-# Start external MCP server
-./services/prusa_mcp_server/run.sh
-
-# Or via Makefile
-make run-mcp
-```
-
-Then in another terminal, run the main app with MCP enabled:
-```bash
-export SKIP_MCP=false
-export PRUSA_MCP_URL=http://localhost:8765
-streamlit run src/ui/streamlit_app.py
-```
-
----
-
-### 🎯 Quick Comparison
-
-| Feature | Docker Compose | Local Development |
-|---------|----------------|-------------------|
-| **Setup Time** | 5 minutes | 10-15 minutes |
-| **Isolation** | ✅ Complete | ⚠️ Shared environment |
-| **Portability** | ✅ Run anywhere | ❌ Needs conda setup |
-| **Production Ready** | ✅ Yes | ❌ Development only |
-| **Hot Reload** | ❌ Requires rebuild | ✅ Instant changes |
-| **Resource Usage** | Moderate | Light |
-| **Prusa MCP** | ✅ Integrated | ⚠️ Manual setup |
-| **Best For** | Production, demos | Active development |
+**Access:** http://localhost:8501
 
 ---
 
@@ -790,7 +635,6 @@ python connection.py submit outputs/test.slurm
 ├── services/                    # Standalone services
 │   ├── host_service.py          # Host service for GUI integration
 │   └── prusa_mcp_server/        # Prusa MCP server
-│       ├── prusa-mcp/           # Git submodule (MCP implementation)
 │       ├── server.py            # HTTP/SSE server wrapper
 │       ├── client.py            # HTTP client for MCP
 │       ├── Dockerfile           # MCP server Docker image
@@ -823,8 +667,6 @@ python connection.py submit outputs/test.slurm
 │   │   ├── home.py              # Home page
 │   │   ├── settings.py          # Settings page
 │   │   ├── chat_management.py   # Multi-chat DB management
-│   │   └── components/
-│   │       └── excalidraw/      # Git submodule (streamlit-excalidraw)
 │   ├── utils/                   # Utilities
 │   │   └── prompts.py           # System prompts
 ├── scripts/                     # Utility scripts
@@ -849,8 +691,6 @@ python connection.py submit outputs/test.slurm
 ├── config.py                    # Configuration management
 ├── pyproject.toml               # Project config & dependencies
 ├── Makefile                     # Convenient command shortcuts
-├── requirements-mcp.txt         # MCP server dependencies
-├── setup.sh / setup.bat         # One-command local setup
 └── README.md                    # This file
 ```
 
@@ -945,7 +785,6 @@ Both are required for the chatbot to work properly.
   curl http://localhost:8765/sse
   ```
 - **Tools not loading:** Set `SKIP_MCP=true` in `.env` to disable MCP integration
-- **prusa-mcp folder not found:** Initialize the git submodule with `git submodule update --init --recursive`
 
 ### Host Service & GUI Integration Issues
 - **"Cannot connect to host service" error:** Start the host service on your local machine:
