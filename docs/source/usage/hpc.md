@@ -33,6 +33,32 @@ Test the connection:
 ssh euler
 ```
 
+## Remote Python Environment Setup
+
+The HPC agent submits SLURM jobs that run inside a Python virtual environment on the cluster. You need to create this environment once:
+
+```bash
+ssh euler
+module load stack/2024-06 gcc/12.2.0 python_cuda/3.11.6 cuda/12.8.0
+python -m venv ~/venvs/engiai
+source ~/venvs/engiai/bin/activate
+pip install "engibench @ git+https://github.com/IDEALLab/EngiBench.git@5983750dd498cc01e926dc7199f455d928f338ec"
+pip install "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git@127a0469c98886f35e20a54a809278d864369cb5"
+```
+
+```{note}
+The commit hashes above must match the versions pinned in `pyproject.toml`. Check there for the latest pins if this doc is outdated.
+```
+
+The venv path (`~/venvs/engiai`) is configurable in the Settings UI under **SLURM Configuration > Virtual Environment Path**.
+
+You must always load the modules before activating the venv, since it depends on the module-provided Python:
+
+```bash
+module load stack/2024-06 gcc/12.2.0 python_cuda/3.11.6 cuda/12.8.0
+source ~/venvs/engiai/bin/activate
+```
+
 ## Using the HPC Agent
 
 The HPC agent is accessed through natural language via the Streamlit UI or Supervisor Agent. Simply describe what you want to do:
