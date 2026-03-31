@@ -10,6 +10,8 @@ import uuid
 from typing import Any
 
 import streamlit as st
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
 
 from config import config
 from src.agents.supervisor_agent import SupervisorAgent
@@ -41,6 +43,9 @@ def create_supervisor_for_chat() -> SupervisorAgent:
 def generate_chat_title(user_message: str) -> str:
     """Generate a concise title for a chat based on the first user message.
 
+    Uses LangChain's init_chat_model to handle all providers (OpenAI, Google,
+    Ollama, etc.) uniformly, consistent with how agents create LLM instances.
+
     Args:
         user_message: The first user message in the conversation
 
@@ -51,19 +56,7 @@ def generate_chat_title(user_message: str) -> str:
     truncate_at = 47
 
     try:
-        # Use raw HTTP requests to bypass Weave auto-instrumentation
-        # This prevents title generation from cluttering Weave traces
-        import requests  # noqa: PLC0415
-
-        # Extract provider and model from config (e.g., "openai:gpt-4.1" -> "openai", "gpt-4.1")
-        provider = (
-            config.llm_model.split(":")[0] if ":" in config.llm_model else "openai"
-        )
-        model = (
-            config.llm_model.split(":")[-1]
-            if ":" in config.llm_model
-            else config.llm_model
-        )
+        llm = init_chat_model(config.llm_model, temperature=0.3)
 
         prompt = f"""Generate a very short title (maximum 4-5 words) that summarizes this question or request:
 
@@ -71,66 +64,30 @@ def generate_chat_title(user_message: str) -> str:
 
 Reply with ONLY the title, nothing else. No quotes, no punctuation at the end."""
 
-        # Choose API based on provider
-        if provider.lower() in ("google", "google_genai"):
-            # Google Generative AI API call
-            response = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={config.google_api_key}",
-                headers={
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "temperature": 0.3,
-                        "maxOutputTokens": 100,
-                        "thinkingConfig": {"thinkingBudget": 0},
-                    },
-                },
-                timeout=10,
-            )
-            response.raise_for_status()
+        response = llm.invoke([HumanMessage(content=prompt)])
 
-            # Extract title from Google API response
-            title = response.json()["candidates"][0]["content"]["parts"][0][
-                "text"
-            ].strip()
+        # Thinking models (e.g. Gemini 3 Flash) return content as a list of
+        # blocks like [{"type": "text", "text": "..."}] instead of a string.
+        raw_content = response.content
+        if isinstance(raw_content, list):
+            content = ""
+            for block in raw_content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    content = str(block["text"])
+                    break
         else:
-            # Default to OpenAI API call
-            response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {config.openai_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3,
-                    "max_tokens": 20,
-                },
-                timeout=10,
-            )
-            response.raise_for_status()
+            content = str(raw_content)
+        title = content.strip().strip("\"'")
 
-            # Extract title from OpenAI response
-            title = response.json()["choices"][0]["message"]["content"].strip()
-
-        # Remove quotes if present
-        title = title.strip("\"'")
-
-        # Limit to max length
         if len(title) > max_title_length:
             return title[:truncate_at] + "..."
         else:
             return title
     except Exception:
         logger.exception("Failed to generate chat title")
-        # Fallback to truncated message if generation fails
         if len(user_message) > max_title_length:
-            return user_message[:max_title_length] + "..."
-        else:
-            return user_message
+            return user_message[:truncate_at] + "..."
+        return user_message
 
 
 def get_db() -> DatabaseManager:
