@@ -16,7 +16,7 @@ The evaluation framework uses [Weave](https://wandb.ai/site/weave) to track and 
 Evaluate the agent on beams2d with default settings:
 
 ```bash
-conda activate engineer-assistant
+conda activate engiai
 cd benchmarks/evaluations
 
 # Step 1: Run evaluation (saves to Weave)
@@ -341,7 +341,7 @@ See `benchmarks/shared/problem_registry.py` for complete examples of beams2d, ph
 - Check that the prompt file name matches the configuration
 
 ### Import errors
-- Activate the conda environment: `conda activate engineer-assistant`
+- Activate the conda environment: `conda activate engiai`
 - Ensure project root is accessible (scripts handle this automatically)
 
 ### Weave errors

@@ -1,1 +1,1 @@
-"""Benchmarks package for evaluating the engineer assistant multi-agent system."""
+"""Benchmarks package for evaluating the EngiAI multi-agent system."""

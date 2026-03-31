@@ -1,1 +1,1 @@
-"""UI module for the engineer assistant."""
+"""UI module for EngiAI."""

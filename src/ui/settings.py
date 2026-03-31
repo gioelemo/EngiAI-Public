@@ -1,4 +1,4 @@
-"""Settings page for the Engineer Assistant Streamlit app."""
+"""Settings page for the EngiAI Streamlit app."""
 
 import json
 import os
@@ -112,7 +112,7 @@ def _load_settings_from_db() -> None:
         "job_monitor_refresh_interval": 60,  # seconds
         "job_monitor_auto_add": False,  # Ask before monitoring by default
         # SLURM/HPC configuration
-        "slurm_venv_path": "~/venvs/engineer_assistant",
+        "slurm_venv_path": "~/venvs/engiai",
         "slurm_project_path": "$HOME/EngiOpt",
         "slurm_email_user": "",
         "slurm_logs_dir": "$SCRATCH/logs",
@@ -1143,8 +1143,8 @@ def _render_slurm_config_section() -> None:
         # Virtual environment path
         slurm_venv_path = st.text_input(
             "Virtual Environment Path",
-            value=st.session_state.get("slurm_venv_path", "~/venvs/engineer_assistant"),
-            placeholder="~/venvs/engineer_assistant",
+            value=st.session_state.get("slurm_venv_path", "~/venvs/engiai"),
+            placeholder="~/venvs/engiai",
             help="Path to Python virtual environment on the HPC cluster",
             key="slurm_venv_path_widget",
         )

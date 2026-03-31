@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-This guide helps you diagnose and fix common issues with Engineer Assistant.
+This guide helps you diagnose and fix common issues with EngiAI.
 
 ## Docker Issues
 
@@ -49,7 +49,7 @@ docker-compose logs -f chatbot
 3. Try accessing via Docker host IP:
    ```bash
    # Find container IP
-   docker inspect engineer-assistant-chatbot | grep IPAddress
+   docker inspect engiai-chatbot | grep IPAddress
    ```
 
 4. Check firewall settings (Linux):
@@ -94,14 +94,14 @@ docker rmi $(docker images -q)
 **Solutions**:
 1. Ensure conda environment is activated:
    ```bash
-   conda activate engineer-assistant
+   conda activate engiai
    ```
 
 2. Restart VS Code after activating environment
 
 3. Set Python interpreter in VS Code:
    - `Cmd/Ctrl + Shift + P` → "Python: Select Interpreter"
-   - Choose `engineer-assistant` conda environment
+   - Choose `engiai` conda environment
 
 ### Pre-commit Not Working
 
@@ -140,9 +140,9 @@ docker rmi $(docker images -q)
 
 3. Try creating environment again:
    ```bash
-   conda env remove -n engineer-assistant
-   conda create -n engineer-assistant python=3.11 -y
-   conda activate engineer-assistant
+   conda env remove -n engiai
+   conda create -n engiai python=3.11 -y
+   conda activate engiai
    pip install -e .[dev]
    ```
 
@@ -153,13 +153,13 @@ docker rmi $(docker images -q)
 **Solutions**:
 1. Verify environment is activated:
    ```bash
-   conda activate engineer-assistant
+   conda activate engiai
    which python  # Should point to conda env
    ```
 
 2. Verify you're in project root:
    ```bash
-   pwd  # Should show .../engineer-assistant
+   pwd  # Should show .../engiai
    ```
 
 3. Reinstall package:
@@ -173,7 +173,7 @@ docker rmi $(docker images -q)
 
 **Solution**: Activate conda environment:
 ```bash
-conda activate engineer-assistant
+conda activate engiai
 streamlit run src/ui/streamlit_app.py
 ```
 
@@ -303,7 +303,7 @@ curl http://localhost:8765/sse
 2. Verify MCP server is accessible:
    ```bash
    # From container
-   docker exec engineer-assistant-chatbot curl -v http://prusa-mcp-server:8000/sse
+   docker exec engiai-chatbot curl -v http://prusa-mcp-server:8000/sse
    ```
 
 ### Tools Not Loading
@@ -339,7 +339,7 @@ python services/host_service.py
 
 **Verify from Docker**:
 ```bash
-docker exec engineer-assistant-chatbot curl http://host.docker.internal:9999/health
+docker exec engiai-chatbot curl http://host.docker.internal:9999/health
 ```
 
 ### PrusaSlicer Won't Open
@@ -552,7 +552,7 @@ If your issue isn't covered here:
    tail -f data/*.log
    ```
 
-2. **Search GitHub Issues**: https://github.com/gioelemo/engineer-assistant/issues
+2. **Search GitHub Issues**: https://github.com/gioelemo/EngiAI/issues
 
 3. **Open a new issue** with:
    - Operating system

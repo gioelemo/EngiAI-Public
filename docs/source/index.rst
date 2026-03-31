@@ -1,9 +1,9 @@
-Engineer Assistant Documentation
+EngiAI Documentation
 ================================
 
 A Jarvis-style multimodal AI assistant for closed-loop design-for-manufacturing correction.
 
-Engineer Assistant is a sophisticated multi-agent system that combines:
+EngiAI is a sophisticated multi-agent system that combines:
 
 * **🐳 Docker Deployment**: Production-ready containerized deployment
 * **🤖 Multi-Agent System**: Supervisor coordinates specialized agents
@@ -17,7 +17,7 @@ Engineer Assistant is a sophisticated multi-agent system that combines:
 Quick Links
 -----------
 
-* **New to Engineer Assistant?** Start with the :doc:`quickstart`
+* **New to EngiAI?** Start with the :doc:`quickstart`
 * **Want to deploy?** See :doc:`installation` (Docker recommended)
 * **Need help?** Check the :doc:`troubleshooting` guide
 * **Understand the system?** Read the :doc:`architecture` overview
@@ -157,15 +157,15 @@ Getting Help
 ============
 
 * **Troubleshooting**: See :doc:`troubleshooting` for common issues
-* **GitHub Issues**: `Report bugs or request features <https://github.com/gioelemo/engineer-assistant/issues>`_
+* **GitHub Issues**: `Report bugs or request features <https://github.com/gioelemo/EngiAI/issues>`_
 * **Documentation**: Browse the guides in the sidebar
 * **Examples**: Check the ``scripts/`` directory in the repository
 
 Project Links
 =============
 
-* **GitHub**: https://github.com/gioelemo/engineer-assistant
-* **Documentation**: https://gioelemo.github.io/engineer-assistant/
+* **GitHub**: https://github.com/gioelemo/EngiAI
+* **Documentation**: https://gioelemo.github.io/EngiAI/
 * **License**: MIT
 
 Indices and tables

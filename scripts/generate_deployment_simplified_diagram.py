@@ -147,7 +147,7 @@ ax.text(
 ax.text(
     5,
     chatbot_y + box_h / 2 - 0.15,
-    r"\texttt{engineer-assistant-chatbot}",
+    r"\texttt{engiai-chatbot}",
     fontsize=small_size,
     ha="center",
     va="center",

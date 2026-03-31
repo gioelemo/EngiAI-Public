@@ -30,7 +30,7 @@ This directory contains the externalized Prusa MCP server that can run as a stan
 
 **1. Install dependencies:**
 ```bash
-cd /Users/gioelemolinari/Desktop/engineer-assistant
+cd /Users/gioelemolinari/Desktop/engiai
 pip install -r requirements-mcp.txt
 ```
 
@@ -102,13 +102,13 @@ docker run -d \
 ```bash
 # Set the MCP server URL to point to Server A
 docker run -d \
-  --name engineer-assistant \
+  --name engiai \
   -p 8501:8501 \
   -e OPENAI_API_KEY=your-key \
   -e TAVILY_API_KEY=your-key \
   -e SKIP_MCP=false \
   -e PRUSA_MCP_URL=http://server-a-ip:8765 \
-  engineer-assistant-chatbot
+  engiai-chatbot
 ```
 
 ### Option 4: Kubernetes Deployment

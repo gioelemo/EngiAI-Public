@@ -1,1 +1,1 @@
-"""Scripts package for Engineer Assistant."""
+"""Scripts package for EngiAI."""

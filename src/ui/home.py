@@ -1,4 +1,4 @@
-"""Home page for the Engineer Assistant Streamlit app."""
+"""Home page for the EngiAI Streamlit app."""
 
 import sys
 from pathlib import Path

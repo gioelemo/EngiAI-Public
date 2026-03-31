@@ -1,7 +1,7 @@
 # AI Assistant for Mechanical Engineering Design
 
-[![Python tests](https://github.com/gioelemo/engineer-assistant/actions/workflows/test.yml/badge.svg)](https://github.com/gioelemo/engineer-assistant/actions/workflows/test.yml)
-[![pre-commit](https://github.com/gioelemo/engineer-assistant/actions/workflows/pre-commit.yaml/badge.svg)](https://github.com/gioelemo/engineer-assistant/actions/workflows/pre-commit.yaml)
+[![Python tests](https://github.com/gioelemo/EngiAI/actions/workflows/test.yml/badge.svg)](https://github.com/gioelemo/EngiAI/actions/workflows/test.yml)
+[![pre-commit](https://github.com/gioelemo/EngiAI/actions/workflows/pre-commit.yaml/badge.svg)](https://github.com/gioelemo/EngiAI/actions/workflows/pre-commit.yaml)
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -37,8 +37,8 @@ Before starting, ensure you have these external services set up:
 
 ```bash
 # 1. Clone and navigate to the repository (with submodules)
-git clone --recurse-submodules https://github.com/gioelemo/engineer-assistant.git
-cd engineer-assistant
+git clone --recurse-submodules https://github.com/gioelemo/EngiAI.git
+cd EngiAI
 
 # If you already cloned without --recurse-submodules:
 # git submodule update --init --recursive
@@ -78,7 +78,7 @@ For developers who want to modify the code or run without Docker:
 
 **First, navigate to the project directory:**
 ```bash
-cd engineer-assistant
+cd EngiAI
 ```
 
 **Then run the setup script:**
@@ -97,13 +97,13 @@ setup.bat
 
 **Make sure you're in the project directory first:**
 ```bash
-cd engineer-assistant
+cd EngiAI
 ```
 
 1. **Create environment:**
    ```bash
-   conda create -n engineer-assistant python=3.11 -y
-   conda activate engineer-assistant
+   conda create -n engiai python=3.11 -y
+   conda activate engiai
    pip install -e .[dev]
    ```
 
@@ -121,8 +121,8 @@ cd engineer-assistant
 
 **Make sure you're in the project directory and environment is activated:**
 ```bash
-cd engineer-assistant
-conda activate engineer-assistant
+cd EngiAI
+conda activate engiai
 ```
 
 ### Code Quality
@@ -223,7 +223,7 @@ Docker provides the most reliable, isolated, and portable deployment. All depend
 Best for active development and testing new features.
 
 **Prerequisites:**
-- Conda environment activated: `conda activate engineer-assistant`
+- Conda environment activated: `conda activate engiai`
 
 **Configuration:**
 
@@ -346,7 +346,7 @@ The system supports two options for tracking LLM calls and performance:
    ```env
    LANGCHAIN_TRACING=true
    LANGSMITH_API_KEY=your-langsmith-api-key
-   LANGCHAIN_PROJECT=engineer-assistant
+   LANGCHAIN_PROJECT=engiai
    LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
    ```
 
@@ -354,7 +354,7 @@ The system supports two options for tracking LLM calls and performance:
    ```env
    USE_WEAVE=true
    USE_WEAVE_CHATBOT=false
-   WEAVE_PROJECT="your-wandb-entity/engineer-assistant-benchmarks"
+   WEAVE_PROJECT="your-wandb-entity/engiai-benchmarks"
    WANDB_API_KEY=your-wandb-api-key
    ```
 
@@ -920,12 +920,12 @@ Both are required for the chatbot to work properly.
 - **Pre-commit not working:** Run `pre-commit install` again
 - **Environment issues:** Delete and recreate:
   ```bash
-  conda env remove -n engineer-assistant
-  conda create -n engineer-assistant python=3.11 -y
-  conda activate engineer-assistant
+  conda env remove -n engiai
+  conda create -n engiai python=3.11 -y
+  conda activate engiai
   pip install -e .[dev]
   ```
-- **Streamlit command not found:** Ensure conda environment is activated: `conda activate engineer-assistant`
+- **Streamlit command not found:** Ensure conda environment is activated: `conda activate engiai`
 
 ### API & Configuration Issues
 - **Missing API keys error:** Ensure `.env` file exists with valid keys (copy from `.env.example`)
@@ -957,7 +957,7 @@ Both are required for the chatbot to work properly.
 
 - **PrusaSlicer/GUI apps won't open:**
   1. Verify host service is running: `lsof -i :9999`
-  2. Check Docker can reach host: `docker exec engineer-assistant-chatbot curl http://host.docker.internal:9999/health`
+  2. Check Docker can reach host: `docker exec engiai-chatbot curl http://host.docker.internal:9999/health`
   3. Ensure the application is installed on your host machine
 
 - **Port 9999 already in use:** Change the port in `.env`:
@@ -1005,7 +1005,7 @@ Both are required for the chatbot to work properly.
   ```
 
 ### Getting Help
-- Check the [GitHub Issues](https://github.com/gioelemo/engineer-assistant/issues)
+- Check the [GitHub Issues](https://github.com/gioelemo/EngiAI/issues)
 - Review logs in `data/*.log` files
 - For Docker: `docker-compose logs -f`
 - For local: Check terminal output for error messages

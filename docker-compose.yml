@@ -2,7 +2,7 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15
-    container_name: engineer-assistant-postgres
+    container_name: engiai-postgres
     environment:
       - POSTGRES_DB=engineer_assistant
       - POSTGRES_USER=engiai_user
@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - engineer-assistant
+      - engiai
 
   # Standalone Prusa MCP Server
   prusa-mcp-server:
@@ -50,7 +50,7 @@ services:
       retries: 3
       start_period: 5s
     networks:
-      - engineer-assistant
+      - engiai
 
   # MMORE RAG Service for multimodal document processing
   mmore-rag-service:
@@ -95,16 +95,16 @@ services:
       retries: 5
       start_period: 240s  # 4 minutes for model downloads on first start
     networks:
-      - engineer-assistant
+      - engiai
 
   # Main chatbot application (connects to external MCP server)
   chatbot:
     build:
       context: .
       dockerfile: Dockerfile
-    image: engineer-assistant-chatbot:latest
+    image: engiai-chatbot:latest
     pull_policy: never
-    container_name: engineer-assistant-chatbot
+    container_name: engiai-chatbot
     ports:
       - "8501:8501"
     extra_hosts:
@@ -141,10 +141,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - engineer-assistant
+      - engiai
 
 networks:
-  engineer-assistant:
+  engiai:
     driver: bridge
 
 volumes:

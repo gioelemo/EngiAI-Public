@@ -1,6 +1,6 @@
 # Deployment Guide - Windows Server with WSL
 
-This guide covers deploying Engineer Assistant on Windows Server using WSL (Windows Subsystem for Linux) with Docker.
+This guide covers deploying EngiAI on Windows Server using WSL (Windows Subsystem for Linux) with Docker.
 
 ## Prerequisites
 
@@ -51,7 +51,7 @@ Transfer the release archives to your Windows Server:
 
 ```powershell
 # Example using SCP (from your local machine)
-scp engineer-assistant-v1.0.0.zip user@server-ip:C:\Temp\
+scp engiai-v1.0.0.zip user@server-ip:C:\Temp\
 scp prusa-mcp-server-v1.0.0.zip user@server-ip:C:\Temp\
 ```
 
@@ -67,15 +67,15 @@ mkdir -p ~/deployments
 cd ~/deployments
 
 # Copy archives from Windows to WSL
-cp /mnt/c/Temp/engineer-assistant-v1.0.0.zip .
+cp /mnt/c/Temp/engiai-v1.0.0.zip .
 cp /mnt/c/Temp/prusa-mcp-server-v1.0.0.zip .
 
 # Extract archives
-unzip engineer-assistant-v1.0.0.zip -d engineer-assistant
+unzip engiai-v1.0.0.zip -d engiai
 unzip prusa-mcp-server-v1.0.0.zip -d .
 
 # Navigate to the application directory
-cd engineer-assistant
+cd EngiAI
 ```
 
 ### Step 3: Configure Environment Variables
@@ -141,8 +141,8 @@ docker-compose ps
 Expected output:
 ```
 NAME                          STATUS                   PORTS
-engineer-assistant-chatbot    Up (healthy)             0.0.0.0:8501->8501/tcp
-engineer-assistant-postgres   Up (healthy)             0.0.0.0:5432->5432/tcp
+engiai-chatbot    Up (healthy)             0.0.0.0:8501->8501/tcp
+engiai-postgres   Up (healthy)             0.0.0.0:5432->5432/tcp
 prusa-mcp-server              Up (healthy)             0.0.0.0:8765->8765/tcp
 ```
 
@@ -180,7 +180,7 @@ If you need to access the application from external machines:
 ```powershell
 # In PowerShell (as Administrator)
 # Allow inbound traffic on port 8501
-New-NetFirewallRule -DisplayName "Engineer Assistant" -Direction Inbound -LocalPort 8501 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "EngiAI" -Direction Inbound -LocalPort 8501 -Protocol TCP -Action Allow
 ```
 
 ## Managing the Application
@@ -219,11 +219,11 @@ docker-compose down
 
 # Pull/extract new version
 cd ~/deployments
-unzip engineer-assistant-vX.X.X.zip -d engineer-assistant-new
-cd engineer-assistant-new
+unzip engiai-vX.X.X.zip -d engiai-new
+cd EngiAI-new
 
 # Copy your .env file from the old version
-cp ../engineer-assistant/.env .
+cp ../engiai/.env .
 
 # Rebuild and start
 docker-compose build
@@ -277,7 +277,7 @@ docker-compose logs
 Ensure services are on the same network:
 ```bash
 docker network ls
-docker network inspect engineer-assistant_engineer-assistant
+docker network inspect engiai_engiai
 ```
 
 ### Container Cannot Resolve Prusa MCP Server
@@ -331,7 +331,7 @@ sudo apt update
 sudo apt install nginx
 
 # Create Nginx configuration
-sudo nano /etc/nginx/sites-available/engineer-assistant
+sudo nano /etc/nginx/sites-available/engiai
 ```
 
 Example Nginx configuration:
@@ -356,7 +356,7 @@ server {
 
 Enable the site:
 ```bash
-sudo ln -s /etc/nginx/sites-available/engineer-assistant /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/engiai /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 ```
@@ -374,19 +374,19 @@ sudo certbot --nginx -d your-domain.com
 Create a systemd service to auto-start on boot:
 
 ```bash
-sudo nano /etc/systemd/system/engineer-assistant.service
+sudo nano /etc/systemd/system/engiai.service
 ```
 
 ```ini
 [Unit]
-Description=Engineer Assistant
+Description=EngiAI
 Requires=docker.service
 After=docker.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/home/your-user/deployments/engineer-assistant
+WorkingDirectory=/home/your-user/deployments/engiai
 ExecStart=/usr/bin/docker-compose up -d
 ExecStop=/usr/bin/docker-compose down
 User=your-user
@@ -397,8 +397,8 @@ WantedBy=multi-user.target
 
 Enable and start:
 ```bash
-sudo systemctl enable engineer-assistant
-sudo systemctl start engineer-assistant
+sudo systemctl enable engiai
+sudo systemctl start engiai
 ```
 
 ### 4. Regular Backups
@@ -409,15 +409,15 @@ Set up a cron job for automated backups:
 crontab -e
 
 # Add this line to backup daily at 2 AM
-0 2 * * * cd ~/deployments/engineer-assistant && docker-compose exec -T postgres pg_dump -U engiai_user engineer_assistant > ~/backups/db-backup-$(date +\%Y\%m\%d).sql
+0 2 * * * cd ~/deployments/engiai && docker-compose exec -T postgres pg_dump -U engiai_user engineer_assistant > ~/backups/db-backup-$(date +\%Y\%m\%d).sql
 ```
 
 ## Support
 
 For issues and support:
-- GitHub Issues: https://github.com/gioelemo/engineer-assistant/issues
-- Documentation: https://gioelemo.github.io/engineer-assistant/
+- GitHub Issues: https://github.com/gioelemo/EngiAI/issues
+- Documentation: https://gioelemo.github.io/EngiAI/
 
 ## Version
 
-This deployment guide is for Engineer Assistant v1.0.0
+This deployment guide is for EngiAI v1.0.0

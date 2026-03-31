@@ -1,5 +1,5 @@
 [project]
-name = "engineer-assistant"
+name = "engiai"
 version = "1.1.0"
 description = "AI Assistant for Mechanical Engineering Design"
 authors = [

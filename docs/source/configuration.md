@@ -1,6 +1,6 @@
 # Configuration
 
-Learn how to configure Engineer Assistant for your environment.
+Learn how to configure EngiAI for your environment.
 
 ## Environment Variables
 
@@ -42,7 +42,7 @@ MMORE_RAG_URL=http://localhost:8000
 - **Tavily**: [https://tavily.com/](https://tavily.com/)
 
 **External Services:**
-- **MMORE**: Clone and deploy the MMORE service locally before starting Engineer Assistant
+- **MMORE**: Clone and deploy the MMORE service locally before starting EngiAI
   ```bash
   # Contact the MMORE team or check internal documentation for repository access
   git clone <mmore-repository-url>
@@ -73,7 +73,7 @@ SKIP_MCP=true                    # Set to false to enable Prusa integration
 PRUSA_MCP_PATH=/path/to/prusa-mcp  # Path to cloned Prusa MCP server
 
 # Database (optional, uses SQLite by default)
-DATABASE_URL=sqlite:///data/engineer_assistant.db
+DATABASE_URL=sqlite:///data/engiai.db
 ```
 
 **For Prusa 3D printer integration:**
@@ -151,7 +151,7 @@ For monitoring and debugging:
 LANGCHAIN_TRACING=false  # Set to true to enable
 LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=your-langsmith-key
-LANGCHAIN_PROJECT=engineer-assistant
+LANGCHAIN_PROJECT=engiai
 
 # Host Service (Docker GUI integration)
 HOST_SERVICE_PORT=9999  # Port for opening GUI apps from Docker

@@ -1,5 +1,5 @@
 """
-Models module for the engineer assistant.
+Models module for EngiAI.
 
 Contains state definitions and custom types.
 """

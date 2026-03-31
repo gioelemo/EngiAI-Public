@@ -1,10 +1,10 @@
 #!/bin/bash
-# Setup script for Engineeri Assistant
+# Setup script for EngiAI
 # Run this script to set up the development environment
 
 set -e  # Exit on any error
 
-echo "🚀 Setting up Engineer Assistant..."
+echo "🚀 Setting up EngiAI..."
 
 # Check if conda is available
 if ! command -v conda &> /dev/null; then
@@ -16,11 +16,11 @@ fi
 echo "✅ Conda found"
 
 echo "🫙 Creating conda environment..."
-conda create -n engineer-assistant python=3.11 -y
+conda create -n engiai python=3.11 -y
 
 echo "🔄 Activating environment..."
 eval "$(conda shell.bash hook)"
-conda activate engineer-assistant
+conda activate engiai
 
 echo "📦 Installing package and dependencies..."
 pip install -e .[dev]
@@ -35,7 +35,7 @@ echo ""
 echo "🎉 Setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Activate the environment: conda activate engineer-assistant"
+echo "1. Activate the environment: conda activate engiai"
 echo "2. Configure VS Code:"
 echo "   - Open project in VS Code (will prompt for extensions)"
 echo "   - Install Ruff and MyPy extensions: charliermarsh.ruff and ms-python.mypy-type-checker"

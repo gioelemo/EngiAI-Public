@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sync figures, tables, and prompts from engineer-assistant to the thesis submodule.
+"""Sync figures, tables, and prompts from EngiAI to the thesis submodule.
 
 Usage:
     python scripts/sync_thesis.py --all
@@ -664,7 +664,7 @@ def auto_commit(thesis_root: Path) -> None:
         return
 
     subprocess.run(
-        ["git", "commit", "-m", f"sync: update from engineer-assistant ({ts})"],
+        ["git", "commit", "-m", f"sync: update from EngiAI ({ts})"],
         cwd=thesis_root,
         check=True,
     )
@@ -678,7 +678,7 @@ def auto_commit(thesis_root: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Sync content from engineer-assistant to the thesis submodule.",
+        description="Sync content from EngiAI to the thesis submodule.",
     )
     parser.add_argument("--figures", action="store_true", help="Sync figures")
     parser.add_argument("--tables", action="store_true", help="Sync tables")

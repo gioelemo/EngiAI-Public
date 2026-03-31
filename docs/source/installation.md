@@ -14,7 +14,7 @@ Docker provides the easiest, most reliable installation with all dependencies is
 
 #### 1. Set Up External Services
 
-Before installing Engineer Assistant, you need to set up the required external services:
+Before installing EngiAI, you need to set up the required external services:
 
 **MMORE RAG Service** (Required):
 ```bash
@@ -37,8 +37,8 @@ cd prusa_mcp_server
 #### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/gioelemo/engineer-assistant.git
-cd engineer-assistant
+git clone https://github.com/gioelemo/EngiAI.git
+cd EngiAI
 ```
 
 #### 3. Configure Environment
@@ -117,7 +117,7 @@ For developers who want to modify the code or run without Docker.
 
 **First, navigate to the project directory:**
 ```bash
-cd engineer-assistant
+cd EngiAI
 ```
 
 **Then run the setup script:**
@@ -147,22 +147,22 @@ If the automated setup doesn't work for your system, follow these steps:
 #### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/gioelemo/engineer-assistant.git
-cd engineer-assistant
+git clone https://github.com/gioelemo/EngiAI.git
+cd EngiAI
 ```
 
 #### Step 2: Create Conda Environment
 
 ```bash
-conda create -n engineer-assistant python=3.11 -y
+conda create -n engiai python=3.11 -y
 ```
 
-This will create an environment named `engineer-assistant` with Python 3.11.
+This will create an environment named `engiai` with Python 3.11.
 
 #### Step 3: Activate Environment
 
 ```bash
-conda activate engineer-assistant
+conda activate engiai
 ```
 
 #### Step 4: Install Dependencies
@@ -281,7 +281,7 @@ If you get errors during environment creation:
 
 If you get import errors when running Python:
 
-1. Make sure the environment is activated: `conda activate engineer-assistant`
+1. Make sure the environment is activated: `conda activate engiai`
 2. Verify you're in the project root directory
 3. Try reinstalling: `pip install -e .`
 
@@ -298,7 +298,7 @@ If pre-commit hooks are causing issues:
 If you encounter issues not covered here:
 
 1. Check [Troubleshooting Guide](troubleshooting.md)
-2. Check existing [GitHub Issues](https://github.com/gioelemo/engineer-assistant/issues)
+2. Check existing [GitHub Issues](https://github.com/gioelemo/EngiAI/issues)
 3. Open a new issue with:
    - Your operating system
    - Python version (`python --version`) or Docker version

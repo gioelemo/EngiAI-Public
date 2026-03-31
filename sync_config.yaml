@@ -1,5 +1,5 @@
 # Thesis sync configuration
-# Maps source paths in engineer-assistant to target paths in the thesis submodule.
+# Maps source paths in EngiAI to target paths in the thesis submodule.
 # Edit target paths here when you reorganize your thesis LaTeX structure.
 
 thesis_submodule_path: thesis

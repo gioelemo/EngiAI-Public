@@ -182,7 +182,7 @@ ax.add_patch(network_box)
 ax.text(
     1.0,
     11.5,
-    "⚡ Docker Network: engineer-assistant",
+    "⚡ Docker Network: engiai",
     fontsize=11,
     fontweight="bold",
     color="green",
@@ -203,7 +203,7 @@ draw_container(
     color="#E8EAF6",
     services=[
         {"name": "PostgreSQL 15", "port": "5432"},
-        {"name": "DB: engineer_assistant"},
+        {"name": "DB: engiai"},
     ],
 )
 
@@ -319,7 +319,7 @@ draw_container(
     y=5.5,
     width=11,
     height=5.5,
-    label="□ engineer-assistant-chatbot",
+    label="□ engiai-chatbot",
     color=color_chatbot_container,
     services=[
         {"name": "Streamlit Web UI", "port": "8501"},
