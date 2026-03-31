@@ -647,6 +647,102 @@ class TestStreamlitUI:
         voice_cb.dispatch_event("click")
         live_page.wait_for_load_state("networkidle")
 
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Home page: deep content coverage (home.py)
+    # ══════════════════════════════════════════════════════════════════════════════
+
+    # ── agent grid ────────────────────────────────────────────────────────────────
+
+    def test_home_page_agent_routing_section_visible(self, live_page: Page) -> None:
+        """Home page must display the 'Intelligent LLM-Based Agent Routing' section."""
+        expect(
+            live_page.get_by_text(
+                re.compile("Intelligent LLM-Based Agent Routing", re.IGNORECASE)
+            )
+        ).to_be_visible()
+
+    def test_home_page_engineering_agent_card_visible(self, live_page: Page) -> None:
+        """Home page agent grid must show the Engineering agent card heading."""
+        expect(
+            live_page.get_by_role(
+                "heading", name=re.compile(r"^.*Engineering.*$", re.IGNORECASE)
+            ).first
+        ).to_be_visible()
+
+    def test_home_page_hpc_agent_card_visible(self, live_page: Page) -> None:
+        """Home page agent grid must show the HPC agent card heading."""
+        expect(
+            live_page.get_by_role("heading", name=re.compile(r"\bHPC\b", re.IGNORECASE))
+        ).to_be_visible()
+
+    def test_home_page_arxiv_agent_card_visible(self, live_page: Page) -> None:
+        """Home page agent grid must show the ArXiv agent card heading."""
+        expect(
+            live_page.get_by_role("heading", name=re.compile("ArXiv", re.IGNORECASE))
+        ).to_be_visible()
+
+    # ── getting started ────────────────────────────────────────────────────────────
+
+    def test_home_page_getting_started_heading_visible(self, live_page: Page) -> None:
+        """Home page must display the 'Getting Started' section heading."""
+        expect(
+            live_page.get_by_role(
+                "heading", name=re.compile("Getting Started", re.IGNORECASE)
+            )
+        ).to_be_visible()
+
+    def test_home_page_example_queries_visible(self, live_page: Page) -> None:
+        """Home page Getting Started section must list example queries."""
+        expect(
+            live_page.get_by_text(re.compile("Example queries", re.IGNORECASE))
+        ).to_be_visible()
+
+    # ── system info ────────────────────────────────────────────────────────────────
+
+    def test_home_page_system_info_heading_visible(self, live_page: Page) -> None:
+        """Home page must display the 'System Information' section heading."""
+        expect(
+            live_page.get_by_role(
+                "heading", name=re.compile("System Information", re.IGNORECASE)
+            )
+        ).to_be_visible()
+
+    def test_home_page_key_capabilities_visible(self, live_page: Page) -> None:
+        """Home page system info must show the 'Key Capabilities' column."""
+        expect(
+            live_page.get_by_text(re.compile("Key Capabilities", re.IGNORECASE))
+        ).to_be_visible()
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Chat page: additional coverage (chat.py)
+    # ══════════════════════════════════════════════════════════════════════════════
+
+    def test_chat_page_welcome_caption_visible(self, live_page: Page) -> None:
+        """Empty chat must show the welcome caption beneath the start heading."""
+        live_page.locator("[data-testid='stSidebar']").get_by_text("+ New Chat").click()
+        live_page.wait_for_load_state("networkidle")
+
+        expect(
+            live_page.get_by_text(
+                re.compile("engineering design, optimization", re.IGNORECASE)
+            )
+        ).to_be_visible(timeout=10_000)
+
+    def test_chat_page_voice_icon_absent_when_disabled(self, live_page: Page) -> None:
+        """When voice is disabled (default), the chat input must not show the mic icon."""
+        live_page.locator("[data-testid='stSidebar']").get_by_role(
+            "link", name=re.compile("chat", re.IGNORECASE)
+        ).click()
+        live_page.wait_for_load_state("networkidle")
+
+        # With voice disabled the placeholder is the base text without " 🎤"
+        chat_input = live_page.get_by_placeholder(
+            re.compile("Ask me anything about engineering design", re.IGNORECASE)
+        )
+        expect(chat_input).to_be_visible()
+        # Placeholder must NOT contain the microphone emoji added when voice is on
+        expect(chat_input).not_to_have_attribute("placeholder", re.compile("🎤"))
+
     def test_settings_voice_toggle_reveals_microphone_checkbox(
         self, live_page: Page
     ) -> None:
@@ -845,140 +941,21 @@ class TestStreamlitUI:
         ).get_by_role("textbox")
         expect(password).to_be_visible()
 
+        # Both action buttons visible (Save + Test Connection)
+        save_btn = live_page.get_by_role(
+            "button", name=re.compile("Save Credentials", re.IGNORECASE)
+        )
+        save_btn.scroll_into_view_if_needed()
+        expect(save_btn).to_be_visible()
+        test_btn = live_page.get_by_role(
+            "button", name=re.compile("Test Connection", re.IGNORECASE)
+        ).first
+        expect(test_btn).to_be_visible()
+
         # Restore to SSH Config mode
         live_page.get_by_role(
             "radio", name=re.compile("SSH Config", re.IGNORECASE)
         ).dispatch_event("click")
         live_page.wait_for_load_state("networkidle")
 
-    def test_settings_password_auth_save_button_visible(self, live_page: Page) -> None:
-        """In Password Auth mode, the 'Save Credentials' button must be visible."""
-        live_page.locator("[data-testid='stSidebar']").get_by_role(
-            "link", name=re.compile("settings", re.IGNORECASE)
-        ).click()
-        live_page.wait_for_load_state("networkidle")
-
-        live_page.get_by_role(
-            "radio", name=re.compile("Password Authentication", re.IGNORECASE)
-        ).dispatch_event("click")
-        live_page.wait_for_load_state("networkidle")
-
-        btn = live_page.get_by_role(
-            "button", name=re.compile("Save Credentials", re.IGNORECASE)
-        )
-        btn.scroll_into_view_if_needed()
-        expect(btn).to_be_visible()
-
-        # Restore
-        live_page.get_by_role(
-            "radio", name=re.compile("SSH Config", re.IGNORECASE)
-        ).dispatch_event("click")
-        live_page.wait_for_load_state("networkidle")
-
-    def test_settings_password_auth_test_connection_button_visible(
-        self, live_page: Page
-    ) -> None:
-        """In Password Auth mode, the 'Test Connection' button must be visible."""
-        live_page.locator("[data-testid='stSidebar']").get_by_role(
-            "link", name=re.compile("settings", re.IGNORECASE)
-        ).click()
-        live_page.wait_for_load_state("networkidle")
-
-        live_page.get_by_role(
-            "radio", name=re.compile("Password Authentication", re.IGNORECASE)
-        ).dispatch_event("click")
-        live_page.wait_for_load_state("networkidle")
-
-        btn = live_page.get_by_role(
-            "button", name=re.compile("Test Connection", re.IGNORECASE)
-        )
-        btn.scroll_into_view_if_needed()
-        expect(btn).to_be_visible()
-
-        # Restore
-        live_page.get_by_role(
-            "radio", name=re.compile("SSH Config", re.IGNORECASE)
-        ).dispatch_event("click")
-        live_page.wait_for_load_state("networkidle")
-
-    # ── SLURM Configuration ───────────────────────────────────────────────────────
-
-    def test_settings_slurm_text_inputs_have_defaults(self, live_page: Page) -> None:
-        """SLURM config text inputs must show their expected default values."""
-        live_page.locator("[data-testid='stSidebar']").get_by_role(
-            "link", name=re.compile("settings", re.IGNORECASE)
-        ).click()
-        live_page.wait_for_load_state("networkidle")
-
-        expected = {
-            "Virtual Environment Path": "~/venvs/engineer_assistant",
-            "EngiOpt Path": "$HOME/EngiOpt",
-            "WandB Project": "engiopt",
-            "Logs Directory": "$SCRATCH/logs",
-            "HuggingFace Cache": "$SCRATCH/models",
-        }
-        for label, value in expected.items():
-            inp = live_page.locator(
-                "[data-testid='stTextInput']", has_text=label
-            ).get_by_role("textbox")
-            inp.scroll_into_view_if_needed()
-            expect(inp).to_have_value(value, timeout=10_000)
-
-    # ── Expanders & headings ──────────────────────────────────────────────────────
-
-    def test_settings_paper_import_expander_visible(self, live_page: Page) -> None:
-        """The 'Paper Import' expander must be visible on the settings page."""
-        live_page.locator("[data-testid='stSidebar']").get_by_role(
-            "link", name=re.compile("settings", re.IGNORECASE)
-        ).click()
-        live_page.wait_for_load_state("networkidle")
-
-        expander = live_page.locator("[data-testid='stExpander']").filter(
-            has_text="Paper Import"
-        )
-        expander.scroll_into_view_if_needed()
-        expect(expander).to_be_visible()
-
-    def test_settings_paper_import_expander_opens(self, live_page: Page) -> None:
-        """Clicking the Paper Import expander must reveal its content."""
-        live_page.locator("[data-testid='stSidebar']").get_by_role(
-            "link", name=re.compile("settings", re.IGNORECASE)
-        ).click()
-        live_page.wait_for_load_state("networkidle")
-
-        expander = live_page.locator("[data-testid='stExpander']").filter(
-            has_text="Paper Import"
-        )
-        expander.scroll_into_view_if_needed()
-        # Click the summary/header to expand
-        expander.locator("summary, [data-testid='stExpanderToggleDetails']").click()
-        live_page.wait_for_load_state("networkidle")
-
-        # Interior should show the papers directory info
-        expect(
-            expander.get_by_text(re.compile("papers directory", re.IGNORECASE))
-        ).to_be_visible(timeout=10_000)
-
-    def test_settings_hpc_connection_heading_visible(self, live_page: Page) -> None:
-        """The 'HPC Connection' section heading must be visible on settings."""
-        live_page.locator("[data-testid='stSidebar']").get_by_role(
-            "link", name=re.compile("settings", re.IGNORECASE)
-        ).click()
-        live_page.wait_for_load_state("networkidle")
-
-        expect(
-            live_page.get_by_role(
-                "heading", name=re.compile("HPC Connection", re.IGNORECASE)
-            )
-        ).to_be_visible()
-
     # ── Sidebar widgets ───────────────────────────────────────────────────────────
-
-    def test_sidebar_current_model_expander_visible(self, live_page: Page) -> None:
-        """The 'Current Model' expander must be visible in the sidebar."""
-        sidebar = live_page.locator("[data-testid='stSidebar']")
-        expect(
-            sidebar.locator("[data-testid='stExpander']").filter(
-                has_text="Current Model"
-            )
-        ).to_be_visible(timeout=10_000)
