@@ -1,0 +1,54 @@
+name: e2e
+
+on:
+  workflow_dispatch:  # manual trigger only — run before releases
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pipx install uv
+          uv pip install --system --prerelease=allow -e .[all]
+
+      - name: Get Playwright version
+        id: pw-version
+        run: echo "version=$(python -m playwright --version)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
+
+      - name: Run e2e tests
+        run: pytest tests/e2e/ -m e2e -v --screenshot only-on-failure
+        env:
+          SKIP_MCP: "true"
+          SKIP_MMORE: "true"
+          TESTING: "true"
+          USE_WEAVE: "false"
+          LANGCHAIN_TRACING_V2: "false"
+          OPENAI_API_KEY: "sk-e2e-placeholder"
+          GOOGLE_API_KEY: "fake-google-key"
+          TAVILY_API_KEY: "tvly-e2e-placeholder"
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7

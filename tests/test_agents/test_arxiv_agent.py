@@ -1,56 +1,37 @@
 """Tests for ArXiv Agent with MMORE integration."""
 
-from collections.abc import Callable, Sequence
 from datetime import datetime
-from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
 from langchain_core.documents import Document
-from langchain_core.language_models.base import LanguageModelInput
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.runnables import Runnable
-from langchain_core.tools import BaseTool
-from langgraph.checkpoint.memory import MemorySaver
+
+from tests.test_agents.conftest import FakeLLMWithTools
 
 
-class FakeLLMWithTools(BaseChatModel):
-    """Fake LLM that supports bind_tools() for testing."""
-
-    def __init__(self, responses: list[AIMessage] | None = None, **kwargs):
-        """Initialize with a list of responses."""
-        super().__init__(**kwargs)
-        self._responses = responses or [AIMessage(content="Default response")]
-        self._response_index = 0
-
-    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        """Generate a response."""
-        from langchain_core.outputs import ChatGeneration, ChatResult
-
-        if self._response_index < len(self._responses):
-            response = self._responses[self._response_index]
-            self._response_index += 1
-        else:
-            response = self._responses[-1]  # Reuse last response
-
-        generation = ChatGeneration(message=response)
-        return ChatResult(generations=[generation])
-
-    def bind_tools(
-        self,
-        tools: Sequence[dict[str, Any] | type | Callable | BaseTool],
-        *,
-        tool_choice: str | None = None,
-        **kwargs: Any,
-    ) -> Runnable[LanguageModelInput, AIMessage]:
-        """Bind tools to the model - just return self for testing."""
-        return self
-
-    @property
-    def _llm_type(self) -> str:
-        """Return type of language model."""
-        return "fake-llm-with-tools"
+@pytest.fixture
+def mock_mmore_client():
+    """Mock MMORE client with arxiv-specific data (overrides shared conftest fixture)."""
+    mock = Mock()
+    mock.health_check.return_value = True
+    mock.upload_file.return_value = {
+        "status": "success",
+        "file_id": "arxiv_1605.08386",
+    }
+    mock.retrieve.return_value = [
+        Document(
+            page_content="Test content from paper about topology optimization",
+            metadata={
+                "source": "arxiv_1605.08386",
+                "chunk_id": "chunk_1",
+                "score": 0.95,
+            },
+        )
+    ]
+    mock.delete_file.return_value = {"status": "deleted"}
+    mock.list_files.return_value = ["arxiv_1605.08386"]
+    return mock
 
 
 @pytest.fixture
@@ -86,33 +67,6 @@ def mock_arxiv_search(mock_arxiv_paper):
     return mock
 
 
-@pytest.fixture
-def mock_mmore_client():
-    """Mock MMORE client for testing."""
-    mock = Mock()
-    mock.health_check.return_value = True
-    mock.upload_file.return_value = {"status": "success", "file_id": "arxiv_1605.08386"}
-    mock.retrieve.return_value = [
-        Document(
-            page_content="Test content from paper about topology optimization",
-            metadata={
-                "source": "arxiv_1605.08386",
-                "chunk_id": "chunk_1",
-                "score": 0.95,
-            },
-        )
-    ]
-    mock.delete_file.return_value = {"status": "deleted"}
-    mock.list_files.return_value = ["arxiv_1605.08386"]
-    return mock
-
-
-@pytest.fixture
-def mock_checkpointer():
-    """Mock checkpointer for testing."""
-    return MemorySaver()
-
-
 class TestArXivAgentInitialization:
     """Test ArXiv agent initialization."""
 
@@ -122,6 +76,7 @@ class TestArXivAgentInitialization:
         self, mock_init_llm, mock_mmore_cls, mock_mmore_client
     ):
         """Test that ArXiv agent initializes correctly."""
+        from config import config
         from src.agents.arxiv_agent import ArXivAgent
 
         mock_init_llm.return_value = FakeLLMWithTools()
@@ -135,7 +90,7 @@ class TestArXivAgentInitialization:
         # (seed may also be passed depending on config)
         call_args = mock_init_llm.call_args
         assert call_args[0] == ("openai:gpt-4o",)
-        assert call_args[1]["temperature"] == 0.7  # Default from config
+        assert call_args[1]["temperature"] == config.llm_temperature
         mock_mmore_cls.assert_called_once_with(base_url=None)
         mock_mmore_client.health_check.assert_called_once()
 

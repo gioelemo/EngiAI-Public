@@ -33,6 +33,10 @@ def pytest_configure(config):
         "markers",
         "smoke: marks tests as smoke tests (quick sanity checks)",
     )
+    config.addinivalue_line(
+        "markers",
+        "e2e: Full-browser Playwright tests (require a running Streamlit server)",
+    )
 
     # Filter known warnings from async test mocking
     config.addinivalue_line(
@@ -55,16 +59,15 @@ def pytest_collection_modifyitems(items):
         ):
             item.add_marker(pytest.mark.slow)
 
+        # Auto-mark e2e tests as both e2e and slow (excluded from normal CI runs)
+        if "/e2e/" in item.nodeid or "\\e2e\\" in item.nodeid:
+            item.add_marker(pytest.mark.e2e)
+            item.add_marker(pytest.mark.slow)
+
 
 # ============================================================================
 # SESSION FIXTURES - Setup/teardown for entire test session
 # ============================================================================
-
-
-@pytest.fixture(scope="session")
-def test_data_dir(tmp_path_factory):
-    """Create a temporary directory for test data that persists across tests."""
-    return tmp_path_factory.mktemp("test_data")
 
 
 @pytest.fixture(scope="session", autouse=True)

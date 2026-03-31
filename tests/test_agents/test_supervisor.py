@@ -854,3 +854,72 @@ def test_skip_arxiv_routes_back_to_supervisor(_mock_agents):
         # can re-route (typically to rag_agent). The expects_followup
         # flag should not prevent this.
         assert agent._last_delegation_had_tools is True
+
+
+# ============================================================================
+# LOOP DETECTION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_loop_detection_triggers_redirect(_mock_agents):
+    """Same agent routed consecutively triggers a redirect retry."""
+    agent = SupervisorAgent()
+    # Simulate: engineering was already routed once
+    agent._last_routed_agent = "engineering_agent"
+    agent._consecutive_same_agent_count = 0
+
+    # First call returns engineering_agent (same agent → count becomes 1 == threshold)
+    # Redirect retry returns search_agent (different agent → redirect succeeds)
+    first_decision = RouteDecision(agent="engineering_agent", reasoning="first")
+    retry_decision = RouteDecision(agent="search_agent", reasoning="redirect")
+    agent.routing_llm = MagicMock()
+    agent.routing_llm.invoke.side_effect = [first_decision, retry_decision]
+
+    state = SupervisorState(messages=[HumanMessage(content="optimize beam")], next="")
+    result = agent._supervisor_node(state)
+
+    # Should have been redirected — next agent is "search_agent", not "engineering_agent"
+    assert result["next"] == "search_agent"
+    # routing_llm.invoke called twice (original + retry)
+    assert agent.routing_llm.invoke.call_count == 2
+    # Counter was reset after successful redirect
+    assert agent._consecutive_same_agent_count == 0
+
+
+@pytest.mark.unit
+def test_loop_detection_redirect_fails_forces_finish(_mock_agents):
+    """If redirect still picks the same agent, force FINISH."""
+    agent = SupervisorAgent()
+    agent._last_routed_agent = "engineering_agent"
+    agent._consecutive_same_agent_count = 0
+
+    # Both calls return engineering_agent — redirect fails
+    decision = RouteDecision(agent="engineering_agent", reasoning="stuck")
+    agent.routing_llm = MagicMock()
+    agent.routing_llm.invoke.return_value = decision
+
+    state = SupervisorState(messages=[HumanMessage(content="optimize beam")], next="")
+    result = agent._supervisor_node(state)
+
+    assert result["next"] == "FINISH"
+    assert agent._consecutive_same_agent_count == 0
+    assert agent._last_routed_agent is None
+
+
+@pytest.mark.unit
+def test_loop_detection_counter_resets_on_different_agent(_mock_agents):
+    """Routing to a different agent resets the consecutive counter."""
+    agent = SupervisorAgent()
+    agent._last_routed_agent = "engineering_agent"
+    agent._consecutive_same_agent_count = 0
+
+    decision = RouteDecision(agent="search_agent", reasoning="different")
+    agent.routing_llm = MagicMock()
+    agent.routing_llm.invoke.return_value = decision
+
+    state = SupervisorState(messages=[HumanMessage(content="search papers")], next="")
+    agent._supervisor_node(state)
+
+    assert agent._consecutive_same_agent_count == 0
+    assert agent._last_routed_agent == "search_agent"

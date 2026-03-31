@@ -5,16 +5,28 @@ These tests mock SSH connections to ensure they run in CI without requiring
 actual HPC cluster access.
 """
 
+import time
 from unittest.mock import Mock, patch
 
 import pytest
 
 from src.tools.hpc import (
+    _decrypt_password,
+    _encrypt_password,
+    _session_credentials_store,
     cancel_slurm_job,
+    cleanup_expired_credentials,
+    clear_ssh_credentials,
     download_job_outputs,
     get_slurm_job_status,
+    get_ssh_credentials,
+    get_ssh_credentials_secure,
+    set_current_session_id,
+    set_ssh_credentials,
     submit_slurm_job,
     test_hpc_connection,
+    validate_hostname,
+    validate_username,
 )
 
 # ============================================================================
@@ -345,3 +357,212 @@ def test_cancel_running_job(mock_hpc_connection, temp_slurm_file):
     mock_hpc_connection.cancel_job.return_value = None
     cancel_result = cancel_slurm_job.invoke({"job_id": job_id})
     assert cancel_result["status"] == "success"
+
+
+# ============================================================================
+# CREDENTIAL MANAGEMENT TESTS
+# ============================================================================
+
+SESSION_ID = "test-session-001"
+
+
+@pytest.fixture(autouse=True)
+def _clean_credential_state():
+    """Reset credential store and session ID between tests."""
+    _session_credentials_store.clear()
+    set_current_session_id(None)
+    yield
+    _session_credentials_store.clear()
+    set_current_session_id(None)
+
+
+# --- Encryption ---
+
+
+@pytest.mark.unit
+def test_encrypt_decrypt_roundtrip():
+    """Encrypt then decrypt must return original password."""
+    password = "s3cret!Pass"
+    encrypted = _encrypt_password(password)
+    assert encrypted != password
+    assert _decrypt_password(encrypted) == password
+
+
+# --- Hostname validation ---
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "hostname",
+    ["euler.ethz.ch", "my-host", "a.b.c.d", "localhost", "h1"],
+)
+def test_validate_hostname_valid(hostname):
+    assert validate_hostname(hostname) is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "hostname",
+    ["", ".start", "a" * 256, "host!@#", "-bad", "bad-", "a." + "x" * 64],
+)
+def test_validate_hostname_invalid(hostname):
+    assert validate_hostname(hostname) is False
+
+
+# --- Username validation ---
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("username", ["user", "user_name", "user-1", "a"])
+def test_validate_username_valid(username):
+    assert validate_username(username) is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("username", ["", "user name", "a" * 100, "root;rm", "u$er"])
+def test_validate_username_invalid(username):
+    assert validate_username(username) is False
+
+
+# --- set_ssh_credentials ---
+
+
+@pytest.mark.unit
+def test_set_ssh_credentials_stores():
+    """Full credential set stores and returns success."""
+    set_current_session_id(SESSION_ID)
+    ok, msg = set_ssh_credentials(
+        host="euler.ethz.ch", user="testuser", password="pw123", port=22
+    )
+    assert ok is True
+    assert "saved" in msg.lower() or "Credentials" in msg
+    assert SESSION_ID in _session_credentials_store
+
+
+@pytest.mark.unit
+def test_set_ssh_credentials_clears_when_partial():
+    """Passing None for required fields clears existing credentials."""
+    set_current_session_id(SESSION_ID)
+    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    assert SESSION_ID in _session_credentials_store
+
+    ok, msg = set_ssh_credentials(host=None, user=None, password=None)
+    assert ok is True
+    assert "cleared" in msg.lower()
+    assert SESSION_ID not in _session_credentials_store
+
+
+@pytest.mark.unit
+def test_set_ssh_credentials_no_session():
+    """Without a session ID, set_ssh_credentials returns failure."""
+    ok, msg = set_ssh_credentials(
+        host="euler.ethz.ch", user="testuser", password="pw123"
+    )
+    assert ok is False
+    assert "session" in msg.lower()
+
+
+@pytest.mark.unit
+def test_set_ssh_credentials_validates_hostname():
+    """Invalid hostname must be rejected."""
+    set_current_session_id(SESSION_ID)
+    ok, msg = set_ssh_credentials(host="bad!host", user="testuser", password="pw123")
+    assert ok is False
+    assert "hostname" in msg.lower()
+
+
+@pytest.mark.unit
+def test_set_ssh_credentials_validates_port():
+    """Out-of-range port must be rejected."""
+    set_current_session_id(SESSION_ID)
+    ok, msg = set_ssh_credentials(
+        host="euler.ethz.ch", user="testuser", password="pw123", port=99999
+    )
+    assert ok is False
+    assert "port" in msg.lower()
+
+
+# --- clear_ssh_credentials ---
+
+
+@pytest.mark.unit
+def test_clear_ssh_credentials():
+    """clear_ssh_credentials removes stored credentials."""
+    set_current_session_id(SESSION_ID)
+    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    assert SESSION_ID in _session_credentials_store
+    clear_ssh_credentials(SESSION_ID)
+    assert SESSION_ID not in _session_credentials_store
+
+
+@pytest.mark.unit
+def test_clear_ssh_credentials_noop():
+    """Clearing non-existent credentials is a no-op."""
+    clear_ssh_credentials("nonexistent-session")
+    # Should not raise
+
+
+# --- get_ssh_credentials ---
+
+
+@pytest.mark.unit
+def test_get_ssh_credentials_valid():
+    """Stored credentials are returned with decrypted password."""
+    set_current_session_id(SESSION_ID)
+    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    creds = get_ssh_credentials(SESSION_ID)
+    assert creds is not None
+    assert creds["host"] == "euler.ethz.ch"
+    assert creds["user"] == "testuser"
+    assert creds["password"] == "pw123"
+    assert creds["port"] == 22
+
+
+@pytest.mark.unit
+def test_get_ssh_credentials_expired():
+    """Expired credentials return None and are cleaned up."""
+    set_current_session_id(SESSION_ID)
+    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    # Force expiration
+    _session_credentials_store[SESSION_ID]["expires_at"] = time.time() - 1
+    assert get_ssh_credentials(SESSION_ID) is None
+    assert SESSION_ID not in _session_credentials_store
+
+
+@pytest.mark.unit
+def test_get_ssh_credentials_no_session():
+    """No session ID returns None."""
+    assert get_ssh_credentials(None) is None
+
+
+# --- get_ssh_credentials_secure ---
+
+
+@pytest.mark.unit
+def test_get_ssh_credentials_secure_cleanup():
+    """Context manager overwrites password after block exits."""
+    set_current_session_id(SESSION_ID)
+    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    with get_ssh_credentials_secure(SESSION_ID) as creds:
+        assert creds is not None
+        assert creds["password"] == "pw123"
+    # After exiting, password should be zeroed/removed
+    assert "password" not in creds
+
+
+# --- cleanup_expired_credentials ---
+
+
+@pytest.mark.unit
+def test_cleanup_expired_credentials():
+    """Expired sessions are removed, valid ones are kept."""
+    set_current_session_id("s1")
+    set_ssh_credentials(host="euler.ethz.ch", user="u1", password="p1", session_id="s1")
+    set_ssh_credentials(host="euler.ethz.ch", user="u2", password="p2", session_id="s2")
+    # Expire s1
+    _session_credentials_store["s1"]["expires_at"] = time.time() - 1
+
+    removed = cleanup_expired_credentials()
+    assert removed == 1
+    assert "s1" not in _session_credentials_store
+    assert "s2" in _session_credentials_store

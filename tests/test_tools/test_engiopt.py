@@ -22,7 +22,9 @@ from src.tools.engiopt import (
     _check_general_recommendations,
     _check_hard_limits,
     _download_from_wandb,
+    _find_or_download_model,
     _get_artifact_info,
+    _import_generator_class,
     _parse_hpc_inputs,
     _resolve_slurm_config,
     _validate_download_inputs,
@@ -1508,3 +1510,101 @@ def test_generate_training_command_basic(monkeypatch):
     result = generate_training_command.invoke({"cfg": cfg})
 
     assert "slurm_script" in result or "error" in result
+
+
+# ============================================================================
+# _find_or_download_model TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_find_or_download_model_with_valid_path(tmp_path):
+    """Providing a path to an existing checkpoint returns that path."""
+    ckpt = tmp_path / "model.pth"
+    ckpt.write_bytes(b"fake")
+    path, err = _find_or_download_model(str(ckpt), "beams2d", "cgan_cnn_2d")
+    assert err is None
+    assert path == str(ckpt)
+
+
+@pytest.mark.unit
+def test_find_or_download_model_missing_path():
+    """Non-existent checkpoint path returns error dict."""
+    path, err = _find_or_download_model("/no/such/file.pth", "beams2d", "cgan_cnn_2d")
+    assert path is None
+    assert err is not None
+    assert err["success"] is False
+    assert "not found" in err["error"]
+
+
+@pytest.mark.unit
+def test_find_or_download_model_artifacts_dir(tmp_path, monkeypatch):
+    """When no checkpoint_path, searches artifacts/ directory."""
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    model_dir = artifacts / "beams2d_cgan_cnn_2d_generator:v1"
+    model_dir.mkdir()
+    (model_dir / "generator.pth").write_bytes(b"fake")
+
+    monkeypatch.chdir(tmp_path)
+    path, err = _find_or_download_model(None, "beams2d", "cgan_cnn_2d")
+    assert err is None
+    assert path is not None
+    assert "generator.pth" in path
+
+
+@pytest.mark.unit
+def test_find_or_download_model_downloads(tmp_path, monkeypatch):
+    """When no local model, falls back to download_wandb_model."""
+    monkeypatch.chdir(tmp_path)  # no artifacts/ dir here
+
+    mock_tool = Mock()
+    mock_tool.invoke.return_value = {
+        "success": True,
+        "checkpoint_path": "/dl/model.pth",
+    }
+    with patch("src.tools.engiopt.download_wandb_model", mock_tool):
+        path, err = _find_or_download_model(None, "beams2d", "cgan_cnn_2d")
+    assert err is None
+    assert path == "/dl/model.pth"
+
+
+@pytest.mark.unit
+def test_find_or_download_model_download_fails(tmp_path, monkeypatch):
+    """Failed download returns error dict."""
+    monkeypatch.chdir(tmp_path)
+
+    mock_tool = Mock()
+    mock_tool.invoke.return_value = {"success": False, "error": "no artifact"}
+    with patch("src.tools.engiopt.download_wandb_model", mock_tool):
+        path, err = _find_or_download_model(None, "beams2d", "cgan_cnn_2d")
+    assert path is None
+    assert err is not None
+    assert "Failed to download" in err["error"]
+
+
+# ============================================================================
+# _import_generator_class TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_import_generator_class_unsupported_algo():
+    """Unsupported algorithm returns (None, error_dict)."""
+    cls, err = _import_generator_class("unknown_algo")
+    assert cls is None
+    assert err is not None
+    assert "not applicable" in err["error"]
+
+
+@pytest.mark.unit
+def test_import_generator_class_import_error():
+    """ImportError for cgan_cnn_2d returns (None, error_dict)."""
+    with patch.dict(
+        "sys.modules",
+        {"engiopt.cgan_cnn_2d.cgan_cnn_2d": None},
+    ):
+        cls, err = _import_generator_class("cgan_cnn_2d")
+    assert cls is None
+    assert err is not None
+    assert "Failed to import" in err["error"]
