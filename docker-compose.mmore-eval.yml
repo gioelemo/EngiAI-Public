@@ -51,4 +51,8 @@ networks:
 
 volumes:
   mmore_eval_uploads:
+    name: engiai_mmore_eval_uploads
+    external: true
   mmore_eval_cache:
+    name: engiai_mmore_eval_cache
+    external: true

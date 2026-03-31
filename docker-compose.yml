@@ -149,5 +149,11 @@ networks:
 
 volumes:
   postgres_data:
+    name: engiai_postgres_data
+    external: true
   mmore_cache:
+    name: engiai_mmore_cache
+    external: true
   mmore_uploads:
+    name: engiai_mmore_uploads
+    external: true
