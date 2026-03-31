@@ -9,7 +9,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Jarvis-Style Multimodal AI Assistant for Closed-Loop Design-for-Manufacturing Correction.
+EngiAI provides an AI-powered assistant for mechanical engineering design, integrating topology optimization, research retrieval, HPC simulation, and 3D printer control in a single conversational interface.
 
 ## 🎯 Quick Start
 
