@@ -4,7 +4,14 @@ import base64
 
 import pytest
 
-from src.ui.canvas_bridge import InvalidCanvasDataError, process_canvas_export
+pytest.importorskip(
+    "src.ui.canvas_bridge",
+    reason="excalidraw submodule not available (skipped in CI)",
+)
+from src.ui.canvas_bridge import (
+    InvalidCanvasDataError,
+    process_canvas_export,
+)
 
 # Minimal valid 1x1 red PNG (67 bytes)
 _TINY_PNG = (
