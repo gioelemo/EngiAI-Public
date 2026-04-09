@@ -147,9 +147,7 @@ def generate_table(problem: str) -> str:
     lines.append(r"\toprule")
 
     # Column headers with ↑ arrows (all metrics are higher-is-better)
-    metric_headers = " & ".join(
-        f"\\textbf{{{m[1]}\\,$\\uparrow$}}" for m in METRICS
-    )
+    metric_headers = " & ".join(f"\\textbf{{{m[1]}\\,$\\uparrow$}}" for m in METRICS)
     lines.append(r"\textbf{Style} & \textbf{Model} & " + metric_headers + r" \\")
     lines.append(r"\midrule")
 
@@ -161,15 +159,11 @@ def generate_table(problem: str) -> str:
         for model_dir in MODEL_ORDER:
             data = load_design_data(model_dir, problem, style)
             if data is None:
-                all_stats.append(
-                    [(float("nan"), float("nan"), 0)] * n_metrics
-                )
+                all_stats.append([(float("nan"), float("nan"), 0)] * n_metrics)
             else:
                 model_stats = []
                 for metric_key, _ in METRICS:
-                    model_stats.append(
-                        compute_metric_stats(data, metric_key)
-                    )
+                    model_stats.append(compute_metric_stats(data, metric_key))
                 all_stats.append(model_stats)
 
         # Find best (max mean) per metric; only bold if not all tied
@@ -184,9 +178,7 @@ def generate_table(problem: str) -> str:
             if means:
                 best_val = max(means)
                 best_per_metric.append(best_val)
-                all_tied.append(
-                    len({round(m, 2) for m in means}) <= 1
-                )
+                all_tied.append(len({round(m, 2) for m in means}) <= 1)
             else:
                 best_per_metric.append(float("nan"))
                 all_tied.append(True)
