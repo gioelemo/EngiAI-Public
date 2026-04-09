@@ -99,10 +99,12 @@ def compute_metric_stats(data: list[dict], metric_key: str) -> tuple[float, floa
     return float(np.mean(values)), float(np.std(values)), len(values)
 
 
-def format_cell(mean: float, std: float, count: int) -> str:
+def format_cell(mean: float, std: float, count: int, bold: bool = False) -> str:
     """Format a table cell as mean ± std, or --- if no data."""
     if np.isnan(mean) or count == 0:
         return "---"
+    if bold:
+        return f"\\textbf{{{mean:.2f}}}\\scriptsize{{$\\pm${std:.2f}}}"
     return f"{mean:.2f}\\scriptsize{{$\\pm${std:.2f}}}"
 
 
@@ -132,7 +134,7 @@ def generate_table(problem: str) -> str:
         + problem_display
         + r".]{Raw per-metric scores (mean $\pm$ std) for all models and prompt styles on "
         + problem_display
-        + r". Most cells aggregate 15 runs (3 seeds $\times$ 5 samples); a few Qwen3.5-4B configurations have 13--14 runs due to JSON parsing errors. Metric abbreviations are defined in Section~\ref{subsec:scoring_methodology}.}"
+        + r". Most cells aggregate 15 runs (3 seeds $\times$ 5 samples); a few Qwen3.5-4B configurations have 13--14 runs due to JSON parsing errors. \textbf{Bold} = best model per metric within each prompt style. Metric abbreviations are defined in Section~\ref{subsec:scoring_methodology}.}"
     )
     lines.append(r"\label{tab:raw_scores_" + problem + "}")
     lines.append(r"\scriptsize")
@@ -144,25 +146,63 @@ def generate_table(problem: str) -> str:
     lines.append(r"\begin{tabular}{" + col_spec + "}")
     lines.append(r"\toprule")
 
-    # Column headers
-    metric_headers = " & ".join(f"\\textbf{{{m[1]}}}" for m in METRICS)
+    # Column headers with ↑ arrows (all metrics are higher-is-better)
+    metric_headers = " & ".join(
+        f"\\textbf{{{m[1]}\\,$\\uparrow$}}" for m in METRICS
+    )
     lines.append(r"\textbf{Style} & \textbf{Model} & " + metric_headers + r" \\")
     lines.append(r"\midrule")
 
     for si, style in enumerate(styles):
         style_label = STYLE_DISPLAY[style]
 
+        # First pass: collect stats for all models to find best per metric
+        all_stats: list[list[tuple[float, float, int]]] = []
+        for model_dir in MODEL_ORDER:
+            data = load_design_data(model_dir, problem, style)
+            if data is None:
+                all_stats.append(
+                    [(float("nan"), float("nan"), 0)] * n_metrics
+                )
+            else:
+                model_stats = []
+                for metric_key, _ in METRICS:
+                    model_stats.append(
+                        compute_metric_stats(data, metric_key)
+                    )
+                all_stats.append(model_stats)
+
+        # Find best (max mean) per metric; only bold if not all tied
+        best_per_metric: list[float] = []
+        all_tied: list[bool] = []
+        for j in range(n_metrics):
+            means = [
+                all_stats[i][j][0]
+                for i in range(len(MODEL_ORDER))
+                if not np.isnan(all_stats[i][j][0])
+            ]
+            if means:
+                best_val = max(means)
+                best_per_metric.append(best_val)
+                all_tied.append(
+                    len({round(m, 2) for m in means}) <= 1
+                )
+            else:
+                best_per_metric.append(float("nan"))
+                all_tied.append(True)
+
+        # Second pass: format cells with bold for best
         for mi, model_dir in enumerate(MODEL_ORDER):
             model_label = MODEL_DISPLAY[model_dir]
-            data = load_design_data(model_dir, problem, style)
-
-            if data is None:
-                cells = ["---"] * n_metrics
-            else:
-                cells = []
-                for metric_key, _ in METRICS:
-                    mean, std, count = compute_metric_stats(data, metric_key)
-                    cells.append(format_cell(mean, std, count))
+            cells = []
+            for j in range(n_metrics):
+                mean, std, count = all_stats[mi][j]
+                is_best = (
+                    not np.isnan(mean)
+                    and not all_tied[j]
+                    and round(mean, 2) == round(best_per_metric[j], 2)
+                )
+                cells.append(format_cell(mean, std, count, bold=is_best))
 
             # Only show style name on first model row
             row_style = style_label if mi == 0 else ""
