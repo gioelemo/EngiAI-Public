@@ -20,16 +20,20 @@ Transforms beam design examples from the HuggingFace dataset into natural langua
 ```bash
 conda activate engiai
 cd benchmarks/problems/beams2d
-python generate_prompts.py
+python generate_prompts.py --samples 5 --style full
 ```
 
-**Output:** `data/generated/beam_prompts_N_samples.json`
+Run `python generate_prompts.py --help` for the full list of options,
+including the supported `--style` values.
+
+**Output:** `data/generated/beams2d_prompts_{samples}_samples_{split}_{style}_seed{seed}.json`
+(file-name pattern defined in [benchmarks/shared/problem_registry.py](../../shared/problem_registry.py))
 
 **What it does:**
-- Loads beam design examples from HuggingFace
+- Loads beam design examples from the HuggingFace dataset
 - Converts technical parameters to natural language
 - Creates evaluation prompts with ground truth targets
-- Publishes to Weave for tracking (if enabled)
+- Saves the prompts locally as JSON under `data/generated/`
 
 ### `validate_prompts.py`
 
@@ -76,17 +80,24 @@ To evaluate the agent on this problem, use the unified evaluation script:
 
 ```bash
 cd benchmarks/evaluations
-python evaluate_agent.py --problem beams2d --model gpt-4o --samples 5
+python evaluate_agent.py --problem beams2d --model openai:gpt-4.1 --samples 5
 ```
 
 See [benchmarks/evaluations/README.md](../../evaluations/README.md) for more details on evaluation.
 
 ## Adding New Problem Types
 
-To add a new problem type (e.g., thermoelastic2d):
+Problems are registered in a single source of truth:
+[benchmarks/shared/problem_registry.py](../../shared/problem_registry.py).
+Adding an entry to the `PROBLEMS` dict auto-exposes the new problem in every
+evaluation CLI (`--problem <name>`) — no manual wiring in `evaluate_agent.py`
+is required.
 
-1. Create a new directory: `benchmarks/problems/thermoelastic2d/`
-2. Copy and adapt the scripts from this directory
+To add a new problem type (e.g., a hypothetical `newproblem`):
+
+1. Create a new directory: `benchmarks/problems/newproblem/`
+2. Copy and adapt `generate_prompts.py` from this directory
 3. Create the `data/` subdirectory structure
-4. Add problem configuration to `benchmarks/evaluations/evaluate_agent.py`
+4. Register the problem by adding a `ProblemConfig` entry to the `PROBLEMS`
+   dict in [benchmarks/shared/problem_registry.py](../../shared/problem_registry.py)
 5. Create a README documenting the problem and dataset
