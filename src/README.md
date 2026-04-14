@@ -8,11 +8,15 @@ This document explains the modular structure of the EngiAI codebase.
 src/
 ├── agents/                     # Multi-agent system implementations
 │   ├── __init__.py
-│   ├── cli_agent.py            # CLI agent
-│   ├── engineering_agent.py    # Engineering design & optimization
+│   ├── base_agent.py           # Shared agent base class
+│   ├── arxiv_agent.py          # ArXiv paper search
+│   ├── cli_agent.py            # Local command execution (with confirmation)
+│   ├── engineering_agent.py    # Topology optimization & STL export
 │   ├── hpc_agent.py            # HPC/SLURM job management
-│   ├── search_agent.py         # Web search capabilities
-│   └── supervisor_agent.py     # Main supervisor coordinating all agents
+│   ├── prusa_agent.py          # Prusa 3D printer control
+│   ├── rag_agent.py            # Document Q&A via MMORE
+│   ├── search_agent.py         # Web search (Tavily)
+│   └── supervisor_agent.py     # Supervisor routing to specialized agents
 │
 ├── models/                     # Data models and state definitions
 │   ├── __init__.py
@@ -20,25 +24,46 @@ src/
 │
 ├── tools/                      # Custom tools for agents
 │   ├── __init__.py
+│   ├── algorithms.py           # Optimization algorithm helpers
+│   ├── arxiv_tools.py          # ArXiv search tools
 │   ├── cli.py                  # CLI tools
 │   ├── connection.py           # SSH/HPC connection management
-│   ├── engibench.py            # Engineering benchmarks (unified problem-agnostic tools)
+│   ├── engibench.py            # Engineering benchmarks (problem-agnostic)
 │   ├── engiopt.py              # ML model training & optimization
 │   ├── hpc.py                  # HPC cluster operations
+│   ├── human_input.py          # Human-in-the-loop clarification
 │   ├── job_monitor.py          # SLURM job monitoring & notifications
+│   ├── mmore_client.py         # MMORE RAG service HTTP client
 │   ├── problems.py             # Problem registry (single source of truth)
+│   ├── rag_tools.py            # RAG retrieval tools
 │   ├── search.py               # Web search via Tavily
-│   └── stl_export.py           # CAD file conversion to STL
+│   ├── stl_export.py           # CAD file conversion to STL
+│   └── web_crawler.py          # Web crawling for research
 │
-├── ui/                         # Web-based user interfaces
+├── ui/                         # Web-based user interfaces (Streamlit)
 │   ├── __init__.py
 │   ├── README.md               # UI documentation
-│   └── streamlit_app.py        # Streamlit chat interface
+│   ├── canvas_bridge.py        # Excalidraw canvas ↔ chat bridge
+│   ├── chat.py                 # Chat view rendering
+│   ├── chat_management.py      # Conversation CRUD
+│   ├── confirmation_handler.py # Human-in-the-loop confirmation UI
+│   ├── database.py             # SQLite/PostgreSQL persistence helpers
+│   ├── file_processing.py      # File upload handling
+│   ├── home.py                 # Home page
+│   ├── media_display.py        # Image/STL rendering
+│   ├── message_processing.py   # Message formatting
+│   ├── pdf_export.py           # Export conversation to PDF
+│   ├── settings.py             # Settings UI
+│   ├── streaming.py            # Streaming response handlers
+│   ├── streamlit_app.py        # Main Streamlit entry point
+│   ├── voices.py               # Voice input/output (ElevenLabs/OpenAI)
+│   └── wandb_report.py         # W&B report embedding
 │
 ├── utils/                      # Utility functions
 │   ├── __init__.py
 │   └── prompts.py              # System prompts for all agents
 │
+├── checkpoint.py               # PostgreSQL/SQLite LangGraph checkpointing
 └── __init__.py
 ```
 
@@ -49,10 +74,14 @@ Contains agent implementations using LangGraph for workflow orchestration.
 
 **Current agents:**
 - **`SupervisorAgent`**: Main coordinator that routes conversations to specialized agents based on context
-- **`EngineeringAgent`**: Handles engineering design, optimization, and benchmarking workflows
-- **`SearchAgent`**: Performs web searches and retrieves technical information
+- **`EngineeringAgent`**: Handles engineering design, topology optimization, and STL export
+- **`RAGAgent`**: Document Q&A over indexed papers via MMORE multimodal RAG
+- **`ArXivAgent`**: Research paper search and analysis via the arXiv API
+- **`SearchAgent`**: Performs web searches and retrieves technical information (Tavily)
 - **`HPCAgent`**: Manages HPC cluster operations, SLURM job submission, and monitoring
-- **`CLIAgent`**: Manage Command Line commands
+- **`CLIAgent`**: Runs local command-line commands (requires human confirmation)
+- **`PrusaAgent`**: Controls Prusa 3D printers via Prusa Connect (MCP server)
+- **`BaseAgent`**: Shared base class providing tool binding and state patterns
 
 **Architecture Pattern:**
 The system uses a **supervisor-based multi-agent architecture**:
@@ -65,15 +94,21 @@ The system uses a **supervisor-based multi-agent architecture**:
 Contains LangChain tools that agents can use. Each tool is decorated with `@tool`.
 
 **Current tools:**
-- **`cli.py`**: CLI commands
+- **`algorithms.py`**: Optimization algorithm helpers used by engineering tools
+- **`arxiv_tools.py`**: ArXiv paper search and metadata retrieval
+- **`cli.py`**: CLI command execution
 - **`connection.py`**: SSH connection management for remote HPC systems
-- **`problems.py`**: Problem registry (single source of truth for all supported problem types)
 - **`engibench.py`**: Engineering benchmark tools (problem-agnostic, works with any registered problem)
 - **`engiopt.py`**: ML model training and optimization (GANs, CNNs) with W&B tracking
 - **`hpc.py`**: HPC cluster operations (submit jobs, transfer files, run commands)
+- **`human_input.py`**: Human-in-the-loop clarification requests
 - **`job_monitor.py`**: SLURM job monitoring with status updates and notifications
+- **`mmore_client.py`**: HTTP client for the MMORE multimodal RAG service
+- **`problems.py`**: Problem registry (single source of truth for all supported problem types)
+- **`rag_tools.py`**: Document retrieval and Q&A tools backed by MMORE
 - **`search.py`**: Web search using Tavily API for retrieving technical information
-- **`stl_export.py`**: Tools for generating the STL model from the results of the optimization
+- **`stl_export.py`**: Tools for generating STL models from optimization results
+- **`web_crawler.py`**: Web crawling for scientific article/content retrieval
 
 
 ### `models/`
@@ -83,11 +118,15 @@ Defines state schemas and custom types used throughout the application.
 Web-based user interfaces for interacting with the agent system.
 
 **Current UIs:**
-- `streamlit_app.py`: Full-featured Streamlit chat interface with:
-  - Multi-page navigation (Chat / W&B Report viewing)
-  - 3D STL file viewer for generated CAD models
-  - Consolidated settings (media saving, viewer options)
-  - W&B training report embedding
+- `streamlit_app.py`: Main Streamlit chat interface entry point. The UI package is composed of focused modules:
+  - `chat.py`, `chat_management.py`, `message_processing.py`, `streaming.py` — chat view, history, streaming
+  - `home.py`, `settings.py` — home page and settings UI
+  - `canvas_bridge.py` — Excalidraw canvas integration
+  - `confirmation_handler.py` — human-in-the-loop tool-call confirmation
+  - `database.py` — SQLite/PostgreSQL persistence helpers
+  - `file_processing.py`, `media_display.py`, `pdf_export.py` — uploads, STL/image rendering, PDF export
+  - `voices.py` — speech-to-text and text-to-speech (ElevenLabs / OpenAI)
+  - `wandb_report.py` — W&B training report embedding
 
 **Running the UI:**
 ```bash
@@ -200,12 +239,12 @@ TAVILY_API_KEY=tvly-...
 WANDB_API_KEY=...
 
 # Model Selection
-LLM_MODEL=gpt-4o  # or gemini-3-flash-preview
+LLM_MODEL=openai:gpt-4.1  # or google_genai:gemini-2.5-flash, ollama:llama3
 
 # HPC Configuration
-HPC_HOST=cluster.university.edu
+HPC_HOST_ALIAS=euler
+HPC_HOSTNAME=euler.ethz.ch
 HPC_USERNAME=your_username
-HPC_PRIVATE_KEY_PATH=/path/to/ssh/key
 
 # W&B Integration
 WANDB_REPORT_URL=https://wandb.ai/your-project/...

@@ -303,7 +303,7 @@ curl http://localhost:8765/sse
 2. Verify MCP server is accessible:
    ```bash
    # From container
-   docker exec engiai-chatbot curl -v http://prusa-mcp-server:8000/sse
+   docker exec engiai-chatbot curl -v http://prusa-mcp-server:8765/sse
    ```
 
 ### Tools Not Loading
@@ -311,15 +311,6 @@ curl http://localhost:8765/sse
 **Symptom**: Prusa-related tools missing
 
 **Solution**: Set `SKIP_MCP=true` to disable MCP integration if you don't need 3D printing features
-
-### prusa-mcp Folder Not Found
-
-
-
-Or set `SKIP_MCP=true` in your `.env` file to disable MCP:
-```bash
-docker-compose up -d
-```
 
 ## Host Service & GUI Integration
 

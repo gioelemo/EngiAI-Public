@@ -67,7 +67,7 @@ Draw and sketch designs directly in the chat:
 
 The canvas automatically clears after sending, and visual indicators show the current state.
 
-> **Note:** The Excalidraw component is a standalone Streamlit package ([gioelemo/streamlit-excalidraw](https://github.com/gioelemo/streamlit-excalidraw)) included as a git submodule at `src/ui/components/excalidraw`. Run `git submodule update --init` if the component directory is empty.
+> **Note:** The Excalidraw component is a standalone Streamlit package ([gioelemo/streamlit-excalidraw](https://github.com/gioelemo/streamlit-excalidraw)) installed as a pip dependency from git. It is pulled in automatically by `pip install -e .[dev]`; no submodule initialization is required.
 
 ### 6. Voice Interaction
 

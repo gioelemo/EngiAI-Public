@@ -90,15 +90,17 @@ python evaluate_agent.py --problem beams2d --samples 50
 
 Choose which scorers to compute:
 
-- **`all`** (default): Full per-design and global metrics
-- **`engibench`**: Lightweight design extraction only for faster evaluation
+- **`all`** (default): All scorers — `output_quality` + `task_completion` + `tool_use`
+- **`output_quality`**: Per-design quality metrics only
+- **`task_completion`**: Task completion checker only
+- **`tool_use`**: Tool usage efficiency only
 
 ```bash
-# Full evaluation with all metrics
+# Full evaluation with all scorers
 python evaluate_agent.py --problem beams2d --scorers all
 
-# Lightweight evaluation
-python evaluate_agent.py --problem beams2d --scorers engibench
+# Task-completion only
+python evaluate_agent.py --problem beams2d --scorers task_completion
 ```
 
 See the [Evaluation Guide](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/evaluations/README.md) for scorer details.
@@ -127,14 +129,16 @@ Evaluated for each generated design:
 - **Volume Fraction**: Material usage (target-dependent)
 - **Binary Score**: How close to binary (0/1) values
 
-### Global Metrics (engibench scorer)
+### Global Metrics (computed offline)
 
-Evaluated across the full set of generated designs:
+Evaluated across the full set of generated designs. These are no longer exposed
+as a Weave scorer — they are computed offline by
+`benchmarks/shared/metrics.py` and the post-hoc analysis scripts:
 
-- **MMD (Maximum Mean Discrepancy)**: Distribution similarity to reference set
+- **MMD (Maximum Mean Discrepancy)**: Distribution similarity to a reference set
 - **DPP (Determinantal Point Process)**: Design diversity
-- **RVC (Relative Volume Coverage)**: Design space coverage
-- **Optimality Gap**: Distance from optimal solutions
+- **RVC (Ratio of Violated Constraints)**: Fraction of designs violating constraints (lower is better)
+- **Optimality Gap (IOG/COG/FOG)**: Distance from optimal solutions
 
 See [benchmarks/README.md](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/README.md#metrics) for detailed metric definitions.
 
@@ -253,11 +257,12 @@ PROBLEMS = {
 
 **Problem**: `ValueError: Unknown scorer: ...`
 
-**Solution**: Use valid scorer names: `all` or `engibench`
+**Solution**: Use valid scorer names: `all`, `output_quality`, `task_completion`, or `tool_use`
 
 ```bash
 # Correct
 python evaluate_agent.py --problem beams2d --scorers all
+python evaluate_agent.py --problem beams2d --scorers task_completion
 
 # Incorrect
 python evaluate_agent.py --problem beams2d --scorers custom  # Not supported

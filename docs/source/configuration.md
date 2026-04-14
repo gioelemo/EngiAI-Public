@@ -69,18 +69,23 @@ WANDB_API_KEY=your-wandb-key
 WANDB_ENTITY=your-team
 
 # Prusa 3D Printer Integration (optional)
-SKIP_MCP=true                    # Set to false to enable Prusa integration
-PRUSA_MCP_PATH=/path/to/prusa-mcp  # Path to cloned Prusa MCP server
+SKIP_MCP=true                           # Set to false to enable Prusa integration
+PRUSA_MCP_URL=http://localhost:8765     # URL of a running Prusa MCP server
+PRUSA_MCP_HOST=0.0.0.0                  # Host for the standalone MCP server
+PRUSA_MCP_PORT=8765                     # Port for the standalone MCP server
 
 # Database (optional, uses SQLite by default)
-DATABASE_URL=sqlite:///data/engiai.db
+DATABASE_URL=sqlite:///data/conversations.db
 ```
 
 **For Prusa 3D printer integration:**
-- The Prusa MCP server is included as a git submodule at `services/prusa_mcp_server/prusa-mcp`
-- Clone with `--recurse-submodules` or run `git submodule update --init --recursive`
-- See `services/prusa_mcp_server/README.md` for setup
-- Set `SKIP_MCP=false` to enable
+- The Prusa MCP server is installed as a pip dependency from git
+  (`prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git`), declared in
+  `services/prusa_mcp_server/requirements-mcp.txt`.
+- It is installed automatically by the Prusa MCP Dockerfile or by
+  `./services/prusa_mcp_server/run.sh`. No submodule initialization is required.
+- See `services/prusa_mcp_server/README.md` for setup and credential handling.
+- Set `SKIP_MCP=false` to enable.
 
 ### Voice Integration
 

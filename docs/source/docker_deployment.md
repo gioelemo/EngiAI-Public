@@ -23,8 +23,11 @@ The following services must be cloned locally and accessible to the Docker conta
    - Configure with `MMORE_RAG_URL` in `.env`
 
 2. **Prusa Connect MCP Server** (Optional - only if using 3D printer integration)
-   - Included as a git submodule at `services/prusa_mcp_server/prusa-mcp`
-   - Automatically cloned with `--recurse-submodules` flag
+   - Installed as a pip dependency from git
+     (`prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git`), declared in
+     `services/prusa_mcp_server/requirements-mcp.txt`
+   - Built automatically into the `prusa-mcp-server` Docker image by
+     `services/prusa_mcp_server/Dockerfile`
    - See `services/prusa_mcp_server/README.md` for configuration
    - Set `SKIP_MCP=false` to enable
 

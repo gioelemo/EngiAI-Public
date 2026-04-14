@@ -101,6 +101,7 @@ Optimization and design tools using EngiBench.
 Supported problem types:
 - **beams2d**: 2D structural topology optimization
 - **photonics2d**: 2D photonic device topology optimization
+- **thermoelastic2d**: 2D thermoelastic (coupled thermal/structural) topology optimization
 
 ### `optimize_design`
 

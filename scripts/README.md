@@ -51,8 +51,10 @@ python inspect_mmore.py --list
 
 ---
 
-### 1. 3D Heatmap to STL
-TODO: Write description
+### 1. 3D Heatmap to STL (`3D_heatmap_to_stl.py`)
+
+**Purpose**: Convert 3D volumetric density fields (NumPy arrays) into STL meshes. Thin wrapper around marching-cubes extraction — used to turn 3D topology-optimization outputs into printable solids.
+
 ---
 
 ### 2. 2D Heatmap to STL Converter (`2D_heatmap_to_stl.py`)
@@ -70,6 +72,26 @@ Similar to script #2, but with different extrusion method.
 ### 4. Architecture Diagram Generator (`generate_architecture_diagram.py`)
 
 **Purpose**: Generate visual architecture diagrams of the multi-agent system.
+
+---
+
+### Other scripts
+
+The following scripts live in this directory but are not detailed above. Run each with `-h`/`--help` for usage. They are grouped by purpose:
+
+**Diagrams & figures:**
+- `generate_design_process_diagram.py` — design-process flow diagram
+- `generate_deployment_diagram.py`, `generate_deployment_diagram_en.py` — deployment topology diagrams
+- `generate_raw_scores_table.py` — LaTeX table of raw benchmark scores
+- `ahp_design_weights.py` — AHP weight computation for the design-quality scorer
+
+**Thesis / paper sync** (driven by `make sync-thesis*` / `make sync-paper*`):
+- `sync_thesis.py` — sync figures, tables, and prompts into the `thesis` submodule
+- `sync_paper.py` — sync prompts into the `paper` / `paper-revision` submodules
+
+**Paper import & MMORE management:**
+- `upload_url_to_mmore.py` — upload a URL-hosted paper to the MMORE RAG service
+- `test_url_upload.py` — smoke-test URL upload path
 
 ---
 

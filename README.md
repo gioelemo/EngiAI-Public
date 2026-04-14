@@ -153,7 +153,7 @@ The database configuration differs between Docker and local development:
 
 - **Docker Deployment**: Uses PostgreSQL container (hostname: `postgres`)
   ```env
-  DATABASE_URL=postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant
+  DATABASE_URL=postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant  # ⚠ development default — change before deploying
   ```
 
 - **Local Development**: Use SQLite (recommended) or local PostgreSQL
@@ -535,15 +535,17 @@ The HPC connection uses environment variables for SLURM configuration. Edit `.en
 
 ```env
 # SLURM Job Configuration
-SLURM_TIME=6:00:00              # Max job duration (HH:MM:SS)
+SLURM_TIME=00:45:00            # Max job duration (HH:MM:SS)
 SLURM_NTASKS=1                 # Number of tasks
-SLURM_CPUS_PER_TASK=8          # CPUs per task
-SLURM_MEM_PER_CPU=4G           # Memory per CPU
-SLURM_GPUS=rtx4090:1           # GPU specification
+SLURM_CPUS_PER_TASK=4          # CPUs per task
+SLURM_MEM_PER_CPU=7GB          # Memory per CPU
+SLURM_GPUS=rtx_4090:1          # GPU specification
 
 # Module/Environment Configuration
-SLURM_PYTHON_MODULE=gcc/12.2.0
-SLURM_CUDA_MODULE=cuda/12.2.2
+SLURM_STACK_MODULE=stack/2024-06
+SLURM_GCC_MODULE=gcc/12.2.0
+SLURM_PYTHON_MODULE=python_cuda/3.11.6
+SLURM_CUDA_MODULE=cuda/12.8.0
 ```
 
 ### Features

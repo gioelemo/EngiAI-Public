@@ -27,12 +27,14 @@ cd mmore
 ```
 
 **Prusa Connect MCP** (Optional - for 3D printer integration):
-```bash
-# Clone Prusa MCP server from the prusa_mcp_server directory in this repo
-# Or set up external Prusa MCP deployment
-cd prusa_mcp_server
-# Follow Prusa MCP setup instructions in prusa_mcp_server/README.md
-```
+
+The Prusa MCP server is installed as a pip dependency from git
+(`prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git`),
+declared in `services/prusa_mcp_server/requirements-mcp.txt`.
+To run it standalone, use `./services/prusa_mcp_server/run.sh`,
+or start it via `make docker-up` (which builds the
+`prusa-mcp-server` container from `services/prusa_mcp_server/Dockerfile`).
+See `services/prusa_mcp_server/README.md` for details.
 
 #### 2. Clone the Repository
 

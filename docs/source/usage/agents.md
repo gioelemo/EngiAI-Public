@@ -28,7 +28,7 @@ The supervisor analyzes the user's message and routes it to the appropriate spec
 
 ### Engineering Agent
 
-Handles structural design and topology optimization using EngiBench problems (beams2d, photonics2d).
+Handles structural design and topology optimization using EngiBench problems (beams2d, photonics2d, thermoelastic2d).
 
 **Tools available:**
 - `create_problem` — Initialize a problem instance
