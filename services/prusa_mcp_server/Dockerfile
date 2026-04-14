@@ -1,5 +1,7 @@
 # Dockerfile for Prusa MCP Server
-FROM python:3.12-slim
+# Python version — keep default in sync with .python-version.
+ARG PYTHON_VERSION=3.13
+FROM python:${PYTHON_VERSION}-slim
 
 WORKDIR /app
 

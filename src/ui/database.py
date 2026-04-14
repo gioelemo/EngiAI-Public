@@ -3,7 +3,7 @@
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+
+
+def _utc_now() -> datetime:
+    """Return a naive UTC datetime.
+
+    Replaces the deprecated ``datetime.utcnow()`` while preserving the naive-UTC
+    semantics expected by our ``DateTime`` (non-timezone-aware) columns.
+    """
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class Base(DeclarativeBase):
@@ -119,8 +128,8 @@ class Conversation(Base):  # type: ignore[valid-type,misc]
 
     id = Column(String, primary_key=True)  # UUID as session_id
     name = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
     message_count = Column(Integer, default=0)
     pinned = Column(Boolean, default=False)
     voice_id = Column(
@@ -147,7 +156,7 @@ class Message(Base):  # type: ignore[valid-type,misc]
     audio = Column(
         JSON, nullable=True
     )  # Audio data (base64 encoded) for voice messages
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
 
 class ConversationState(Base):  # type: ignore[valid-type,misc]
@@ -159,7 +168,7 @@ class ConversationState(Base):  # type: ignore[valid-type,misc]
     agent_state = Column(JSON, nullable=False)  # Store agent messages as JSON
     config = Column(JSON, nullable=False)  # Store LangGraph config
     waiting_for_confirmation = Column(Integer, default=0)  # Boolean as int
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
 
 class Settings(Base):  # type: ignore[valid-type,misc]
@@ -170,7 +179,7 @@ class Settings(Base):  # type: ignore[valid-type,misc]
     id = Column(Integer, primary_key=True, autoincrement=True)
     key = Column(String, unique=True, nullable=False)
     value = Column(JSON, nullable=False)  # Store any type of value as JSON
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
 
 class DatabaseManager:
@@ -274,7 +283,7 @@ class DatabaseManager:
             conversation = Conversation(
                 id=session_id,
                 name=name,
-                created_at=datetime.utcnow(),
+                created_at=_utc_now(),
                 message_count=0,
                 voice_id=voice_id,
                 voice_provider=voice_provider,
@@ -382,7 +391,7 @@ class DatabaseManager:
             conv = session.query(Conversation).filter_by(id=conversation_id).first()
             if conv:
                 conv.message_count = int((conv.message_count or 0) + 1)  # type: ignore[assignment]
-                conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
+                conv.updated_at = _utc_now()  # type: ignore[assignment]
 
             session.commit()
 
@@ -449,7 +458,7 @@ class DatabaseManager:
                 state.agent_state = serializable_state  # type: ignore[assignment]
                 state.config = config  # type: ignore[assignment]
                 state.waiting_for_confirmation = 1 if waiting_for_confirmation else 0  # type: ignore[assignment]
-                state.updated_at = datetime.utcnow()  # type: ignore[assignment]
+                state.updated_at = _utc_now()  # type: ignore[assignment]
             else:
                 # Create new state
                 state = ConversationState(
@@ -523,7 +532,7 @@ class DatabaseManager:
             conv = session.query(Conversation).filter_by(id=conversation_id).first()
             if conv:
                 conv.name = name  # type: ignore[assignment]
-                conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
+                conv.updated_at = _utc_now()  # type: ignore[assignment]
                 session.commit()
 
     def update_conversation_voice(
@@ -545,7 +554,7 @@ class DatabaseManager:
                 conv.voice_id = voice_id  # type: ignore[assignment]
                 if voice_provider is not None:
                     conv.voice_provider = voice_provider  # type: ignore[assignment]
-                conv.updated_at = datetime.utcnow()  # type: ignore[assignment]
+                conv.updated_at = _utc_now()  # type: ignore[assignment]
                 session.commit()
 
     def get_setting(self, key: str, default: Any = None) -> Any:
@@ -577,7 +586,7 @@ class DatabaseManager:
             if setting:
                 # Update existing setting
                 setting.value = value  # type: ignore[assignment]
-                setting.updated_at = datetime.utcnow()  # type: ignore[assignment]
+                setting.updated_at = _utc_now()  # type: ignore[assignment]
             else:
                 # Create new setting
                 setting = Settings(key=key, value=value)

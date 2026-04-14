@@ -75,7 +75,7 @@ If you haven't already, set up the conda environment:
 ./setup.sh
 
 # Or manually
-conda create -n engiai python=3.11 -y
+conda create -n engiai python=3.13 -y
 conda activate engiai
 pip install -e .[dev]
 pre-commit install

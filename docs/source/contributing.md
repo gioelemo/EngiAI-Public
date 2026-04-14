@@ -12,7 +12,7 @@ Thank you for your interest in contributing to EngiAI! This document provides gu
    ```
 3. **Create environment and install dependencies**:
    ```bash
-   conda create -n engiai python=3.11 -y
+   conda create -n engiai python=3.13 -y
    conda activate engiai
    pip install -e ".[dev,test]"
    ```

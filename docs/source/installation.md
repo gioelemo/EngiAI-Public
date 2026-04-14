@@ -111,7 +111,7 @@ For developers who want to modify the code or run without Docker.
 ### Prerequisites
 
 - [Miniforge](https://github.com/conda-forge/miniforge) or Anaconda installed
-- Python 3.11 or higher
+- Python 3.13 or higher
 - Git installed on your system
 - VS Code (recommended) with Python extension
 
@@ -136,10 +136,10 @@ cd EngiAI
 #### Step 2: Create Conda Environment
 
 ```bash
-conda create -n engiai python=3.11 -y
+conda create -n engiai python=3.13 -y
 ```
 
-This will create an environment named `engiai` with Python 3.11.
+This will create an environment named `engiai` with Python 3.13.
 
 #### Step 3: Activate Environment
 

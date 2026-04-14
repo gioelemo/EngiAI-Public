@@ -284,7 +284,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Install dependencies
         run: pip install -e ".[docs]"
       - name: Build docs
@@ -307,7 +307,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Install dependencies
         run: |
           pip install -e ".[docs]"

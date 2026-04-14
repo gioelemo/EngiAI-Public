@@ -233,7 +233,7 @@ def get_ssh_credentials(session_id: str | None = None) -> dict[str, Any] | None:
 @contextmanager
 def get_ssh_credentials_secure(
     session_id: str | None = None,
-) -> Generator[dict[str, Any] | None, None, None]:
+) -> Generator[dict[str, Any] | None]:
     """
     Securely get SSH credentials and clear from memory after use.
 

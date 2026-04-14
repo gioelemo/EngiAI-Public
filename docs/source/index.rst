@@ -146,7 +146,7 @@ Deployment Options
    * PostgreSQL database included
 
 **💻 Local Development** (For active development)
-   * Conda environment with Python 3.11+
+   * Conda environment with Python 3.13+
    * Hot reload for code changes
    * SQLite database
    * Full IDE integration
