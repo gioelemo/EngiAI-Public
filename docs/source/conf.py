@@ -8,8 +8,13 @@
 import sys
 from pathlib import Path
 
-# Add the project root directory to the Python path
-sys.path.insert(0, str(Path("../..").resolve()))
+# Add the project root and services/ directories to the Python path so that
+# autodoc can import modules like `src.agents.prusa_agent`, which in turn
+# imports from `prusa_mcp_server.client` (the package under services/).
+# This mirrors `pythonpath` in pyproject.toml's [tool.pytest.ini_options].
+_project_root = Path("../..").resolve()
+sys.path.insert(0, str(_project_root))
+sys.path.insert(0, str(_project_root / "services"))
 
 # -- Project information -----------------------------------------------------
 
