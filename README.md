@@ -614,7 +614,8 @@ python connection.py submit outputs/test.slurm
 - **📈 LLM Tracing**: Built-in support for LangSmith and Weave (W&B) for tracking LLM performance and benchmarking
 
 ### Development Tools
-- **Python 3.13+** with conda-forge
+- **Python 3.13+** with conda-forge for local development
+- **Remote HPC/SLURM environments** may use a separate site-provided Python module (for example, `python_cuda/3.11.6`); this is independent from the local development minimum
 - **Ruff** for fast linting and formatting
 - **MyPy** for static type checking
 - **Pre-commit hooks** for automated quality checks
