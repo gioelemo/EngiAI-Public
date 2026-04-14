@@ -193,11 +193,19 @@ def render() -> None:
         # Get pending inputs (canvas export and suggestions)
         pending_canvas_input, pending_suggestion = _get_pending_inputs()
 
-        # Display chat history or welcome message
-        _render_chat_history()
+        # Fixed-height scroll container so the chat auto-scrolls to the newest
+        # message instead of moving the whole page. Requires Streamlit >= 1.56;
+        # autoscroll is enabled by default for containers that hold st.chat_message
+        # elements, but we set it explicitly to document intent. The 650px height
+        # matches the Whiteboard column so the two columns visually line up —
+        # tune this if the viewport feels too tall/short.
+        with st.container(height=650, border=False, autoscroll=True):
+            # Display chat history or welcome message
+            _render_chat_history()
 
-        # Create a placeholder for new messages BEFORE the chat input
-        new_message_placeholder = st.empty()
+            # Placeholder for in-flight streaming messages. Must live inside the
+            # scroll container so autoscroll tracks the streamed content too.
+            new_message_placeholder = st.empty()
 
         # Chat input with image upload support and optional audio
         voice_enabled = st.session_state.get("voice_enabled", False)
