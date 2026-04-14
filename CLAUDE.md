@@ -57,8 +57,6 @@ src/
 ├── models/          # LangGraph state definitions
 ├── utils/           # Prompts, API tracking utilities
 ├── ui/              # Streamlit web interface
-│   └── components/
-│       └── excalidraw/  # Git submodule → gioelemo/streamlit-excalidraw
 └── checkpoint.py    # PostgreSQL/SQLite persistence
 ```
 
@@ -96,7 +94,7 @@ Markers: `@pytest.mark.unit`, `@pytest.mark.slow`, `@pytest.mark.integration`, `
 
 Required environment variables (see `.env.example`):
 - `OPENAI_API_KEY`, `GOOGLE_API_KEY`,`TAVILY_API_KEY` - Required API keys
-- `LLM_MODEL` - Model spec (default: `openai:gpt-4o`)
+- `LLM_MODEL` - Model spec (default: `openai:gpt-4.1`)
 - `MMORE_RAG_URL` - RAG service URL
 - `DATABASE_URL` - Persistence (PostgreSQL or SQLite)
 
@@ -124,6 +122,7 @@ The beams2d benchmark supports multiple prompt styles for evaluating different a
 - **workflow-derived-params**: Workflow with STL parameters derived from optimization inputs
 - **workflow-distractor**: Workflow with distractor parameters mixed with real STL params
 - **workflow-conditional**: Workflow with if/then branching based on simulation results
+- **workflow-multi-export**: Workflow requiring two STL exports with different parameter sets
 
 #### workflow-random Prompt Style
 
