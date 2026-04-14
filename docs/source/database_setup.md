@@ -8,9 +8,9 @@ The EngiAI now uses a database (PostgreSQL or SQLite) to persist chat conversati
 - Automatically save all messages and agent state
 - Load previous conversations when you restart the app
 
-## Quick Start (SQLite - Default)
+## Quick Start (SQLite - Default for Local Development)
 
-By default, the application uses **SQLite** which requires no setup. Just run the app and it will automatically create a local database file at `data/conversations.db`.
+By default, the application uses **SQLite** for local development, which requires no setup. Just run the app and it will automatically create a local database file at `data/conversations.db`. (Docker deployments default to PostgreSQL — see [Docker Deployment](docker_deployment.md).)
 
 ```bash
 streamlit run src/ui/streamlit_app.py

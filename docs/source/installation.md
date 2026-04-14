@@ -122,29 +122,9 @@ For developers who want to modify the code or run without Docker.
 cd EngiAI
 ```
 
-**Then run the setup script:**
-
-#### macOS/Linux
-
-```bash
-./setup.sh
-```
-
-#### Windows
-
-```bash
-setup.bat
-```
-
-This will:
-1. Create a conda environment
-2. Install all dependencies
-3. Set up pre-commit hooks
-4. Configure VS Code settings
+**Then follow the manual installation steps below.** Automated setup scripts are not currently provided.
 
 ### Manual Installation
-
-If the automated setup doesn't work for your system, follow these steps:
 
 #### Step 1: Clone the Repository
 

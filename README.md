@@ -224,6 +224,7 @@ The system includes specialized agents coordinated by a supervisor:
 - **ArXiv Agent**: Scientific paper search and analysis
 - **Prusa Agent**: 3D printer management via Prusa Connect (optional)
 - **HPC Agent**: HPC cluster job management via SSH
+- **CLI Agent**: Local shell command execution with human-in-the-loop confirmation
 
 The supervisor intelligently routes your requests to the appropriate agent!
 
@@ -235,7 +236,7 @@ For convenience, common commands are available via Makefile:
 
 ```bash
 make help          # Show all available commands
-make install       # Install/update conda environment
+make install       # Install pip dependencies into the active conda environment
 make run-ui        # Start Streamlit web interface
 make run-mcp       # Start standalone Prusa MCP server
 make test          # Run all tests

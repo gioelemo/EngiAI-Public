@@ -90,9 +90,16 @@ status = get_slurm_job_status.invoke({"job_id": "12345"})
 ### Other HPC tools
 
 - `test_hpc_connection` — Verify SSH connectivity
-- `monitor_job_until_complete` — Poll job until completion
 - `cancel_slurm_job` — Cancel a running job
 - `download_job_outputs` — Retrieve job output files
+
+### Job monitoring tools (`src/tools/job_monitor.py`)
+
+Polling-based monitors that sit on top of `get_slurm_job_status`:
+
+- `monitor_job_until_complete` — Poll a job until it finishes (or `max_checks` is reached) and optionally auto-download outputs
+- `check_job_status_change` — Compare a job's current state against a cached status and return whether it changed
+- `get_active_jobs_summary` — Summarize all jobs currently tracked in the in-memory status cache
 
 ## Engineering Tools
 
@@ -136,6 +143,14 @@ Tools for working with trained generative models:
 - `generate_training_command` — Generate SLURM training scripts
 - `evaluate_model` — Evaluate a trained model against baselines
 
+#### Algorithm registry (`src/tools/algorithms.py`)
+
+Single source of truth for supported generative algorithm IDs. Add an entry to `SUPPORTED_ALGORITHMS` (and to the `AlgorithmId` Literal) to expose a new algorithm to every EngiOpt tool automatically.
+
+- `AlgorithmId` — Literal type of valid algorithm IDs (currently `cgan_cnn_2d`, `diffusion_2d_cond`)
+- `SUPPORTED_ALGORITHMS` — Dict of algorithm metadata (class, dimensions, conditional, model type, model file names)
+- `ALGORITHM_IDS` — List derived from `AlgorithmId`, used by the EngiOpt tools for validation
+
 ## Export Tools
 
 ### `convert_design_to_stl`
@@ -162,6 +177,25 @@ result = convert_design_to_stl.invoke({
 ## Search Tools
 
 - `create_search_tool()` — Factory that returns a Tavily web search tool
+
+## Human Input Tools
+
+Tools that let an agent pause and request clarification from the user.
+
+### `ask_human_for_clarification`
+
+Used by the engineering agent when a user's request does not specify required numerical design parameters (e.g., volume fraction, force distance, filter radius). The agent calls this tool instead of guessing defaults; the UI surfaces the question and waits for a reply before any design tool runs.
+
+```python
+from src.tools.human_input import ask_human_for_clarification
+
+ask_human_for_clarification.invoke({
+    "clarification_request": (
+        "What volume fraction should I use for this beam design? "
+        "Please specify a value between 0.1 and 0.9."
+    ),
+})
+```
 
 ## Next Steps
 
