@@ -6,7 +6,7 @@ authors = [
     {name = "Gioele Molinari", email = "gioelemo@ethz.ch"}
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 
 dependencies = [
     "arxiv==2.4.1",
@@ -118,8 +118,8 @@ exclude = [
 # Same as Black.
 line-length = 88
 
-# Assume Python 3.11
-target-version = "py311"
+# Assume Python 3.13 (keep in sync with .python-version)
+target-version = "py313"
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
@@ -251,12 +251,18 @@ exclude_lines = [
 ]
 
 [tool.pyright]
-pythonVersion = "3.11"
+pythonVersion = "3.13"
 typeCheckingMode = "basic"
 include = ["src/**", "tests/**", "scripts/**", "benchmarks/**", "services/**"]
 exclude = [
+  # Default pyright excludes (must be re-listed when `exclude` is set,
+  # otherwise they stop applying and pyright analyzes .venv/.git/etc).
   "**/node_modules",
   "**/__pycache__",
+  ".venv",
+  ".git",
+  "**/.*",
+  # Project-specific excludes
   "build",
   "docs",
   "benchmarks/shared/metrics.py",

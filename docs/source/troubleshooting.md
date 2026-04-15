@@ -141,7 +141,7 @@ docker rmi $(docker images -q)
 3. Try creating environment again:
    ```bash
    conda env remove -n engiai
-   conda create -n engiai python=3.11 -y
+   conda create -n engiai python=3.13 -y
    conda activate engiai
    pip install -e .[dev]
    ```

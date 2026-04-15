@@ -8,7 +8,7 @@ import time
 from collections.abc import Generator
 
 
-def stream_text(text: str, chunk_size: int = 3) -> Generator[str, None, None]:
+def stream_text(text: str, chunk_size: int = 3) -> Generator[str]:
     """Generate text chunks for streaming display with typewriter effect.
 
     This function intelligently splits text, handling markdown structures like

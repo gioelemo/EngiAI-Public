@@ -1,5 +1,7 @@
-# Use Python 3.11 as specified in pyproject.toml
-FROM python:3.11-slim
+# Python version — keep default in sync with .python-version.
+# Override at build time with: docker build --build-arg PYTHON_VERSION=$(cat .python-version) .
+ARG PYTHON_VERSION=3.13
+FROM python:${PYTHON_VERSION}-slim
 
 # Set working directory (Streamlit requires non-root directory)
 WORKDIR /app
