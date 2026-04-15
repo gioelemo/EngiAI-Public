@@ -153,13 +153,6 @@ sync-thesis-dry-run:  ## Preview what would be synced (no changes)
 sync-thesis-commit:  ## Sync all content and auto-commit in thesis submodule
 	python scripts/sync_thesis.py --all --auto-commit
 
-# Paper sync targets
-sync-paper:  ## Sync prompts to paper submodule
-	python scripts/sync_paper.py --prompts
-
-sync-paper-dry-run:  ## Preview what would be synced to paper
-	python scripts/sync_paper.py --prompts --dry-run
-
 # Paper revision sync targets
 sync-paper-revision:  ## Sync prompts to paper revision submodule
 	python scripts/sync_paper.py --prompts --config paper-revision/paper_revision_sync_config.yaml

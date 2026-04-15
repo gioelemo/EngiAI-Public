@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml  # type: ignore[import-untyped]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG = PROJECT_ROOT / "paper" / "paper_sync_config.yaml"
+DEFAULT_CONFIG = PROJECT_ROOT / "paper-revision" / "paper_revision_sync_config.yaml"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -231,7 +231,7 @@ def _extract_hpc_prompts() -> dict[str, str] | None:
 
 def sync_prompts(cfg: dict, *, dry_run: bool) -> list[dict]:  # noqa: PLR0912
     """Sync all prompts into the paper LaTeX file."""
-    paper_path = PROJECT_ROOT / cfg.get("paper_submodule_path", "paper/asmeconf")
+    paper_path = PROJECT_ROOT / cfg.get("paper_submodule_path", "paper-revision/asmeconf")
     target_file = cfg.get("target_file", "asmeconf-template.tex")
     tex_path = paper_path / target_file
 

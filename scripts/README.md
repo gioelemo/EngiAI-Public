@@ -85,9 +85,9 @@ The following scripts live in this directory but are not detailed above. Run eac
 - `generate_raw_scores_table.py` — LaTeX table of raw benchmark scores
 - `ahp_design_weights.py` — AHP weight computation for the design-quality scorer
 
-**Thesis / paper sync** (driven by `make sync-thesis*` / `make sync-paper*`):
+**Thesis / paper sync** (driven by `make sync-thesis*` / `make sync-paper-revision*`):
 - `sync_thesis.py` — sync figures, tables, and prompts into the `thesis` submodule
-- `sync_paper.py` — sync prompts into the `paper` / `paper-revision` submodules
+- `sync_paper.py` — sync prompts into the `paper-revision` submodule
 
 **Paper import & MMORE management:**
 - `upload_url_to_mmore.py` — upload a URL-hosted paper to the MMORE RAG service

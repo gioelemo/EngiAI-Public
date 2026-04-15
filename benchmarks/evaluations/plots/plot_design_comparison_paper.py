@@ -9,7 +9,7 @@ Usage:
     python plot_design_comparison_paper.py \
         --model-a openai_gpt-5-mini --model-b ollama_qwen3_4b-instruct-2507-q8_0 \
         --style workflow-conditional --seed 1 --example-id 4 \
-        --output paper/asmeconf/figures/benchmarks/comparison_connected.pdf
+        --output paper-revision/asmeconf/figures/benchmarks/comparison_connected.pdf
 """
 
 import argparse
@@ -756,7 +756,7 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="paper/asmeconf/figures/benchmarks/comparison_connected.pdf",
+        default="paper-revision/asmeconf/figures/benchmarks/comparison_connected.pdf",
         help="Output path",
     )
     args = parser.parse_args()
