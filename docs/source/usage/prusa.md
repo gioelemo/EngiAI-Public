@@ -14,7 +14,10 @@ The Prusa Agent communicates with Prusa Connect via an MCP (Model Context Protoc
 ## Prerequisites
 
 - Prusa printer linked to a Prusa Connect account
-- A web browser on the host machine (used only for the one-time login)
+- A host machine with a **graphical desktop session** (the one-time login
+  opens a small native webview window). On Linux hosts, `pywebview` also
+  needs system WebKit2GTK — on Debian/Ubuntu:
+  `sudo apt install gir1.2-webkit2-4.1 libgirepository1.0-dev`.
 - MCP server — installed as a pip dependency from git
   (`prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git`), declared in
   `services/prusa_mcp_server/requirements-mcp.txt`. No submodule
@@ -26,9 +29,10 @@ The Prusa Agent communicates with Prusa Connect via an MCP (Model Context Protoc
 ### 1. Authenticate with Prusa Account (one-time, on the host)
 
 `prusa-mcp` authenticates to Prusa Connect via **OAuth2 Authorization Code + PKCE**
-against `account.prusa3d.com` — the same public client that PrusaSlicer uses.
-There are no credentials in `.env`: you log in once through your browser and the
-server persists refresh tokens to a file on a mounted volume.
+against `account.prusa3d.com`, reusing the same public OAuth client id that
+the PrusaSlicer desktop app ships with. There are no credentials in `.env`:
+you log in once through a native webview window and the server persists
+refresh tokens to a file on a mounted volume.
 
 From the repo root, run:
 
@@ -36,12 +40,19 @@ From the repo root, run:
 make prusa-login
 ```
 
-This opens `account.prusa3d.com` in your default browser, you sign in (SSO, 2FA,
-passkeys — whatever you normally use), and the login helper receives the OAuth
-callback on `127.0.0.1`. The resulting tokens are written to
-`./data/prusa_tokens.json` (mode `0600`). That file is bind-mounted into the
-`prusa-mcp-server` container at `/app/data/prusa_tokens.json` and the server
-refreshes access tokens in place from then on.
+This opens a small native window showing the Prusa Account login page. You
+sign in (SSO, 2FA, passkeys — whatever you normally use); the window closes
+automatically the moment Prusa Account finishes authorizing the client, and
+the resulting tokens are written to `./data/prusa_tokens.json` (mode `0600`).
+That file is bind-mounted into the `prusa-mcp-server` container at
+`/app/data/prusa_tokens.json` and the server refreshes access tokens in
+place from then on.
+
+Under the hood, Prusa Account completes the flow by redirecting to
+`prusaslicer://login?code=...` — the custom URL scheme that PrusaSlicer
+registers with the OS. The embedded webview intercepts that navigation
+before the OS can dispatch it, so you never see PrusaSlicer pop up (even
+if you have it installed) and no paste-back is required.
 
 You only need to re-run `make prusa-login` if you revoke the app in your Prusa
 Account dashboard or delete the token file.
@@ -292,9 +303,13 @@ curl http://localhost:8765/sse
 3. If the refresh token has been revoked (e.g. you changed your Prusa Account
    password or removed the authorized app), delete `./data/prusa_tokens.json`
    and run `make prusa-login` again.
-4. For headless hosts, pass `--no-browser` to the underlying CLI and copy-paste
-   the printed URL into any browser that can reach `account.prusa3d.com` and
-   the loopback port printed by the login helper.
+4. For headless hosts (no graphical session), `make prusa-login` cannot show
+   the webview window. Run the login on a desktop host instead — macOS,
+   Windows, or Linux with X11/Wayland — and copy the resulting
+   `./data/prusa_tokens.json` across. On Linux, if the window fails to open
+   with an error about `gi` / `webkit2`, install
+   `gir1.2-webkit2-4.1 libgirepository1.0-dev` (or the equivalent for your
+   distribution).
 
 ### Printer Not Found
 
@@ -331,10 +346,11 @@ ls -lh outputs/*.stl
    to git. `./data/` is already in `.gitignore`.
 2. **No Passwords On Disk**: Your Prusa Account email and password are never
    stored locally; they are only ever entered on `account.prusa3d.com` during
-   the one-time browser login.
+   the one-time webview login.
 3. **Public OAuth Client + PKCE**: Authentication uses the public PrusaSlicer
-   OAuth client with PKCE, bound to a loopback `127.0.0.1` redirect. There is
-   no client secret to leak.
+   OAuth client with PKCE, redirecting to the `prusaslicer://login` URL scheme
+   inside an embedded webview we control. There is no client secret to leak,
+   and the authorization code is bound to a per-login verifier.
 4. **Revoking Access**: To revoke the MCP server's access, sign in to
    `account.prusa3d.com`, remove the authorized application, and delete
    `./data/prusa_tokens.json`.
