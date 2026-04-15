@@ -290,7 +290,7 @@ volume_box2 = FancyBboxPatch(
 )
 ax.add_patch(volume_box2)
 ax.text(
-    5.25, 6.2, "⊕ ./data/connect_state\n (Connection cookies)", fontsize=8, ha="center"
+    5.25, 6.2, "⊕ ./data/prusa_tokens.json\n (OAuth2 refresh token)", fontsize=8, ha="center"
 )
 
 # Prusa Connect API box (external service the MCP server connects to)

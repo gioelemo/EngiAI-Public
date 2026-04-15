@@ -5,28 +5,12 @@ FROM python:${PYTHON_VERSION}-slim
 
 WORKDIR /app
 
-# Install system dependencies including Playwright requirements
-RUN apt-get update && apt-get install -y \
+# Minimal system dependencies.
+# prusa-mcp now authenticates via OAuth2 Bearer tokens (no browser automation),
+# so no Playwright / Chromium / X libraries are required — git is only needed
+# so pip can clone prusa-mcp from GitHub.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
-    wget \
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libdbus-1-3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libatspi2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the MCP server wrapper
@@ -35,10 +19,6 @@ COPY services/prusa_mcp_server/requirements-mcp.txt /app/
 
 # Install Python dependencies (prusa-mcp installed via pip from GitHub)
 RUN pip install --no-cache-dir -r requirements-mcp.txt
-
-# Install Playwright browsers
-RUN pip install --no-cache-dir playwright
-RUN playwright install chromium --with-deps
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

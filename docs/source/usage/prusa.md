@@ -13,8 +13,8 @@ The Prusa Agent communicates with Prusa Connect via an MCP (Model Context Protoc
 
 ## Prerequisites
 
-- Prusa printer with Prusa Connect (cloud or local)
-- Prusa Connect account credentials
+- Prusa printer linked to a Prusa Connect account
+- A web browser on the host machine (used only for the one-time login)
 - MCP server — installed as a pip dependency from git
   (`prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git`), declared in
   `services/prusa_mcp_server/requirements-mcp.txt`. No submodule
@@ -23,9 +23,32 @@ The Prusa Agent communicates with Prusa Connect via an MCP (Model Context Protoc
 
 ## Setup
 
-### Docker Deployment (Recommended)
+### 1. Authenticate with Prusa Account (one-time, on the host)
 
-The MCP server is automatically included when using Docker deployment:
+`prusa-mcp` authenticates to Prusa Connect via **OAuth2 Authorization Code + PKCE**
+against `account.prusa3d.com` — the same public client that PrusaSlicer uses.
+There are no credentials in `.env`: you log in once through your browser and the
+server persists refresh tokens to a file on a mounted volume.
+
+From the repo root, run:
+
+```bash
+make prusa-login
+```
+
+This opens `account.prusa3d.com` in your default browser, you sign in (SSO, 2FA,
+passkeys — whatever you normally use), and the login helper receives the OAuth
+callback on `127.0.0.1`. The resulting tokens are written to
+`./data/prusa_tokens.json` (mode `0600`). That file is bind-mounted into the
+`prusa-mcp-server` container at `/app/data/prusa_tokens.json` and the server
+refreshes access tokens in place from then on.
+
+You only need to re-run `make prusa-login` if you revoke the app in your Prusa
+Account dashboard or delete the token file.
+
+### 2. Docker Deployment (Recommended)
+
+Once tokens exist on disk, start the stack:
 
 ```bash
 docker-compose up -d
@@ -34,11 +57,11 @@ docker-compose up -d
 This starts:
 - **Chatbot container**: Main application
 - **PostgreSQL container**: Database
-- **Prusa MCP Server**: Prusa Connect integration
+- **Prusa MCP Server**: Prusa Connect integration (reads tokens from `./data/prusa_tokens.json`)
 
-### Configuration
+### 3. Configuration
 
-Add your Prusa Connect credentials to `.env`:
+The chatbot only needs to know where the MCP server lives:
 
 ```bash
 # MCP Configuration
@@ -47,7 +70,15 @@ PRUSA_MCP_URL=http://prusa-mcp-server:8765  # For Docker
 # PRUSA_MCP_URL=http://localhost:8765        # For local MCP server
 ```
 
-**Note**: Log in to Prusa Connect through the UI settings page.
+And the MCP server only needs the token file path (already set in
+`docker-compose.yml`):
+
+```bash
+PRUSA_TOKEN_FILE=./data/prusa_tokens.json
+```
+
+No `PRUSA_EMAIL`, `PRUSA_PASSWORD`, `HEADLESS`, or Playwright variables are
+used any more — delete them from your local `.env` if they are still there.
 
 ### Disabling Prusa Integration
 
@@ -247,12 +278,23 @@ curl http://localhost:8765/sse
    docker-compose restart
    ```
 
-### Login Failed
+### Not Authenticated / Login Failed
 
-**Check credentials**:
-- Verify email and password are correct
-- Try logging in at https://connect.prusa3d.com/
-- Use UI settings page to update credentials
+**Symptoms**: Prusa tools return `Not authenticated` or `Stored tokens are missing a refresh_token`.
+
+**Solutions**:
+1. Re-run `make prusa-login` on the host to refresh `./data/prusa_tokens.json`.
+2. Verify the token file exists and is mounted into the container:
+   ```bash
+   ls -l ./data/prusa_tokens.json
+   docker compose exec prusa-mcp-server ls -l /app/data/prusa_tokens.json
+   ```
+3. If the refresh token has been revoked (e.g. you changed your Prusa Account
+   password or removed the authorized app), delete `./data/prusa_tokens.json`
+   and run `make prusa-login` again.
+4. For headless hosts, pass `--no-browser` to the underlying CLI and copy-paste
+   the printed URL into any browser that can reach `account.prusa3d.com` and
+   the loopback port printed by the login helper.
 
 ### Printer Not Found
 
@@ -284,10 +326,20 @@ ls -lh outputs/*.stl
 
 ## Security Considerations
 
-1. **Credentials**: Store credentials in `.env`, never commit to git
-2. **MCP Server**: Only accessible within Docker network by default
-3. **API Keys**: Prusa Connect API keys are per-user
-4. **Network**: Use HTTPS for production deployments
+1. **Token File**: `./data/prusa_tokens.json` is a bearer credential for your
+   Prusa Account — it is written with mode `0600` and must never be committed
+   to git. `./data/` is already in `.gitignore`.
+2. **No Passwords On Disk**: Your Prusa Account email and password are never
+   stored locally; they are only ever entered on `account.prusa3d.com` during
+   the one-time browser login.
+3. **Public OAuth Client + PKCE**: Authentication uses the public PrusaSlicer
+   OAuth client with PKCE, bound to a loopback `127.0.0.1` redirect. There is
+   no client secret to leak.
+4. **Revoking Access**: To revoke the MCP server's access, sign in to
+   `account.prusa3d.com`, remove the authorized application, and delete
+   `./data/prusa_tokens.json`.
+5. **MCP Server**: Only accessible within the Docker network by default.
+6. **Network**: Use HTTPS for production deployments.
 
 ## Limitations
 

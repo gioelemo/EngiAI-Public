@@ -36,9 +36,11 @@ services:
       - .env  # Load all environment variables from .env file
     environment:
       - PRUSA_MCP_PORT=8765  # Run on port 8765 inside container
-      - PRUSA_CONNECT_STATE=/app/data/connect_state.json
+      # OAuth2 token file shared with the host — run `make prusa-login`
+      # on the host to populate it, the container refreshes tokens in place.
+      - PRUSA_TOKEN_FILE=/app/data/prusa_tokens.json
     volumes:
-      # Mount data directory to persist connect state
+      # Mount data directory to share the OAuth token file with the host
       - ./data:/app/data
     restart: unless-stopped
     healthcheck:

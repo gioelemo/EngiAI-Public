@@ -113,16 +113,17 @@ PAPERS_SOURCE_DIR=/path/to/papers
 
 # MCP Configuration
 SKIP_MCP=false
-HEADLESS=1
+PRUSA_TOKEN_FILE=./data/prusa_tokens.json
 ```
 
-### Step 4: Update Prusa MCP Path
+### Step 4: Authenticate with Prusa Account
 
-Update the `docker-compose.yml` to point to your extracted Prusa MCP directory:
+Run the one-time OAuth2 login on the host — this opens a browser, you sign in
+to `account.prusa3d.com`, and refresh tokens are written to
+`./data/prusa_tokens.json` (the same file the container reads).
 
 ```bash
-# Edit docker-compose.yml
-nano docker-compose.yml
+make prusa-login
 ```
 
 ### Step 5: Build and Start the Application

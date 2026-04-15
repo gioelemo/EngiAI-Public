@@ -50,6 +50,13 @@ run-ui:  ## Start the Streamlit UI
 run-mcp:  ## Start the standalone Prusa MCP server
 	./services/prusa_mcp_server/run.sh
 
+prusa-login:  ## Authenticate prusa-mcp with Prusa Account (OAuth2 PKCE) — writes to ./data/prusa_tokens.json
+	@mkdir -p ./data
+	@PRUSA_TOKEN_FILE=./data/prusa_tokens.json \
+		uvx --from 'git+https://github.com/gioelemo/prusa-mcp.git@feat/oauth' prusa-mcp login
+	@chmod 600 ./data/prusa_tokens.json
+	@echo "✓ Prusa tokens saved to ./data/prusa_tokens.json"
+
 docker-up:  ## Start Docker services and host service
 	@echo "Starting host service in background..."
 	@pkill -f "python.*host_service.py" 2>/dev/null || true

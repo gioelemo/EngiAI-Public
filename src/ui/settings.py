@@ -211,35 +211,15 @@ def _get_file_age_hours(file_path: Path) -> float:
 
 
 def _cleanup_old_connect_state(
-    max_age_hours: int = SESSION_WARNING_AGE_HOURS,
+    max_age_hours: int = SESSION_WARNING_AGE_HOURS,  # noqa: ARG001
 ) -> tuple[bool, str]:
-    """Clean up connect_state.json if it's older than max_age_hours.
+    """Legacy session cleanup — now a no-op.
 
-    Args:
-        max_age_hours: Maximum age in hours before cleanup (default: 24)
-
-    Returns:
-        Tuple of (was_deleted, message)
+    Prusa MCP now uses OAuth2 refresh tokens which are long-lived and
+    rotated on every call, so there is nothing to periodically expire.
+    The function is kept so the render() path stays backwards-compatible.
     """
-    connect_state_path = project_root / "data" / "connect_state.json"
-
-    if not connect_state_path.exists():
-        return False, "File doesn't exist"
-
-    file_age = _get_file_age_hours(connect_state_path)
-
-    if file_age > max_age_hours:
-        try:
-            connect_state_path.unlink()
-        except Exception as e:
-            return False, f"Failed to delete: {e}"
-        else:
-            return True, f"Deleted session file (was {file_age:.1f} hours old)"
-    else:
-        return (
-            False,
-            f"File is {file_age:.1f} hours old (keeping until {max_age_hours}h)",
-        )
+    return False, "OAuth tokens are long-lived; no cleanup needed"
 
 
 def _render_export_button(
@@ -677,25 +657,25 @@ def _handle_folder_deletion(output_dir: Path) -> None:
 
 
 def _render_prusa_session_compact() -> None:
-    """Render compact Prusa Connect session info."""
-    connect_state_path = project_root / "data" / "connect_state.json"
+    """Render compact Prusa Connect OAuth token info."""
+    token_path = project_root / "data" / "prusa_tokens.json"
 
-    if connect_state_path.exists():
-        file_age = _get_file_age_hours(connect_state_path)
-        st.caption(f"🔌 Prusa session: {file_age:.1f}h old")
+    if token_path.exists():
+        file_age = _get_file_age_hours(token_path)
+        st.caption(f"🔌 Prusa tokens: refreshed {file_age:.1f}h ago")
         if st.button(
-            "🗑️ Clear Session", width="stretch", type="secondary", key="clear_prusa_card"
+            "🗑️ Clear Tokens", width="stretch", type="secondary", key="clear_prusa_card"
         ):
-            _handle_prusa_session_clear(connect_state_path)
+            _handle_prusa_session_clear(token_path)
     else:
-        st.caption("🔌 No Prusa session")
+        st.caption("🔌 No Prusa tokens — run `make prusa-login` on the host")
 
 
-def _handle_prusa_session_clear(connect_state_path: Path) -> None:
-    """Handle Prusa Connect session clearing."""
+def _handle_prusa_session_clear(token_path: Path) -> None:
+    """Delete the Prusa OAuth token file — user must re-run `make prusa-login`."""
     try:
-        connect_state_path.unlink()
-        st.success("✅ Session cleared!")
+        token_path.unlink()
+        st.success("✅ Tokens cleared — run `make prusa-login` to re-authenticate.")
         st.rerun()
     except Exception as e:
         st.error(f"❌ Error: {e}")
