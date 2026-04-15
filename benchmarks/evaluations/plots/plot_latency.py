@@ -243,7 +243,9 @@ if __name__ == "__main__":
     fig = plot_latency_workflow(df, output_dir=output_dir)
 
     # Also save to paper figures
-    paper_dir = Path(_PROJECT_ROOT) / "paper-revision" / "asmeconf" / "figures" / "benchmarks"
+    paper_dir = (
+        Path(_PROJECT_ROOT) / "paper-revision" / "asmeconf" / "figures" / "benchmarks"
+    )
     if paper_dir.exists():
         save_figure(fig, "latency_workflow.png", paper_dir)
         print(f"  Also saved to {paper_dir}")

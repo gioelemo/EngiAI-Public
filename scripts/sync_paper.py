@@ -231,7 +231,9 @@ def _extract_hpc_prompts() -> dict[str, str] | None:
 
 def sync_prompts(cfg: dict, *, dry_run: bool) -> list[dict]:  # noqa: PLR0912
     """Sync all prompts into the paper LaTeX file."""
-    paper_path = PROJECT_ROOT / cfg.get("paper_submodule_path", "paper-revision/asmeconf")
+    paper_path = PROJECT_ROOT / cfg.get(
+        "paper_submodule_path", "paper-revision/asmeconf"
+    )
     target_file = cfg.get("target_file", "asmeconf-template.tex")
     tex_path = paper_path / target_file
 
