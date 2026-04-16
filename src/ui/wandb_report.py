@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -36,15 +35,7 @@ def render() -> None:
     )
 
     # Embed the W&B report using iframe
-    iframe_html = f"""
-    <iframe
-        src="{config.wandb_report_url}"
-        style="border:none; width:100%; height:1024px; border-radius: 8px;"
-        title="Weights & Biases Training Report">
-    </iframe>
-    """
-
-    components.html(iframe_html, height=1050, scrolling=True)
+    st.iframe(config.wandb_report_url, height=1050)
 
     st.markdown("---")
     st.markdown(
