@@ -22,7 +22,7 @@ Add the following to your `.env` file:
 # Weave configuration (for LLM tracing and benchmarking)
 USE_WEAVE=true
 USE_WEAVE_CHATBOT=false
-WEAVE_PROJECT="gioelemo-ethz/engiai-benchmarks"
+WEAVE_PROJECT="your-entity/engiai-benchmarks"
 ```
 
 - `USE_WEAVE`: Enable Weave tracing for evaluations and benchmarks

@@ -1146,7 +1146,7 @@ def _render_slurm_config_section() -> None:
         slurm_email_user = st.text_input(
             "Email for Job Notifications",
             value=st.session_state.get("slurm_email_user", ""),
-            placeholder="username@ethz.ch",
+            placeholder="user@example.com",
             help="Email address for SLURM job notifications (start, end, fail)",
             key="slurm_email_user_widget",
         )

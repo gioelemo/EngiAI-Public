@@ -300,7 +300,9 @@ class TestStreamlitUI:
         live_page.wait_for_load_state("networkidle")
 
         expect(
-            live_page.get_by_placeholder(re.compile("euler.ethz.ch", re.IGNORECASE))
+            live_page.get_by_placeholder(
+                re.compile("cluster.example.com", re.IGNORECASE)
+            )
         ).to_be_visible()
 
     def test_settings_job_monitor_interval_shows_default(self, live_page: Page) -> None:
@@ -921,7 +923,7 @@ class TestStreamlitUI:
             "[data-testid='stTextInput']", has_text="Hostname"
         ).get_by_role("textbox")
         hostname.scroll_into_view_if_needed()
-        expect(hostname).to_have_value("euler.ethz.ch", timeout=10_000)
+        expect(hostname).to_have_value("", timeout=10_000)
 
         # Username visible
         username = live_page.locator(

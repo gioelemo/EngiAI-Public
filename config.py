@@ -109,21 +109,15 @@ class Config:
         # Weights & Biases configuration
         self.wandb_entity: str = os.getenv("WANDB_ENTITY", "")
         self.wandb_report_url: str = os.getenv("WANDB_REPORT_URL", "")
-        self.wandb_personal_project: str = os.getenv(
-            "WANDB_PERSONAL_PROJECT", ""
-        )
-        self.wandb_official_project: str = os.getenv(
-            "WANDB_OFFICIAL_PROJECT", ""
-        )
+        self.wandb_personal_project: str = os.getenv("WANDB_PERSONAL_PROJECT", "")
+        self.wandb_official_project: str = os.getenv("WANDB_OFFICIAL_PROJECT", "")
 
         # Weave configuration (for LLM tracing and benchmarking)
         self.use_weave: bool = os.getenv("USE_WEAVE", "false").lower() == "true"
         self.use_weave_chatbot: bool = (
             os.getenv("USE_WEAVE_CHATBOT", "false").lower() == "true"
         )
-        self.weave_project: str = os.getenv(
-            "WEAVE_PROJECT", "gioelemo-ethz/engiai-benchmarks"
-        )
+        self.weave_project: str = os.getenv("WEAVE_PROJECT", "")
 
         # Database configuration for persistent checkpointing
         self.database_url: str = os.getenv(

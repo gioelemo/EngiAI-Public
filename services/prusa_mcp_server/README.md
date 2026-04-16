@@ -30,7 +30,7 @@ This directory contains the externalized Prusa MCP server that can run as a stan
 
 **1. Install dependencies:**
 ```bash
-cd /Users/gioelemolinari/Desktop/engiai
+cd /path/to/engineer-assistant
 pip install -r requirements-mcp.txt
 ```
 
