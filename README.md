@@ -122,8 +122,6 @@ pytest --cov=src --cov-report=term-missing
 pytest -m "not slow"
 ```
 
-See [TESTING.md](TESTING.md) for detailed testing documentation.
-
 ### Running the Application
 
 ```bash

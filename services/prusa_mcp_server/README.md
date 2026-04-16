@@ -221,9 +221,9 @@ asyncio.run(test())
 
 **Error**: `FileNotFoundError: Prusa MCP server not found`
 
-**Solution**: Initialize the git submodule:
+**Solution**: Ensure `prusa-mcp` is installed:
 ```bash
-git submodule update --init --recursive
+pip install -e ".[dev]"
 ```
 Or set `PRUSA_MCP_PATH` to a custom location if needed.
 

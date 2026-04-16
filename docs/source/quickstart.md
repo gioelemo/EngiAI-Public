@@ -25,11 +25,8 @@ The easiest and most reliable way to get started:
 ### 1. Clone and Navigate
 
 ```bash
-git clone --recurse-submodules https://github.com/gioelemo/EngiAI.git
+git clone https://github.com/gioelemo/EngiAI.git
 cd EngiAI
-
-# If you already cloned without --recurse-submodules:
-# git submodule update --init --recursive
 ```
 
 ### 2. Configure Environment

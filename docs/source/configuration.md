@@ -220,7 +220,7 @@ LLM_MODEL=openai:gpt-4o          # GPT-4o
 LLM_MODEL=openai:gpt-4o-mini     # GPT-4o Mini (faster, cheaper)
 
 # Google Models
-LLM_MODEL=google:gemini-3-flash  # Gemini 3 Flash
+LLM_MODEL=google_genai:gemini-2.5-flash  # Gemini 2.5 Flash
 
 # Ollama (local models)
 LLM_MODEL=ollama:qwen3.5:4b      # Qwen 3.5 4B (local)
