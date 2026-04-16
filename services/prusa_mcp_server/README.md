@@ -143,7 +143,7 @@ spec:
       volumes:
       - name: prusa-tokens
         secret:
-          secretName: prusa-tokens  # contains prusa_tokens.json created by `prusa-mcp login`
+          secretName: prusa-tokens  # contains prusa_tokens.json created by `make prusa-login`
 ---
 apiVersion: v1
 kind: Service

@@ -53,7 +53,7 @@ run-mcp:  ## Start the standalone Prusa MCP server
 prusa-login:  ## Authenticate prusa-mcp with Prusa Account (OAuth2 PKCE) — writes to ./data/prusa_tokens.json
 	@mkdir -p ./data
 	@PRUSA_TOKEN_FILE=./data/prusa_tokens.json \
-		uvx --from 'git+https://github.com/gioelemo/prusa-mcp.git@feat/oauth' prusa-mcp login
+		uvx --from 'git+https://github.com/gioelemo/prusa-mcp.git' prusa-mcp login
 	@chmod 600 ./data/prusa_tokens.json
 	@echo "✓ Prusa tokens saved to ./data/prusa_tokens.json"
 
