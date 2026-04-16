@@ -119,9 +119,10 @@ def download_wandb_model(  # noqa: PLR0913
             - generator: Download generator model (for GANs)
             Note: For diffusion models, this parameter is ignored as they use a single "model" artifact
         wandb_project: WandB project path in format "organization/project" [OPTIONAL]
-            DEFAULT BEHAVIOR (None): Automatically searches multiple projects:
-            1. Personal models: WANDB_PERSONAL_PROJECT env var (default: gioelemo-ethz/engiopt)
-            2. Official models: WANDB_OFFICIAL_PROJECT env var (default: engibench/engiopt)
+            DEFAULT BEHAVIOR (None): Automatically searches projects configured via env vars:
+            1. Personal models: WANDB_PERSONAL_PROJECT env var
+            2. Official models: WANDB_OFFICIAL_PROJECT env var
+            At least one of these env vars must be set, or wandb_project must be provided.
             ADVANCED: Specify explicit project to search only that one (e.g., "username/project")
         download_dir: Directory to download the model to. If None, uses WandB's default cache.
 
@@ -198,13 +199,21 @@ def download_wandb_model(  # noqa: PLR0913
     # If no project specified, try multiple projects in order
     if wandb_project is None:
         # Get project names from environment variables with fallback defaults
-        personal_project = os.getenv("WANDB_PERSONAL_PROJECT", "gioelemo-ethz/engiopt")
-        official_project = os.getenv("WANDB_OFFICIAL_PROJECT", "engibench/engiopt")
+        personal_project = os.getenv("WANDB_PERSONAL_PROJECT", "")
+        official_project = os.getenv("WANDB_OFFICIAL_PROJECT", "")
 
         projects_to_try = [
-            personal_project,  # Personal models first
-            official_project,  # Official models as fallback
+            p
+            for p in [personal_project, official_project]
+            if p  # Skip unconfigured projects
         ]
+
+        if not projects_to_try:
+            return {
+                "success": False,
+                "error": "No W&B projects configured. Set WANDB_PERSONAL_PROJECT "
+                "and/or WANDB_OFFICIAL_PROJECT environment variables.",
+            }
 
         last_error = None
         for project in projects_to_try:

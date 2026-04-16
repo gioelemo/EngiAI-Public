@@ -12,7 +12,7 @@ Usage:
     from src.tools.connection import HPCConnection
 
     # Initialize connection (reads ~/.ssh/config)
-    hpc = HPCConnection(host_alias="euler")
+    hpc = HPCConnection(host_alias="mycluster")
 
     # Copy SLURM script and submit job
     job_id = hpc.submit_job(slurm_file="outputs/train_cgan_cnn_2d_beams2d_seed1.slurm")
@@ -24,6 +24,7 @@ Usage:
 """
 
 import logging
+import os
 import re
 import sys
 from collections.abc import Callable
@@ -42,7 +43,7 @@ class HPCConnection:
 
     def __init__(  # noqa: PLR0913
         self,
-        host_alias: str = "euler",
+        host_alias: str = "",
         host: str | None = None,
         user: str | None = None,
         password: str | None = None,
@@ -57,8 +58,8 @@ class HPCConnection:
         2. Password mode: Uses explicit username/password credentials
 
         Args:
-            host_alias: Host alias from ~/.ssh/config (e.g., "euler")
-            host: Explicit hostname (e.g., "euler.ethz.ch"). If provided, uses password auth.
+            host_alias: Host alias from ~/.ssh/config (e.g., "mycluster")
+            host: Explicit hostname (e.g., "hpc.example.com"). If provided, uses password auth.
             user: Username for password authentication
             password: Password for authentication
             port: SSH port (default: 22)
@@ -94,6 +95,13 @@ class HPCConnection:
                 raise RuntimeError(msg) from e
         else:
             # SSH config mode (original behavior)
+            if not host_alias:
+                msg = (
+                    "No HPC host configured. Set HPC_HOST_ALIAS in your .env file "
+                    "(e.g., HPC_HOST_ALIAS=mycluster) or provide host/user/password "
+                    "for direct authentication."
+                )
+                raise RuntimeError(msg)
             # Fabric automatically uses ~/.ssh/config for connection details
             logger.info(f"Connecting to {host_alias} (SSH config mode)")
             logger.info(
@@ -333,7 +341,8 @@ if __name__ == "__main__":
     command = sys.argv[1]
 
     try:
-        hpc = HPCConnection(host_alias="euler")
+        alias = os.getenv("HPC_HOST_ALIAS", "")
+        hpc = HPCConnection(host_alias=alias)
 
         if command == "test":
             output = hpc.run_command("pwd")

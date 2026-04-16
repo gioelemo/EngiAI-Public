@@ -394,7 +394,7 @@ def test_encrypt_decrypt_roundtrip():
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "hostname",
-    ["euler.ethz.ch", "my-host", "a.b.c.d", "localhost", "h1"],
+    ["hpc.example.com", "my-host", "a.b.c.d", "localhost", "h1"],
 )
 def test_validate_hostname_valid(hostname):
     assert validate_hostname(hostname) is True
@@ -432,7 +432,7 @@ def test_set_ssh_credentials_stores():
     """Full credential set stores and returns success."""
     set_current_session_id(SESSION_ID)
     ok, msg = set_ssh_credentials(
-        host="euler.ethz.ch", user="testuser", password="pw123", port=22
+        host="hpc.example.com", user="testuser", password="pw123", port=22
     )
     assert ok is True
     assert "saved" in msg.lower() or "Credentials" in msg
@@ -443,7 +443,7 @@ def test_set_ssh_credentials_stores():
 def test_set_ssh_credentials_clears_when_partial():
     """Passing None for required fields clears existing credentials."""
     set_current_session_id(SESSION_ID)
-    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    set_ssh_credentials(host="hpc.example.com", user="testuser", password="pw123")
     assert SESSION_ID in _session_credentials_store
 
     ok, msg = set_ssh_credentials(host=None, user=None, password=None)
@@ -456,7 +456,7 @@ def test_set_ssh_credentials_clears_when_partial():
 def test_set_ssh_credentials_no_session():
     """Without a session ID, set_ssh_credentials returns failure."""
     ok, msg = set_ssh_credentials(
-        host="euler.ethz.ch", user="testuser", password="pw123"
+        host="hpc.example.com", user="testuser", password="pw123"
     )
     assert ok is False
     assert "session" in msg.lower()
@@ -476,7 +476,7 @@ def test_set_ssh_credentials_validates_port():
     """Out-of-range port must be rejected."""
     set_current_session_id(SESSION_ID)
     ok, msg = set_ssh_credentials(
-        host="euler.ethz.ch", user="testuser", password="pw123", port=99999
+        host="hpc.example.com", user="testuser", password="pw123", port=99999
     )
     assert ok is False
     assert "port" in msg.lower()
@@ -489,7 +489,7 @@ def test_set_ssh_credentials_validates_port():
 def test_clear_ssh_credentials():
     """clear_ssh_credentials removes stored credentials."""
     set_current_session_id(SESSION_ID)
-    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    set_ssh_credentials(host="hpc.example.com", user="testuser", password="pw123")
     assert SESSION_ID in _session_credentials_store
     clear_ssh_credentials(SESSION_ID)
     assert SESSION_ID not in _session_credentials_store
@@ -509,10 +509,10 @@ def test_clear_ssh_credentials_noop():
 def test_get_ssh_credentials_valid():
     """Stored credentials are returned with decrypted password."""
     set_current_session_id(SESSION_ID)
-    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    set_ssh_credentials(host="hpc.example.com", user="testuser", password="pw123")
     creds = get_ssh_credentials(SESSION_ID)
     assert creds is not None
-    assert creds["host"] == "euler.ethz.ch"
+    assert creds["host"] == "hpc.example.com"
     assert creds["user"] == "testuser"
     assert creds["password"] == "pw123"
     assert creds["port"] == 22
@@ -522,7 +522,7 @@ def test_get_ssh_credentials_valid():
 def test_get_ssh_credentials_expired():
     """Expired credentials return None and are cleaned up."""
     set_current_session_id(SESSION_ID)
-    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    set_ssh_credentials(host="hpc.example.com", user="testuser", password="pw123")
     # Force expiration
     _session_credentials_store[SESSION_ID]["expires_at"] = time.time() - 1
     assert get_ssh_credentials(SESSION_ID) is None
@@ -542,7 +542,7 @@ def test_get_ssh_credentials_no_session():
 def test_get_ssh_credentials_secure_cleanup():
     """Context manager overwrites password after block exits."""
     set_current_session_id(SESSION_ID)
-    set_ssh_credentials(host="euler.ethz.ch", user="testuser", password="pw123")
+    set_ssh_credentials(host="hpc.example.com", user="testuser", password="pw123")
     with get_ssh_credentials_secure(SESSION_ID) as creds:
         assert creds is not None
         assert creds["password"] == "pw123"
@@ -557,8 +557,12 @@ def test_get_ssh_credentials_secure_cleanup():
 def test_cleanup_expired_credentials():
     """Expired sessions are removed, valid ones are kept."""
     set_current_session_id("s1")
-    set_ssh_credentials(host="euler.ethz.ch", user="u1", password="p1", session_id="s1")
-    set_ssh_credentials(host="euler.ethz.ch", user="u2", password="p2", session_id="s2")
+    set_ssh_credentials(
+        host="hpc.example.com", user="u1", password="p1", session_id="s1"
+    )
+    set_ssh_credentials(
+        host="hpc.example.com", user="u2", password="p2", session_id="s2"
+    )
     # Expire s1
     _session_credentials_store["s1"]["expires_at"] = time.time() - 1
 

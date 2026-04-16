@@ -110,7 +110,7 @@ If you have a network share mounted, use that path directly:
 
 ```bash
 # macOS example
-PAPERS_SOURCE_DIR=/Volumes/Soheyl/gioelemo/RAG/Papers
+PAPERS_SOURCE_DIR=/Volumes/ShareName/Papers
 
 # Linux example
 PAPERS_SOURCE_DIR=/mnt/network_share/papers
@@ -142,7 +142,7 @@ python scripts/import_local_papers.py
 Specify the source directory directly:
 
 ```bash
-python scripts/import_local_papers.py /Volumes/Soheyl/gioelemo/RAG/Papers
+python scripts/import_local_papers.py /Volumes/ShareName/Papers
 ```
 
 **Configuration Priority:**
@@ -575,13 +575,13 @@ stats = importer.run(dry_run=False, max_files=10)
 print(f"Imported {stats['successful']} files")
 ```
 
-## Example: ETHZ Network Share
+## Example: Network Share
 
-For ETHZ users with mounted shares, add to `.env`:
+For users with mounted network shares, add to `.env`:
 
 ```bash
 # Paper Import Configuration
-PAPERS_SOURCE_DIR=/Volumes/Soheyl/gioelemo/RAG/Papers
+PAPERS_SOURCE_DIR=/Volumes/ShareName/Papers
 PAPERS_STATE_FILE=data/local_import_state.json
 ```
 

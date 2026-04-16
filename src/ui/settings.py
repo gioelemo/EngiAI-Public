@@ -965,8 +965,8 @@ def _render_ssh_credentials_section() -> None:  # noqa: PLR0912, PLR0915
         with col1:
             ssh_host = st.text_input(
                 "Hostname",
-                value=current_creds["host"] if current_creds else "euler.ethz.ch",
-                placeholder="euler.ethz.ch",
+                value=current_creds["host"] if current_creds else "",
+                placeholder="e.g., cluster.example.com",
                 help="Full hostname of the HPC cluster",
                 key="ssh_host_input",
             )
@@ -1146,7 +1146,7 @@ def _render_slurm_config_section() -> None:
         slurm_email_user = st.text_input(
             "Email for Job Notifications",
             value=st.session_state.get("slurm_email_user", ""),
-            placeholder="username@ethz.ch",
+            placeholder="user@example.com",
             help="Email address for SLURM job notifications (start, end, fail)",
             key="slurm_email_user_widget",
         )
