@@ -135,7 +135,7 @@ def set_ssh_credentials(
     Set SSH credentials for a specific session.
 
     Args:
-        host: Hostname (e.g., "euler.ethz.ch")
+        host: Hostname (e.g., "hpc.example.com")
         user: Username
         password: Password
         port: SSH port (default: 22)

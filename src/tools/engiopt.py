@@ -119,9 +119,10 @@ def download_wandb_model(  # noqa: PLR0913
             - generator: Download generator model (for GANs)
             Note: For diffusion models, this parameter is ignored as they use a single "model" artifact
         wandb_project: WandB project path in format "organization/project" [OPTIONAL]
-            DEFAULT BEHAVIOR (None): Automatically searches multiple projects:
+            DEFAULT BEHAVIOR (None): Automatically searches projects configured via env vars:
             1. Personal models: WANDB_PERSONAL_PROJECT env var
             2. Official models: WANDB_OFFICIAL_PROJECT env var
+            At least one of these env vars must be set, or wandb_project must be provided.
             ADVANCED: Specify explicit project to search only that one (e.g., "username/project")
         download_dir: Directory to download the model to. If None, uses WandB's default cache.
 
