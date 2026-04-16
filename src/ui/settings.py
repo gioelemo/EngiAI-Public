@@ -965,8 +965,8 @@ def _render_ssh_credentials_section() -> None:  # noqa: PLR0912, PLR0915
         with col1:
             ssh_host = st.text_input(
                 "Hostname",
-                value=current_creds["host"] if current_creds else "euler.ethz.ch",
-                placeholder="euler.ethz.ch",
+                value=current_creds["host"] if current_creds else "",
+                placeholder="e.g., cluster.example.com",
                 help="Full hostname of the HPC cluster",
                 key="ssh_host_input",
             )

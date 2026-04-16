@@ -42,7 +42,7 @@ class HPCConnection:
 
     def __init__(  # noqa: PLR0913
         self,
-        host_alias: str = "euler",
+        host_alias: str = "",
         host: str | None = None,
         user: str | None = None,
         password: str | None = None,

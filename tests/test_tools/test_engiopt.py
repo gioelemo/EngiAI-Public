@@ -531,11 +531,11 @@ def test_environment_variable_defaults(monkeypatch):
     monkeypatch.delenv("WANDB_PERSONAL_PROJECT", raising=False)
     monkeypatch.delenv("WANDB_OFFICIAL_PROJECT", raising=False)
 
-    personal = os.getenv("WANDB_PERSONAL_PROJECT", "gioelemo-ethz/engiopt")
-    official = os.getenv("WANDB_OFFICIAL_PROJECT", "engibench/engiopt")
+    personal = os.getenv("WANDB_PERSONAL_PROJECT", "")
+    official = os.getenv("WANDB_OFFICIAL_PROJECT", "")
 
-    assert personal == "gioelemo-ethz/engiopt"
-    assert official == "engibench/engiopt"
+    assert personal == ""
+    assert official == ""
 
 
 # ============================================================================
