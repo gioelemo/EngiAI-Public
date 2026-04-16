@@ -208,6 +208,7 @@ data/*.db
 data/local_import_state.json
 data/*.log
 data/connect_state.json
+data/prusa_tokens.json
 data/mmore/
 
 # Dataset generation (large files)

@@ -88,13 +88,12 @@ Deploy the MCP server and chatbot on different machines:
 # Build the MCP server image
 docker build -f services/prusa_mcp_server/Dockerfile -t prusa-mcp-server .
 
-# Run the MCP server
+# Run the MCP server (tokens provisioned on the host via `make prusa-login`)
 docker run -d \
   --name prusa-mcp-server \
   -p 8765:8765 \
-  -e PRUSA_EMAIL=your-email@example.com \
-  -e PRUSA_PASSWORD=your-password \
-  -v $(pwd)/data/connect_state.json:/app/prusa-mcp/connect_state.json \
+  -e PRUSA_TOKEN_FILE=/app/data/prusa_tokens.json \
+  -v $(pwd)/data:/app/data \
   prusa-mcp-server
 ```
 
@@ -136,16 +135,15 @@ spec:
         ports:
         - containerPort: 8765
         env:
-        - name: PRUSA_EMAIL
-          valueFrom:
-            secretKeyRef:
-              name: prusa-credentials
-              key: email
-        - name: PRUSA_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: prusa-credentials
-              key: password
+        - name: PRUSA_TOKEN_FILE
+          value: /app/data/prusa_tokens.json
+        volumeMounts:
+        - name: prusa-tokens
+          mountPath: /app/data
+      volumes:
+      - name: prusa-tokens
+        secret:
+          secretName: prusa-tokens  # contains prusa_tokens.json created by `prusa-mcp login`
 ---
 apiVersion: v1
 kind: Service
@@ -182,9 +180,7 @@ env:
 | `PRUSA_MCP_PATH` | Optional override pointing to an external `prusa-mcp` source checkout (rarely needed — the server uses the pip-installed `prusa_mcp` package by default) | unset |
 | `PRUSA_MCP_HOST` | Host to bind the server to | `0.0.0.0` |
 | `PRUSA_MCP_PORT` | Port to run the server on | `8765` |
-| `PRUSA_EMAIL` | Prusa Connect email (optional) | - |
-| `PRUSA_PASSWORD` | Prusa Connect password (optional) | - |
-| `HEADLESS` | Run browser in headless mode | `1` |
+| `PRUSA_TOKEN_FILE` | OAuth2 token file (run `make prusa-login` on the host to populate) | `~/.config/prusa-mcp/tokens.json` |
 
 ### Chatbot Client Variables
 
