@@ -40,12 +40,27 @@ def create_supervisor_for_chat() -> SupervisorAgent:
     return SupervisorAgent()
 
 
+_supervisor_state: dict[str, str | None] = {"init_error": None}
+
+
+def get_supervisor_init_error() -> str | None:
+    """Return the last SupervisorAgent initialization error message, or None."""
+    return _supervisor_state["init_error"]
+
+
 def _try_create_supervisor() -> "SupervisorAgent | None":
-    """Create a SupervisorAgent, returning None if initialisation fails (e.g. missing API key)."""
+    """Create a SupervisorAgent, returning None if initialization fails (e.g. missing API key).
+
+    Short-circuits after the first failure to avoid repeated attempts and log spam
+    when loading many conversations from the database.
+    """
+    if _supervisor_state["init_error"] is not None:
+        return None
     try:
         return create_supervisor_for_chat()
     except Exception as e:
-        logger.warning("Failed to initialise SupervisorAgent: %s", e)
+        logger.exception("Failed to initialize SupervisorAgent")
+        _supervisor_state["init_error"] = str(e)
         return None
 
 

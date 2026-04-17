@@ -80,7 +80,9 @@ def test_config_validation_missing_llm_keys_warns(caplog):
                 cfg = Config()
     assert cfg.openai_api_key == ""
     assert cfg.google_api_key == ""
-    assert any("OPENAI_API_KEY" in msg or "GOOGLE_API_KEY" in msg for msg in caplog.messages)
+    assert any(
+        "OPENAI_API_KEY" in msg or "GOOGLE_API_KEY" in msg for msg in caplog.messages
+    )
 
 
 @pytest.mark.unit
@@ -113,7 +115,9 @@ def test_config_validation_both_llm_keys_missing_warns(caplog):
         with patch.dict("os.environ", {}, clear=True):
             with caplog.at_level(logging.WARNING, logger="config"):
                 Config()
-    assert any("OPENAI_API_KEY" in msg or "GOOGLE_API_KEY" in msg for msg in caplog.messages)
+    assert any(
+        "OPENAI_API_KEY" in msg or "GOOGLE_API_KEY" in msg for msg in caplog.messages
+    )
     assert any("TAVILY_API_KEY" in msg for msg in caplog.messages)
 
 

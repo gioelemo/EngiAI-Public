@@ -163,14 +163,25 @@ class Config:
 
     def _validate_config(self) -> None:
         """Validate that all required configuration is present."""
-        if not self.openai_api_key and not self.google_api_key:
+        # Only warn about missing LLM keys for providers that actually need one.
+        # Providers like Ollama run locally and don't require an API key.
+        provider = (
+            self.llm_model.split(":", 1)[0].lower() if ":" in self.llm_model else ""
+        )
+        keyed_providers = {"openai", "google_genai", "google", "anthropic"}
+        if (
+            provider in keyed_providers
+            and not self.openai_api_key
+            and not self.google_api_key
+        ):
             logger.warning(
                 "Neither OPENAI_API_KEY nor GOOGLE_API_KEY is set. "
-                "At least one LLM provider key is required to run the chatbot. "
-                "Please set one of them in your .env file."
+                "At least one LLM provider key is required to run the chatbot "
+                f"with LLM_MODEL='{self.llm_model}'. Please set one in your .env file."
             )
 
-        if not self.tavily_api_key:
+        skip_search = os.getenv("SKIP_SEARCH", "false").lower() == "true"
+        if not self.tavily_api_key and not skip_search:
             logger.warning(
                 "TAVILY_API_KEY is not set. Web search functionality will be unavailable."
             )
