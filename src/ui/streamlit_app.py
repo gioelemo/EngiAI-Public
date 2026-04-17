@@ -496,6 +496,14 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     Args:
         user_input: The user's message (string) or dict with 'text' and 'files' keys
     """
+    if st.session_state.get("agent") is None:
+        st.error(
+            "The assistant could not start because no LLM provider API key is configured. "
+            "Please set `OPENAI_API_KEY` or `GOOGLE_API_KEY` in your `.env` file and restart.",
+            icon="🚫",
+        )
+        return
+
     # Parse input - handle both string and dict formats
     # st.chat_input with files returns a ChatInputValue object with 'text' and 'files' attributes
     if isinstance(user_input, str):
@@ -1501,6 +1509,22 @@ def main() -> None:
 
     # Initialize session state
     initialize_session_state()
+
+    # Warn if no LLM provider key is configured
+    if not config.openai_api_key and not config.google_api_key:
+        st.warning(
+            "**No LLM provider key found.** "
+            "Please set `OPENAI_API_KEY` or `GOOGLE_API_KEY` (or both) in your `.env` file. "
+            "The chatbot will not work until at least one is configured.",
+            icon="⚠️",
+        )
+
+    # Warn if Tavily key is missing
+    if not config.tavily_api_key:
+        st.warning(
+            "**`TAVILY_API_KEY` is not set.** Web search functionality will be unavailable.",
+            icon="⚠️",
+        )
 
     # Define navigation pages
     home_page = st.Page(

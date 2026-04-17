@@ -163,17 +163,16 @@ class Config:
 
     def _validate_config(self) -> None:
         """Validate that all required configuration is present."""
-        required_vars = {
-            "OPENAI_API_KEY": self.openai_api_key,
-            "TAVILY_API_KEY": self.tavily_api_key,
-            "GOOGLE_API_KEY": self.google_api_key,
-        }
+        if not self.openai_api_key and not self.google_api_key:
+            logger.warning(
+                "Neither OPENAI_API_KEY nor GOOGLE_API_KEY is set. "
+                "At least one LLM provider key is required to run the chatbot. "
+                "Please set one of them in your .env file."
+            )
 
-        missing_vars = [var for var, value in required_vars.items() if not value]
-        if missing_vars:
-            raise ValueError(
-                f"Missing required environment variables: {', '.join(missing_vars)}. "
-                "Please set them in your .env file."
+        if not self.tavily_api_key:
+            logger.warning(
+                "TAVILY_API_KEY is not set. Web search functionality will be unavailable."
             )
 
     def _set_env_vars(self) -> None:
