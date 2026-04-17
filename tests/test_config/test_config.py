@@ -5,6 +5,7 @@ Tests configuration loading and validation.
 """
 
 import importlib
+import logging
 import os
 from unittest.mock import patch
 
@@ -71,39 +72,49 @@ def test_config_llm_defaults():
 
 
 @pytest.mark.unit
-def test_config_validation_missing_openai_key():
-    """Test that config raises ValueError when OPENAI_API_KEY is missing."""
-    with patch("config.load_dotenv"):  # Mock load_dotenv to prevent loading .env file
+def test_config_validation_missing_llm_keys_warns(caplog):
+    """Test that config logs a warning when neither OPENAI_API_KEY nor GOOGLE_API_KEY is set."""
+    with patch("config.load_dotenv"):
         with patch.dict("os.environ", {"TAVILY_API_KEY": "test-key"}, clear=True):
-            with pytest.raises(ValueError):
-                Config()
+            with caplog.at_level(logging.WARNING, logger="config"):
+                cfg = Config()
+    assert cfg.openai_api_key == ""
+    assert cfg.google_api_key == ""
+    assert any("OPENAI_API_KEY" in msg or "GOOGLE_API_KEY" in msg for msg in caplog.messages)
 
 
 @pytest.mark.unit
-def test_config_validation_missing_tavily_key():
-    """Test that config raises ValueError when TAVILY_API_KEY is missing."""
-    with patch("config.load_dotenv"):  # Mock load_dotenv to prevent loading .env file
+def test_config_validation_missing_tavily_key_warns(caplog):
+    """Test that config logs a warning when TAVILY_API_KEY is missing."""
+    with patch("config.load_dotenv"):
         with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}, clear=True):
-            with pytest.raises(ValueError):
-                Config()
+            with caplog.at_level(logging.WARNING, logger="config"):
+                cfg = Config()
+    assert cfg.tavily_api_key == ""
+    assert any("TAVILY_API_KEY" in msg for msg in caplog.messages)
 
 
 @pytest.mark.unit
-def test_config_validation_missing_google_key():
-    """Test that config raises ValueError when GOOGLE_API_KEY is missing."""
-    with patch("config.load_dotenv"):  # Mock load_dotenv to prevent loading .env file
+def test_config_validation_missing_google_key_no_llm_warning(caplog):
+    """Test that no LLM warning is emitted when at least one LLM key (Google) is present."""
+    with patch("config.load_dotenv"):
         with patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key"}, clear=True):
-            with pytest.raises(ValueError):
+            with caplog.at_level(logging.WARNING, logger="config"):
                 Config()
+    assert not any(
+        "OPENAI_API_KEY" in msg and "GOOGLE_API_KEY" in msg for msg in caplog.messages
+    )
 
 
 @pytest.mark.unit
-def test_config_validation_both_keys_missing():
-    """Test that config raises ValueError when both required keys are missing."""
-    with patch("config.load_dotenv"):  # Mock load_dotenv to prevent loading .env file
+def test_config_validation_both_llm_keys_missing_warns(caplog):
+    """Test that config logs warnings when both LLM keys and Tavily key are missing."""
+    with patch("config.load_dotenv"):
         with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ValueError):
+            with caplog.at_level(logging.WARNING, logger="config"):
                 Config()
+    assert any("OPENAI_API_KEY" in msg or "GOOGLE_API_KEY" in msg for msg in caplog.messages)
+    assert any("TAVILY_API_KEY" in msg for msg in caplog.messages)
 
 
 @pytest.mark.unit
