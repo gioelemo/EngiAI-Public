@@ -40,6 +40,30 @@ def create_supervisor_for_chat() -> SupervisorAgent:
     return SupervisorAgent()
 
 
+_supervisor_state: dict[str, str | None] = {"init_error": None}
+
+
+def get_supervisor_init_error() -> str | None:
+    """Return the last SupervisorAgent initialization error message, or None."""
+    return _supervisor_state["init_error"]
+
+
+def _try_create_supervisor() -> "SupervisorAgent | None":
+    """Create a SupervisorAgent, returning None if initialization fails (e.g. missing API key).
+
+    Short-circuits after the first failure to avoid repeated attempts and log spam
+    when loading many conversations from the database.
+    """
+    if _supervisor_state["init_error"] is not None:
+        return None
+    try:
+        return create_supervisor_for_chat()
+    except Exception as e:
+        logger.exception("Failed to initialize SupervisorAgent")
+        _supervisor_state["init_error"] = str(e)
+        return None
+
+
 def generate_chat_title(user_message: str) -> str:
     """Generate a concise title for a chat based on the first user message.
 
@@ -142,7 +166,7 @@ def create_new_chat(name: str | None = None) -> str:
         "created_at": datetime.datetime.now(),
         "messages": [],
         "agent_state": {"messages": []},
-        "agent": create_supervisor_for_chat(),  # Each chat gets its own agent instance
+        "agent": _try_create_supervisor(),  # Each chat gets its own agent instance
         "config": {"configurable": {"thread_id": session_id}},
         "waiting_for_confirmation": False,
         "saved_to_db": False,  # Track if this chat has been saved to DB yet
@@ -338,7 +362,7 @@ def load_chats_from_database() -> None:
                 "created_at": conv["created_at"],
                 "messages": display_messages,
                 "agent_state": agent_state,
-                "agent": create_supervisor_for_chat(),  # Each chat gets its own agent instance
+                "agent": _try_create_supervisor(),  # Each chat gets its own agent instance
                 "config": config,
                 "waiting_for_confirmation": waiting_for_confirmation,
                 "saved_to_db": True,  # Already in database
@@ -395,4 +419,4 @@ def initialize_chat_state() -> None:
 
     # Initialize agent separately - each chat will get its own instance
     if "agent" not in st.session_state:
-        st.session_state.agent = create_supervisor_for_chat()
+        st.session_state.agent = _try_create_supervisor()

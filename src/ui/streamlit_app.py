@@ -41,6 +41,7 @@ from src.ui.chat_management import (  # noqa: E402
     create_new_chat,
     delete_chat,
     get_db,
+    get_supervisor_init_error,
     initialize_chat_state,
     load_chats_from_database,
     save_active_chat_to_storage,
@@ -496,6 +497,23 @@ def process_user_input(user_input: str | dict[str, Any] | Any) -> None:  # noqa:
     Args:
         user_input: The user's message (string) or dict with 'text' and 'files' keys
     """
+    if st.session_state.get("agent") is None:
+        init_error = get_supervisor_init_error()
+        if init_error:
+            st.error(
+                f"The assistant failed to initialize: {init_error}\n\n"
+                "Check your `.env` configuration (LLM provider keys, model name) "
+                "and the application logs for details, then restart.",
+                icon="🚫",
+            )
+        else:
+            st.error(
+                "The assistant could not start. "
+                "Check your `.env` configuration and the application logs, then restart.",
+                icon="🚫",
+            )
+        return
+
     # Parse input - handle both string and dict formats
     # st.chat_input with files returns a ChatInputValue object with 'text' and 'files' attributes
     if isinstance(user_input, str):
@@ -1501,6 +1519,32 @@ def main() -> None:
 
     # Initialize session state
     initialize_session_state()
+
+    # Warn if the configured LLM provider needs a key and none is set.
+    # Keyless providers (e.g. Ollama) don't trigger this warning.
+    _provider = (
+        config.llm_model.split(":", 1)[0].lower() if ":" in config.llm_model else ""
+    )
+    if (
+        _provider in {"openai", "google_genai", "google", "anthropic"}
+        and not config.openai_api_key
+        and not config.google_api_key
+    ):
+        st.warning(
+            "**No LLM provider key found.** "
+            f"`LLM_MODEL='{config.llm_model}'` requires an API key. "
+            "Please set `OPENAI_API_KEY` or `GOOGLE_API_KEY` in your `.env` file. "
+            "The chatbot will not work until at least one is configured.",
+            icon="⚠️",
+        )
+
+    # Warn if Tavily key is missing, unless search is intentionally disabled.
+    _skip_search = os.getenv("SKIP_SEARCH", "false").lower() == "true"
+    if not config.tavily_api_key and not _skip_search:
+        st.warning(
+            "**`TAVILY_API_KEY` is not set.** Web search functionality will be unavailable.",
+            icon="⚠️",
+        )
 
     # Define navigation pages
     home_page = st.Page(
