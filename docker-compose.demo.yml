@@ -1,0 +1,55 @@
+name: engiai-demo
+
+services:
+  postgres-demo:
+    image: postgres:15
+    container_name: engiai-demo-postgres
+    environment:
+      - POSTGRES_DB=engiai_demo
+      - POSTGRES_USER=engiai_demo
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change_me_demo}
+    volumes:
+      - engiai_demo_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engiai_demo -d engiai_demo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - engiai-demo
+
+  chatbot-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.13}
+    image: engiai-demo-chatbot:latest
+    pull_policy: never
+    container_name: engiai-demo-chatbot
+    ports:
+      - "8501:8501"
+    environment:
+      - SKIP_MCP=true
+      - SKIP_MMORE=true
+      - SKIP_ARXIV=true
+      - DATABASE_URL=postgresql://engiai_demo:${POSTGRES_PASSWORD:-change_me_demo}@postgres-demo:5432/engiai_demo
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-openai:gpt-4.1}
+    depends_on:
+      postgres-demo:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - engiai-demo
+
+networks:
+  engiai-demo:
+    driver: bridge
+
+volumes:
+  engiai_demo_data:
+    name: engiai_demo_data
