@@ -44,7 +44,7 @@ At minimum set `GOOGLE_API_KEY`. Leave `POSTGRES_PASSWORD` as-is or pick your ow
 docker compose -f docker-compose.demo.yml up -d --build
 ```
 
-First build takes a few minutes (Python deps). Subsequent starts are instant.
+First build takes a few minutes (10-15 min, Python deps). Subsequent starts are instant.
 
 Then open <http://localhost:8501> in your Windows browser.
 
