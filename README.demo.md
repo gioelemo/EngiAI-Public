@@ -25,9 +25,8 @@ Do **not** clone into `/mnt/c/...` — Docker builds are dramatically slower acr
 
 ```bash
 cd ~
-git clone <repo-url> engineer-assistant
-cd engineer-assistant
-git checkout demo/minimal-chatbot
+git@github.com:gioelemo/EngiAI.git
+cd EngiAI
 ```
 
 ## 3. Configure environment
