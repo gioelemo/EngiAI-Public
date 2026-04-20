@@ -33,7 +33,7 @@ cd EngiAI
 
 ```bash
 cp .env.demo.example .env
-nano .env    # fill in OPENAI_API_KEY, TAVILY_API_KEY, GOOGLE_API_KEY
+nano .env    # fill in TAVILY_API_KEY, GOOGLE_API_KEY
 ```
 
 At minimum set `GOOGLE_API_KEY`. Leave `POSTGRES_PASSWORD` as-is or pick your own.
