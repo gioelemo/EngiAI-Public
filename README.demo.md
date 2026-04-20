@@ -36,7 +36,7 @@ cp .env.demo.example .env
 nano .env    # fill in OPENAI_API_KEY, TAVILY_API_KEY, GOOGLE_API_KEY
 ```
 
-At minimum set `OPENAI_API_KEY`. Leave `POSTGRES_PASSWORD` as-is or pick your own.
+At minimum set `GOOGLE_API_KEY`. Leave `POSTGRES_PASSWORD` as-is or pick your own.
 
 ## 4. Launch
 
