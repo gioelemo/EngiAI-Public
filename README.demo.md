@@ -79,5 +79,5 @@ The demo compose project is named `engiai-demo`, so it can run **side-by-side** 
 - **`docker: command not found`** — Docker Desktop not running, or WSL integration not enabled for your distro (Docker Desktop → Settings → Resources → WSL Integration).
 - **Build is extremely slow** — you likely cloned under `/mnt/c/...`. Move the repo into the WSL home (`~`).
 - **`port is already allocated`** — another service is using 8501. Either stop it, or change `"8501:8501"` in `docker-compose.demo.yml` to e.g. `"8502:8501"`.
-- **Chatbot container restarts in a loop** — check logs with `docker logs engiai-demo-chatbot`. Most common cause: missing or malformed `OPENAI_API_KEY` in `.env`.
+- **Chatbot container restarts in a loop** — check logs with `docker logs engiai-demo-chatbot`. Most common cause: missing or malformed `GOOGLE_API_KEY` in `.env`.
 - **Line-ending errors on shell scripts** — ensure `git config --global core.autocrlf input` inside WSL before cloning.
