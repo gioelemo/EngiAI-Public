@@ -25,7 +25,7 @@ Do **not** clone into `/mnt/c/...` — Docker builds are dramatically slower acr
 
 ```bash
 cd ~
-git@github.com:gioelemo/EngiAI.git
+git clone git@github.com:gioelemo/EngiAI.git
 cd EngiAI
 ```
 
