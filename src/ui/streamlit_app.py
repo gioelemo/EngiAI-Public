@@ -76,6 +76,7 @@ from src.utils.api_usage import (  # noqa: E402
     USAGE_THRESHOLD_CRITICAL,
     USAGE_THRESHOLD_WARNING,
     get_tavily_usage,
+    is_api_key_configured,
 )
 from src.utils.weave_integration import init_weave  # noqa: E402
 
@@ -1527,8 +1528,8 @@ def main() -> None:
     )
     if (
         _provider in {"openai", "google_genai", "google", "anthropic"}
-        and not config.openai_api_key
-        and not config.google_api_key
+        and not is_api_key_configured(config.openai_api_key)
+        and not is_api_key_configured(config.google_api_key)
     ):
         st.warning(
             "**No LLM provider key found.** "
@@ -1538,9 +1539,10 @@ def main() -> None:
             icon="⚠️",
         )
 
-    # Warn if Tavily key is missing, unless search is intentionally disabled.
+    # Warn if Tavily key is missing or a placeholder, unless search is
+    # intentionally disabled.
     _skip_search = os.getenv("SKIP_SEARCH", "false").lower() == "true"
-    if not config.tavily_api_key and not _skip_search:
+    if not is_api_key_configured(config.tavily_api_key) and not _skip_search:
         st.warning(
             "**`TAVILY_API_KEY` is not set.** Web search functionality will be unavailable.",
             icon="⚠️",
