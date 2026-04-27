@@ -336,8 +336,21 @@ class SupervisorAgent:
                 f"[SUPERVISOR] Task instruction for {next_agent}: {route_decision.task_instruction}"
             )
 
-        if next_agent == "FINISH" and route_decision.final_response:
-            new_messages.append(AIMessage(content=route_decision.final_response))
+        if next_agent == "FINISH":
+            final_response = (route_decision.final_response or "").strip()
+            if final_response:
+                new_messages.append(AIMessage(content=final_response))
+            else:
+                # Safety net: if the routing LLM omitted final_response and
+                # no sub-agent has replied this turn (last message is the
+                # user's), emit a minimal reply so the UI never renders blank.
+                last_message = state["messages"][-1] if state["messages"] else None
+                if last_message is None or isinstance(last_message, HumanMessage):
+                    new_messages.append(
+                        AIMessage(
+                            content="Done. Let me know if you'd like anything else."
+                        )
+                    )
 
         return {
             "next": next_agent,
