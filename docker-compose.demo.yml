@@ -39,6 +39,10 @@ services:
       - TAVILY_API_KEY=${TAVILY_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - LLM_MODEL=${LLM_MODEL:-openai:gpt-4.1}
+      - WANDB_API_KEY=${WANDB_API_KEY:-}
+      - WANDB_ENTITY=${WANDB_ENTITY:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - USE_WANDB=${USE_WANDB:-}
     depends_on:
       postgres-demo:
         condition: service_healthy
