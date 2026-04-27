@@ -1013,7 +1013,10 @@ def _render_ssh_credentials_section() -> None:  # noqa: PLR0912, PLR0915
                         session_id=st.session_state.session_id,
                     )
                     if success:
-                        st.session_state.pop("hpc_connections", None)
+                        for conn in st.session_state.pop(
+                            "hpc_connections", {}
+                        ).values():
+                            conn.close()
                         st.success(f"✅ {message}")
                         st.rerun()
                     else:

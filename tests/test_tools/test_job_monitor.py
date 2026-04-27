@@ -32,7 +32,7 @@ def reset_job_cache():
 @pytest.fixture
 def mock_hpc_connection():
     """Create a mock HPC connection."""
-    with patch("src.tools.job_monitor._create_hpc_connection") as mock_create:
+    with patch("src.tools.job_monitor.create_hpc_connection") as mock_create:
         mock_conn = Mock()
         mock_create.return_value = mock_conn
         yield mock_conn

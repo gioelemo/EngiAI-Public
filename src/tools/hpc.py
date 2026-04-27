@@ -284,7 +284,7 @@ def cleanup_expired_credentials() -> int:
     return len(expired)
 
 
-def _create_hpc_connection(host_alias: str) -> HPCConnection:
+def create_hpc_connection(host_alias: str) -> HPCConnection:
     """
     Create an HPC connection using session credentials or SSH config.
 
@@ -342,7 +342,7 @@ def test_hpc_connection(host_alias: str | None = None) -> dict[str, Any]:
         host_alias = config.hpc_host_alias
 
     try:
-        hpc = _create_hpc_connection(host_alias)
+        hpc = create_hpc_connection(host_alias)
         output = hpc.run_command("pwd")
     except Exception as e:
         return {
@@ -390,7 +390,7 @@ def submit_slurm_job(
         }
 
     try:
-        hpc = _create_hpc_connection(host_alias)
+        hpc = create_hpc_connection(host_alias)
         job_id = hpc.submit_job(slurm_file, remote_dir=remote_dir)
     except Exception as e:
         return {
@@ -428,7 +428,7 @@ def get_slurm_job_status(
         host_alias = config.hpc_host_alias
 
     try:
-        hpc = _create_hpc_connection(host_alias)
+        hpc = create_hpc_connection(host_alias)
         status = hpc.get_job_status(job_id)
     except Exception as e:
         return {
@@ -466,7 +466,7 @@ def cancel_slurm_job(
         host_alias = config.hpc_host_alias
 
     try:
-        hpc = _create_hpc_connection(host_alias)
+        hpc = create_hpc_connection(host_alias)
         hpc.cancel_job(job_id)
     except Exception as e:
         return {
@@ -509,7 +509,7 @@ def download_job_outputs(
         host_alias = config.hpc_host_alias
 
     try:
-        hpc = _create_hpc_connection(host_alias)
+        hpc = create_hpc_connection(host_alias)
         hpc.get_job_output(job_id, remote_dir=remote_dir, local_dir=local_dir)
     except Exception as e:
         return {
