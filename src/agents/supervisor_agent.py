@@ -126,7 +126,9 @@ class SupervisorAgent:
 
         self.llm = init_chat_model(self.model_name, **model_kwargs)
         # Create structured LLM for routing decisions
-        self.routing_llm = self.llm.with_structured_output(RouteDecision)
+        self.routing_llm = self.llm.with_structured_output(
+            RouteDecision, method="function_calling"
+        )
 
         # Initialize specialized sub-agents
         self.engineering_agent = EngineeringAgent(
