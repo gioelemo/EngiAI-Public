@@ -513,6 +513,144 @@ def test_supervisor_returns_empty_messages_with_routing():
 
 
 @pytest.mark.unit
+def test_supervisor_finish_emits_final_response_aimessage():
+    """FINISH with non-empty final_response must emit an AIMessage to the UI.
+
+    Regression: a duplicate user question caused the routing LLM to pick FINISH
+    immediately, but no AIMessage was appended — the Streamlit UI rendered a
+    blank reply. The fix asks the LLM to populate `final_response` and emits it
+    as an AIMessage so the user sees a reply.
+    """
+    mock_llm = MagicMock()
+    mock_routing_llm = MagicMock()
+    mock_routing_llm.invoke.return_value = RouteDecision(
+        agent="FINISH",
+        reasoning="User repeated an already-completed request",
+        final_response="You already exported that — STL is at outputs/beam.stl.",
+    )
+    mock_llm.with_structured_output.return_value = mock_routing_llm
+
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
+        agent = SupervisorAgent()
+
+        state = SupervisorState(
+            messages=[HumanMessage(content="export the design to STL")], next=""
+        )
+        result = agent._supervisor_node(state)
+
+        assert result["next"] == "FINISH"
+        assert len(result["messages"]) == 1
+        msg = result["messages"][0]
+        assert isinstance(msg, AIMessage)
+        assert msg.content == (
+            "You already exported that — STL is at outputs/beam.stl."
+        )
+
+
+@pytest.mark.unit
+def test_supervisor_finish_with_empty_final_response_emits_no_message():
+    """FINISH with empty final_response must not append a message.
+
+    Preserves existing behavior for the common case where FINISH follows a
+    sub-agent that already produced a reply — we don't want a redundant
+    supervisor message tacked on.
+    """
+    mock_llm = MagicMock()
+    mock_routing_llm = MagicMock()
+    mock_routing_llm.invoke.return_value = RouteDecision(
+        agent="FINISH",
+        reasoning="All steps complete; sub-agent already replied",
+        final_response="",
+    )
+    mock_llm.with_structured_output.return_value = mock_routing_llm
+
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
+        agent = SupervisorAgent()
+
+        state = SupervisorState(
+            messages=[
+                HumanMessage(content="optimize a beam"),
+                AIMessage(content="Optimization complete. Result saved."),
+            ],
+            next="",
+        )
+        result = agent._supervisor_node(state)
+
+        assert result["next"] == "FINISH"
+        assert result.get("messages", []) == []
+
+
+@pytest.mark.unit
+def test_supervisor_finish_fallback_when_llm_omits_final_response():
+    """Safety net: empty/whitespace final_response + no sub-agent reply this
+    turn must still surface a minimal AIMessage so the UI never renders blank.
+
+    Triggered when the routing LLM forgets to populate final_response while
+    picking FINISH at entry (e.g., on a duplicate question). Detection signal
+    is "last message in state is a HumanMessage", meaning nothing has replied
+    to the user yet this turn.
+    """
+    mock_llm = MagicMock()
+    mock_routing_llm = MagicMock()
+    mock_routing_llm.invoke.return_value = RouteDecision(
+        agent="FINISH",
+        reasoning="User repeated an already-completed request",
+        final_response="   ",  # whitespace-only — would render blank
+    )
+    mock_llm.with_structured_output.return_value = mock_routing_llm
+
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
+        agent = SupervisorAgent()
+
+        state = SupervisorState(
+            messages=[HumanMessage(content="export the design to STL")], next=""
+        )
+        result = agent._supervisor_node(state)
+
+        assert result["next"] == "FINISH"
+        assert len(result["messages"]) == 1
+        msg = result["messages"][0]
+        assert isinstance(msg, AIMessage)
+        assert isinstance(msg.content, str)
+        assert msg.content.strip() != ""
+
+
+@pytest.mark.unit
+def test_supervisor_non_finish_route_ignores_final_response():
+    """final_response set on a non-FINISH route must not surface as an AIMessage.
+
+    Defensive: only the FINISH branch should emit final_response. If the LLM
+    erroneously fills it while routing to a sub-agent, the supervisor must
+    still delegate cleanly and only emit the scoped task instruction.
+    """
+    mock_llm = MagicMock()
+    mock_routing_llm = MagicMock()
+    mock_routing_llm.invoke.return_value = RouteDecision(
+        agent="engineering_agent",
+        reasoning="Optimization request",
+        task_instruction="Run the topology optimization.",
+        final_response="this should not be surfaced",
+    )
+    mock_llm.with_structured_output.return_value = mock_routing_llm
+
+    with patch("src.agents.supervisor_agent.init_chat_model", return_value=mock_llm):
+        agent = SupervisorAgent()
+
+        state = SupervisorState(
+            messages=[HumanMessage(content="optimize a beam")], next=""
+        )
+        result = agent._supervisor_node(state)
+
+        assert result["next"] == "engineering_agent"
+        # Only the scoped HumanMessage instruction should be present — no AIMessage
+        assert all(not isinstance(m, AIMessage) for m in result["messages"])
+        assert not any(
+            "this should not be surfaced" in getattr(m, "content", "")
+            for m in result["messages"]
+        )
+
+
+@pytest.mark.unit
 def test_supervisor_handles_multi_turn_conversation():
     """Test supervisor handles context from previous conversation turns."""
     # First turn
