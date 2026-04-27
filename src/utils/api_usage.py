@@ -5,6 +5,7 @@ This module provides functions to check API usage for various external services.
 """
 
 import logging
+import os
 from dataclasses import dataclass
 
 import requests
@@ -15,6 +16,32 @@ logger = logging.getLogger(__name__)
 USAGE_THRESHOLD_WARNING = 80  # Percentage threshold for warning (approaching limit)
 USAGE_THRESHOLD_CRITICAL = 95  # Percentage threshold for critical (near limit)
 UNLIMITED_LIMIT_VALUE = 2147483647  # Max int32 value representing unlimited access
+
+# Substrings that mark a value as a placeholder rather than a real API key.
+# Matched case-insensitively against the trimmed key. Real keys for OpenAI
+# (``sk-...``), Google (``AIza...``), Anthropic (``sk-ant-...``) and Tavily
+# (``tvly-<hex>``) do not contain any of these strings.
+PLACEHOLDER_SUBSTRINGS: tuple[str, ...] = (
+    "replace-me",
+    "replace_me",
+    "your-actual",
+    "your-api-key",
+    "your-openai-api-key",
+    "your-google-api-key",
+    "your-tavily-api-key",
+    "your-anthropic-api-key",
+    "changeme",
+)
+
+
+def is_api_key_configured(api_key: str | None) -> bool:
+    """Return True if ``api_key`` looks like a real value (not empty/placeholder)."""
+    if not api_key:
+        return False
+    normalized = api_key.strip().lower()
+    if not normalized:
+        return False
+    return not any(p in normalized for p in PLACEHOLDER_SUBSTRINGS)
 
 
 @dataclass
@@ -76,7 +103,10 @@ def get_tavily_usage(api_key: str) -> TavilyUsageStats | None:
           }
         }
     """
-    if not api_key:
+    if os.getenv("SKIP_SEARCH", "false").lower() == "true":
+        return None
+
+    if not is_api_key_configured(api_key):
         logger.warning("Tavily API key not configured")
         return None
 
@@ -136,8 +166,20 @@ def get_tavily_usage(api_key: str) -> TavilyUsageStats | None:
             paygo_percentage=paygo_percentage,
         )
 
-    except requests.exceptions.RequestException:
-        logger.exception("Failed to fetch Tavily usage")
+    except requests.exceptions.RequestException as e:
+        status = (
+            e.response.status_code
+            if isinstance(e, requests.exceptions.HTTPError) and e.response is not None
+            else None
+        )
+        if status in (401, 403):
+            logger.warning(
+                "Tavily API rejected the configured key (HTTP %s); "
+                "skipping usage check.",
+                status,
+            )
+        else:
+            logger.exception("Failed to fetch Tavily usage")
         return None
     except (KeyError, ValueError):
         logger.exception("Failed to parse Tavily usage response")

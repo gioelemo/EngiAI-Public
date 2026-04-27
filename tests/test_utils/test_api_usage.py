@@ -14,6 +14,7 @@ from src.utils.api_usage import (
     USAGE_THRESHOLD_WARNING,
     TavilyUsageStats,
     get_tavily_usage,
+    is_api_key_configured,
 )
 
 # ============================================================================
@@ -217,6 +218,110 @@ def test_get_tavily_usage_parse_error():
 
     # Should handle gracefully and return stats with defaults
     assert result is not None or result is None  # Either works based on implementation
+
+
+# ============================================================================
+# PLACEHOLDER DETECTION TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "   ",
+        "tvly-replace-me",
+        "your-actual-openai-api-key-here",
+        "your-actual-google-api-key-here",
+        "your-actual-tavily-api-key-here",
+        "your-tavily-api-key",
+        "your-openai-api-key",
+        "your-google-api-key",
+        "your-anthropic-api-key",
+        "CHANGEME",
+        "ChangeMe",
+        "REPLACE_ME",
+    ],
+)
+def test_is_api_key_configured_rejects_placeholders(value):
+    """Empty, whitespace, and known placeholder substrings are rejected."""
+    assert is_api_key_configured(value) is False
+
+
+@pytest.mark.unit
+def test_is_api_key_configured_rejects_none():
+    """None is rejected."""
+    assert is_api_key_configured(None) is False
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "value",
+    [
+        "sk-proj-abc123def456ghi789jkl",  # OpenAI
+        "sk-ant-api03-xxxxxxxxxxxxxxxx",  # Anthropic
+        "AIzaSyDxxxxxxxxxxxxxxxxxxxxxx",  # Google
+        "tvly-abc123def456",  # Tavily
+    ],
+)
+def test_is_api_key_configured_accepts_real_keys(value):
+    """Real-format keys for OpenAI / Anthropic / Google / Tavily are accepted."""
+    assert is_api_key_configured(value) is True
+
+
+# ============================================================================
+# SKIP_SEARCH AND AUTH-FAILURE TESTS
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_get_tavily_usage_skip_search_short_circuits(monkeypatch):
+    """SKIP_SEARCH=true returns None without calling Tavily."""
+    monkeypatch.setenv("SKIP_SEARCH", "true")
+    with patch("src.utils.api_usage.requests.get") as mock_get:
+        result = get_tavily_usage("tvly-real-looking-key")
+    assert result is None
+    mock_get.assert_not_called()
+
+
+@pytest.mark.unit
+def test_get_tavily_usage_placeholder_key_short_circuits(monkeypatch):
+    """A placeholder key returns None without calling Tavily."""
+    monkeypatch.delenv("SKIP_SEARCH", raising=False)
+    with patch("src.utils.api_usage.requests.get") as mock_get:
+        result = get_tavily_usage("tvly-replace-me")
+    assert result is None
+    mock_get.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("status_code", [401, 403])
+def test_get_tavily_usage_unauthorized_returns_none(monkeypatch, caplog, status_code):
+    """401/403 from Tavily logs a warning (not exception) and returns None."""
+    import logging
+
+    import requests
+
+    monkeypatch.delenv("SKIP_SEARCH", raising=False)
+    mock_response = MagicMock()
+    mock_response.status_code = status_code
+    http_error = requests.exceptions.HTTPError(response=mock_response)
+    mock_response.raise_for_status.side_effect = http_error
+
+    with (
+        caplog.at_level(logging.WARNING, logger="src.utils.api_usage"),
+        patch("src.utils.api_usage.requests.get", return_value=mock_response),
+    ):
+        result = get_tavily_usage("tvly-real-looking-key")
+
+    assert result is None
+    # Exactly one WARNING-level record, no ERROR (would indicate logger.exception)
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(warnings) == 1
+    assert str(status_code) in warnings[0].getMessage()
+    assert errors == []
 
 
 # ============================================================================

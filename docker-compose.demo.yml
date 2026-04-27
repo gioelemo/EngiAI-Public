@@ -36,7 +36,7 @@ services:
       - SKIP_ARXIV=true
       - DATABASE_URL=postgresql://engiai_demo:${POSTGRES_PASSWORD:-change_me_demo}@postgres-demo:5432/engiai_demo
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - LLM_MODEL=${LLM_MODEL:-openai:gpt-4.1}
     depends_on:
