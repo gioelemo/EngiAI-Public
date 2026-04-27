@@ -115,8 +115,8 @@ def download_wandb_model(  # noqa: PLR0913
             IMPORTANT: If the user specifies a seed number (e.g., "seed 198", "with seed 198"),
             you MUST pass that number here. Default: 1
         model_type: Type of model to download. Options:
-            - discriminator: Download discriminator model [default] (for GANs)
-            - generator: Download generator model (for GANs)
+            - generator: Download generator model [default] (for GANs)
+            - discriminator: Download discriminator model (for GANs)
             Note: For diffusion models, this parameter is ignored as they use a single "model" artifact
         wandb_project: WandB project path in format "organization/project" [OPTIONAL]
             DEFAULT BEHAVIOR (None): Automatically searches:
@@ -174,7 +174,9 @@ def download_wandb_model(  # noqa: PLR0913
         - Requires USE_WANDB environment variable to be set to "True"
         - You may need to authenticate with WandB using: wandb login
         - For diffusion models, the model_type parameter is ignored
-        - Customize project search order with WANDB_PERSONAL_PROJECT and WANDB_OFFICIAL_PROJECT env vars
+        - Personal project comes from the Settings page (WandB Entity + WandB Project),
+          with WANDB_ENTITY / WANDB_PROJECT env vars as a fallback for non-UI contexts.
+        - Official project is hardcoded to "engibench/engiopt".
     """
     # Debug logging
     import logging
@@ -226,7 +228,8 @@ def download_wandb_model(  # noqa: PLR0913
             return {
                 "success": False,
                 "error": "No W&B projects configured. Set WandB Entity and "
-                "WandB Project on the Settings page.",
+                "WandB Project on the Settings page, or set the "
+                "WANDB_ENTITY and WANDB_PROJECT environment variables.",
             }
 
         last_error = None

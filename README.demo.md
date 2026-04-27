@@ -1,6 +1,6 @@
 # EngiAI — Minimal Demo (Windows / WSL2)
 
-A stripped-down build of the EngiAI chatbot for live demos. Runs **two containers** (Streamlit UI + Postgres), no RAG, no 3D-printer integration, no HPC.
+A stripped-down build of the EngiAI chatbot for live demos. Runs **two containers** (Streamlit UI + Postgres), no RAG, no 3D-printer integration, and no bundled HPC services. The chatbot can still submit jobs to an external HPC cluster (e.g. Euler) if SSH credentials are provided at runtime via the Settings page — see the optional Euler / WandB section under step 4.
 
 ## Prerequisites
 
@@ -36,7 +36,10 @@ cp .env.demo.example .env
 nano .env    # fill in TAVILY_API_KEY, GOOGLE_API_KEY or OPENAI_API_KEY
 ```
 
-At minimum set `GOOGLE_API_KEY` or `OPENAI_API_KEY`. Leave `POSTGRES_PASSWORD` as-is or pick your own.
+At minimum set the API key for the LLM provider you want to use, and leave `POSTGRES_PASSWORD` as-is or pick your own.
+
+- **Google (default)** — set `GOOGLE_API_KEY`. `LLM_MODEL` is already pointed at `google_genai:...` in the example file, no further change needed.
+- **OpenAI** — set `OPENAI_API_KEY`, then also switch `LLM_MODEL` to an OpenAI model: comment out the `google_genai:` line and uncomment the `openai:` line in `.env`.
 
 **Optional** — to train models on the Euler cluster and track runs on WandB, also set the following in `.env` (create a WandB entity first if you don't have one):
 
