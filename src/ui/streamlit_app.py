@@ -1123,9 +1123,7 @@ def get_orcreate_hpc_connection(host_alias: str | None = None):
     # Create connection if it doesn't exist for this host
     if host_alias not in st.session_state.hpc_connections:
         logger.info(f"Creating persistent HPC connection for {host_alias}")
-        st.session_state.hpc_connections[host_alias] = create_hpc_connection(
-            host_alias
-        )
+        st.session_state.hpc_connections[host_alias] = create_hpc_connection(host_alias)
     else:
         logger.debug(f"Reusing existing HPC connection for {host_alias}")
 
