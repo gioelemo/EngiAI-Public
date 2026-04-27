@@ -1095,7 +1095,7 @@ def extract_job_id_from_response(response: str) -> str | None:
     return None
 
 
-def get_or_create_hpc_connection(host_alias: str | None = None):
+def get_orcreate_hpc_connection(host_alias: str | None = None):
     """Get or create a persistent HPC connection for job monitoring.
 
     This maintains a single SSH connection in session state to avoid
@@ -1110,7 +1110,7 @@ def get_or_create_hpc_connection(host_alias: str | None = None):
         HPCConnection instance (reused across multiple status checks)
     """
     from config import config  # noqa: PLC0415
-    from src.tools.connection import HPCConnection  # noqa: PLC0415
+    from src.tools.hpc import create_hpc_connection  # noqa: PLC0415
 
     # Use configured host alias if not provided
     if host_alias is None:
@@ -1123,9 +1123,7 @@ def get_or_create_hpc_connection(host_alias: str | None = None):
     # Create connection if it doesn't exist for this host
     if host_alias not in st.session_state.hpc_connections:
         logger.info(f"Creating persistent HPC connection for {host_alias}")
-        st.session_state.hpc_connections[host_alias] = HPCConnection(
-            host_alias=host_alias
-        )
+        st.session_state.hpc_connections[host_alias] = create_hpc_connection(host_alias)
     else:
         logger.debug(f"Reusing existing HPC connection for {host_alias}")
 
@@ -1144,7 +1142,7 @@ def get_job_status_display(
 
     try:
         # Use persistent connection instead of creating a new one each time
-        hpc = get_or_create_hpc_connection(host_alias)
+        hpc = get_orcreate_hpc_connection(host_alias)
         status_output = hpc.get_job_status(job_id)
 
         # Parse status output to extract key info

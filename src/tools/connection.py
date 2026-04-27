@@ -253,6 +253,13 @@ class HPCConnection:
         logger.info(f"Job submitted with ID: {job_id}")
         return job_id
 
+    def close(self) -> None:
+        """Close the underlying SSH connection, releasing the socket."""
+        try:
+            self.connection.close()
+        except Exception as e:
+            logger.warning(f"Error closing SSH connection to {self.host_alias}: {e}")
+
     def get_job_status(self, job_id: str) -> str:
         """
         Get status of a submitted job.

@@ -16,8 +16,7 @@ from typing import Any
 from langchain_core.tools import tool
 
 from config import config
-from src.tools.connection import HPCConnection
-from src.tools.hpc import download_job_outputs
+from src.tools.hpc import create_hpc_connection, download_job_outputs
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ def monitor_job_until_complete(
         host_alias = config.hpc_host_alias
 
     try:
-        hpc = HPCConnection(host_alias=host_alias)
+        hpc = create_hpc_connection(host_alias)
         start_time = datetime.now()
         checks_performed = 0
 
@@ -179,7 +178,7 @@ def check_job_status_change(
         host_alias = config.hpc_host_alias
 
     try:
-        hpc = HPCConnection(host_alias=host_alias)
+        hpc = create_hpc_connection(host_alias)
         current_status = hpc.get_job_status(job_id)
 
         # Create unique key for this job
@@ -272,7 +271,7 @@ def get_active_jobs_summary(
         host_alias = config.hpc_host_alias
 
     try:
-        hpc = HPCConnection(host_alias=host_alias)
+        hpc = create_hpc_connection(host_alias)
         # Get all user jobs (squeue without -j shows user's jobs)
         output = hpc.run_command("squeue -u $USER")
 
