@@ -1110,7 +1110,7 @@ def get_or_create_hpc_connection(host_alias: str | None = None):
         HPCConnection instance (reused across multiple status checks)
     """
     from config import config  # noqa: PLC0415
-    from src.tools.connection import HPCConnection  # noqa: PLC0415
+    from src.tools.hpc import _create_hpc_connection  # noqa: PLC0415
 
     # Use configured host alias if not provided
     if host_alias is None:
@@ -1123,8 +1123,8 @@ def get_or_create_hpc_connection(host_alias: str | None = None):
     # Create connection if it doesn't exist for this host
     if host_alias not in st.session_state.hpc_connections:
         logger.info(f"Creating persistent HPC connection for {host_alias}")
-        st.session_state.hpc_connections[host_alias] = HPCConnection(
-            host_alias=host_alias
+        st.session_state.hpc_connections[host_alias] = _create_hpc_connection(
+            host_alias
         )
     else:
         logger.debug(f"Reusing existing HPC connection for {host_alias}")
