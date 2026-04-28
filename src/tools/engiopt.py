@@ -115,14 +115,13 @@ def download_wandb_model(  # noqa: PLR0913
             IMPORTANT: If the user specifies a seed number (e.g., "seed 198", "with seed 198"),
             you MUST pass that number here. Default: 1
         model_type: Type of model to download. Options:
-            - discriminator: Download discriminator model [default] (for GANs)
-            - generator: Download generator model (for GANs)
+            - generator: Download generator model [default] (for GANs)
+            - discriminator: Download discriminator model (for GANs)
             Note: For diffusion models, this parameter is ignored as they use a single "model" artifact
         wandb_project: WandB project path in format "organization/project" [OPTIONAL]
-            DEFAULT BEHAVIOR (None): Automatically searches projects configured via env vars:
-            1. Personal models: WANDB_PERSONAL_PROJECT env var
-            2. Official models: WANDB_OFFICIAL_PROJECT env var
-            At least one of these env vars must be set, or wandb_project must be provided.
+            DEFAULT BEHAVIOR (None): Automatically searches:
+            1. Personal models: built from Settings page (WandB Entity / WandB Project)
+            2. Official models: hardcoded "engibench/engiopt" benchmark project
             ADVANCED: Specify explicit project to search only that one (e.g., "username/project")
         download_dir: Directory to download the model to. If None, uses WandB's default cache.
 
@@ -175,7 +174,9 @@ def download_wandb_model(  # noqa: PLR0913
         - Requires USE_WANDB environment variable to be set to "True"
         - You may need to authenticate with WandB using: wandb login
         - For diffusion models, the model_type parameter is ignored
-        - Customize project search order with WANDB_PERSONAL_PROJECT and WANDB_OFFICIAL_PROJECT env vars
+        - Personal project comes from the Settings page (WandB Entity + WandB Project),
+          with WANDB_ENTITY / WANDB_PROJECT env vars as a fallback for non-UI contexts.
+        - Official project is hardcoded to "engibench/engiopt".
     """
     # Debug logging
     import logging
@@ -198,9 +199,24 @@ def download_wandb_model(  # noqa: PLR0913
 
     # If no project specified, try multiple projects in order
     if wandb_project is None:
-        # Get project names from environment variables with fallback defaults
-        personal_project = os.getenv("WANDB_PERSONAL_PROJECT", "")
-        official_project = os.getenv("WANDB_OFFICIAL_PROJECT", "")
+        from config import get_setting_from_db
+
+        # Personal project: build "entity/project" from Settings page values
+        # (falls back to env vars for non-UI contexts).
+        personal_entity = get_setting_from_db(
+            "slurm_wandb_entity", os.getenv("WANDB_ENTITY", "")
+        )
+        personal_project_name = get_setting_from_db(
+            "slurm_wandb_project", os.getenv("WANDB_PROJECT", "")
+        )
+        personal_project = (
+            f"{personal_entity}/{personal_project_name}"
+            if personal_entity and personal_project_name
+            else ""
+        )
+
+        # Official project: hardcoded benchmark models.
+        official_project = "engibench/engiopt"
 
         projects_to_try = [
             p
@@ -211,8 +227,9 @@ def download_wandb_model(  # noqa: PLR0913
         if not projects_to_try:
             return {
                 "success": False,
-                "error": "No W&B projects configured. Set WANDB_PERSONAL_PROJECT "
-                "and/or WANDB_OFFICIAL_PROJECT environment variables.",
+                "error": "No W&B projects configured. Set WandB Entity and "
+                "WandB Project on the Settings page, or set the "
+                "WANDB_ENTITY and WANDB_PROJECT environment variables.",
             }
 
         last_error = None
@@ -1493,7 +1510,9 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
             # Load checkpoint
             ckpt = th.load(resolved_checkpoint_path, map_location=device)
 
-            # Display hyperparameters if available in checkpoint
+            # Display hyperparameters if available in checkpoint, and recover
+            # latent_dim from the training config so the Generator is built
+            # with the same shape the checkpoint was saved with.
             if "config" in ckpt:
                 logger.info("=" * 60)
                 logger.info("GAN Model Hyperparameters:")
@@ -1501,6 +1520,13 @@ def sample_designs_from_model(  # noqa: PLR0913, PLR0911, PLR0915, PLR0912
                 for key, value in ckpt["config"].items():
                     logger.info(f"  {key}: {value}")
                 logger.info("=" * 60)
+                ckpt_latent_dim = ckpt["config"].get("latent_dim")
+                if ckpt_latent_dim is not None and ckpt_latent_dim != latent_dim:
+                    logger.info(
+                        f"Overriding latent_dim from checkpoint config: "
+                        f"{latent_dim} -> {ckpt_latent_dim}"
+                    )
+                    latent_dim = ckpt_latent_dim
             else:
                 # Display the parameters we're using
                 logger.info("=" * 60)

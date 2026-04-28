@@ -471,8 +471,15 @@ def test_download_from_wandb_api_error(monkeypatch):
 def test_download_wandb_model_multi_project_fallback(monkeypatch, tmp_path):
     """Test download fallback to multiple projects."""
     monkeypatch.setenv("USE_WANDB", "True")
-    monkeypatch.setenv("WANDB_PERSONAL_PROJECT", "personal/project")
-    monkeypatch.setenv("WANDB_OFFICIAL_PROJECT", "official/project")
+
+    # Personal project is now built from Settings page values; official is hardcoded.
+    def fake_get_setting(key, default=""):
+        return {
+            "slurm_wandb_entity": "personal",
+            "slurm_wandb_project": "project",
+        }.get(key, default)
+
+    monkeypatch.setattr("config.get_setting_from_db", fake_get_setting)
 
     # Setup mocks - first project fails, second succeeds
     mock_api = Mock()
@@ -522,20 +529,6 @@ def test_download_wandb_model_multi_project_fallback(monkeypatch, tmp_path):
 
     assert result["success"] is True
     assert "checkpoint_path" in result
-
-
-@pytest.mark.unit
-def test_environment_variable_defaults(monkeypatch):
-    """Test default values for environment variables."""
-    # Clear any existing env vars
-    monkeypatch.delenv("WANDB_PERSONAL_PROJECT", raising=False)
-    monkeypatch.delenv("WANDB_OFFICIAL_PROJECT", raising=False)
-
-    personal = os.getenv("WANDB_PERSONAL_PROJECT", "")
-    official = os.getenv("WANDB_OFFICIAL_PROJECT", "")
-
-    assert personal == ""
-    assert official == ""
 
 
 # ============================================================================

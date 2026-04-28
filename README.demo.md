@@ -1,6 +1,6 @@
 # EngiAI — Minimal Demo (Windows / WSL2)
 
-A stripped-down build of the EngiAI chatbot for live demos. Runs **two containers** (Streamlit UI + Postgres), no RAG, no 3D-printer integration, no HPC.
+A stripped-down build of the EngiAI chatbot for live demos. Runs **two containers** (Streamlit UI + Postgres), no RAG, no 3D-printer integration, and no bundled HPC services. The chatbot can still submit jobs to an external HPC cluster (e.g. Euler) if SSH credentials are provided at runtime via the Settings page — see the optional Euler / WandB section under step 4.
 
 ## Prerequisites
 
@@ -33,10 +33,19 @@ cd EngiAI
 
 ```bash
 cp .env.demo.example .env
-nano .env    # fill in TAVILY_API_KEY, GOOGLE_API_KEY
+nano .env    # fill in TAVILY_API_KEY, GOOGLE_API_KEY or OPENAI_API_KEY
 ```
 
-At minimum set `GOOGLE_API_KEY`. Leave `POSTGRES_PASSWORD` as-is or pick your own.
+At minimum set the API key for the LLM provider you want to use, and leave `POSTGRES_PASSWORD` as-is or pick your own.
+
+- **Google (default)** — set `GOOGLE_API_KEY`. `LLM_MODEL` is already pointed at `google_genai:...` in the example file, no further change needed.
+- **OpenAI** — set `OPENAI_API_KEY`, then also switch `LLM_MODEL` to an OpenAI model: comment out the `google_genai:` line and uncomment the `openai:` line in `.env`.
+
+**Optional** — to train models on the Euler cluster and track runs on WandB, also set the following in `.env` (create a WandB entity first if you don't have one):
+
+- `WANDB_API_KEY`
+- `HF_TOKEN`
+- `USE_WANDB=True` — required (exact casing) to download trained models back from WandB; without it the chatbot will reply *"WandB is not enabled. Set USE_WANDB=True in your environment variables."*
 
 ## 4. Launch
 
@@ -47,6 +56,16 @@ docker compose -f docker-compose.demo.yml up -d --build
 First build takes a few minutes (10-15 min, Python deps). Subsequent starts are instant.
 
 Then open <http://localhost:8501> in your Windows browser.
+
+### Optional — Euler / WandB setup
+
+If you want to train models on the Euler cluster and track runs on WandB, configure the following in the **Settings** page of the UI:
+
+- **HPC Connection** — select *Password Authentication* and fill in the hostname, username, and password. Click **Test Connection**; once it succeeds, click **Save Credentials**.
+- **Email for Job Notifications**, **WandB Entity**, and **WandB Project** — set these too. You can leave the other paths at their defaults if you're using the `mavt-ide-euler` user.
+
+You can now ask the chatbot to generate a SLURM script, submit it to the cluster, and get back an example design produced by the freshly trained model.
+
 
 ## 5. Stop / reset
 
