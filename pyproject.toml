@@ -26,7 +26,7 @@ dependencies = [
     "langchain-google-genai==4.2.2",
     "langchain-mcp-adapters==0.2.2",
     "langchain-ollama==1.1.0",
-    "langchain-openai==1.2.0",
+    "langchain-openai==1.2.1",
     "langchain-tavily==0.2.18",
     "langgraph==1.1.9",
     "langgraph-checkpoint-postgres==3.0.5",
