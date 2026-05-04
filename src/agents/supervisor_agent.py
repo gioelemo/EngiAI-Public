@@ -152,9 +152,20 @@ class SupervisorAgent:
         self.hpc_agent = HPCAgent(
             model_name=self.model_name, temperature=self.temperature, seed=self.seed
         )
-        self.search_agent = SearchAgent(
-            model_name=self.model_name, temperature=self.temperature, seed=self.seed
-        )
+        skip_search = os.getenv("SKIP_SEARCH", "false").lower() == "true"
+        self.search_agent: SearchAgent | None = None
+        if not skip_search and config.tavily_api_key:
+            self.search_agent = SearchAgent(
+                model_name=self.model_name,
+                temperature=self.temperature,
+                seed=self.seed,
+            )
+        else:
+            logger.info(
+                "SearchAgent disabled (SKIP_SEARCH=%s, Tavily configured=%s)",
+                skip_search,
+                bool(config.tavily_api_key),
+            )
         # Initialize RAG agent with MMORE
         self.rag_agent = RAGAgent(
             model_name=self.model_name,
@@ -393,7 +404,10 @@ class SupervisorAgent:
 
     def _search_node(self, state: SupervisorState):
         """Delegate to search agent."""
-        if os.getenv("SKIP_SEARCH", "false").lower() == "true":
+        if (
+            os.getenv("SKIP_SEARCH", "false").lower() == "true"
+            or self.search_agent is None
+        ):
             self._last_delegation_had_tools = True
             return {
                 "messages": [

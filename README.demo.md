@@ -33,7 +33,7 @@ cd EngiAI
 
 ```bash
 cp .env.demo.example .env
-nano .env    # fill in TAVILY_API_KEY, GOOGLE_API_KEY or OPENAI_API_KEY
+nano .env    # fill in GOOGLE_API_KEY or OPENAI_API_KEY; TAVILY_API_KEY is optional
 ```
 
 At minimum set the API key for the LLM provider you want to use, and leave `POSTGRES_PASSWORD` as-is or pick your own.
