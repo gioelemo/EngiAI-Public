@@ -45,6 +45,9 @@ services:
       - USE_WANDB=${USE_WANDB:-}
       - TZ=Europe/Zurich  # Set timezone to match host
     volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./artifacts:/app/artifacts
       # Mount timezone data to ensure correct timezone in container
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
