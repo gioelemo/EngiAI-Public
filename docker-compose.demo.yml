@@ -43,6 +43,11 @@ services:
       - WANDB_ENTITY=${WANDB_ENTITY:-}
       - HF_TOKEN=${HF_TOKEN:-}
       - USE_WANDB=${USE_WANDB:-}
+      - TZ=Europe/Zurich  # Set timezone to match host
+    volumes:
+      # Mount timezone data to ensure correct timezone in container
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       postgres-demo:
         condition: service_healthy
