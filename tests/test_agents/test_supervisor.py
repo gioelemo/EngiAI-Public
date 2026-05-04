@@ -136,6 +136,7 @@ def test_supervisor_seed_propagation():
             # Check all sub-agents have seed
             assert supervisor.engineering_agent.seed == 456
             assert supervisor.hpc_agent.seed == 456
+            assert supervisor.search_agent is not None
             assert supervisor.search_agent.seed == 456
             assert supervisor.rag_agent.seed == 456
             assert supervisor.arxiv_agent.seed == 456

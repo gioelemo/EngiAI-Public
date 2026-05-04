@@ -840,6 +840,14 @@ def render_design(  # noqa: PLR0913
         else:
             full_save_path = save_path_obj
 
+        # Ensure the path has a valid image extension so the UI can render it
+        # and matplotlib infers the correct format. The LLM sometimes passes a
+        # save_path with no extension or with a non-image one (e.g. reusing the
+        # .npy path from optimize_design).
+        image_extensions = {".png", ".jpg", ".jpeg", ".svg", ".pdf"}
+        if full_save_path.suffix.lower() not in image_extensions:
+            full_save_path = full_save_path.with_suffix(".png")
+
         # Create a fresh problem instance for rendering
         problem_class = get_problem_class(problem_type)
 
