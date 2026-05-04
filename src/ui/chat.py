@@ -228,7 +228,6 @@ def render() -> None:
         if input_to_process:
             with new_message_placeholder.container():
                 process_user_input(input_to_process)
-            st.rerun()
 
         # Render compact job monitor at the bottom if there are jobs
         if st.session_state.get("monitored_jobs"):
