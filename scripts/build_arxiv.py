@@ -275,12 +275,13 @@ def _validate(output_tex: str, target_dir: Path, cfg: dict) -> list[str]:
     for m in _INCLUDEGRAPHICS_RE.finditer(output_tex):
         ref = m.group(1)
         candidate = target_dir / ref
-        if not candidate.exists():
-            if not any(candidate.with_suffix(ext).exists()
-                       for ext in (".pdf", ".png", ".jpg", ".jpeg")):
-                warnings.append(
-                    f"\\includegraphics{{{ref}}} -> file not found under {target_dir}"
-                )
+        if not candidate.exists() and not any(
+            candidate.with_suffix(ext).exists()
+            for ext in (".pdf", ".png", ".jpg", ".jpeg")
+        ):
+            warnings.append(
+                f"\\includegraphics{{{ref}}} -> file not found under {target_dir}"
+            )
 
     expected = cfg.get("expected_section_count")
     if expected is not None:
@@ -288,28 +289,20 @@ def _validate(output_tex: str, target_dir: Path, cfg: dict) -> list[str]:
         if n != expected:
             warnings.append(f"Expected {expected} \\section{{...}} blocks, found {n}")
 
-    for ph in (cfg.get("placeholders") or {}).values():
-        if ph and ph in output_tex:
-            warnings.append(f"Placeholder {ph!r} still present in output")
+    warnings.extend(
+        f"Placeholder {ph!r} still present in output"
+        for ph in (cfg.get("placeholders") or {}).values()
+        if ph and ph in output_tex
+    )
 
     return warnings
 
 
-def build_arxiv(cfg: dict, *, dry_run: bool) -> list[dict]:
-    src_path = PROJECT_ROOT / cfg["source_paper"]
-    template_path = PROJECT_ROOT / cfg["template_file"]
-    target_path = PROJECT_ROOT / cfg["target_tex"]
-
-    if not src_path.exists():
-        raise RuntimeError(f"Source paper not found: {src_path}")
-    if not template_path.exists():
-        raise RuntimeError(f"Template file not found: {template_path}")
-
-    src_tex = src_path.read_text()
-    template = template_path.read_text()
-
+def _assemble_body(src_tex: str, cfg: dict) -> tuple[str, str]:
+    """Extract abstract + body from the IDETC source and apply rewrites.
+    Returns (abstract_text, body_text).
+    """
     extract = cfg["extract"]
-    placeholders = cfg["placeholders"]
 
     abstract_text = _extract(
         src_tex,
@@ -345,6 +338,25 @@ def build_arxiv(cfg: dict, *, dry_run: bool) -> list[dict]:
             log.info("wrapped %s in landscape env", target)
         else:
             log.warning("wrap_inputs_landscape: %r not found in body", target)
+
+    return abstract_text, body_text
+
+
+def build_arxiv(cfg: dict, *, dry_run: bool) -> list[dict]:
+    src_path = PROJECT_ROOT / cfg["source_paper"]
+    template_path = PROJECT_ROOT / cfg["template_file"]
+    target_path = PROJECT_ROOT / cfg["target_tex"]
+
+    if not src_path.exists():
+        raise RuntimeError(f"Source paper not found: {src_path}")
+    if not template_path.exists():
+        raise RuntimeError(f"Template file not found: {template_path}")
+
+    src_tex = src_path.read_text()
+    template = template_path.read_text()
+    placeholders = cfg["placeholders"]
+
+    abstract_text, body_text = _assemble_body(src_tex, cfg)
 
     if placeholders["abstract"] not in template:
         raise RuntimeError(f"Abstract placeholder {placeholders['abstract']!r} not in template")
@@ -406,8 +418,8 @@ def main() -> int:
     cfg = load_config(args.config)
     try:
         actions = build_arxiv(cfg, dry_run=args.dry_run)
-    except RuntimeError as e:
-        log.error("%s", e)
+    except RuntimeError:
+        log.exception("build_arxiv failed")
         return 1
 
     print(f"\n{'Would perform' if args.dry_run else 'Performed'} {len(actions)} action(s):")
