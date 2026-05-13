@@ -4,3 +4,6 @@
 [submodule "paper-revision"]
 	path = paper-revision
 	url = https://github.com/gioelemo/EngiAI-Paper-IDETC-Revision.git
+[submodule "EngiAI---arXiv"]
+	path = EngiAI---arXiv
+	url = https://github.com/gioelemo/EngiAI---arXiv.git
