@@ -1,4 +1,4 @@
-.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean mmore-eval-up mmore-eval-down mmore-eval-rebuild mmore-eval-logs mmore-eval-status mmore-eval-run sync-thesis sync-thesis-figures sync-thesis-tables sync-thesis-prompts sync-thesis-dry-run sync-thesis-commit sync-paper sync-paper-dry-run sync-paper-revision sync-paper-revision-dry-run
+.PHONY: help install test lint format clean run-ui docs docs-serve docs-clean mmore-eval-up mmore-eval-down mmore-eval-rebuild mmore-eval-logs mmore-eval-status mmore-eval-run sync-thesis sync-thesis-figures sync-thesis-tables sync-thesis-prompts sync-thesis-dry-run sync-thesis-commit sync-paper sync-paper-dry-run sync-paper-revision sync-paper-revision-dry-run build-arxiv build-arxiv-dry-run
 
 help:  ## Show this help message
 	@echo "Available commands:"
@@ -166,3 +166,10 @@ sync-paper-revision:  ## Sync prompts to paper revision submodule
 
 sync-paper-revision-dry-run:  ## Preview what would be synced to paper revision
 	python scripts/sync_paper.py --prompts --dry-run --config paper-revision/paper_revision_sync_config.yaml
+
+# arXiv build targets
+build-arxiv:  ## Generate the arXiv version from the IDETC revision
+	python scripts/build_arxiv.py
+
+build-arxiv-dry-run:  ## Preview what would be generated for the arXiv version
+	python scripts/build_arxiv.py --dry-run
