@@ -51,7 +51,7 @@ def _extract(tex: str, start_marker: str, end_marker: str, *, inclusive: bool) -
         raise RuntimeError(f"end_marker {end_marker!r} not found after start_marker")
     if inclusive:
         return tex[start:end]
-    return tex[start + len(start_marker):end]
+    return tex[start + len(start_marker) : end]
 
 
 def _apply_path_rewrites(text: str, rewrites: list[dict]) -> str:
@@ -111,7 +111,9 @@ def _scale_single_column_figures(body: str, scale: float) -> tuple[str, int]:
 
     body = re.sub(
         r"(\\begin\{figure\}(?:\[[^\]]*\])?)(.*?)(\\end\{figure\})",
-        _scale_env, body, flags=re.DOTALL,
+        _scale_env,
+        body,
+        flags=re.DOTALL,
     )
     return body, count
 
@@ -134,22 +136,28 @@ def _flatten_multicolumn_math(body: str) -> tuple[str, int]:
         content = re.sub(r"\\\\\s*", " ", content)
         return r"\begin{equation}" + content + r"\end{equation}"
 
-    body = re.sub(r"\\begin\{multline\}(.*?)\\end\{multline\}",
-                  _from_multline, body, flags=re.DOTALL)
+    body = re.sub(
+        r"\\begin\{multline\}(.*?)\\end\{multline\}",
+        _from_multline,
+        body,
+        flags=re.DOTALL,
+    )
 
     def _from_eq_split(m: re.Match) -> str:
         nonlocal count
         count += 1
         content = m.group(1)
         content = content.replace("={}", "=")
-        content = re.sub(r"\\\\\s*&", " ", content)   # `\\\n  & ...`
-        content = re.sub(r"\\\\\s*", " ", content)    # any remaining `\\`
-        content = re.sub(r"\s*&\s*", " ", content)    # alignment marker `&`
+        content = re.sub(r"\\\\\s*&", " ", content)  # `\\\n  & ...`
+        content = re.sub(r"\\\\\s*", " ", content)  # any remaining `\\`
+        content = re.sub(r"\s*&\s*", " ", content)  # alignment marker `&`
         return r"\begin{equation}" + content + r"\end{equation}"
 
     body = re.sub(
         r"\\begin\{equation\}\s*\\begin\{split\}(.*?)\\end\{split\}\s*\\end\{equation\}",
-        _from_eq_split, body, flags=re.DOTALL,
+        _from_eq_split,
+        body,
+        flags=re.DOTALL,
     )
     return body, count
 
@@ -168,9 +176,13 @@ def _sync_assets(cfg: dict, *, dry_run: bool) -> list[dict]:
         action = "would copy" if dry_run else "copied"
         if not dry_run:
             shutil.copytree(src, dst, dirs_exist_ok=True)
-        actions.append({"source": str(src.relative_to(PROJECT_ROOT)),
-                        "target": str(dst.relative_to(PROJECT_ROOT)),
-                        "action": f"{action} dir ({n_files} files)"})
+        actions.append(
+            {
+                "source": str(src.relative_to(PROJECT_ROOT)),
+                "target": str(dst.relative_to(PROJECT_ROOT)),
+                "action": f"{action} dir ({n_files} files)",
+            }
+        )
         log.info("%s %s -> %s (%d files)", action, src.name, dst.name, n_files)
 
     max_authors = cfg.get("truncate_bib_authors_to")
@@ -193,9 +205,13 @@ def _sync_assets(cfg: dict, *, dry_run: bool) -> list[dict]:
                     note = f" (truncated {n} author lists to {max_authors})"
             else:
                 shutil.copy2(src, dst)
-        actions.append({"source": str(src.relative_to(PROJECT_ROOT)),
-                        "target": str(dst.relative_to(PROJECT_ROOT)),
-                        "action": f"{action} file{note}"})
+        actions.append(
+            {
+                "source": str(src.relative_to(PROJECT_ROOT)),
+                "target": str(dst.relative_to(PROJECT_ROOT)),
+                "action": f"{action} file{note}",
+            }
+        )
         log.info("%s %s -> %s%s", action, src.name, dst.relative_to(PROJECT_ROOT), note)
 
     return actions
@@ -224,7 +240,7 @@ def _truncate_bib_authors(bib_text: str, max_authors: int) -> tuple[str, int]:
             break
 
         # Append everything up to and including the opening `{`.
-        out.append(bib_text[pos:m.end()])
+        out.append(bib_text[pos : m.end()])
 
         # Walk to the matching closing `}` (brace-balanced).
         depth = 1
@@ -240,10 +256,10 @@ def _truncate_bib_authors(bib_text: str, max_authors: int) -> tuple[str, int]:
             i += 1
         if depth != 0:
             # Unbalanced — give up on this entry, copy verbatim and stop.
-            out.append(bib_text[m.end():])
+            out.append(bib_text[m.end() :])
             break
 
-        authors_raw = bib_text[m.end():i]
+        authors_raw = bib_text[m.end() : i]
         parts = [p.strip() for p in re.split(r"\s+and\s+", authors_raw) if p.strip()]
         if len(parts) > max_authors and parts[-1].lower() != "others":
             kept = parts[:max_authors]
@@ -322,13 +338,17 @@ def _assemble_body(src_tex: str, cfg: dict) -> tuple[str, str]:
     if cfg.get("flatten_multicolumn_math", True):
         body_text, n_flat = _flatten_multicolumn_math(body_text)
         if n_flat:
-            log.info("flattened %d multi-column math env(s) to single-line equation", n_flat)
+            log.info(
+                "flattened %d multi-column math env(s) to single-line equation", n_flat
+            )
 
     fig_scale = cfg.get("scale_single_column_figures")
     if fig_scale:
         body_text, n_scaled = _scale_single_column_figures(body_text, float(fig_scale))
         if n_scaled:
-            log.info("scaled %d single-column figure width(s) by %s", n_scaled, fig_scale)
+            log.info(
+                "scaled %d single-column figure width(s) by %s", n_scaled, fig_scale
+            )
 
     for ref in cfg.get("wrap_inputs_landscape", []) or []:
         target = f"\\input{{{ref}}}"
@@ -359,7 +379,9 @@ def build_arxiv(cfg: dict, *, dry_run: bool) -> list[dict]:
     abstract_text, body_text = _assemble_body(src_tex, cfg)
 
     if placeholders["abstract"] not in template:
-        raise RuntimeError(f"Abstract placeholder {placeholders['abstract']!r} not in template")
+        raise RuntimeError(
+            f"Abstract placeholder {placeholders['abstract']!r} not in template"
+        )
     if placeholders["body"] not in template:
         raise RuntimeError(f"Body placeholder {placeholders['body']!r} not in template")
 
@@ -371,32 +393,45 @@ def build_arxiv(cfg: dict, *, dry_run: bool) -> list[dict]:
     if not dry_run:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_text(output)
-    actions.append({
-        "source": str(src_path.relative_to(PROJECT_ROOT)),
-        "target": str(target_path.relative_to(PROJECT_ROOT)),
-        "action": f"{action} main.tex ({len(output):,} bytes)",
-    })
-    log.info("%s %s (%d bytes)", action, target_path.relative_to(PROJECT_ROOT), len(output))
+    actions.append(
+        {
+            "source": str(src_path.relative_to(PROJECT_ROOT)),
+            "target": str(target_path.relative_to(PROJECT_ROOT)),
+            "action": f"{action} main.tex ({len(output):,} bytes)",
+        }
+    )
+    log.info(
+        "%s %s (%d bytes)", action, target_path.relative_to(PROJECT_ROOT), len(output)
+    )
 
     actions.extend(_sync_assets(cfg, dry_run=dry_run))
 
-    tbl_scale = cfg.get("scale_single_column_tables", cfg.get("scale_single_column_figures"))
+    tbl_scale = cfg.get(
+        "scale_single_column_tables", cfg.get("scale_single_column_figures")
+    )
     if tbl_scale and not dry_run:
         tables_dir = target_path.parent / "tables"
         n_tables = _scale_single_column_table_files(tables_dir, float(tbl_scale))
         if n_tables:
-            actions.append({
-                "source": "tables/*.tex",
-                "target": str(tables_dir.relative_to(PROJECT_ROOT)),
-                "action": f"scaled {n_tables} single-column table(s) by {tbl_scale}",
-            })
+            actions.append(
+                {
+                    "source": "tables/*.tex",
+                    "target": str(tables_dir.relative_to(PROJECT_ROOT)),
+                    "action": f"scaled {n_tables} single-column table(s) by {tbl_scale}",
+                }
+            )
 
     warnings = _validate(output, target_path.parent, cfg)
     for w in warnings:
         log.warning(w)
     if warnings:
-        actions.append({"source": "validation", "target": "main.tex",
-                        "action": f"{len(warnings)} warning(s)"})
+        actions.append(
+            {
+                "source": "validation",
+                "target": "main.tex",
+                "action": f"{len(warnings)} warning(s)",
+            }
+        )
 
     return actions
 
@@ -405,10 +440,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Build arXiv version of the EngiAI paper from IDETC revision"
     )
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Preview actions without writing files")
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
-                        help=f"Path to YAML config (default: {DEFAULT_CONFIG})")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview actions without writing files"
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG,
+        help=f"Path to YAML config (default: {DEFAULT_CONFIG})",
+    )
     args = parser.parse_args()
 
     if not args.config.exists():
@@ -422,7 +462,9 @@ def main() -> int:
         log.exception("build_arxiv failed")
         return 1
 
-    print(f"\n{'Would perform' if args.dry_run else 'Performed'} {len(actions)} action(s):")
+    print(
+        f"\n{'Would perform' if args.dry_run else 'Performed'} {len(actions)} action(s):"
+    )
     for a in actions:
         print(f"  {a['action']}: {a['source']} -> {a['target']}")
     return 0
