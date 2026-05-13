@@ -201,27 +201,61 @@ def _sync_assets(cfg: dict, *, dry_run: bool) -> list[dict]:
     return actions
 
 
-_BIB_AUTHOR_RE = re.compile(r"(author\s*=\s*\{)([^}]*)(\})", re.IGNORECASE)
+_BIB_AUTHOR_START_RE = re.compile(r"author\s*=\s*\{", re.IGNORECASE)
 
 
 def _truncate_bib_authors(bib_text: str, max_authors: int) -> tuple[str, int]:
     """Truncate every `author = {A and B and ...}` field to first `max_authors`
     entries followed by `and others` (BibTeX renders as 'et al.').
+
+    Walks brace-balanced to find each author field's closing `}` so it
+    tolerates protected letters like `Wanderman-{M}ilne` or `Rockt\\"{a}schel`.
+
     Returns the rewritten bib text and the count of entries truncated.
     """
     truncated = 0
+    out: list[str] = []
+    pos = 0
 
-    def _sub(m: re.Match) -> str:
-        nonlocal truncated
-        prefix, authors, suffix = m.group(1), m.group(2), m.group(3)
-        parts = [p.strip() for p in re.split(r"\s+and\s+", authors) if p.strip()]
-        if len(parts) <= max_authors or parts[-1].lower() == "others":
-            return m.group(0)
-        truncated += 1
-        kept = parts[:max_authors]
-        return f"{prefix}{' and '.join(kept)} and others{suffix}"
+    while True:
+        m = _BIB_AUTHOR_START_RE.search(bib_text, pos)
+        if m is None:
+            out.append(bib_text[pos:])
+            break
 
-    return _BIB_AUTHOR_RE.sub(_sub, bib_text), truncated
+        # Append everything up to and including the opening `{`.
+        out.append(bib_text[pos:m.end()])
+
+        # Walk to the matching closing `}` (brace-balanced).
+        depth = 1
+        i = m.end()
+        while i < len(bib_text) and depth > 0:
+            c = bib_text[i]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        if depth != 0:
+            # Unbalanced — give up on this entry, copy verbatim and stop.
+            out.append(bib_text[m.end():])
+            break
+
+        authors_raw = bib_text[m.end():i]
+        parts = [p.strip() for p in re.split(r"\s+and\s+", authors_raw) if p.strip()]
+        if len(parts) > max_authors and parts[-1].lower() != "others":
+            kept = parts[:max_authors]
+            out.append(f"{' and '.join(kept)} and others")
+            truncated += 1
+        else:
+            out.append(authors_raw)
+
+        out.append("}")  # closing brace
+        pos = i + 1
+
+    return "".join(out), truncated
 
 
 _INPUT_RE = re.compile(r"\\input\{([^}]+)\}")
