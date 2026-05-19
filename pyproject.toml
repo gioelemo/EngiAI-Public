@@ -18,7 +18,7 @@ dependencies = [
     # When an appropriate tagged version is available, replace this with that tag (for example: engibench==<version>).
     "engibench @ git+https://github.com/IDEALLab/EngiBench.git@5983750dd498cc01e926dc7199f455d928f338ec",
     "engiopt @ git+https://github.com/IDEALLab/EngiOpt.git@127a0469c98886f35e20a54a809278d864369cb5",
-    "fabric==3.2.2",
+    "fabric==3.2.3",
     "flask>=3.0.0",
     "langchain==1.2.15",
     "langchain-community==0.4.1",
