@@ -6,7 +6,7 @@ services:
     environment:
       - POSTGRES_DB=engineer_assistant
       - POSTGRES_USER=engiai_user
-      - POSTGRES_PASSWORD=engineer_ai_2025
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change_me}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -118,7 +118,7 @@ services:
       - SKIP_MCP=false  # Enable MCP client
       - PRUSA_MCP_URL=http://prusa-mcp-server:8765  # Connect to MCP server (internal port)
       - MMORE_RAG_URL=http://mmore-rag-service:8000  # Connect to mmore RAG service
-      - DATABASE_URL=${DATABASE_URL:-postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://engiai_user:${POSTGRES_PASSWORD:-change_me}@postgres:5432/engineer_assistant}
       - SSH_AUTH_SOCK=/ssh-agent
       - PAPERS_SOURCE_DIR=/app/papers  # Container path (different from host)
       - TZ=Europe/Zurich  # Set timezone to match host

@@ -8,8 +8,12 @@
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
+> ⚠️ **Status (2026-05-19):** This is a public snapshot of EngiAI accompanying the IDETC 2026 paper. The codebase is actively evolving in a private repository and will be made fully public as soon as the journal extension is published. For the smoothest experience, follow the demo setup in [README.demo.md](README.demo.md). The full version works but the RAG (MMORE) integration currently requires manual setup — official Docker images for RAG will be released soon.
 
 EngiAI provides an AI-powered assistant for mechanical engineering design, integrating topology optimization, research retrieval, HPC simulation, and 3D printer control in a single conversational interface.
+
+📄 **Paper (arXiv):** *TBD — link to be added once the arXiv preprint is live.*
+🎥 **Demo video:** https://www.youtube.com/watch?v=QbQVZFCq3X0
 
 ## 🎯 Quick Start
 
@@ -151,7 +155,7 @@ The database configuration differs between Docker and local development:
 
 - **Docker Deployment**: Uses PostgreSQL container (hostname: `postgres`)
   ```env
-  DATABASE_URL=postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant  # ⚠ development default — change before deploying
+  DATABASE_URL=postgresql://engiai_user:${POSTGRES_PASSWORD}@postgres:5432/engineer_assistant  # POSTGRES_PASSWORD comes from .env (defaults to "change_me" — set a real value before deploying)
   ```
 
 - **Local Development**: Use SQLite (recommended) or local PostgreSQL

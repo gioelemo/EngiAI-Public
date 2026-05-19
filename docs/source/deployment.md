@@ -103,8 +103,9 @@ TAVILY_API_KEY=tvly-...
 # LLM Configuration
 LLM_MODEL=openai:gpt-4.1
 
-# Database Configuration — ⚠ development default, change before deploying
-DATABASE_URL=postgresql://engiai_user:engineer_ai_2025@postgres:5432/engineer_assistant
+# Database Configuration — set POSTGRES_PASSWORD before deploying
+POSTGRES_PASSWORD=change_me
+DATABASE_URL=postgresql://engiai_user:${POSTGRES_PASSWORD}@postgres:5432/engineer_assistant
 
 # Papers Directory (optional, for bulk import)
 PAPERS_SOURCE_DIR=/path/to/papers
