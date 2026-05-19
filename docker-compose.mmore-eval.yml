@@ -1,0 +1,58 @@
+# Docker Compose for MMORE RAG evaluation
+# Run with: docker compose -f docker-compose.mmore-eval.yml up -d
+# Uses different ports/names to run in parallel with main docker-compose.yml
+
+services:
+  mmore-rag-eval:
+    build:
+      context: ${MMORE_PATH:-~/Desktop/mmore}
+      dockerfile: Dockerfile
+      args:
+        PLATFORM: cpu  # Use CPU-only build for macOS
+    image: mmore-rag-service:latest
+    pull_policy: never
+    container_name: mmore-rag-eval
+    ports:
+      - "8001:8000"  # Different host port to avoid conflict with main service
+    environment:
+      - MMORE_CONFIG_PATH=/app/config/retriever_config.yaml
+      - MMORE_API_HOST=0.0.0.0
+      - MMORE_API_PORT=8000
+    volumes:
+      # Persist Milvus Lite database
+      - ${MMORE_PATH:-~/Desktop/mmore}/proc_demo.db:/app/proc_demo.db
+      # Mount config
+      - ${MMORE_PATH:-~/Desktop/mmore}/examples/retriever_api/config.yaml:/app/config/retriever_config.yaml:ro
+      # Use separate volumes for eval to avoid conflicts
+      - mmore_eval_uploads:/app/uploads
+      - mmore_eval_cache:/home/mmoreuser/.cache
+    user: root
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "chown -R mmoreuser:mmoreuser /app/uploads /home/mmoreuser/.cache &&
+      su mmoreuser -c 'cd /app && . .venv/bin/activate &&
+      python -m mmore.run_live_retrieval
+      --config-file /app/config/retriever_config.yaml
+      --host 0.0.0.0
+      --port 8000'"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 240s  # 4 minutes for model downloads on first start
+    networks:
+      - mmore-eval
+
+networks:
+  mmore-eval:
+    driver: bridge
+
+volumes:
+  mmore_eval_uploads:
+    name: engiai_mmore_eval_uploads
+    external: true
+  mmore_eval_cache:
+    name: engiai_mmore_eval_cache
+    external: true

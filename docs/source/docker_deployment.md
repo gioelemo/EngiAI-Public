@@ -1,0 +1,398 @@
+# Docker Deployment Guide
+
+This guide explains how to deploy the EngiAI chatbot using Docker on Windows Server or any other platform.
+
+## Prerequisites
+
+- Docker installed on your system
+- Docker Compose (optional, but recommended)
+- API keys for OpenAI and Tavily and Google
+
+### External Services (Required)
+
+The following services must be cloned locally and accessible to the Docker containers:
+
+1. **MMORE RAG Service** - Multimodal document retrieval system
+   ```bash
+   # Contact the MMORE team or check internal documentation for repository access
+   git clone <mmore-repository-url>
+   cd mmore
+   # Follow MMORE setup instructions
+   ```
+   - Default URL: `http://localhost:8000`
+   - Configure with `MMORE_RAG_URL` in `.env`
+
+2. **Prusa Connect MCP Server** (Optional - only if using 3D printer integration)
+   - Installed as a pip dependency from git
+     (`prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git`), declared in
+     `services/prusa_mcp_server/requirements-mcp.txt`
+   - Built automatically into the `prusa-mcp-server` Docker image by
+     `services/prusa_mcp_server/Dockerfile`
+   - See `services/prusa_mcp_server/README.md` for configuration
+   - Set `SKIP_MCP=false` to enable
+
+These services run as separate containers/processes and the EngiAI connects to them via network.
+
+## Quick Start
+
+### Option 1: Using Docker Compose (Recommended)
+
+1. **Create a `.env` file** from the example:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit the `.env` file** and add your API keys:
+   ```bash
+   OPENAI_API_KEY=your_actual_openai_key
+   TAVILY_API_KEY=your_actual_tavily_key
+   ```
+
+3. **Build and run with Docker Compose**:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Access the application**:
+   Open your browser and navigate to `http://localhost:8501`
+
+5. **View logs**:
+   ```bash
+   docker-compose logs -f chatbot
+   ```
+
+6. **Stop the application**:
+   ```bash
+   docker-compose down
+   ```
+
+### Option 2: Using Docker CLI
+
+1. **Build the Docker image**:
+   ```bash
+   docker build -t engiai-chatbot .
+   ```
+
+2. **Run the container** with environment variables:
+   ```bash
+   docker run -d \
+     --name engiai \
+     -p 8501:8501 \
+     -e OPENAI_API_KEY=your_openai_key \
+     -e TAVILY_API_KEY=your_tavily_key \
+     -v $(pwd)/data:/app/data \
+     engiai-chatbot
+   ```
+
+3. **Access the application**:
+   Open your browser and navigate to `http://localhost:8501`
+
+## Windows Server Deployment
+
+### Method 1: Build on Windows Server
+
+1. Install Docker Desktop for Windows or Docker Engine
+2. Clone your repository or copy the project files to the server
+3. Follow the "Quick Start" instructions above
+
+### Method 2: Transfer Image from Another Machine
+
+If you build the image on your local machine and want to deploy on Windows Server:
+
+1. **On your build machine** (Mac/Linux):
+   ```bash
+   # Build the image
+   docker build -t engiai-chatbot .
+
+   # Save the image to a tar file
+   docker save -o engiai-chatbot.tar engiai-chatbot
+   ```
+
+2. **Transfer the tar file** to Windows Server (via SCP, FTP, USB, etc.)
+
+3. **On Windows Server**:
+   ```powershell
+   # Load the image
+   docker load -i engiai-chatbot.tar
+
+   # Create a .env file with your API keys
+   # Then run with Docker Compose or Docker CLI
+   docker run -d `
+     --name engiai `
+     -p 8501:8501 `
+     --env-file .env `
+     -v ${PWD}/data:/app/data `
+     engiai-chatbot
+   ```
+
+### Method 3: Using a Container Registry
+
+1. **Push to Docker Hub** (or another registry):
+   ```bash
+   # Tag the image
+   docker tag engiai-chatbot your-username/engiai-chatbot:latest
+
+   # Login to Docker Hub
+   docker login
+
+   # Push the image
+   docker push your-username/engiai-chatbot:latest
+   ```
+
+2. **On Windows Server**, pull and run:
+   ```powershell
+   docker pull your-username/engiai-chatbot:latest
+
+   docker run -d `
+     --name engiai `
+     -p 8501:8501 `
+     --env-file .env `
+     -v ${PWD}/data:/app/data `
+     your-username/engiai-chatbot:latest
+   ```
+
+## Environment Variables
+
+### Required Variables
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `GOOGLE_API_KEY`: Your Google API key
+- `TAVILY_API_KEY`: Your Tavily API key
+
+### Important Variables
+- `SKIP_MCP`: Skip Prusa MCP server initialization (default: `false` in Docker)
+  - Set to `true` to disable 3D printer integration
+  - Set to `false` (default in docker-compose) to enable Prusa MCP
+
+### Optional Variables
+
+- `LLM_MODEL`: Model to use (default: `openai:gpt-4.1`)
+- `DATABASE_URL`: Database connection string (default: `sqlite:///data/conversations.db`)
+- `LANGCHAIN_TRACING`: Enable LangSmith tracing (default: `false`)
+
+See `.env.example` in the project root for all available configuration options.
+
+### About MCP Server (Prusa 3D Printer Integration)
+
+The application includes optional integration with Prusa Connect via an MCP (Model Context Protocol) server for 3D printer management. For most deployments, this is not needed and should be disabled by setting `SKIP_MCP=true`.
+
+**To enable Prusa integration** (advanced):
+1. Set up the Prusa MCP server at the path specified in `PRUSA_MCP_PATH`
+2. Set `SKIP_MCP=false` in your `.env` file
+3. Configure `PRUSA_MCP_PATH` environment variable in your `.env` file
+
+For basic chatbot functionality, keep `SKIP_MCP=true` (the default).
+
+### About HPC Cluster Integration (SSH Access)
+
+The Docker configuration **automatically mounts your SSH configuration** from `~/.ssh` into the container. This enables:
+- Connection to HPC clusters (like ETH's Euler cluster)
+- SLURM job submission and monitoring
+- Remote file operations
+
+**How it works:**
+1. Your `~/.ssh` directory is mounted read-only to `/root/.ssh-host` in the container
+2. The `docker-entrypoint.sh` script copies the SSH configuration and sets proper permissions (600 for keys, 644 for known_hosts)
+3. SSH client is pre-installed in the container
+
+**What you need:**
+- Your `~/.ssh/config` file with host aliases (e.g., "euler")
+- SSH private keys in `~/.ssh/`
+- The remote host's entry in `~/.ssh/known_hosts` (add it by connecting once from your host machine)
+
+**For passphrase-protected SSH keys:**
+If your SSH key is protected with a passphrase, you need to use SSH agent forwarding:
+
+1. **Start SSH agent and add your key** (on your host machine):
+   ```bash
+   # Start the SSH agent
+   eval "$(ssh-agent -s)"
+
+   # Add your SSH key (you'll be prompted for the passphrase once)
+   ssh-add ~/.ssh/id_rsa  # or id_ed25519, or whatever your key is named
+
+   # Verify the key is loaded
+   ssh-add -l
+   ```
+
+2. **Start the container** (the SSH agent socket is automatically mounted):
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **The container will use your host's SSH agent** - no passphrase required!
+
+**Alternative: Use an unencrypted key** (less secure):
+If you prefer not to use SSH agent, you can create a separate SSH key without a passphrase specifically for the container:
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_docker_euler -N ""
+# Then add this key to your Euler account's authorized_keys
+```
+
+**Testing SSH connection:**
+Once the container is running, you can test the SSH connection through the chatbot UI by asking it to connect to the HPC cluster.
+
+**Security notes:**
+- SSH keys are mounted read-only from your host
+- Keys are copied into the container (not shared directly)
+- Container is isolated from your host system
+- For production, consider using SSH agent forwarding or secrets management
+
+## Data Persistence
+
+The application stores conversation data in the `/app/data` directory. To persist this data:
+
+1. **Using Docker Compose**: The `docker-compose.yml` already mounts `./data:/app/data`
+
+2. **Using Docker CLI**: Add the volume mount:
+   ```bash
+   -v $(pwd)/data:/app/data
+   ```
+
+## Troubleshooting
+
+### Container won't start - Configuration Error
+
+**Error**: `ValueError` in config validation
+
+**Solution**: Ensure `OPENAI_API_KEY` and `TAVILY_API_KEY` are set in your `.env` file or passed as environment variables.
+
+### Port 8501 already in use
+
+**Solution**: Either stop the service using port 8501 or map to a different port:
+```bash
+docker run -p 8080:8501 ...  # Access on http://localhost:8080
+```
+
+### Database connection issues
+
+**Solution**: If using PostgreSQL, ensure the database is accessible from the container. For SQLite (default), ensure the data directory is mounted.
+
+### Viewing container logs
+
+```bash
+# Using Docker Compose
+docker-compose logs -f chatbot
+
+# Using Docker CLI
+docker logs -f engiai
+```
+
+### Restarting the container
+
+```bash
+# Using Docker Compose
+docker-compose restart
+
+# Using Docker CLI
+docker restart engiai
+```
+
+## Health Check
+
+The application includes a health check endpoint. You can verify the application is running:
+
+```bash
+curl http://localhost:8501/_stcore/health
+```
+
+## Updating the Application
+
+1. **Pull latest code** from your repository
+2. **Rebuild the image**:
+   ```bash
+   docker-compose build
+   ```
+3. **Restart the container**:
+   ```bash
+   docker-compose up -d
+   ```
+
+## Security Best Practices
+
+1. **Never commit `.env` files** with real API keys to version control
+2. **Use secrets management** in production (Docker secrets, Kubernetes secrets, etc.)
+3. **Restrict network access** to the container if needed
+4. **Regularly update** the base image and dependencies
+
+## Production Considerations
+
+### Using Docker Swarm or Kubernetes
+
+For production deployments, consider:
+- Using orchestration platforms (Docker Swarm, Kubernetes)
+- Implementing load balancing
+- Setting up automated backups for the data directory
+- Using managed databases instead of SQLite
+- Implementing monitoring and alerting
+
+### Resource Limits
+
+Add resource limits to prevent excessive resource usage:
+
+```yaml
+# In docker-compose.yml
+services:
+  chatbot:
+    # ... other configuration ...
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+```
+
+## MMORE RAG Evaluation Service
+
+For running agent evaluations with MMORE RAG enabled, a separate Docker Compose file is provided that runs on a different port to avoid conflicts with the main application.
+
+### Why a Separate Service?
+
+- **Port isolation**: Eval service runs on port 8001, main service on port 8000
+- **Independent volumes**: Separate cache and upload volumes prevent data conflicts
+- **Parallel execution**: Run evaluations while the main application is running
+
+### Starting the Evaluation Service
+
+```bash
+# Start MMORE for evaluations (port 8001)
+make mmore-eval-up
+
+# Check status
+make mmore-eval-status
+
+# View logs
+make mmore-eval-logs
+
+# Stop when done
+make mmore-eval-down
+```
+
+### Running Evaluations with MMORE
+
+```bash
+# Use the dedicated make command
+make mmore-eval-run ARGS="--problem beams2d --samples 5 --scorers all --seed 1"
+
+# Or set the environment variable manually
+MMORE_RAG_URL=http://localhost:8001 python benchmarks/evaluations/evaluate_agent.py \
+  --problem beams2d --samples 5 --mmore
+```
+
+### Service Comparison
+
+| Service | Compose File | Container | Host Port |
+|---------|-------------|-----------|-----------|
+| Main MMORE | `docker-compose.yml` | `mmore-rag-service` | 8000 |
+| Eval MMORE | `docker-compose.mmore-eval.yml` | `mmore-rag-eval` | 8001 |
+
+See `benchmarks/evaluations/README.md` for detailed evaluation documentation.
+
+## Support
+
+For issues and questions:
+- Check the main README.md in the project root
+- Review the [Database Setup Guide](database_setup.md) for database configuration
+- Check Docker logs for error messages

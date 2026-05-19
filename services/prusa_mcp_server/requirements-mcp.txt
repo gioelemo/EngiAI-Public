@@ -1,0 +1,5 @@
+# Requirements for Prusa MCP Server
+prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git
+starlette>=0.41.0
+uvicorn[standard]>=0.32.0
+nest-asyncio>=1.5.8

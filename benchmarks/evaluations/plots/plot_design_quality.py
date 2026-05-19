@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""
+Design Quality Distribution Plot
+
+Violin/box plot showing per-design design_quality_score distribution.
+This shows the unweighted design quality category score (includes design metrics
+and printability). For the full weighted overall score across all categories,
+see plot_combined_overall_score.py.
+"""
+
+import sys
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from benchmarks.evaluations.plots.utils import (
+    PLOT_STYLE,
+    get_combined_design_df,
+    load_data,
+    save_figure,
+    setup_style,
+)
+
+
+def plot_design_quality(combined_design_df, output_path=None, output_dir=None):
+    """Create violin plot of design quality distribution (publication format).
+
+    Args:
+        combined_design_df: DataFrame with design-level metrics
+        output_path: Output filename (e.g., "design_quality_distribution.png")
+        output_dir: Optional output directory (default: figures/)
+    """
+    setup_style()
+    fig, ax = plt.subplots(
+        figsize=PLOT_STYLE["figsize_single_col_tall"], constrained_layout=True
+    )
+
+    # Filter to valid designs
+    valid_designs = combined_design_df[combined_design_df["design_found"]].copy()
+    font_sizes = PLOT_STYLE["font_sizes"]
+
+    # When all entries share the same problem, use just model names (no redundant problem suffix)
+    single_problem = (
+        valid_designs["problem"].nunique() == 1
+        if "problem" in valid_designs.columns
+        else False
+    )
+    if single_problem and "model_display" in valid_designs.columns:
+        valid_designs["_label"] = valid_designs["model_display"]
+    else:
+        valid_designs["_label"] = valid_designs["source"]
+
+    # Assign colors dynamically based on number of unique labels
+    n_labels = valid_designs["_label"].nunique()
+    palette = PLOT_STYLE["color_palette"][:n_labels]
+
+    sns.violinplot(
+        data=valid_designs,
+        x="_label",
+        y="design_quality_score",
+        hue="_label",
+        palette=palette,
+        inner="box",
+        legend=False,
+        ax=ax,
+        linewidth=0.5,
+    )
+
+    ax.set_xlabel("")
+    ax.set_ylabel("Design Quality Score")
+    ax.set_ylim(0, 1)
+    ax.grid(True, axis="y", alpha=0.3)
+
+    # Rotate x-tick labels for readability
+    ax.tick_params(axis="x", rotation=30)
+    for label in ax.get_xticklabels():
+        label.set_ha("right")
+
+    # Mean annotations
+    for i, source in enumerate(valid_designs["_label"].unique()):
+        subset = valid_designs[valid_designs["_label"] == source][
+            "design_quality_score"
+        ]
+        ax.annotate(
+            f"$\\mu$={subset.mean():.2f}",
+            xy=(i, 0.02),
+            ha="center",
+            va="bottom",
+            fontsize=font_sizes["annotation"],
+            bbox={
+                "boxstyle": "round,pad=0.3",
+                "facecolor": "white",
+                "alpha": 0.8,
+                "edgecolor": "0.8",
+            },
+        )
+
+    if output_path:
+        save_figure(fig, output_path, output_dir=output_dir)
+
+    return fig
+
+
+def main():
+    """Generate design quality distribution plot."""
+    print("Loading data...")
+    data = load_data()
+    combined_design_df = get_combined_design_df(data)
+
+    if combined_design_df is not None:
+        plot_design_quality(combined_design_df, "design_quality_distribution.png")
+    else:
+        print("No design-level data available")
+
+
+if __name__ == "__main__":
+    main()

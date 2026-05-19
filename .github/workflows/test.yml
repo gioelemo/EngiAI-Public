@@ -1,0 +1,31 @@
+---
+name: Python tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  linux-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python from .python-version
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: .python-version
+    - name: Install dependencies
+      run: |
+        pipx install uv
+        uv pip install --system --prerelease=allow -e .[all]
+    - name: Full Python tests
+      env:
+        OPENAI_API_KEY: test-key-123
+        TAVILY_API_KEY: test-key-456
+        GOOGLE_API_KEY: test-key-789
+        SKIP_MCP: "true"
+      run: |
+        pytest -v -m "not slow"

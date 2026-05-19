@@ -1,0 +1,1075 @@
+"""
+EngiBench tools for engineering design optimization.
+
+EngiBench (https://engibench.ethz.ch) is a library for benchmarking
+engineering design problems. It provides access to various optimization
+problems like beam design, airfoils, truss structures, etc.
+
+These tools allow LLM agents to interact with EngiBench simulators.
+"""
+
+from __future__ import annotations
+
+import contextvars
+import datetime
+import logging
+import random
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from langchain_core.tools import tool
+
+from src.tools.problems import PROBLEM_CLASSES
+
+if TYPE_CHECKING:
+    from engibench.core import Problem
+
+
+matplotlib.use("Agg")  # Use non-interactive backend
+
+logger = logging.getLogger(__name__)
+
+# Constants
+EXPECTED_ARRAY_DIMENSIONS = 2  # For 2D beam design arrays
+
+# Build problem registry from problems.py - single source of truth
+PROBLEM_REGISTRY: dict[str, type] = PROBLEM_CLASSES
+
+# Context variable to store session ID for isolating state in batch evaluations
+# This prevents data corruption when multiple examples run in parallel or sequentially
+_session_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "session_id", default=None
+)
+
+# Counter for generating unique filenames in parallel executions
+_filename_counter: contextvars.ContextVar[int] = contextvars.ContextVar(
+    "filename_counter", default=0
+)
+
+# State management dictionary with session isolation.
+# Stores only designs (last_design, initial_design) per session and problem type.
+# Problem instances are NOT cached - fresh instances are created per tool call.
+# When session_id is None, uses "default" session (for interactive use).
+_problem_states: dict[str, dict[str, dict[str, Any]]] = {}
+
+
+# Unified helper functions for problem management
+def get_problem_class(problem_type: str) -> type:
+    """Get the problem class for a given problem type."""
+    problem_key = problem_type.lower()
+    if problem_key not in PROBLEM_REGISTRY:
+        msg = f"Unknown problem type: {problem_type}. Available types: {', '.join(PROBLEM_REGISTRY.keys())}"
+        raise ValueError(msg)
+    return PROBLEM_REGISTRY[problem_key]
+
+
+def set_session_id(session_id: str) -> None:
+    """Set the session ID for state isolation in batch evaluations.
+
+    Args:
+        session_id: Unique identifier for this evaluation session/example
+
+    Example:
+        >>> set_session_id("example_42")  # In evaluation framework
+        >>> optimize_design(...)  # State is isolated to this session
+    """
+    _session_id_var.set(session_id)
+
+
+def get_current_session_id() -> str:
+    """Get the current session ID, or 'default' if not set.
+
+    Returns:
+        Session ID string (defaults to 'default' for interactive use)
+    """
+    session_id = _session_id_var.get()
+    return session_id if session_id is not None else "default"
+
+
+def get_problem_state(problem_type: str) -> dict[str, Any]:
+    """Get the state dictionary for a given problem type in the current session.
+
+    This function is session-aware and prevents state leakage between evaluation examples.
+    Each session gets its own isolated state dictionary for storing designs only.
+
+    Args:
+        problem_type: Type of problem (e.g., 'beams2d')
+
+    Returns:
+        State dictionary with keys: last_design, initial_design
+    """
+    problem_key = problem_type.lower()
+    session_id = get_current_session_id()
+
+    # Ensure session exists in state dictionary
+    if session_id not in _problem_states:
+        _problem_states[session_id] = {}
+
+    # Ensure problem type exists in session
+    if problem_key not in _problem_states[session_id]:
+        _problem_states[session_id][problem_key] = {
+            "last_design": None,
+            "initial_design": None,
+            "final_beta": None,  # For photonics2d: store final beta from optimization
+        }
+
+    return _problem_states[session_id][problem_key]
+
+
+def get_unified_last_design(problem_type: str) -> np.ndarray | None:
+    """Get the last design for a given problem type."""
+    state = get_problem_state(problem_type)
+    return state["last_design"]
+
+
+def set_unified_last_design(problem_type: str, design: np.ndarray) -> None:
+    """Store the last design for a given problem type."""
+    state = get_problem_state(problem_type)
+    state["last_design"] = design
+
+
+def get_initial_design(problem_type: str) -> np.ndarray | None:
+    """Get the initial design (before optimization) for a given problem type."""
+    state = get_problem_state(problem_type)
+    return state.get("initial_design")
+
+
+def set_initial_design(problem_type: str, design: np.ndarray) -> None:
+    """Store the initial design (before optimization) for a given problem type."""
+    state = get_problem_state(problem_type)
+    state["initial_design"] = design
+
+
+def get_final_beta(problem_type: str) -> float | None:
+    """Get the final beta value from optimization for a given problem type.
+
+    This is used for photonics2d to ensure render uses the same beta as optimization.
+    """
+    state = get_problem_state(problem_type)
+    return state.get("final_beta")
+
+
+def set_final_beta(problem_type: str, beta: float) -> None:
+    """Store the final beta value from optimization for a given problem type.
+
+    This is used for photonics2d to ensure render uses the same beta as optimization.
+    """
+    state = get_problem_state(problem_type)
+    state["final_beta"] = beta
+
+
+def clear_session_state(session_id: str | None = None) -> None:
+    """Clear state for a specific session to prevent memory leaks.
+
+    Args:
+        session_id: Session ID to clear, or None to clear current session
+
+    Example:
+        >>> clear_session_state("example_42")  # Clear specific session
+        >>> clear_session_state()  # Clear current session
+    """
+    target_session = session_id if session_id is not None else get_current_session_id()
+    _problem_states.pop(target_session, None)
+
+
+@tool
+def create_problem(
+    problem_type: str = "beams2d",
+    problem_config: dict[str, Any] | None = None,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """
+    Create an optimization problem using EngiBench.
+
+    This unified tool works with any problem type available in EngiBench.
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
+
+    Args:
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', etc.)
+        problem_config: Problem-specific configuration parameters (optional)
+            For beams2d: {"volfrac": 0.35, "rmin": 2.0, "forcedist": 0.2}
+            For thermoelastic2d: {"volfrac": 0.3, "weight": 0.5, "rmin": 1.1}
+            For photonics2d: {"lambda1": 1.2, "lambda2": 1.3, "blur_radius": 2.0}
+        seed: Random seed for reproducibility (default: 0)
+
+    Returns:
+        dict with problem info:
+        - problem_id: str identifier
+        - problem_type: str
+        - design_space: description of design space
+        - objectives: list of objectives to optimize
+        - conditions: problem conditions/constraints (reflects problem_config if provided)
+        - dataset_id: HuggingFace dataset identifier
+        - success: bool
+        - message: str
+
+    Example:
+        >>> info = create_problem(problem_type="photonics2d", problem_config={"lambda1": 1.19, "lambda2": 1.30, "blur_radius": 2.0}, seed=42)
+        >>> print(info['conditions'])
+        >>> # Photonics2D.Conditions(lambda1=1.19, lambda2=1.30, blur_radius=2.0)
+    """
+    try:
+        # Convert None to empty dict for consistency
+        config = problem_config if problem_config is not None else {}
+
+        problem_class = get_problem_class(problem_type)
+
+        # Try to create problem with config, fall back to seed-only if not supported
+        try:
+            problem = problem_class(seed=seed, config=config)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
+
+        return {
+            "problem_id": problem_type.lower(),
+            "problem_type": problem_type.lower(),
+            "design_space": str(problem.design_space),
+            "objectives": [
+                (name, str(direction)) for name, direction in problem.objectives
+            ],
+            "conditions": problem.conditions,
+            "conditions_keys": problem.conditions_keys,
+            "dataset_id": problem.dataset_id,
+            "success": True,
+            "message": f"Created {problem_type} problem with seed {seed}"
+            + (f" and config {config}" if config else ""),
+        }
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to create problem: {e!s}"}
+
+
+@tool
+def simulate_design(  # noqa: PLR0913
+    problem_type: str = "beams2d",
+    design_description: str = "random design",
+    problem_config: dict[str, Any] | None = None,
+    seed: int = 0,
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
+    volume_fraction: float | None = None,
+    volfrac: float | None = None,
+    force_distance: float | None = None,
+    forcedist: float | None = None,
+    rmin: float | None = None,
+    lambda1: float | None = None,
+    lambda2: float | None = None,
+    blur_radius: float | None = None,
+    weight: float | None = None,
+) -> dict[str, Any]:
+    """
+    Simulate a design and return its performance metrics.
+
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
+
+    Args:
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d')
+        design_description: Which design to simulate ("random design", "optimized design", "last design")
+        seed: Random seed for reproducibility
+
+        Configuration parameters (pass directly OR in problem_config dict):
+        - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
+        - force_distance / forcedist: Load position for beams2d (0.0 to 1.0)
+        - filter_radius / rmin: Density filter radius
+        - lambda1, lambda2: Wavelengths for photonics2d
+        - blur_radius: Blur radius for photonics2d
+        - weight: Objective weight for thermoelastic2d
+
+        problem_config: Alternative: pass all config as a dict
+
+    Returns:
+        dict with: success, compliance (beams2d), total_overlap (photonics2d), etc.
+
+    Example:
+        >>> simulate_design(problem_type="beams2d", design_description="optimized design", volume_fraction=0.4)
+    """
+    try:
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distance": force_distance,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
+
+        # Create a fresh problem instance for this simulation
+        problem_class = get_problem_class(problem_type)
+        try:
+            problem = problem_class(seed=seed, config=config)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
+
+        # Get the design to simulate based on description
+        design, _ = _get_design_to_render(problem_type, design_description, problem)
+
+        # Store design if it's newly generated
+        if not _should_use_last_design(design_description):
+            set_unified_last_design(problem_type, design)
+
+        # Run simulation
+        objectives = problem.simulate(design=design, config=config or None)
+
+        # Format results based on problem type - use problem.objectives to dynamically extract
+        problem_key = problem_type.lower()
+
+        # Build result dictionary dynamically from problem.objectives
+        result = {
+            "success": True,
+            "problem_type": problem_key,
+            "design_valid": True,
+        }
+
+        # Extract objective names from problem.objectives
+        objective_names = [name for name, _ in problem.objectives]
+
+        # Map objective values to their names
+        for i, obj_name in enumerate(objective_names):
+            if i < len(objectives):
+                result[obj_name] = float(objectives[i])
+
+        # Add material usage metric (common to all problems)
+        result["material_usage"] = float(design.mean())
+
+        # Build a human-readable message
+        obj_strings = [
+            f"{name}={result[name]:.6f}" for name in objective_names if name in result
+        ]
+        message = f"Simulated {design_description}: " + ", ".join(obj_strings)
+        result["message"] = message
+
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Simulation failed: {e!s}"}
+    else:
+        return result
+
+
+def _build_problem_config_from_flat_params(
+    problem_config: dict[str, Any] | None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Build problem_config from flat parameters, supporting common LLM parameter aliases.
+
+    LLMs often pass parameters with different names than expected. This function
+    normalizes them to the correct config keys.
+
+    Args:
+        problem_type: Type of problem (beams2d, photonics2d, thermoelastic2d)
+        problem_config: Existing problem_config dict (may contain aliased keys)
+        **kwargs: Flat parameters that may use aliases
+
+    Returns:
+        Normalized problem_config dict
+    """
+    # Parameter aliases: LLM name -> config key (shared across all problems)
+    all_aliases = {
+        # Beams2D aliases
+        "volume_fraction": "volfrac",
+        "vol_frac": "volfrac",
+        "volume": "volfrac",
+        "force_distance": "forcedist",
+        "force_distribution": "forcedist",  # backwards compat alias
+        "force_dist": "forcedist",
+        "load_position": "forcedist",
+        "filter_radius": "rmin",
+        # Photonics2D aliases
+        "wavelength1": "lambda1",
+        "wavelength_1": "lambda1",
+        "wavelength2": "lambda2",
+        "wavelength_2": "lambda2",
+        "blur": "blur_radius",
+    }
+
+    # Valid config keys that don't need aliasing
+    valid_keys = {
+        "volfrac",
+        "rmin",
+        "forcedist",
+        "lambda1",
+        "lambda2",
+        "blur_radius",
+        "weight",
+    }
+
+    # Keys to skip (not config parameters)
+    skip_keys = {
+        "problem_id",
+        "grid_size",
+        "problem_type",
+        "seed",
+        "save_result",
+        "design_description",
+        "save_path",
+    }
+
+    def normalize_params(params: dict[str, Any]) -> dict[str, Any]:
+        """Normalize a dict of parameters, applying aliases."""
+        config: dict[str, Any] = {}
+        for key, value in params.items():
+            if value is None or key in skip_keys:
+                continue
+            # Check if this is an alias
+            if key in all_aliases:
+                config[all_aliases[key]] = value
+            # Check if it's already a valid config key
+            elif key in valid_keys:
+                config[key] = value
+        return config
+
+    # If problem_config was provided, normalize it (may contain aliased keys)
+    if problem_config:
+        return normalize_params(problem_config)
+
+    # Otherwise normalize kwargs
+    return normalize_params(kwargs)
+
+
+@tool
+def optimize_design(  # noqa: PLR0913
+    problem_type: str = "beams2d",
+    problem_config: dict[str, Any] | None = None,
+    seed: int = 0,
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
+    volume_fraction: float | None = None,
+    volfrac: float | None = None,
+    force_distance: float | None = None,
+    forcedist: float | None = None,
+    rmin: float | None = None,
+    lambda1: float | None = None,
+    lambda2: float | None = None,
+    blur_radius: float | None = None,
+    weight: float | None = None,
+) -> dict[str, Any]:
+    """
+    ✅ USE THIS TOOL for: "optimize", "optimization", "topology optimization", "minimize compliance", "design a beam".
+
+    Optimize a design using physics-based gradient optimization.
+
+    This is the PRIMARY tool for all optimization and design tasks.
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
+
+    The optimized design is always saved to outputs/ directory to reduce context
+    consumption. Use np.load(design_path) to load the design array.
+
+    Args:
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d')
+        seed: Random seed for optimization (default: 0)
+
+        Configuration parameters (pass directly OR in problem_config dict):
+        - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
+        - force_distance / forcedist: Load position for beams2d (0.0 to 1.0)
+        - filter_radius / rmin: Density filter radius
+        - lambda1, lambda2: Wavelengths for photonics2d
+        - blur_radius: Blur radius for photonics2d
+        - weight: Objective weight for thermoelastic2d
+
+        problem_config: Alternative: pass all config as a dict (e.g., {"volfrac": 0.4, "rmin": 2.0})
+
+    Returns:
+        dict with: success, problem_type, design_shape, design_path, optimization_info, message
+
+    Examples:
+        # Flat parameters (recommended for LLMs):
+        >>> optimize_design(problem_type="beams2d", volume_fraction=0.4, force_distance=0.2, seed=42)
+
+        # Dict format (also supported):
+        >>> optimize_design(problem_type="beams2d", problem_config={"volfrac": 0.4, "forcedist": 0.2}, seed=42)
+    """
+    try:
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distance": force_distance,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        logger.info(
+            f"optimize_design called with problem_config={problem_config}, flat_params={flat_params}"
+        )
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
+        logger.info(f"Built config: {config}")
+        config_was_empty = config == {}
+
+        # Create a fresh problem instance for this optimization.
+        # Problem instances are lightweight and creating fresh instances ensures
+        # that config parameters are properly applied without state interference.
+        problem_class = get_problem_class(problem_type)
+
+        # Only pass config to problem classes that support it (e.g., Beams2D)
+        # ThermoElastic2D and others may not accept config parameter
+        try:
+            problem = problem_class(seed=seed, config=config)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported.
+            # Re-raise other TypeErrors so that genuine bugs are not masked.
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
+
+        # Get starting design using random design from official API
+        design, _ = problem.random_design()
+
+        # Store initial design separately for later visualization
+        set_initial_design(problem_type, design)
+        # Also set as last_design (will be overwritten after optimization)
+        set_unified_last_design(problem_type, design)
+
+        # Run optimization with the starting design
+        optimized_design, optimization_info = problem.optimize(
+            starting_point=design, config=config or None
+        )
+
+        # Store optimized design as the new last_design
+        set_unified_last_design(problem_type, optimized_design)
+
+        # Store final beta for photonics2d (used by render to show correct beta)
+        if hasattr(problem, "_current_beta"):
+            set_final_beta(problem_type, problem._current_beta)
+
+        # Save design to file (always save to reduce context consumption)
+        output_dir = Path("outputs")
+        output_dir.mkdir(exist_ok=True)
+        base_path = output_dir / f"{problem_type}_design_optimized.npy"
+        versioned_path = _build_versioned_path(base_path, problem_type, "_optimized")
+        np.save(str(versioned_path), optimized_design)
+
+        # Format results - note: we don't call simulate() here
+        # The LLM should call simulate_design tool separately if needed
+        # Pass the design path instead of the full array to reduce context size
+        result = _format_optimization_result(
+            problem_type,
+            optimized_design,
+            optimization_info,
+            design_path=str(versioned_path),
+        )
+
+        # Add warning if no configuration parameters were provided
+        if config_was_empty:
+            warning_msg = " ⚠️ WARNING: No config parameters provided! Used defaults which may not match requirements!"
+            result["message"] = result.get("message", "") + warning_msg
+            result["config_warning"] = True
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Optimization failed: {e!s}"}
+    else:
+        return result
+
+
+def _extract_figure_and_axis(render_result):
+    """Helper to extract figure and axis from different render return types."""
+    if isinstance(render_result, tuple):
+        # Beams2D returns a tuple
+        return render_result
+    # ThermoElastic2D returns a single figure
+    fig = render_result
+    return fig, fig.gca()
+
+
+def _get_design_suffix(design_description: str, design_type: str) -> str:
+    """Helper to get filename suffix based on design description."""
+    desc_lower = design_description.lower()
+    suffix_map = {
+        "initial": "_initial",
+        "before": "_initial",
+        "final": "_final",
+        "after": "_final",
+        "optimized": "_optimized",
+        "optimal": "_optimized",
+        "random": "_random",
+    }
+    return next(
+        (suf for keyword, suf in suffix_map.items() if keyword in desc_lower),
+        "_" + design_type.replace(" ", "_").replace("(", "").replace(")", ""),
+    )
+
+
+def _build_versioned_path(base_path: Path, problem_type: str, suffix: str) -> Path:
+    """Helper to build a versioned file path with problem type prefix.
+
+    Always uses {problem_type}_design as base to ensure consistency between
+    optimize_design and render_design outputs.
+    """
+    extension = base_path.suffix
+
+    # Always use consistent base: {problem_type}_design
+    # This ensures optimize_design and render_design create matching filenames
+    stem = f"{problem_type}_design"
+
+    # Add timestamp with microseconds and counter for uniqueness in parallel execution
+    now = datetime.datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    microseconds = now.microsecond // 1000  # Convert to milliseconds (0-999)
+
+    # Get and increment counter for this context (thread-safe via contextvars)
+    counter = _filename_counter.get()
+    _filename_counter.set(counter + 1)
+
+    return (
+        base_path.parent
+        / f"{stem}{suffix}_{timestamp}_{microseconds:03d}_{counter}{extension}"
+    )
+
+
+def _should_use_last_design(design_description: str) -> bool:
+    """Helper to determine if we should use the last design."""
+    desc_lower = design_description.lower()
+    keywords = ["last", "previous", "current", "optimized", "final"]
+    return any(keyword in desc_lower for keyword in keywords)
+
+
+def _get_design_to_render(
+    problem_type: str, design_description: str, problem: Any
+) -> tuple[np.ndarray, str]:
+    """Get the design to render based on the description.
+
+    Returns:
+        Tuple of (design array, design type string)
+    """
+    desc_lower = design_description.lower()
+
+    # Check if user wants the initial design (before optimization)
+    if "initial" in desc_lower or "before" in desc_lower or "starting" in desc_lower:
+        initial_design = get_initial_design(problem_type)
+        if initial_design is not None:
+            return initial_design, "initial design"
+        # No initial design stored, create a random one
+        design, _ = problem.random_design()
+        return design, "random design"
+
+    # Check if user wants optimized/final design
+    if _should_use_last_design(design_description):
+        last_design = get_unified_last_design(problem_type)
+        if last_design is not None:
+            return last_design, design_description
+        # No last design stored, create a random one
+        design, _ = problem.random_design()
+        return design, "random design"
+
+    # Default to random design
+    design, _ = problem.random_design()
+    return design, "random design"
+
+
+def _serialize_optimization_step(step: Any) -> dict[str, Any]:
+    """Convert a single optimization step to JSON-serializable format.
+
+    Excludes 'design' arrays to save context.
+    """
+    step_dict = {}
+
+    if hasattr(step, "__dict__"):
+        # Convert OptiStep object to dict
+        for key, value in step.__dict__.items():
+            if key == "design":
+                continue
+            step_dict[key] = value.tolist() if isinstance(value, np.ndarray) else value
+    elif isinstance(step, dict):
+        # Already a dict, just convert arrays
+        for key, value in step.items():
+            if key == "design":
+                continue
+            step_dict[key] = value.tolist() if isinstance(value, np.ndarray) else value
+    else:
+        step_dict = step
+
+    return step_dict
+
+
+def _format_optimization_result(
+    problem_type: str,
+    optimized_design: np.ndarray,
+    optimization_info: dict,
+    design_path: str | None = None,
+) -> dict[str, Any]:
+    """Format optimization results.
+
+    Note: This function does not include objective values. Use the simulate_design
+    tool separately to get objective values for the optimized design.
+
+    To reduce context consumption for smaller LLM models, the full design array
+    is saved to a file and only the path is returned. The design can be loaded
+    with: np.load(design_path)
+
+    Args:
+        problem_type: Type of the problem being formatted
+        optimized_design: The optimized design array
+        optimization_info: Optimization history/metadata
+        design_path: Path where the design array was saved (if any)
+
+    Returns:
+        Dictionary with formatted results
+    """
+    problem_key = problem_type.lower()
+
+    # Convert optimization_info to JSON-serializable format
+    # For context efficiency, only include objective values and step numbers (not full design arrays)
+    if isinstance(optimization_info, list):
+        serializable_opt_info = [
+            _serialize_optimization_step(step) for step in optimization_info
+        ]
+    else:
+        serializable_opt_info = optimization_info
+
+    result: dict[str, Any] = {
+        "success": True,
+        "problem_type": problem_key,
+        "design_shape": list(optimized_design.shape),
+        "optimization_info": serializable_opt_info,  # Now JSON-serializable
+        "message": f"Optimized {problem_type} design. Use simulate_design tool to get objective values.",
+    }
+
+    # Include design path for file-based access (reduces context size)
+    if design_path:
+        result["design_path"] = design_path
+        result["message"] += f" Design saved to {design_path}."
+
+    return result
+
+
+@tool
+def render_design(  # noqa: PLR0913
+    problem_type: str = "beams2d",
+    design_description: str = "random design",
+    problem_config: dict[str, Any] | None = None,
+    save_path: str = "design.png",
+    seed: int | None = None,
+    # Flat config parameters (LangChain doesn't pass unknown params to **kwargs)
+    volume_fraction: float | None = None,
+    volfrac: float | None = None,
+    force_distance: float | None = None,
+    forcedist: float | None = None,
+    rmin: float | None = None,
+    lambda1: float | None = None,
+    lambda2: float | None = None,
+    blur_radius: float | None = None,
+    weight: float | None = None,
+) -> dict[str, Any]:
+    """
+    Render a design as a visual heatmap and save it as an image file.
+
+    Currently supported: 'beams2d', 'thermoelastic2d', 'photonics2d'.
+
+    Args:
+        problem_type: Type of problem ('beams2d', 'thermoelastic2d', 'photonics2d')
+        design_description: Which design to render ("random design", "optimized design", "initial design")
+        save_path: Base filename for the image (saved in outputs/ directory)
+        seed: Random seed for reproducibility (None = use random seed)
+
+        Configuration parameters (pass directly OR in problem_config dict):
+        - volume_fraction / volfrac: Material volume constraint (0.0 to 1.0)
+        - force_distance / forcedist: Load position for beams2d (0.0 to 1.0)
+        - filter_radius / rmin: Density filter radius
+        - lambda1, lambda2: Wavelengths for photonics2d
+        - blur_radius: Blur radius for photonics2d
+        - weight: Objective weight for thermoelastic2d
+
+        problem_config: Alternative: pass all config as a dict
+
+    Returns:
+        dict with: success, save_path, npy_path, design_shape, message
+
+    Example:
+        >>> render_design(problem_type="beams2d", design_description="optimized design", volume_fraction=0.4)
+    """
+    try:
+        # Build dict from flat parameters
+        flat_params = {
+            "volume_fraction": volume_fraction,
+            "volfrac": volfrac,
+            "force_distance": force_distance,
+            "forcedist": forcedist,
+            "rmin": rmin,
+            "lambda1": lambda1,
+            "lambda2": lambda2,
+            "blur_radius": blur_radius,
+            "weight": weight,
+        }
+        config = _build_problem_config_from_flat_params(problem_config, **flat_params)
+
+        # Create outputs directory
+        output_dir = Path("outputs")
+        output_dir.mkdir(exist_ok=True)
+
+        # Ensure save_path is in outputs directory
+        save_path_obj = Path(save_path)
+        if save_path_obj.parent.name != "outputs":
+            full_save_path = output_dir / save_path_obj.name
+        else:
+            full_save_path = save_path_obj
+
+        # Ensure the path has a valid image extension so the UI can render it
+        # and matplotlib infers the correct format. The LLM sometimes passes a
+        # save_path with no extension or with a non-image one (e.g. reusing the
+        # .npy path from optimize_design).
+        image_extensions = {".png", ".jpg", ".jpeg", ".svg", ".pdf"}
+        if full_save_path.suffix.lower() not in image_extensions:
+            full_save_path = full_save_path.with_suffix(".png")
+
+        # Create a fresh problem instance for rendering
+        problem_class = get_problem_class(problem_type)
+
+        # Use random seed if none provided, otherwise use the provided seed
+        if seed is None:
+            seed = random.randint(0, 999999)
+
+        # Initialize problem with config (if provided) to ensure correct rendering parameters
+        try:
+            problem: Problem = problem_class(seed=seed, config=config)
+        except TypeError as exc:
+            # Fall back to seed-only initialization if config keyword is not supported
+            msg = str(exc)
+            if "unexpected keyword argument" in msg and "config" in msg:
+                problem = problem_class(seed=seed)
+            else:
+                raise
+
+        # For photonics2d: restore final beta from optimization so render shows correct value
+        # Without this, render would use the default max_beta (300) instead of the actual
+        # final beta from optimization (e.g., 297.02)
+        final_beta = get_final_beta(problem_type)
+        if final_beta is not None and hasattr(problem, "_current_beta"):
+            problem._current_beta = final_beta
+
+        # Get the design to render based on description
+        design, design_type = _get_design_to_render(
+            problem_type, design_description, problem
+        )
+
+        # Build versioned file path
+        suffix = _get_design_suffix(design_description, design_type)
+        full_save_path = _build_versioned_path(full_save_path, problem_type, suffix)
+
+        # Render the design (config already set during problem initialization)
+        # Note: Different EngiBench problems return different types:
+        # Beams2D returns a tuple, ThermoElastic2D returns a single figure
+        render_result = problem.render(design, open_window=False)  # type: ignore[attr-defined]
+        fig, _ = _extract_figure_and_axis(render_result)
+
+        # Save figure
+        fig.savefig(str(full_save_path), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        # Save design array
+        npy_path = full_save_path.with_suffix(".npy")
+        np.save(str(npy_path), design)
+
+        return {
+            "success": True,
+            "problem_type": problem_type.lower(),
+            "save_path": str(full_save_path),
+            "npy_path": str(npy_path),
+            "design_shape": design.shape,
+            "design_type": design_type,
+            "seed": seed,
+            "message": f"Successfully rendered {design_type} and saved to {full_save_path}. Design array saved to {npy_path}.",
+        }
+
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Rendering failed: {e!s}"}
+
+
+@tool
+def get_problem_details(problem_type: str = "beams2d") -> dict[str, Any]:
+    """
+    Get detailed information directly from the problem object's attributes.
+
+    This tool creates a problem instance and extracts information from its
+    design_space, objectives, and conditions attributes - the authoritative
+    source of problem specifications.
+
+    Args:
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", "photonics2d", etc.)
+            Default: "beams2d"
+
+    Returns:
+        dict with problem details:
+        - success: bool
+        - problem_type: str
+        - design_space: str (from problem.design_space)
+        - objectives: list of tuples (name, direction) from problem.objectives
+        - conditions: dict (from problem.conditions)
+        - conditions_keys: list (from problem.conditions_keys)
+        - dataset_id: str (from problem.dataset_id)
+
+    Example:
+        >>> details = get_problem_details("beams2d")
+        >>> print(details['design_space'])
+        >>> # Box(0.0, 1.0, (50, 100), float32)
+        >>> print(details['objectives'])
+        >>> # [('compliance', 'MINIMIZE')]
+    """
+    try:
+        problem_key = problem_type.lower()
+
+        # Check if problem type is supported
+        if problem_key not in PROBLEM_REGISTRY:
+            return {
+                "success": False,
+                "error": f"Problem type '{problem_type}' not supported. Available: {list(PROBLEM_REGISTRY.keys())}",
+            }
+
+        # Create problem instance using the registry
+        # Note: This is only for metadata access (design space, objectives, conditions)
+        problem_class = PROBLEM_REGISTRY[problem_key]
+        problem = problem_class()  # Metadata-only instance
+
+        return {
+            "success": True,
+            "problem_type": problem_key,
+            "design_space": str(problem.design_space),
+            "design_space_shape": problem.design_space.shape,
+            "design_space_bounds": {
+                "low": float(problem.design_space.low.min()),
+                "high": float(problem.design_space.high.max()),
+            },
+            "objectives": [
+                (name, str(direction)) for name, direction in problem.objectives
+            ],
+            "conditions": problem.conditions,
+            "conditions_keys": problem.conditions_keys,
+            "dataset_id": problem.dataset_id,
+            "description": f"Information from the EngiBench {problem_key} problem object. "
+            f"The design_space defines where designs can exist (shape {problem.design_space.shape}). "
+            f"The objectives specify what to optimize. "
+            f"The conditions are the parameters that can be varied for different problem instances.",
+        }
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get problem details: {e!s}"}
+
+
+@tool
+def get_dataset_info(problem_type: str = "beams2d") -> dict[str, Any]:
+    """
+    Get information about the EngiBench dataset for a problem.
+
+    The dataset contains pre-computed optimal designs from the EngiBench benchmark.
+    Each dataset includes training, validation, and test splits with optimal designs
+    and their corresponding parameters.
+
+    Args:
+        problem_type: Type of problem ("beams2d", "thermoelastic2d", "photonics2d", etc.)
+            Default: "beams2d"
+
+    Returns:
+        dict with dataset information:
+        - success: bool (whether the operation succeeded)
+        - dataset_id: str (HuggingFace dataset identifier)
+        - splits: dict with split names and their sizes
+        - features: list of feature names in the dataset
+        - total_samples: int (total number of samples across all splits)
+        - description: str (description of dataset contents)
+
+    Example:
+        >>> info = get_dataset_info("beams2d")
+        >>> print(f"Dataset has {info['total_samples']} total samples")
+        >>> print(f"Features: {info['features']}")
+    """
+    try:
+        problem_key = problem_type.lower()
+
+        # Check if problem type is supported
+        if problem_key not in PROBLEM_REGISTRY:
+            return {
+                "success": False,
+                "error": f"Problem type '{problem_type}' not supported. Available: {list(PROBLEM_REGISTRY.keys())}",
+            }
+
+        # Create problem instance using the registry
+        # Note: This is only for dataset access (metadata)
+        problem_class = PROBLEM_REGISTRY[problem_key]
+        problem = problem_class()  # Metadata-only instance
+        dataset = problem.dataset
+
+        # Get information about each split
+        splits = {}
+        total_samples = 0
+        features: list[str] = []
+
+        for split_name in dataset:
+            split = dataset[split_name]
+            splits[split_name] = {
+                "num_rows": len(split),
+                "num_columns": len(split.column_names),
+            }
+            total_samples += len(split)
+            if not features and split.column_names:
+                features = split.column_names
+
+        # Generic description for all problems - specific details available via features
+        description = (
+            f"HuggingFace dataset containing pre-computed optimal {problem_key} designs. "
+            f"Includes design arrays, optimization parameters, objective values, and history."
+        )
+
+        return {
+            "success": True,
+            "problem_type": problem_key,
+            "dataset_id": problem.dataset_id,
+            "splits": splits,
+            "split_names": list(dataset.keys()),
+            "features": features,
+            "total_samples": total_samples,
+            "description": description,
+        }
+    except ImportError:
+        return {
+            "success": False,
+            "error": "engibench not installed. Install with: pip install engibench",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get dataset info: {e!s}"}

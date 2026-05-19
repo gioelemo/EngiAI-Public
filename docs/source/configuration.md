@@ -1,0 +1,361 @@
+# Configuration
+
+Learn how to configure EngiAI for your environment.
+
+## Environment Variables
+
+The assistant uses environment variables for configuration. These are stored in a `.env` file in the project root.
+
+### Creating Your Configuration
+
+1. Copy the example file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` with your settings:
+   ```bash
+   nano .env  # or use your preferred editor
+   ```
+
+### Required Variables
+
+These must be set for the assistant to function:
+
+```bash
+# OpenAI API Key (Required for all LLM operations)
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Tavily API Key (Required for web search)
+TAVILY_API_KEY=tvly-your-tavily-api-key-here
+
+# Google API Key (Required for all LLM operations)
+GOOGLE_API_KEY=sk-your-google-api-key-here
+
+# MMORE RAG Service (Required for document retrieval)
+MMORE_RAG_URL=http://localhost:8000
+```
+
+**Where to get keys:**
+- **OpenAI**: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- **Google**: [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+- **Tavily**: [https://tavily.com/](https://tavily.com/)
+
+**External Services:**
+- **MMORE**: Clone and deploy the MMORE service locally before starting EngiAI
+  ```bash
+  # Contact the MMORE team or check internal documentation for repository access
+  git clone <mmore-repository-url>
+  cd mmore
+  # Follow MMORE setup and deployment instructions
+  ```
+
+### Optional Variables
+
+These enhance functionality but aren't required:
+
+```bash
+# LLM Configuration
+LLM_MODEL=openai:gpt-4.1  # Default model
+LLM_TEMPERATURE=0.7       # Temperature for responses (0.0-2.0)
+
+# HPC Cluster Configuration
+HPC_HOST_ALIAS=euler              # SSH alias for your HPC cluster
+HPC_HOSTNAME=euler.ethz.ch        # Cluster hostname
+HPC_USERNAME=username              # Your cluster username
+
+# Weights & Biases (for ML tracking)
+WANDB_API_KEY=your-wandb-key
+WANDB_ENTITY=your-team
+
+# Prusa 3D Printer Integration (optional)
+SKIP_MCP=true                           # Set to false to enable Prusa integration
+PRUSA_MCP_URL=http://localhost:8765     # URL of a running Prusa MCP server
+PRUSA_MCP_HOST=0.0.0.0                  # Host for the standalone MCP server
+PRUSA_MCP_PORT=8765                     # Port for the standalone MCP server
+
+# Database (optional, uses SQLite by default)
+DATABASE_URL=sqlite:///data/conversations.db
+```
+
+**For Prusa 3D printer integration:**
+- The Prusa MCP server is installed as a pip dependency from git
+  (`prusa-mcp @ git+https://github.com/gioelemo/prusa-mcp.git`), declared in
+  `services/prusa_mcp_server/requirements-mcp.txt`.
+- It is installed automatically by the Prusa MCP Dockerfile or by
+  `./services/prusa_mcp_server/run.sh`. No submodule initialization is required.
+- See `services/prusa_mcp_server/README.md` for setup and credential handling.
+- Set `SKIP_MCP=false` to enable.
+
+### Voice Integration
+
+The assistant supports voice interaction (speech-to-text and text-to-speech) using two providers:
+
+```bash
+# Voice Provider Selection
+VOICE_PROVIDER=elevenlabs  # Options: "elevenlabs" or "openai"
+
+# ElevenLabs Configuration (default provider)
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+ELEVENLABS_STT_MODEL=scribe_v2
+ELEVENLABS_TTS_MODEL=eleven_multilingual_v2
+ELEVENLABS_DEFAULT_VOICE=George
+ELEVENLABS_VOICES=Rachel:21m00Tcm4TlvDq8ikWAM,Domi:AZnzlk1XvdvUeBnXmlld,Bella:EXAVITQu4vr4xnSDxMaL,Antoni:ErXwobaYiN019PkySvjV,Josh:TxGEqnHWrfWFTfGW9XjX,George:JBFqnCBsd6RMkjVDRZzb
+
+# OpenAI Voice Configuration (alternative provider)
+OPENAI_TTS_MODEL=tts-1      # Options: "tts-1" (standard) or "tts-1-hd" (high quality)
+OPENAI_TTS_VOICE=alloy      # Options: alloy, echo, fable, onyx, nova, shimmer
+OPENAI_STT_MODEL=whisper-1  # OpenAI Whisper for speech-to-text
+```
+
+**Voice Provider Options:**
+
+**ElevenLabs** (Recommended for quality):
+- High-quality, natural-sounding voices
+- Supports 6 preset voices (Rachel, Domi, Bella, Antoni, Josh, George)
+- Multilingual support with `eleven_multilingual_v2` model
+- Get API key at [elevenlabs.io](https://elevenlabs.io)
+
+**OpenAI** (Good for simplicity):
+- Uses OpenAI Whisper for accurate speech-to-text
+- Two quality levels for TTS:
+  - `tts-1`: Standard quality, faster, cheaper
+  - `tts-1-hd`: High definition quality
+- 6 voice options: alloy, echo, fable, onyx, nova, shimmer
+- Requires OpenAI API key (same as `OPENAI_API_KEY`)
+
+**Usage:**
+- Select provider in Settings UI (⚙️ Settings > Voice Interaction)
+- Provider and voice selection persist per conversation
+- Switch providers anytime without losing conversation history
+
+### Document Processing Variables
+
+For PDF and document processing features:
+
+```bash
+
+
+# Paper Import Configuration
+PAPERS_SOURCE_DIR=/path/to/papers  # Directory containing PDFs to import
+PAPERS_STATE_FILE=data/local_import_state.json  # Tracks imported papers
+```
+
+**Paper Import:**
+- `PAPERS_SOURCE_DIR`: Point to your local papers directory (or network share)
+- Papers are automatically uploaded to MMORE service
+- Progress tracked in `PAPERS_STATE_FILE`
+- See [Paper Import Guide](paper_import_guide.md) for details
+
+### Observability & Debugging
+
+For monitoring and debugging:
+
+```bash
+# LangSmith Tracing (optional)
+LANGCHAIN_TRACING=false  # Set to true to enable
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=your-langsmith-key
+LANGCHAIN_PROJECT=engiai
+
+# Host Service (Docker GUI integration)
+HOST_SERVICE_PORT=9999  # Port for opening GUI apps from Docker
+```
+
+**LangSmith Setup:**
+1. Create account at [smith.langchain.com](https://smith.langchain.com/)
+2. Get API key from settings
+3. Monitor LLM calls, costs, and performance
+4. Debug conversation flows and tool usage
+
+### Hugging Face Integration
+
+For ML model downloads:
+
+```bash
+# Hugging Face
+HF_TOKEN=your-huggingface-token
+HF_HOME=$HOME/.cache/huggingface/hub
+HF_DATASETS_CACHE=$HOME/.cache/huggingface/datasets
+```
+
+**Getting HF Token:**
+1. Create account at [huggingface.co](https://huggingface.co/)
+2. Go to Settings → Access Tokens
+3. Create token with "Read" permission
+
+### Advanced SLURM Configuration
+
+For HPC job submission (advanced users):
+
+```bash
+# SLURM Job Defaults
+SLURM_TIME=00:45:00           # Max job duration
+SLURM_NTASKS=1                # Number of tasks
+SLURM_CPUS_PER_TASK=4         # CPUs per task
+SLURM_MEM_PER_CPU=7GB         # Memory per CPU
+SLURM_GPUS=rtx_4090:1         # GPU specification
+
+# Module Loading
+SLURM_STACK_MODULE=stack/2024-06
+SLURM_GCC_MODULE=gcc/12.2.0
+SLURM_PYTHON_MODULE=python_cuda/3.11.6
+SLURM_CUDA_MODULE=cuda/12.8.0
+
+
+```
+
+**Note:** Many SLURM settings can be configured via the Settings UI (⚙️ Settings > SLURM Cluster Configuration). Environment variables serve as fallback defaults.
+
+## LLM Models
+
+You can configure which language model to use:
+
+### Supported Models
+
+```bash
+# OpenAI Models
+LLM_MODEL=openai:gpt-4.1         # GPT-4.1 (recommended)
+LLM_MODEL=openai:gpt-4o          # GPT-4o
+LLM_MODEL=openai:gpt-4o-mini     # GPT-4o Mini (faster, cheaper)
+
+# Google Models
+LLM_MODEL=google_genai:gemini-2.5-flash  # Gemini 2.5 Flash
+
+# Ollama (local models)
+LLM_MODEL=ollama:qwen3.5:4b      # Qwen 3.5 4B (local)
+```
+
+### Model Parameters
+
+```bash
+# Temperature: Controls randomness in responses (0.0 to 2.0)
+LLM_TEMPERATURE=0.0   # Deterministic, focused (recommended for engineering)
+LLM_TEMPERATURE=0.7   # Balanced creativity (default)
+LLM_TEMPERATURE=1.0   # More creative and varied responses
+
+# Note: Higher temperature increases creativity but may reduce accuracy
+# For engineering tasks, use 0.0-0.3 for precision
+# For brainstorming, use 0.7-1.0 for variety
+```
+
+## HPC Configuration
+
+For cluster computing features:
+
+### SSH Setup
+
+1. Configure SSH access to your cluster:
+   ```bash
+   # In ~/.ssh/config
+   Host euler
+       HostName euler.ethz.ch
+       User your-username
+       IdentityFile ~/.ssh/id_rsa
+   ```
+
+2. Test connection:
+   ```bash
+   ssh euler
+   ```
+
+3. Set in `.env`:
+   ```bash
+   HPC_HOST_ALIAS=euler
+   HPC_HOSTNAME=euler.ethz.ch
+   HPC_USERNAME=your-username
+   ```
+
+### Fabric Configuration
+
+The assistant uses [Fabric](http://www.fabfile.org/) for HPC interactions. Configuration is automatic based on your `.env` settings.
+
+## Weights & Biases
+
+For experiment tracking:
+
+1. Create account at [wandb.ai](https://wandb.ai/)
+2. Get API key from [https://wandb.ai/authorize](https://wandb.ai/authorize)
+3. Add to `.env`:
+   ```bash
+   WANDB_API_KEY=your-key-here
+   WANDB_ENTITY=your-username-or-team
+   ```
+
+## Database Setup
+
+See the [Database Setup Guide](database_setup.md) for detailed instructions on:
+
+- Setting up PostgreSQL or SQLite for conversation history
+- Configuring the MMORE RAG service for document retrieval
+
+## VS Code Settings
+
+Recommended settings are in `.vscode/settings_template.json`:
+
+```json
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.formatting.provider": "none",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+  "mypy-type-checker.args": ["--config-file", "pyproject.toml"]
+}
+```
+
+## Validating Configuration
+
+Check your configuration:
+
+```bash
+# Test API keys
+python -c "from config import config; print('OpenAI Key:', config.openai_api_key[:10])"
+
+# Test database connection
+python -c "from src.ui.database import DatabaseManager; db = DatabaseManager(); print('DB OK')"
+
+# Run all tests
+pytest
+```
+
+## Troubleshooting
+
+### API Key Issues
+
+**Error**: `openai.AuthenticationError`
+- Check your API key in `.env`
+- Ensure no extra spaces or quotes
+- Verify key is active in OpenAI dashboard
+
+### HPC Connection Issues
+
+**Error**: `Connection refused`
+- Verify SSH config
+- Test manual SSH connection
+- Check firewall/VPN requirements
+
+### Database Issues
+
+**Error**: `database is locked`
+- Close other applications using the database
+- Use PostgreSQL for concurrent access
+
+## Security Best Practices
+
+1. **Never commit `.env`** - It's in `.gitignore` for a reason
+2. **Use environment-specific keys** - Different keys for dev/prod
+3. **Rotate keys regularly** - Change API keys periodically
+4. **Limit key permissions** - Use minimal required scopes
+5. **Use secrets manager** - For production deployments (AWS Secrets Manager, etc.)
+
+## Next Steps
+
+- [Quick Start](quickstart.md) - Start using the assistant
+- [Usage Guide](usage/agents.md) - Learn about agents
+- [API Reference](api/agents.rst) - Developer docs
