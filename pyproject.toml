@@ -35,7 +35,7 @@ dependencies = [
     "numpy-stl==3.2.0",
     "pillow==12.1.1",
     "psycopg[binary]>=3.2.0",
-    "reportlab==4.4.10",
+    "reportlab==4.5.1",
     "psycopg2-binary==2.9.11",
     "pyyaml>=6.0",
     "python-dotenv==1.2.2",
