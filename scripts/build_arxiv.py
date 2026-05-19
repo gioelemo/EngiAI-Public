@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Build the arXiv version of the EngiAI paper from the IDETC revision.
 
-Reads the hand-maintained arXiv template (preamble + title block + keywords)
-and injects two pieces of auto-extracted content from the IDETC source:
+`EngiAI---arXiv/main.tex` is the canonical arXiv scaffold: it owns the
+preamble, title, author block, keywords, and macro shims. The script
+re-injects two auto-extracted regions from the IDETC source on every run:
   - the abstract body (between \\begin{abstract}...\\end{abstract})
   - the paper body (from \\acresetall through the line before \\end{document})
 
-The source of truth for content is paper-revision/asmeconf/asmeconf-template.tex.
-The template file (EngiAI---arXiv/template.tex) is hand-maintained — edit it
-for title, author, affiliation, keywords, package list, or macro shims.
+Injection is in-place between marker comment pairs in main.tex (configured
+via inject_regions); the markers themselves are preserved. Edit main.tex
+directly for title, author, affiliation, keywords, package list, or shims;
+edit asmeconf-template.tex for the abstract and body content.
 
 Usage:
     python scripts/build_arxiv.py
@@ -90,44 +92,79 @@ def _scale_single_column_figures(
     scale: float,
     overrides: dict[str, float] | None = None,
 ) -> tuple[str, int]:
-    """Scale every `width=N\\linewidth` inside a `\\begin{figure}` env (not
-    `figure*`) by `scale`. IDETC's `figure` spans one ~3.25" column; arXiv's
-    `\\linewidth` is ~6.5", so figures meant for one column render 2x too large.
-    `figure*` is the two-column-spanning variant and is left alone.
+    """Rewrite `width=N\\linewidth` widths inside `figure` and `figure*` envs.
+
+    For `\\begin{figure}` envs (single-column in IDETC; `\\linewidth` is ~2x
+    too large in arXiv's wider column), each `width=N\\linewidth` is
+    multiplied by `scale` unless an override applies. `\\begin{figure*}` envs
+    are left alone unless an override applies.
 
     `overrides` maps a filename substring (matched against any
-    `\\includegraphics{...}` path inside the figure env) to a per-figure scale
-    that replaces the default `scale` for that env.
+    `\\includegraphics{...}` path inside the env) to an *absolute* width
+    factor: when matched, every `width=N\\linewidth` inside the env is
+    rewritten to `width=<override>\\linewidth`, ignoring both the source
+    factor and the global `scale`. Useful when a specific figure needs to
+    render at a chosen width regardless of its source value.
 
-    Returns (rewritten_body, count_of_widths_scaled).
+    Returns (rewritten_body, count_of_widths_rewritten).
     """
     count = 0
     overrides = overrides or {}
 
-    def _scale_env(env_match: re.Match) -> str:
-        head, content, tail = env_match.group(1), env_match.group(2), env_match.group(3)
-        env_scale = scale
-        for needle, override in overrides.items():
-            if needle in content:
-                env_scale = float(override)
-                break
-
-        def _scale_w(wm: re.Match) -> str:
+    def _make_scaler(*, is_star: bool):
+        def _scale_env(env_match: re.Match) -> str:
             nonlocal count
-            num = wm.group(1)
-            try:
-                factor = float(num) if num else 1.0
-            except ValueError:
-                return wm.group(0)
-            count += 1
-            return f"width={factor * env_scale:.3g}\\linewidth"
+            head, content, tail = (
+                env_match.group(1),
+                env_match.group(2),
+                env_match.group(3),
+            )
+            override: float | None = None
+            for needle, val in overrides.items():
+                if needle in content:
+                    override = float(val)
+                    break
 
-        new_content = re.sub(r"width=([0-9.]*)\\linewidth", _scale_w, content)
-        return head + new_content + tail
+            if override is not None:
+
+                def _replace_w(_wm: re.Match) -> str:
+                    nonlocal count
+                    count += 1
+                    return f"width={override:.3g}\\linewidth"
+
+                new_content = re.sub(
+                    r"width=([0-9.]*)\\linewidth", _replace_w, content
+                )
+            elif not is_star:
+
+                def _scale_w(wm: re.Match) -> str:
+                    nonlocal count
+                    num = wm.group(1)
+                    try:
+                        factor = float(num) if num else 1.0
+                    except ValueError:
+                        return wm.group(0)
+                    count += 1
+                    return f"width={factor * scale:.3g}\\linewidth"
+
+                new_content = re.sub(
+                    r"width=([0-9.]*)\\linewidth", _scale_w, content
+                )
+            else:
+                new_content = content
+            return head + new_content + tail
+
+        return _scale_env
 
     body = re.sub(
         r"(\\begin\{figure\}(?:\[[^\]]*\])?)(.*?)(\\end\{figure\})",
-        _scale_env,
+        _make_scaler(is_star=False),
+        body,
+        flags=re.DOTALL,
+    )
+    body = re.sub(
+        r"(\\begin\{figure\*\}(?:\[[^\]]*\])?)(.*?)(\\end\{figure\*\})",
+        _make_scaler(is_star=True),
         body,
         flags=re.DOTALL,
     )
@@ -321,12 +358,6 @@ def _validate(output_tex: str, target_dir: Path, cfg: dict) -> list[str]:
         if n != expected:
             warnings.append(f"Expected {expected} \\section{{...}} blocks, found {n}")
 
-    warnings.extend(
-        f"Placeholder {ph!r} still present in output"
-        for ph in (cfg.get("placeholders") or {}).values()
-        if ph and ph in output_tex
-    )
-
     return warnings
 
 
@@ -381,31 +412,51 @@ def _assemble_body(src_tex: str, cfg: dict) -> tuple[str, str]:
     return abstract_text, body_text
 
 
+def _replace_between_markers(text: str, begin: str, end: str, payload: str) -> str:
+    """Replace whatever sits between `begin` and `end` markers in `text` with
+    `payload`. Markers themselves are preserved. Each must appear exactly once.
+    """
+    if text.count(begin) != 1:
+        raise RuntimeError(f"begin marker {begin!r} must appear exactly once in target")
+    if text.count(end) != 1:
+        raise RuntimeError(f"end marker {end!r} must appear exactly once in target")
+    start_idx = text.index(begin) + len(begin)
+    end_idx = text.index(end, start_idx)
+    if end_idx < start_idx:
+        raise RuntimeError(f"end marker {end!r} precedes begin marker {begin!r}")
+    return text[:start_idx] + "\n" + payload + "\n" + text[end_idx:]
+
+
 def build_arxiv(cfg: dict, *, dry_run: bool) -> list[dict]:
     src_path = PROJECT_ROOT / cfg["source_paper"]
-    template_path = PROJECT_ROOT / cfg["template_file"]
     target_path = PROJECT_ROOT / cfg["target_tex"]
 
     if not src_path.exists():
         raise RuntimeError(f"Source paper not found: {src_path}")
-    if not template_path.exists():
-        raise RuntimeError(f"Template file not found: {template_path}")
+    if not target_path.exists():
+        raise RuntimeError(f"Target scaffold not found: {target_path}")
 
     src_tex = src_path.read_text()
-    template = template_path.read_text()
-    placeholders = cfg["placeholders"]
+    scaffold = target_path.read_text()
+    regions = cfg["inject_regions"]
 
     abstract_text, body_text = _assemble_body(src_tex, cfg)
 
-    if placeholders["abstract"] not in template:
-        raise RuntimeError(
-            f"Abstract placeholder {placeholders['abstract']!r} not in template"
-        )
-    if placeholders["body"] not in template:
-        raise RuntimeError(f"Body placeholder {placeholders['body']!r} not in template")
-
-    output = template.replace(placeholders["abstract"], abstract_text)
-    output = output.replace(placeholders["body"], body_text)
+    abstract_payload = (
+        f"\\begin{{abstract}}\n{abstract_text}\n\\end{{abstract}}"
+    )
+    output = _replace_between_markers(
+        scaffold,
+        regions["abstract"]["begin"],
+        regions["abstract"]["end"],
+        abstract_payload,
+    )
+    output = _replace_between_markers(
+        output,
+        regions["body"]["begin"],
+        regions["body"]["end"],
+        body_text,
+    )
 
     actions: list[dict] = []
     action = "would write" if dry_run else "wrote"
