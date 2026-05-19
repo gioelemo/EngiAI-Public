@@ -132,9 +132,7 @@ def _scale_single_column_figures(
                     count += 1
                     return f"width={override:.3g}\\linewidth"
 
-                new_content = re.sub(
-                    r"width=([0-9.]*)\\linewidth", _replace_w, content
-                )
+                new_content = re.sub(r"width=([0-9.]*)\\linewidth", _replace_w, content)
             elif not is_star:
 
                 def _scale_w(wm: re.Match) -> str:
@@ -147,9 +145,7 @@ def _scale_single_column_figures(
                     count += 1
                     return f"width={factor * scale:.3g}\\linewidth"
 
-                new_content = re.sub(
-                    r"width=([0-9.]*)\\linewidth", _scale_w, content
-                )
+                new_content = re.sub(r"width=([0-9.]*)\\linewidth", _scale_w, content)
             else:
                 new_content = content
             return head + new_content + tail
@@ -442,9 +438,7 @@ def build_arxiv(cfg: dict, *, dry_run: bool) -> list[dict]:
 
     abstract_text, body_text = _assemble_body(src_tex, cfg)
 
-    abstract_payload = (
-        f"\\begin{{abstract}}\n{abstract_text}\n\\end{{abstract}}"
-    )
+    abstract_payload = f"\\begin{{abstract}}\n{abstract_text}\n\\end{{abstract}}"
     output = _replace_between_markers(
         scaffold,
         regions["abstract"]["begin"],
