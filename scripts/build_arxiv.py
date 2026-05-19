@@ -85,27 +85,43 @@ def _scale_single_column_table_files(tables_dir: Path, scale: float) -> int:
     return n
 
 
-def _scale_single_column_figures(body: str, scale: float) -> tuple[str, int]:
+def _scale_single_column_figures(
+    body: str,
+    scale: float,
+    overrides: dict[str, float] | None = None,
+) -> tuple[str, int]:
     """Scale every `width=N\\linewidth` inside a `\\begin{figure}` env (not
     `figure*`) by `scale`. IDETC's `figure` spans one ~3.25" column; arXiv's
     `\\linewidth` is ~6.5", so figures meant for one column render 2x too large.
     `figure*` is the two-column-spanning variant and is left alone.
+
+    `overrides` maps a filename substring (matched against any
+    `\\includegraphics{...}` path inside the figure env) to a per-figure scale
+    that replaces the default `scale` for that env.
+
     Returns (rewritten_body, count_of_widths_scaled).
     """
     count = 0
-
-    def _scale_w(wm: re.Match) -> str:
-        nonlocal count
-        num = wm.group(1)
-        try:
-            factor = float(num) if num else 1.0
-        except ValueError:
-            return wm.group(0)
-        count += 1
-        return f"width={factor * scale:.3g}\\linewidth"
+    overrides = overrides or {}
 
     def _scale_env(env_match: re.Match) -> str:
         head, content, tail = env_match.group(1), env_match.group(2), env_match.group(3)
+        env_scale = scale
+        for needle, override in overrides.items():
+            if needle in content:
+                env_scale = float(override)
+                break
+
+        def _scale_w(wm: re.Match) -> str:
+            nonlocal count
+            num = wm.group(1)
+            try:
+                factor = float(num) if num else 1.0
+            except ValueError:
+                return wm.group(0)
+            count += 1
+            return f"width={factor * env_scale:.3g}\\linewidth"
+
         new_content = re.sub(r"width=([0-9.]*)\\linewidth", _scale_w, content)
         return head + new_content + tail
 
@@ -344,7 +360,10 @@ def _assemble_body(src_tex: str, cfg: dict) -> tuple[str, str]:
 
     fig_scale = cfg.get("scale_single_column_figures")
     if fig_scale:
-        body_text, n_scaled = _scale_single_column_figures(body_text, float(fig_scale))
+        fig_overrides = cfg.get("figure_scale_overrides") or {}
+        body_text, n_scaled = _scale_single_column_figures(
+            body_text, float(fig_scale), fig_overrides
+        )
         if n_scaled:
             log.info(
                 "scaled %d single-column figure width(s) by %s", n_scaled, fig_scale
