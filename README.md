@@ -12,7 +12,7 @@
 
 EngiAI provides an AI-powered assistant for mechanical engineering design, integrating topology optimization, research retrieval, HPC simulation, and 3D printer control in a single conversational interface.
 
-📄 **Paper (arXiv):** *TBD — link to be added once the arXiv preprint is live.*
+📄 **Paper (arXiv):** https://arxiv.org/abs/2605.19743
 
 🎥 **Demo video:** https://www.youtube.com/watch?v=QbQVZFCq3X0
 
