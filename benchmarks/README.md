@@ -468,10 +468,13 @@ This is helpful for diagnosing issues and understanding agent behavior.
 If you use these benchmarks in your research, please cite:
 
 ```bibtex
-@software{engiai_benchmarks,
-  title = {EngiAI Benchmarks},
-  author = {Your Name},
-  year = {2024},
-  url = {https://github.com/gioelemo/EngiAI}
+@misc{molinari2026engiaimultiagentframeworkbenchmark,
+      title={EngiAI: A Multi-Agent Framework and Benchmark Suite for LLM-Driven Engineering Design}, 
+      author={Gioele Molinari and Florian Felten and Soheyl Massoudi and Mark Fuge},
+      year={2026},
+      eprint={2605.19743},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2605.19743}, 
 }
 ```

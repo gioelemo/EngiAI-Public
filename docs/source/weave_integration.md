@@ -42,8 +42,8 @@ python evaluate_agent.py \
 ```
 
 **📚 For complete documentation see:**
-- [**Benchmarks Overview**](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/README.md) - Available problems, datasets, and metrics
-- [**Evaluation Guide**](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/evaluations/README.md) - How to run evaluations and configure scorers
+- [**Benchmarks Overview**](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/README.md) - Available problems, datasets, and metrics
+- [**Evaluation Guide**](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/evaluations/README.md) - How to run evaluations and configure scorers
 
 ### Available Problem Types
 
@@ -55,7 +55,7 @@ Three engineering optimization problems are available:
 | **photonics2d** | 120×120 grids | Photonic devices | Transmission efficiency, volume |
 | **thermoelastic2d** | Variable size | Thermal structures | Compliance, thermal loss, volume |
 
-See [benchmarks/README.md](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/README.md) for detailed problem descriptions.
+See [benchmarks/README.md](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/README.md) for detailed problem descriptions.
 
 ## Evaluation Workflow
 
@@ -103,7 +103,7 @@ python evaluate_agent.py --problem beams2d --scorers all
 python evaluate_agent.py --problem beams2d --scorers task_completion
 ```
 
-See the [Evaluation Guide](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/evaluations/README.md) for scorer details.
+See the [Evaluation Guide](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/evaluations/README.md) for scorer details.
 
 ### 4. View Results
 
@@ -140,7 +140,7 @@ as a Weave scorer — they are computed offline by
 - **RVC (Ratio of Violated Constraints)**: Fraction of designs violating constraints (lower is better)
 - **Optimality Gap (IOG/COG/FOG)**: Distance from optimal solutions
 
-See [benchmarks/README.md](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/README.md#metrics) for detailed metric definitions.
+See [benchmarks/README.md](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/README.md#metrics) for detailed metric definitions.
 
 ## Advanced Usage
 
@@ -202,7 +202,7 @@ To add a new optimization problem to the benchmark suite:
 3. **Implement generator**: Create `generate_prompts.py` for your problem
 4. **Add dataset**: Create or reference HuggingFace dataset
 
-See the [Evaluation Guide](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/evaluations/README.md#adding-new-problem-types) for complete instructions.
+See the [Evaluation Guide](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/evaluations/README.md#adding-new-problem-types) for complete instructions.
 
 ## Best Practices
 
@@ -270,9 +270,9 @@ python evaluate_agent.py --problem beams2d --scorers custom  # Not supported
 
 ## Further Reading
 
-- [Benchmarks Overview](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/README.md) - Complete benchmark system documentation
-- [Evaluation Guide](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/evaluations/README.md) - Detailed evaluation instructions
-- [Problem Registry](https://github.com/gioelemo/EngiAI/blob/main/benchmarks/shared/problem_registry.py) - Problem configuration reference
+- [Benchmarks Overview](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/README.md) - Complete benchmark system documentation
+- [Evaluation Guide](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/evaluations/README.md) - Detailed evaluation instructions
+- [Problem Registry](https://github.com/gioelemo/EngiAI-Public/blob/main/benchmarks/shared/problem_registry.py) - Problem configuration reference
 - [Weave Documentation](https://docs.wandb.ai/weave) - Official Weave documentation
 
 ## Technical Integration Details
@@ -326,4 +326,4 @@ else:
     print("Weave disabled, using local logging")
 ```
 
-See [Weave Integration Utils](https://github.com/gioelemo/EngiAI/blob/main/src/utils/weave_integration.py) for implementation details.
+See [Weave Integration Utils](https://github.com/gioelemo/EngiAI-Public/blob/main/src/utils/weave_integration.py) for implementation details.

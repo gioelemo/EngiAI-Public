@@ -543,7 +543,7 @@ If your issue isn't covered here:
    tail -f data/*.log
    ```
 
-2. **Search GitHub Issues**: https://github.com/gioelemo/EngiAI/issues
+2. **Search GitHub Issues**: https://github.com/gioelemo/EngiAI-Public/issues
 
 3. **Open a new issue** with:
    - Operating system

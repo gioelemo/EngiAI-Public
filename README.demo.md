@@ -32,8 +32,8 @@ Reboot, then open the new Ubuntu terminal and finish the first-run setup.
 
 ```bash
 cd ~
-git clone git@github.com:gioelemo/EngiAI.git
-cd EngiAI
+git clone https://github.com/gioelemo/EngiAI-Public.git
+cd EngiAI-Public
 ```
 
 > **Windows / WSL only:** clone into the WSL filesystem (e.g. `~`), **not** under `/mnt/c/...`. Docker builds are dramatically slower across the Windows/WSL mount boundary and line endings can cause build issues.

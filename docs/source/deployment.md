@@ -75,7 +75,7 @@ unzip engiai-v1.0.0.zip -d engiai
 unzip prusa-mcp-server-v1.0.0.zip -d .
 
 # Navigate to the application directory
-cd EngiAI
+cd EngiAI-Public
 ```
 
 ### Step 3: Configure Environment Variables
@@ -424,7 +424,7 @@ crontab -e
 ## Support
 
 For issues and support:
-- GitHub Issues: https://github.com/gioelemo/EngiAI/issues
+- GitHub Issues: https://github.com/gioelemo/EngiAI-Public/issues
 - Documentation: https://gioelemo.github.io/EngiAI/
 
 ## Version
