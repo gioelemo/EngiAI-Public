@@ -39,8 +39,8 @@ See `services/prusa_mcp_server/README.md` for details.
 #### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/gioelemo/EngiAI.git
-cd EngiAI
+git clone https://github.com/gioelemo/EngiAI-Public.git
+cd EngiAI-Public
 ```
 
 #### 3. Configure Environment
@@ -119,7 +119,7 @@ For developers who want to modify the code or run without Docker.
 
 **First, navigate to the project directory:**
 ```bash
-cd EngiAI
+cd EngiAI-Public
 ```
 
 **Then follow the manual installation steps below.** Automated setup scripts are not currently provided.
@@ -129,8 +129,8 @@ cd EngiAI
 #### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/gioelemo/EngiAI.git
-cd EngiAI
+git clone https://github.com/gioelemo/EngiAI-Public.git
+cd EngiAI-Public
 ```
 
 #### Step 2: Create Conda Environment
@@ -280,7 +280,7 @@ If pre-commit hooks are causing issues:
 If you encounter issues not covered here:
 
 1. Check [Troubleshooting Guide](troubleshooting.md)
-2. Check existing [GitHub Issues](https://github.com/gioelemo/EngiAI/issues)
+2. Check existing [GitHub Issues](https://github.com/gioelemo/EngiAI-Public/issues)
 3. Open a new issue with:
    - Your operating system
    - Python version (`python --version`) or Docker version

@@ -8,7 +8,7 @@ Thank you for your interest in contributing to EngiAI! This document provides gu
 2. **Clone your fork**:
    ```bash
    git clone https://github.com/YOUR_USERNAME/engiai.git
-   cd EngiAI
+   cd EngiAI-Public
    ```
 3. **Create environment and install dependencies**:
    ```bash
@@ -291,8 +291,8 @@ Your PR should:
 
 ## Questions?
 
-- Open an [issue](https://github.com/gioelemo/EngiAI/issues) for bugs
-- Start a [discussion](https://github.com/gioelemo/EngiAI/discussions) for questions
+- Open an [issue](https://github.com/gioelemo/EngiAI-Public/issues) for bugs
+- Start a [discussion](https://github.com/gioelemo/EngiAI-Public/discussions) for questions
 - Join our community chat (if available)
 
 ## License

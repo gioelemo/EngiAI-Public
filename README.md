@@ -3,8 +3,8 @@
 </p>
 
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
-[![Python tests](https://github.com/gioelemo/EngiAI/actions/workflows/test.yml/badge.svg)](https://github.com/gioelemo/EngiAI/actions/workflows/test.yml)
-[![pre-commit](https://github.com/gioelemo/EngiAI/actions/workflows/pre-commit.yaml/badge.svg)](https://github.com/gioelemo/EngiAI/actions/workflows/pre-commit.yaml)
+[![Python tests](https://github.com/gioelemo/EngiAI-Public/actions/workflows/test.yml/badge.svg)](https://github.com/gioelemo/EngiAI-Public/actions/workflows/test.yml)
+[![pre-commit](https://github.com/gioelemo/EngiAI-Public/actions/workflows/pre-commit.yaml/badge.svg)](https://github.com/gioelemo/EngiAI-Public/actions/workflows/pre-commit.yaml)
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
@@ -23,8 +23,8 @@ EngiAI provides an AI-powered assistant for mechanical engineering design, integ
 **Full stack** (Docker):
 
 ```bash
-git clone https://github.com/gioelemo/EngiAI.git
-cd EngiAI
+git clone https://github.com/gioelemo/EngiAI-Public.git
+cd EngiAI-Public
 cp .env.example .env       # add OPENAI_API_KEY / GOOGLE_API_KEY / TAVILY_API_KEY
 docker compose up -d
 ```
@@ -82,5 +82,5 @@ tests/        # unit and integration tests
 ## Getting help
 
 - [Troubleshooting guide](docs/source/troubleshooting.md)
-- [GitHub Issues](https://github.com/gioelemo/EngiAI/issues)
+- [GitHub Issues](https://github.com/gioelemo/EngiAI-Public/issues)
 - Container logs: `docker compose logs -f`

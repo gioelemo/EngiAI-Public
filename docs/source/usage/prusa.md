@@ -375,7 +375,7 @@ ls -lh outputs/*.stl
 ## Further Reading
 
 - [Prusa Connect Documentation](https://help.prusa3d.com/guide/prusa-connect_245530)
-- [MCP Server Code](https://github.com/gioelemo/EngiAI/tree/main/services/prusa_mcp_server)
+- [MCP Server Code](https://github.com/gioelemo/EngiAI-Public/tree/main/services/prusa_mcp_server)
 - [Docker Deployment](../docker_deployment.md)
 - [Architecture Overview](../architecture.md)
 

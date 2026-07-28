@@ -157,14 +157,14 @@ Getting Help
 ============
 
 * **Troubleshooting**: See :doc:`troubleshooting` for common issues
-* **GitHub Issues**: `Report bugs or request features <https://github.com/gioelemo/EngiAI/issues>`_
+* **GitHub Issues**: `Report bugs or request features <https://github.com/gioelemo/EngiAI-Public/issues>`_
 * **Documentation**: Browse the guides in the sidebar
 * **Examples**: Check the ``scripts/`` directory in the repository
 
 Project Links
 =============
 
-* **GitHub**: https://github.com/gioelemo/EngiAI
+* **GitHub**: https://github.com/gioelemo/EngiAI-Public
 * **Documentation**: https://gioelemo.github.io/EngiAI/
 * **License**: MIT
 

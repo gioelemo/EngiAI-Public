@@ -25,8 +25,8 @@ The easiest and most reliable way to get started:
 ### 1. Clone and Navigate
 
 ```bash
-git clone https://github.com/gioelemo/EngiAI.git
-cd EngiAI
+git clone https://github.com/gioelemo/EngiAI-Public.git
+cd EngiAI-Public
 ```
 
 ### 2. Configure Environment
@@ -195,5 +195,5 @@ This allows the containerized assistant to:
 ## Need Help?
 
 - [Troubleshooting Guide](troubleshooting.md)
-- [GitHub Issues](https://github.com/gioelemo/EngiAI/issues)
+- [GitHub Issues](https://github.com/gioelemo/EngiAI-Public/issues)
 - Check the `scripts/` directory for code examples

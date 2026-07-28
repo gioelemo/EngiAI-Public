@@ -472,6 +472,6 @@ If you use these benchmarks in your research, please cite:
   title = {EngiAI Benchmarks},
   author = {Your Name},
   year = {2024},
-  url = {https://github.com/gioelemo/EngiAI}
+  url = {https://github.com/gioelemo/EngiAI-Public}
 }
 ```
