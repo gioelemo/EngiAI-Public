@@ -165,7 +165,6 @@ Project Links
 =============
 
 * **GitHub**: https://github.com/gioelemo/EngiAI-Public
-* **Documentation**: https://gioelemo.github.io/EngiAI/
 * **License**: MIT
 
 Indices and tables
